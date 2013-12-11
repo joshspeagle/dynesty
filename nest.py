@@ -1,4 +1,4 @@
-# Licensed under a 3-clause BSD style license - see LICENSE
+# Licensed under a 3-clause BSD style license - see LICENSE.rst
 """Simple implementation of nested sampling routine to evaluate Bayesian
 evidence."""
 
@@ -7,7 +7,6 @@ import time
 from sys import stdout
 
 import numpy as np
-from scipy.cluster.vq import kmeans2
 
 def randsphere(n):
     """Draw a random point within a n-dimensional unit sphere"""
@@ -15,44 +14,33 @@ def randsphere(n):
     z = np.random.randn(n)
     return z * np.random.rand()**(1./n) / np.sqrt(np.sum(z**2))
 
-def bounding_ellipsoid(x):
+def ellipsoid(X, expand=1.):
     """
-    Calculate bounding ellipsoid containing all samples x.
+    Calculate ellipsoid containing all samples X.
 
     Parameters
     ----------
-    x : (nobj, ndim) ndarray
+    X : (nobj, ndim) ndarray
         Coordinates of points.
+    expand : float, optional.
+        Expand the ellipsoid by this linear factor. Default is 1, which
+        corresponds to an ellipsoid that just barely encloses all the points.
+        Note that volume is increased by a factor of ``(expand)**ndim``
 
     Returns
     -------
-    scaled_cov : ndarray of shape (ndim, ndim)
-        (f * C) which is the covariance of the data points, C,
-        times an enlargement factor, f, that ensures that the ellipse
-        defined by ``x^T <dot> (fC)^{-1} <dot> x <= 1`` encloses
-        all points in the input set.
     vs : (ndim, ndim) ndarray
         Scaled eigenvectors (in columns): vs[:,i] is the i-th eigenvector.
-    x_mean : (ndim,) ndarray
-        Average coordinates of all samples.
+    mean : (ndim,) ndarray
+        Simple average of all samples.
 
     Notes
     -----
-    To get the scaled eigenvectors::
-
-        w, v = np.linalg.eig(scaled_cov)
-        vs = np.dot(v, np.diag(np.sqrt(w)))  # scaled eigenvectors
-
-
     For the 2-d case, to verify that the generated ellipse encloses all
     the points, the ellipse can be plotted using matplotlib on an existing
-    Axes  ``ax`` as follows::
+    Axes  ``ax`` as follows:
 
         from matplotlib.patches import Ellipse
-
-        # get scaled eigenvectors
-        w, v = np.linalg.eig(scaled_cov)
-        vs = np.dot(v, np.diag(np.sqrt(w)))  # scaled eigenvectors
 
         width = np.sqrt(np.sum(vs[:,1]**2)) * 2.
         height = np.sqrt(np.sum(vs[:,0]**2)) * 2.
@@ -67,56 +55,36 @@ def bounding_ellipsoid(x):
             plt.arrow(mean[0], mean[1], vs[0, i], vs[1, i])
     """
 
-    x_mean = np.mean(x, axis=0)
-    x_prime = x - x_mean
-    cov = np.cov(x_prime, rowvar=0)
+    X_avg = np.mean(X, axis=0)
+    Xp = X - X_avg
+    c = np.cov(Xp, rowvar=0)
+    cinv = np.linalg.inv(c)
+    w, v = np.linalg.eig(c)
+    vs = np.dot(v, np.diag(np.sqrt(w)))  # scaled eigenvectors
+
+    # Calculate 'k' factor
+    k = np.empty(len(X), dtype=np.float)
+
+    #for i in range(len(k)):
+    #    k[i] = np.dot(np.dot(Xp[i,:], cinv), Xp[i,:])
     
-    # calculate expansion factor necessary to bound all the points
-    factors = np.empty(len(x), dtype=np.float)
-    cov_inv = np.linalg.inv(cov)
-    for i in range(len(x)):
-        factors[i] = np.dot(np.dot(x_prime[i,:], cov_inv), x_prime[i,:])
-    f = np.sqrt(np.max(factors))
+    # equivalent to above:
+    tmp = np.tensordot(Xp, cinv, axes=1)
+    for i in range(len(k)):
+        k[i] = np.dot(tmp[i,:], Xp[i,:])
 
-    return f * cov, x_mean
+    k = np.max(k)
 
-def ellipsoid_volume(scaled_cov):
-    """
-    Parameters
-    ----------
-    scaled_cov : (ndim, ndim) ndarray
-        Scaled covariance matrix.
+    return np.sqrt(k) * expand * vs, X_avg
 
-    Returns
-    -------
-    volume : float
-    """
-    vol = np.sqrt(np.det(scaled_cov))
-
-    # proportionality constant depending on dimension
-    ndim = len(scaled_cov)
-    if ndim % 2 == 0:
-        i = 2
-        while i <= ndim:
-            vol *= (2. / i * np.pi)
-            i += 2
-    else:
-        vol *= 2.
-        i = 3
-        while i <= ndim:
-            vol *= (2. / i * np.pi)
-            i += 2
-
-    return vol
-
-def sample_ellipsoid(scaled_cov, x_mean, nsamples=1):
+def sample_ellipsoid(vs, mean, nsamples=1):
     """Chose sample(s) randomly distributed within an ellipsoid.
     
     Parameters
     ----------
-    scaled_cov : (ndim, ndim) ndarray
-        Scaled covariance matrix.
-    x_mean : (ndim,) ndarray
+    vs : (ndim, ndim) ndarray
+        Scaled eigenvectors (in columns): vs[:,i] is the i-th eigenvector.
+    mean : (ndim,) ndarray
         Simple average of all samples.
 
     Returns
@@ -125,104 +93,14 @@ def sample_ellipsoid(scaled_cov, x_mean, nsamples=1):
         Coordinates within the ellipsoid.
     """
 
-    # Get scaled eigenvectors (in columns): vs[:,i] is the i-th eigenvector.
-    w, v = np.linalg.eig(scaled_cov)
-    vs = np.dot(v, np.diag(np.sqrt(w)))
-
-    ndim = len(x_mean)
+    ndim = len(mean)
     if nsamples == 1:
-        return np.dot(vs, randsphere(ndim)) + x_mean
+        return np.dot(vs, randsphere(ndim)) + mean
 
     x = np.empty((nsamples, ndim), dtype=np.float)
     for i in range(nsamples):
-        x[i, :] = np.dot(vs, randsphere(ndim)) + x_mean
+        x[i, :] = np.dot(vs, randsphere(ndim)) + mean
     return x
-
-def bounding_ellipsoids(x, min_vol, ellipsoid=None, ellipsoid_vol=None):
-    """Calculate a set of ellipses that bound the points.
-
-    Parameters
-    ----------
-    x : (nobj, ndim) ndarray
-        Coordinates of points.
-    min_vol : float
-        Minimum allowed volume of ellipses enclosing points.
-    ellipsoid : (float, float), optional
-        If known, the bounding ellipsoid of the points `x`. (If not supplied,
-        it will be calculated.
-    ellipsoid_vol : float, optional
-
-    Returns
-    -------
-    ellipsoids : list of 2-tuples
-        Ellipsoids, each represented by a tuple: ``(scaled_cov, x_mean)``
-    """
-
-    ellipses = []
-    nobj, ndim = x.shape   
-
-    # Calculate bounding ellipsoid for all the points, if not already known.
-    if ellipsoid is None:
-        ellipsoid = bounding_ellipsoid(x) 
-        ellipsoid_vol = ellipsoid_volume(ellipsoid[0])
-
-        # enlarge ellipse so that it has at least the minimum volume
-        if ellipsoid_vol < min_vol:
-            ellipsoid[0] *= (min_vol / ellipsoid_vol) ** (1./ndim)
-            ellipsoid_vol = min_vol
-
-    # Split points into two clusters using k-means clustering with k=2
-    # centroid = (2, ndim) ; label = (nobj,)
-    centroid, label = kmeans2(x, 2, iter=10)
-
-    recalculate = True
-    while recalculate:
-
-        # calculate bounding ellipse of each set
-        # (entries in `label` should be 0 or 1
-        # corresponding to the cluster num)
-        cluster_x = []
-        cluster_ellipsoids = [] # 2-tuples of (scaled_cov, x_mean)
-        for k in [0, 1]:            
-            x_k = x[label == k, :] # points in this cluster
-            n_k = len(x_k)
-            cluster_ellipsoids = bounding_ellipsoid(x_k)  # ellipse around points
-            evol_k = ellipsoid_volume(vs_k) # volume of ellipse
-
-            # enlarge ellipse so that it is at least as large as the fractional
-            # volume according to the number of points in the cluster
-            min_vol_k = min_vol * n_k / nobj
-            if evol_k < min_vol_k:
-                vs_k *= (min_vol_k / evol_k) ** (1./ndim)
-
-            # save ellipse and points
-            cluster_X.append(X_k)
-            cluster_ell.append((vs_k, mean_k))
-
-        # reassign each point to the cluster that gives it the smallest h_k:
-        #
-        # h_k(point) = V_k(actual) / V_k(expected) * d_k(point)
-        #
-        # where
-        #
-        # V_k(actual) = volume of ellipsoid k
-        # V_k(expected) = n_k / N * e^(-i/N)   <-- iteration i
-        # d_k(point) = Mahalanobis distance
-
-        # mahalanobis distance squared:
-        # delta = u - v
-        # m = np.dot(np.dot(delta, VI), delta)
-        # 
-        # where in this case, VI = (f * C)^-1
-
-        # if (no points were reassigned):
-        #     recalculate = False
-   
-    # if V(E_1) + V(E_2) < V(E) or V(E) > 2V(S):
-    #     perform entire algorithm on each subset
-    # Otherwise the Full ellipse E is good, return it.
-
-
 
 def nest(loglikelihood, prior, npar, nobj=50, maxiter=10000,
          verbose=False, verbose_name=''):
@@ -317,10 +195,10 @@ def nest(loglikelihood, prior, npar, nobj=50, maxiter=10000,
     for it in range(maxiter):
         if verbose:
             if logz > -1.e6:
-                print "\r{} iter={:6d} logz={:8f}".format(verbose_name, it,
-                                                          logz),
+                print "\r{0} iter={1:6d} logz={2:8f}".format(verbose_name, it,
+                                                             logz),
             else:
-                print "\r{} iter={:6d} logz=".format(verbose_name, it),
+                print "\r{0} iter={1:6d} logz=".format(verbose_name, it),
             stdout.flush()
 
         # worst object in collection and its weight (= width * likelihood)
@@ -377,7 +255,7 @@ def nest(loglikelihood, prior, npar, nobj=50, maxiter=10000,
 
     tottime = time.time() - time0
     if verbose:
-        print 'calls={:d} time={:7.3f}s'.format(loglcalls, tottime)
+        print 'calls={0:d} time={1:7.3f}s'.format(loglcalls, tottime)
 
     # Add remaining objects.
     # After N samples have been taken out, the remaining width is e^(-N/nobj)
@@ -395,14 +273,15 @@ def nest(loglikelihood, prior, npar, nobj=50, maxiter=10000,
         samples_parvals.append(np.array(objects_v[i]))
         samples_logwt.append(logwt)
 
-    return {
-        'niter': it + 1,
-        'ncalls': loglcalls,
-        'time': tottime,
-        'logz': logz,
-        'logzerr': math.sqrt(h / nobj),
-        'loglmax': np.max(objects_logl),
-        'h': h,
-        'samples_parvals': np.array(samples_parvals),  #(nsamp, npar)
-        'samples_wt':  np.exp(np.array(samples_logwt) - logz)  #(nsamp,)
-        }
+    return dict([
+        ('niter', it + 1),
+        ('ncall', loglcalls),
+        ('time', tottime),
+        ('logz', logz),
+        ('logzerr', math.sqrt(h / nobj)),
+        ('loglmax', np.max(objects_logl)),
+        ('h', h),
+        ('samples', np.array(samples_parvals)),  #(nsamp, npar)
+        ('weights', np.exp(np.array(samples_logwt) - logz))  #(nsamp,)
+        ])
+

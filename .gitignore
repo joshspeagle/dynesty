@@ -36,3 +36,7 @@ nosetests.xml
 
 # emacs
 *~
+
+# cache files
+.cache
+*.ipynb_checkpoints

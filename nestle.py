@@ -100,8 +100,7 @@ def ellipsoid(X, expand=1.):
     # for i in range(len(k)):
     #     k[i] = np.dot(np.dot(Xp[i,:], cinv), Xp[i,:])
     tmp = np.tensordot(Xp, cinv, axes=1)
-    for i in range(len(k)):
-        k[i] = np.dot(tmp[i, :], Xp[i, :])
+    k = np.einsum('...i, ...i', tmp, Xp)
 
     k = np.max(k)
 

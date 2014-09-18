@@ -22,7 +22,7 @@ def choice(p):
         t += p[i]
         
 class Ellipsoid(object):
-    def __init__(ctr, cov, icov, vol):
+    def __init__(self, ctr, cov, icov, vol):
         self.ctr = ctr    # center coordinates
         self.cov = cov    # covariance
         self.icov = icov  # cov^-1
@@ -33,7 +33,7 @@ class Ellipsoid(object):
         factor = (vol / self.vol) ** (1./ndim)
         self.cov *= factor
         self.icov /= factor
-        self.vol = min_vol
+        self.vol = vol
 
 def bounding_ellipsoid(x):
     """
@@ -46,60 +46,65 @@ def bounding_ellipsoid(x):
 
     Returns
     -------
-    scaled_cov : ndarray of shape (ndim, ndim)
-        (f * C) which is the covariance of the data points, C,
-        times an enlargement factor, f, that ensures that the ellipse
-        defined by ``x^T <dot> (fC)^{-1} <dot> x <= 1`` encloses
-        all points in the input set.
-    x_mean : (ndim,) ndarray
-        Average coordinates of all samples.
+    ellipsoid : Ellipsoid
+        Attributes are:
+        * ``ctr`` ndarray of shape (ndim,)
 
-    Notes
-    -----
-    To get the scaled eigenvectors::
+        * ``cov`` ndarray of shape (ndim, ndim)
+          (f * C) which is the covariance of the data points, C,
+          times an enlargement factor, f, that ensures that the ellipse
+          defined by ``x^T <dot> (fC)^{-1} <dot> x <= 1`` encloses
+          all points in the input set.
 
-        w, v = np.linalg.eig(scaled_cov)
-        vs = np.dot(v, np.diag(np.sqrt(w)))  # scaled eigenvectors
-
-
-    For the 2-d case, to verify that the generated ellipse encloses all
-    the points, the ellipse can be plotted using matplotlib on an existing
-    Axes  ``ax`` as follows::
-
-        from matplotlib.patches import Ellipse
-
-        # get scaled eigenvectors
-        w, v = np.linalg.eig(scaled_cov)
-        vs = np.dot(v, np.diag(np.sqrt(w)))  # scaled eigenvectors
-
-        width = np.sqrt(np.sum(vs[:,1]**2)) * 2.
-        height = np.sqrt(np.sum(vs[:,0]**2)) * 2.
-        angle = math.atan(vs[1,1] / vs[0,1]) * 180./math.pi
-        e = Ellipse(mean, width, height, angle)
-        e.set_facecolor('None')
-        ax.add_artist(e)
-
-    To draw the vectors ``vs``:
-    
-        for i in [0,1]:
-            plt.arrow(mean[0], mean[1], vs[0, i], vs[1, i])
+        * ``icov`` Inverse of cov.
+        * ``vol`` Ellipse volume.
     """
 
     ctr = np.mean(x, axis=0)
     delta = x - ctr
     cov = np.cov(delta, rowvar=0)
-    
-    # calculate expansion factor necessary to bound all the points
-    factors = np.empty(len(x), dtype=np.float)
     icov = np.linalg.inv(cov)
-    for i in range(len(x)):
-        factors[i] = np.dot(np.dot(delta[i,:], icov), delta[i,:])
-    f = np.sqrt(np.max(factors))
-    cov = f * cov
 
+    # calculate expansion factor necessary to bound all the points
+    f = np.empty(len(x), dtype=np.float)
+    for i in range(len(x)):
+        f[i] = np.dot(np.dot(delta[i,:], icov), delta[i,:])
+    fmax = np.max(f)
+
+    cov = fmax * cov
+    icov = icov / fmax
     vol = ellipsoid_volume(cov)
 
     return Ellipsoid(ctr, cov, icov, vol)
+
+def vol_factor(ndim):
+    """
+    if n is even:
+
+    (2pi)^(n/2) / (2 * 4 * ... * n)
+
+    if n is odd:
+
+    2 * (2pi)^((n-1)/2) / (1 * 3 * ... * n)
+    """
+
+    if ndim % 2 == 0:
+        f = 1.
+        i = 2
+    else:
+        f = 2.
+        i = 3
+
+    while i <= ndim:
+        f *= (2. / i * np.pi)
+        i += 2
+    return f
+
+def spheroid_volume(ndim, r):
+    return vol_factor(ndim) * r**ndim
+
+def spheroid_radius(ndim, v):
+    return (v / vol_factor(ndim))**(1./ndim)
 
 def ellipsoid_volume(scaled_cov):
     """
@@ -112,7 +117,7 @@ def ellipsoid_volume(scaled_cov):
     -------
     volume : float
     """
-    vol = np.sqrt(np.det(scaled_cov))
+    vol = np.sqrt(np.linalg.det(scaled_cov))
 
     # proportionality constant depending on dimension
     ndim = len(scaled_cov)
@@ -130,7 +135,7 @@ def ellipsoid_volume(scaled_cov):
 
     return vol
 
-def bounding_ellipsoids(x, min_vol, ellipsoid=None):
+def bounding_ellipsoids(x, min_vol=None, ellipsoid=None):
     """Calculate a set of ellipses that bound the points.
 
     Parameters
@@ -160,7 +165,7 @@ def bounding_ellipsoids(x, min_vol, ellipsoid=None):
     # volume.
     if ellipsoid is None:
         ellipsoid = bounding_ellipsoid(x) 
-        if ellipsoid.vol < min_vol:
+        if min_vol is not None and ellipsoid.vol < min_vol:
             ellipsoid.scale_to_vol(min_vol)
 
     # Split points into two clusters using k-means clustering with k=2
@@ -180,9 +185,12 @@ def bounding_ellipsoids(x, min_vol, ellipsoid=None):
 
             # enlarge ellipse so that it is at least as large as the fractional
             # volume according to the number of points in the cluster
-            min_vol_k = min_vol * float(len(x_k)) / float(nobj)
-            if ellipsoid_k.vol < min_vol_k:
-                ellipsoid_k.scale_to_vol(min_vol_k)
+            if min_vol is not None:
+                min_vol_k = min_vol * float(len(x_k)) / float(nobj)
+                if ellipsoid_k.vol < min_vol_k:
+                    ellipsoid_k.scale_to_vol(min_vol_k)
+            else:
+                min_vol_k = None
 
             # Calculate mahalanobis distance between ALL points and the
             # current cluster. The mahalanobis distance squared is given by:
@@ -198,8 +206,11 @@ def bounding_ellipsoids(x, min_vol, ellipsoid=None):
             # Multiply by ellipse ratio:
             # h_k(point) = V_k(actual) / V_k(expected) * d_k(point)
             # TODO: d is M. distance *squared*. Should it not be squared?
-            h.append((ellipsoid_k.vol / min_vol_k) * d)
-            
+            if min_vol_k is not None:
+                h.append((ellipsoid_k.vol / min_vol_k) * d)
+            else:
+                h.append(d)
+
             # Save cluster info, in case we exit on this iteration
             cluster_x[k] = x_k
             cluster_ellipsoids[k] = ellipsoid_k
@@ -221,12 +232,12 @@ def bounding_ellipsoids(x, min_vol, ellipsoid=None):
             
     # if V(E_1) + V(E_2) < V(E) or V(E) > 2V(S):
     # perform entire algorithm on each subset
-    if (cluster_ellipsoids[0].vol+cluster_ellipsoids[1].vol < ellipsoid_vol or
-        ellipsoid_vol > 2. * min_vol):
+    if (cluster_ellipsoids[0].vol+cluster_ellipsoids[1].vol < ellipsoid.vol or
+        (min_vol is not None and ellipsoid.vol > 2. * min_vol)):
         for k in [0, 1]:
             ellipsoids.extend(
                 bounding_ellipsoids(cluster_x[k],
-                                    cluster_expectvols[k],
+                                    min_vol=cluster_expectvols[k],
                                     ellipsoid=cluster_ellipsoids[k]))
 
     # Otherwise, the full ellipse is fine; just return that.

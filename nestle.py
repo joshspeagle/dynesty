@@ -134,7 +134,7 @@ def sample_ellipsoid(vs, mean, nsamples=1):
     return x
 
 
-def nest(loglikelihood, prior, npar, nipar, nobj=50, maxiter=10000,
+def nest(loglikelihood, prior, npar, nipar=None, nobj=50, maxiter=10000,
          verbose=False, verbose_name=''):
     """Simple nested sampling algorithm to evaluate Bayesian evidence.
 
@@ -209,6 +209,9 @@ def nest(loglikelihood, prior, npar, nipar, nobj=50, maxiter=10000,
     http://www.inference.phy.cam.ac.uk/bayesys/
     Shaw, Bridges, Hobson 2007, MNRAS, 378, 1365
     """
+
+    if nipar is None:
+        nipar = npar
 
     # Initialize objects and calculate likelihoods
     objects_u = np.random.random((nobj, nipar))  # position in unit cube

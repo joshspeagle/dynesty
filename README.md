@@ -18,7 +18,7 @@ Install
 Usage
 -----
 
-```
+```python
 import numpy as np
 import nestle
 
@@ -42,6 +42,9 @@ def loglikelihood(theta):
 def prior(x):
     return 10.0 * x - 5.0
 
+# Run nested sampling.
+res = nestle.nest(loglikelihood, prior, 2)
+
 res.logz  # log evidence
 res.logzerr  # numerical uncertainty on log evidence
 res.samples  # array of sample parameters
@@ -51,7 +54,7 @@ res.keys()   # list of all attributes of `res`
 
 View the docstring:
 
-```
+```python
 import nestle
 help(nestle.nest)
 ```

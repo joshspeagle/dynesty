@@ -8,11 +8,42 @@ from sys import stdout
 
 import numpy as np
 
+
+class Result(dict):
+    """Represents an optimization result.
+
+    Notes
+    -----
+    This is a cut and paste from scipy, normally imported with `from
+    scipy.optimize import Result`. However, it isn't available in
+    scipy 0.9 (or possibly 0.10), so it is included here.
+    Since this class is essentially a subclass of dict with attribute
+    accessors, one can see which attributes are available using the
+    `keys()` method.
+    """
+    def __getattr__(self, name):
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(name)
+
+    __setattr__ = dict.__setitem__
+    __delattr__ = dict.__delitem__
+
+    def __repr__(self):
+        if self.keys():
+            m = max(map(len, list(self.keys()))) + 1
+            return '\n'.join([k.rjust(m) + ': ' + repr(v)
+                              for k, v in self.items()])
+        else:
+            return self.__class__.__name__ + "()"
+
 def randsphere(n):
     """Draw a random point within a n-dimensional unit sphere"""
 
     z = np.random.randn(n)
     return z * np.random.rand()**(1./n) / np.sqrt(np.sum(z**2))
+
 
 def ellipsoid(X, expand=1.):
     """
@@ -50,7 +81,7 @@ def ellipsoid(X, expand=1.):
         ax.add_artist(e)
 
     To draw the vectors ``vs``:
-    
+
         for i in [0,1]:
             plt.arrow(mean[0], mean[1], vs[0, i], vs[1, i])
     """
@@ -65,21 +96,21 @@ def ellipsoid(X, expand=1.):
     # Calculate 'k' factor
     k = np.empty(len(X), dtype=np.float)
 
-    #for i in range(len(k)):
-    #    k[i] = np.dot(np.dot(Xp[i,:], cinv), Xp[i,:])
-    
-    # equivalent to above:
+    # The lines below should be equivalent to:
+    # for i in range(len(k)):
+    #     k[i] = np.dot(np.dot(Xp[i,:], cinv), Xp[i,:])
     tmp = np.tensordot(Xp, cinv, axes=1)
     for i in range(len(k)):
-        k[i] = np.dot(tmp[i,:], Xp[i,:])
+        k[i] = np.dot(tmp[i, :], Xp[i, :])
 
     k = np.max(k)
 
     return np.sqrt(k) * expand * vs, X_avg
 
+
 def sample_ellipsoid(vs, mean, nsamples=1):
     """Chose sample(s) randomly distributed within an ellipsoid.
-    
+
     Parameters
     ----------
     vs : (ndim, ndim) ndarray
@@ -102,7 +133,8 @@ def sample_ellipsoid(vs, mean, nsamples=1):
         x[i, :] = np.dot(vs, randsphere(ndim)) + mean
     return x
 
-def nest(loglikelihood, prior, npar, nobj=50, maxiter=10000,
+
+def nest(loglikelihood, prior, npar, nipar, nobj=50, maxiter=10000,
          verbose=False, verbose_name=''):
     """Simple nested sampling algorithm to evaluate Bayesian evidence.
 
@@ -110,9 +142,9 @@ def nest(loglikelihood, prior, npar, nobj=50, maxiter=10000,
     ----------
     loglikelihood : func
         Function returning log(likelihood) given parameters as a 1-d numpy
-        array of length `npar`. 
+        array of length `npar`.
     prior : func
-        Function translating a unit cube to the parameter space according to 
+        Function translating a unit cube to the parameter space according to
         the prior. The input is a 1-d numpy array with length `npar`, where
         each value is in the range [0, 1). The return value should also be a
         1-d numpy array with length `npar`, where each value is a parameter.
@@ -124,7 +156,12 @@ def nest(loglikelihood, prior, npar, nobj=50, maxiter=10000,
                 return 2. * u
 
     npar : int
-        Number of parameters.
+        Number of parameters returned by prior and accepted by loglikelihood.
+    nipar : int
+        Number of parameters accepted by prior. This might differ from npar
+        in the case where a parameter of loglikelihood is dependent upon
+        multiple independently distributed parameters, some of which may be
+        nuisance parameters.
     nobj : int, optional
         Number of random samples. Larger numbers result in a more finely
         sampled posterior (more accurate evidence), but also a larger
@@ -144,23 +181,26 @@ def nest(loglikelihood, prior, npar, nobj=50, maxiter=10000,
     results : dict
         Containing following keys:
 
-        * `niter` (int) number of iterations.
-        * `ncalls` (int) number of likelihood calls.
-        * `time` (float) time in seconds.
-        * `logz` (float) log of evidence.
-        * `logzerr` (float) error on `logz`.
-        * `loglmax` (float) Maximum likelihood of any sample.
-        * `h` (float) information.
-        * `samples_parvals` (array, shape=(nsamples, npar)) parameter values
+        * ``niter`` (int) number of iterations.
+        * ``ncalls`` (int) number of likelihood calls.
+        * ``time`` (float) time in seconds.
+        * ``logz`` (float) log of evidence.
+        * ``logzerr`` (float) error on ``logz``.
+        * ``loglmax`` (float) Maximum likelihood of any sample.
+        * ``h`` (float) information.
+        * ``samples`` (array, shape=(nsamples, npar)) parameter values
           of each sample.
-        * `samples_wt` (array, shape=(nsamples,) Weight of each sample.
+        * ``weights`` (array, shape=(nsamples,)) Weight of each sample.
+        * ``logprior`` (array, shape=(nsamples,)) log(Prior volume) of
+          each sample.
+        * ``logl`` (array, shape=(nsamples,)) log(Likelihood) of each sample.
 
     Notes
     -----
     This is an implementation of John Skilling's Nested Sampling algorithm,
     following the ellipsoidal sampling algorithm in Shaw et al (2007). Only a
     single ellipsoid is used.
-    
+
     Sample Weights are ``likelihood * prior_vol`` where
     prior_vol is the fraction of the prior volume the sample represents.
 
@@ -171,22 +211,24 @@ def nest(loglikelihood, prior, npar, nobj=50, maxiter=10000,
     """
 
     # Initialize objects and calculate likelihoods
-    objects_u = np.random.random((nobj, npar)) #position in unit cube
-    objects_v = np.empty((nobj, npar), dtype=np.float) #position in unit cube
+    objects_u = np.random.random((nobj, nipar))  # position in unit cube
+    objects_v = np.empty((nobj, npar), dtype=np.float)  # position in unit cube
     objects_logl = np.empty(nobj, dtype=np.float)  # log likelihood
     for i in range(nobj):
-        objects_v[i,:] = prior(objects_u[i,:])
-        objects_logl[i] = loglikelihood(objects_v[i,:])
+        objects_v[i, :] = prior(objects_u[i, :])
+        objects_logl[i] = loglikelihood(objects_v[i, :])
 
     # Initialize values for nested sampling loop.
-    samples_parvals = [] # stored objects for posterior results
+    samples_parvals = []  # stored objects for posterior results
+    samples_logl = []
+    samples_logprior = []
     samples_logwt = []
     loglstar = None  # ln(Likelihood constraint)
     h = 0.  # Information, initially 0.
     logz = -1.e300  # ln(Evidence Z, initially 0)
     # ln(width in prior mass), outermost width is 1 - e^(-1/n)
     logwidth = math.log(1. - math.exp(-1./nobj))
-    loglcalls = nobj #number of calls we already made
+    loglcalls = nobj  # number of calls we already made
 
     # Nested sampling loop.
     ndecl = 0
@@ -215,6 +257,8 @@ def nest(loglikelihood, prior, npar, nobj=50, maxiter=10000,
         # Add worst object to samples.
         samples_parvals.append(np.array(objects_v[worst]))
         samples_logwt.append(logwt)
+        samples_logprior.append(logwidth)
+        samples_logl.append(objects_logl[worst])
 
         # The new likelihood constraint is that of the worst object.
         loglstar = objects_logl[worst]
@@ -243,13 +287,13 @@ def nest(loglikelihood, prior, npar, nobj=50, maxiter=10000,
         # Shrink interval
         logwidth -= 1./nobj
 
-        # stop when the logwt has been declining for more than 10 or niter/4
-        # consecutive iterations.
+        # stop when the logwt has been declining for more than nobj* 2
+        # or niter/4 consecutive iterations.
         if logwt < logwt_old:
             ndecl += 1
         else:
             ndecl = 0
-        if ndecl > 10 and ndecl > it / 6:
+        if ndecl > nobj * 2 and ndecl > it / 6:
             break
         logwt_old = logwt
 
@@ -272,8 +316,10 @@ def nest(loglikelihood, prior, npar, nobj=50, maxiter=10000,
         logz = logz_new
         samples_parvals.append(np.array(objects_v[i]))
         samples_logwt.append(logwt)
+        samples_logl.append(objects_logl[i])
+        samples_logprior.append(logwidth)
 
-    return dict([
+    return Result([
         ('niter', it + 1),
         ('ncall', loglcalls),
         ('time', tottime),
@@ -281,7 +327,8 @@ def nest(loglikelihood, prior, npar, nobj=50, maxiter=10000,
         ('logzerr', math.sqrt(h / nobj)),
         ('loglmax', np.max(objects_logl)),
         ('h', h),
-        ('samples', np.array(samples_parvals)),  #(nsamp, npar)
-        ('weights', np.exp(np.array(samples_logwt) - logz))  #(nsamp,)
+        ('samples', np.array(samples_parvals)),  # (nsamp, npar)
+        ('weights', np.exp(np.array(samples_logwt) - logz)),  # (nsamp,)
+        ('logprior', np.array(samples_logprior)),  # (nsamp,)
+        ('logl', np.array(samples_logl))  # (nsamp,)
         ])
-

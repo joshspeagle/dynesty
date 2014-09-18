@@ -32,11 +32,11 @@ def prior(x):
 def test_two_gaussian_nest():
     # (Approximate) analytic evidence for two identical Gaussian blobs,
     # over a uniform prior [-5:5][-5:5] with density 1/100 in this domain:
-    analytic_evidence = np.log(2.0 * 2.0*np.pi*sigma*sigma / 100.0)
+    analytic_logz = np.log(2.0 * 2.0*np.pi*sigma*sigma / 100.0)
 
     res = nestle.nest(logl, prior, 2, nobj=100)
 
     print "logz =", res.logz, " +/- ", res.logzerr
-    print "analytic", analytic_evidence
+    print "analytic_logz", analytic_logz
 
 test_two_gaussian_nest()

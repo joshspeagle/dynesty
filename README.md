@@ -1,7 +1,7 @@
 nestle
 ======
 
-*/ˈnesəl/*
+*/ˈnesəl/* (rhymes with "wrestle")
 
 Pure Python implementation of nested sampling algorithms for
 evaluating Bayesian evidence.

@@ -59,6 +59,14 @@ import nestle
 help(nestle.nest)
 ```
 
+Run test(s)
+-----------
+Requires `test.py` to be installed.
+
+```
+./test.py
+```
+
 Notes
 -----
 

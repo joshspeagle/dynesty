@@ -61,6 +61,12 @@ import nestle
 help(nestle.nest)
 ```
 
+Examples
+--------
+
+Check out some [examples](http://nbviewer.ipython.org/github/kbarbary/nestle/tree/master/examples/)!
+
+
 Run test(s)
 -----------
 Requires `py.test` to be installed.
@@ -85,9 +91,10 @@ The goal:
 License
 -------
 
-BSD.
+The license is MIT. See `LICENSE.md`.
 
 Contributors
 ------------
 
-@ipashchenko
+- @ipashchenko
+- @RuthAngus

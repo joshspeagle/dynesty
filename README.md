@@ -1,7 +1,7 @@
 nestle
 ======
 
-*/ˈnesəl/* (rhymes with "wrestle")
+/ˈnesəl/ (rhymes with "wrestle")
 
 Pure Python implementation of nested sampling algorithms for
 evaluating Bayesian evidence.
@@ -61,15 +61,20 @@ import nestle
 help(nestle.nest)
 ```
 
+
 Examples
 --------
 
-Check out some [examples](http://nbviewer.ipython.org/github/kbarbary/nestle/tree/master/examples/)!
+Check out some example notebooks! These can also be found in the `examples`
+directory.
+
+* [Fitting a line](http://nbviewer.ipython.org/github/kbarbary/nestle/tree/master/examples/line.ipynb)
+* [Eggbox likelihood](http://nbviewer.ipython.org/github/kbarbary/nestle/tree/master/examples/line.ipynb)
 
 
 Run test(s)
 -----------
-Requires `py.test` to be installed.
+Requires the `pytest` package to be installed.
 
 ```
 ./test.py

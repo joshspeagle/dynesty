@@ -69,7 +69,7 @@ Check out some example notebooks! These can also be found in the `examples`
 directory.
 
 * [Fitting a line](http://nbviewer.ipython.org/github/kbarbary/nestle/tree/master/examples/line.ipynb)
-* [Eggbox likelihood](http://nbviewer.ipython.org/github/kbarbary/nestle/tree/master/examples/line.ipynb)
+* [Eggbox likelihood](http://nbviewer.ipython.org/github/kbarbary/nestle/tree/master/examples/eggbox.ipynb)
 
 
 Run test(s)

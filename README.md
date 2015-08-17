@@ -8,6 +8,7 @@ evaluating Bayesian evidence.
 
 [![Build Status](https://api.travis-ci.org/kbarbary/nestle.svg)](https://travis-ci.org/kbarbary/nestle)
 
+**Currently in a development (e.g., not working) state!**
 
 Install
 -------
@@ -45,9 +46,9 @@ def prior(x):
     return 10.0 * x - 5.0
 
 # Run nested sampling.
-res = nestle.nest(loglikelihood, prior, 2)
+res = nestle.sample(loglikelihood, prior, 2)
 
-res.logz  # log evidence
+res.logz     # log evidence
 res.logzerr  # numerical uncertainty on log evidence
 res.samples  # array of sample parameters
 res.weights  # array of weights
@@ -58,7 +59,7 @@ View the docstring:
 
 ```python
 import nestle
-help(nestle.nest)
+help(nestle.sample)
 ```
 
 
@@ -77,21 +78,8 @@ Run test(s)
 Requires the `pytest` package to be installed.
 
 ```
-./test.py
+./runtests.py
 ```
-
-Notes
------
-
-This is a single-ellipsoid implementation of nested sampling. It
-works, but it can be very slow when the likelihood surface is
-multimodal.
-
-Implementation of multimodal nested sampling algorithm is in progress.
-The goal:
-
-1. A pure-python (numpy-based) implementation of the algorithm.
-2. If necessary for performance, speed up with cython.
 
 License
 -------

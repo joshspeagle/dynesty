@@ -443,7 +443,7 @@ def print_logz(it, logz):
 
 
 def sample(loglikelihood, prior, npar, nipar=None, npoints=100, maxiter=10000,
-           method='single', enlarge=1.5, callback=None, rstate=np.random):
+           method='single', enlarge=1.5, callback=None, rstate=None):
     """Simple nested sampling algorithm to evaluate Bayesian evidence.
 
     Parameters
@@ -483,6 +483,9 @@ def sample(loglikelihood, prior, npar, nipar=None, npoints=100, maxiter=10000,
         is 'single'.
     enlarge : float, optional
         Enlarge the ellipsoid(s) by this fraction in volume. Default is 1.5.
+    rstate : `~numpy.random.RandomState`, optional
+        RandomState instance. If not given, the global random state of the
+        ``np.random`` module will be used.
     callback : func, optional
         Callback function called at each iteration. Two arguments are 
         passed to the callback, the number of iterations and the logarithm
@@ -526,6 +529,9 @@ def sample(loglikelihood, prior, npar, nipar=None, npoints=100, maxiter=10000,
     if method is 'multi' and not HAVE_KMEANS:
         raise ValueError("scipy.cluster.vq.kmeans2 required for 'multi' "
                          "method")
+
+    if rstate is None:
+        rstate = np.random
 
     # Initialize active points and calculate likelihoods
     active_u = rstate.rand(npoints, nipar)  # position in unit cube

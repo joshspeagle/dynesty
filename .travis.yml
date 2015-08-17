@@ -12,17 +12,15 @@ env:
         - SCIPY_VERSION=0.16
         - CMD='./runtests.py'
     matrix:
-        - NUMPY_VERSION=1.6  # old numpy
+        - NUMPY_VERSION=1.5  # oldest numpy on conda
         - NUMPY_VERSION=1.9  # latest numpy
 
 matrix:
     include:
-        # Old scipy
         - python: 2.7
-          env: NUMPY_VERSION=1.6 SCIPY_VERSION=0.10
-        # No scipy
-        - python: 2.7
-          env: NUMPY_VERSION=1.7 SCIPY_VERSION=0
+          env: NUMPY_VERSION=1.5 SCIPY_VERSION=0.11  # oldest scipy on conda
+        - python: 3.4
+          env: NUMPY_VERSION=1.9 SCIPY_VERSION=0  # no scipy
 
 before_install:
     - wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh

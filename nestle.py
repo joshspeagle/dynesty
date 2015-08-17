@@ -1,10 +1,9 @@
-# Licensed under a 3-clause BSD style license - see LICENSE.rst
-"""Simple implementation of nested sampling routine to evaluate Bayesian
-evidence."""
+# License is MIT: see LICENSE.md.
+"""Nestle: nested sampling routines to evaluate Bayesian evidence."""
+
+from __future__ import print_function, division
 
 import math
-import time
-from sys import stdout
 
 import numpy as np
 try:
@@ -12,42 +11,67 @@ try:
     HAVE_KMEANS = True
 except ImportError:
     HAVE_KMEANS = False
+try:
+    from numpy.random import choice
+    HAVE_CHOICE = True
+except ImportError:
+    HAVE_CHOICE = False
+
+__all__ = ["sample"]
 
 
-class Ellipsoid(object):
-    def __init__(self, ctr, cov, icov, vol):
-        self.ctr = ctr    # center coordinates
-        self.cov = cov    # covariance
-        self.icov = icov  # cov^-1
-        self.vol = vol    # volume
+# -----------------------------------------------------------------------------
+# Helpers
 
-    def scale_to_vol(self, vol):
-        """Expand ellipoid to satisfy a target volume."""
-        n = len(self.ctr)
-        f = (vol / self.vol) ** (1.0 / n)
-        self.cov *= f
-        self.icov /= f
-        self.vol = vol
+def vol_prefactor(n):
+    """Volume constant for an n-dimensional sphere:
 
-    def scale_to_min_vol(self, vol):
-        """Expand ellipoid to satisfy a target volume."""
-        if self.vol > vol:
-            return
-        self.scale_to_vol(vol)
+    for n even:      (2pi)^(n    /2) / (2 * 4 * ... * n)
+    for n odd :  2 * (2pi)^((n-1)/2) / (1 * 3 * ... * n)
+    """
+    if n % 2 == 0:
+        f = 1.
+        i = 2
+        while i <= n:
+            f *= (2. / i * math.pi)
+            i += 2
+    else:
+        f = 2.
+        i = 3
+        while i <= n:
+            f *= (2. / i * math.pi)
+            i += 2
 
-    def scale_vol(self, f):
-        """Increase volume by a factor f"""
-        g = f**(1.0 / len(self.ctr))
-        self.cov *= g
-        self.icov /= g
-        self.vol *= f
+    return f
 
-    def expand(self, f):
-        """Expand the ellipsoid by a factor f, increasing the volume by f^n"""
-        n = len(self.ctr)
-        self.cov *= f
-        self.icov /= f
-        self.vol = self.vol * f**n
+
+def randsphere(n, rstate=np.random):
+    """Draw a random point within an n-dimensional unit sphere"""
+
+    z = rstate.randn(n)
+    return z * rstate.rand()**(1./n) / np.sqrt(np.sum(z**2))
+
+
+def random_choice(a, p=None, rstate=np.random):
+    """replacement for numpy.random.choice (only in numpy 1.7+)"""
+
+    if p is None:
+        p = np.ones(a)/len(a)
+
+    if np.sum(p) != 1.0:
+        raise ValueError("probabilities do not sum to 1")
+
+    r = rstate.rand()
+    i = 0
+    t = p[i]
+    while t < r:
+        i += 1
+        t += p[i]
+    return i
+
+
+if not HAVE_CHOICE:
+    choice = random_choice
 
 
 class Result(dict):
@@ -80,165 +104,232 @@ class Result(dict):
             return self.__class__.__name__ + "()"
 
 
-# only needed for multi-ellipsoid method
-def choice(p):
-    """replacement for numpy.random.choice (only in numpy 1.7+)"""
+# -----------------------------------------------------------------------------
+# Ellipsoid
 
-    r = np.random.random() * sum(p)
-    i = 0
-    t = p[i]
-    while t < r:
-        i += 1
-        t += p[i]
-    return i
+class Ellipsoid(object):
+    """An N-ellipsoid.
 
+    Defined by::
 
-def randsphere(n):
-    """Draw a random point within a n-dimensional unit sphere"""
+        (x - v)^T A (x - v) = 1
 
-    z = np.random.randn(n)
-    return z * np.random.rand()**(1./n) / np.sqrt(np.sum(z**2))
-
-
-def ellipsoid_volume(scaled_cov):
+    where the vector ``v`` is the center of the ellipse and ``A`` is an N x N
+    matrix.
     """
+
+    def __init__(self, ctr, a):
+        self.n = len(ctr)
+        self.ctr = ctr    # center coordinates
+        self.a = a        # ~ inverse of covariance of points contained
+        self.vol = vol_prefactor(self.n) / np.sqrt(np.linalg.det(a))
+
+        # eigenvalues (l) are a^-2, b^-2, ... (lengths of principle axes)
+        # eigenvectors (v) are normalized principle axes
+        l, v = np.linalg.eigh(a)
+        self.axlens = 1. / np.sqrt(l)
+
+        # Scaled eigenvectors are the axes: axes[:,i] is the i-th
+        # axis.  Multiplying this matrix by a vector will transform a
+        # point inthe unit n-sphere into a point in the ellipsoid.
+        self.axes = np.dot(v, np.diag(self.axlens))
+
+    def scale_to_vol(self, vol):
+        """Scale ellipoid to satisfy a target volume."""
+        f = (vol / self.vol) ** (1.0 / self.n)  # linear factor
+        self.a *= f**-2
+        self.axlens *= f
+        self.axes *= f
+        self.vol = vol
+
+    def major_axis_endpoints(self):
+        """Return the endpoints of the major axis"""
+        i = np.argmax(self.axlens)  # which is the major axis?
+        v = self.axes[:, i]  # vector to end of major axis
+        return self.ctr - v, self.ctr + v
+
+    def contains(self, x):
+        """Does the ellipse contain the point?"""
+        d = x - self.ctr
+        return np.dot(np.dot(d, self.a), d) < 1.0
+
+    def sample(self, rstate=np.random):
+        """Chose a sample randomly distributed within the ellipsoid.
+
+        Returns
+        -------
+        x : 1-d array
+            A single point within the ellipsoid.
+        """
+        return self.ctr + np.dot(self.axes, randsphere(self.n, rstate=rstate))
+
+    def samples(self, nsamples, rstate=np.random):
+        """Chose a sample randomly distributed within the ellipsoid.
+
+        Returns
+        -------
+        x : (nsamples, ndim) array
+            Coordinates within the ellipsoid.
+        """
+
+        x = np.empty((nsamples, self.n), dtype=np.float)
+        for i in range(nsamples):
+            x[i, :] = self.sample(rstate=rstate)
+        return x
+
+
+# -----------------------------------------------------------------------------
+# Functions for determining the ellipsoid(s) bounding a set of points.
+
+def bounding_ellipsoid(x, pointvol=0.):
+    """Calculate bounding ellipsoid containing a set of points x.
+
     Parameters
     ----------
-    scaled_cov : (ndim, ndim) ndarray
-        Scaled covariance matrix.
-
-    Returns
-    -------
-    volume : float
-    """
-    vol = np.sqrt(np.linalg.det(scaled_cov))
-
-    # proportionality constant depending on dimension
-    # for n even:      (2pi)^(n    /2) / (2 * 4 * ... * n)
-    # for n odd :  2 * (2pi)^((n-1)/2) / (1 * 3 * ... * n)
-    ndim = len(scaled_cov)
-    if ndim % 2 == 0:
-        i = 2
-        while i <= ndim:
-            vol *= (2. / i * np.pi)
-            i += 2
-    else:
-        vol *= 2.
-        i = 3
-        while i <= ndim:
-            vol *= (2. / i * np.pi)
-            i += 2
-
-    return vol
-
-
-def bounding_ellipsoid(x):
-    """Calculate bounding ellipsoid containing all samples x.
-
-    Parameters
-    ----------
-    x : (nobj, ndim) ndarray
+    x : (npoints, ndim) ndarray
         Coordinates of points.
+    pointvol : float, optional
+        Volume represented by a single point. Sets a minimum scale for the
+        ellipse in all dimensions.
 
     Returns
     -------
     ellipsoid : Ellipsoid
-        Attributes are:
-        * ``ctr`` ndarray of shape (ndim,)
-        * ``cov`` ndarray of shape (ndim, ndim)
-          (f * C) which is the covariance of the data points, C,
-          times an enlargement factor, f, that ensures that the ellipse
-          defined by ``x^T <dot> (fC)^{-1} <dot> x <= 1`` encloses
-          all points in the input set.
-        * ``icov`` Inverse of cov.
-        * ``vol`` Ellipse volume.
     """
+    n = x.shape[1]
 
+    # determine a minimum eigenvalue based on `point_vol`:
+    # radius of an n-sphere with volume `pointvol`
+    rpoint = (pointvol / vol_prefactor(n))**(1./n)
+    wmin = rpoint**2
+
+    # If there is only a single point, return an N-sphere with volume `pointvol`
+    # centered at the point.
+    if x.shape[0] == 1:
+        return Ellipsoid(x[0], (1./rpoint**2) * np.identity(n))
+
+    # Calculate covariance of points
     ctr = np.mean(x, axis=0)
     delta = x - ctr
     cov = np.cov(delta, rowvar=0)
-    icov = np.linalg.inv(cov)
+
+    # Calculate minimum covariance in any direction.
+    # The idea here is that the minimum extent of the ellipsoid in any
+    # direction should be the "width" of a point. Each point represents a
+    # uniform n-ball with radius `rpoint`. The covariance of the ball
+    # (in each dimension) will be given by the following, which can be
+    # derived via an integral (see, e.g.,
+    # http://mathoverflow.net/questions/35276/
+    # covariance-of-points-distributed-in-a-n-ball).
+    wmin = 1. / (n+2) * rpoint**2
+
+    # check if any eigenvalues are below the minimum value. This expands the
+    # ellipsoid in cases where it has zero volume.
+    w, v = np.linalg.eigh(cov)  # use eigh because cov will be symmetric.
+    mask = w < wmin
+    if np.any(mask):
+        w[mask] = wmin
+        cov = np.dot(np.dot(v, np.diag(w)), np.linalg.inv(v))
+
+    # for a ball of uniformly distributed points, the covariance will be
+    # smaller than r^2 by a factor of 1/(n+2) [see above].
+    cov *= 1. / (n+2)
+
+    # ellipse is defined by `a`.
+    a = np.linalg.inv(cov)
 
     # Calculate expansion factor necessary to bound each point.
+    # Points should obey x^T A x <= 1, so we calculate x^T A x for each
+    # point and then scale A up or down to make the "outermost" point obey
+    # x^T A x = 1.
+    # 
     # The line below should be equilvalent to:
     #
     #     f = np.empty(len(x), dtype=np.float)
     #     for i in range(len(x)):
     #         f[i] = np.dot(np.dot(delta[i,:], icov), delta[i,:])
     #
-    # but without the loop.
-    f = np.einsum('...i, ...i', np.tensordot(delta, icov, axes=1), delta)
-
+    f = np.einsum('...i, ...i', np.tensordot(delta, a, axes=1), delta)
     fmax = np.max(f)
-    cov *= fmax
-    icov /= fmax
-    vol = ellipsoid_volume(cov)
+    if fmax > 1.0:
+        a *= np.max(f)
 
-    return Ellipsoid(ctr, cov, icov, vol)
+    return Ellipsoid(ctr, a)
 
 
 # only needed for multi-ellipsoid method
-def bounding_ellipsoids(x, min_vol=None, ellipsoid=None):
+def bounding_ellipsoids(x, pointvol=0., ell=None):
     """Calculate a set of ellipses that bound the points.
 
     Parameters
     ----------
-    x : (nobj, ndim) ndarray
+    x : (npoints, ndim) ndarray
         Coordinates of points.
-    min_vol : float
-        Minimum allowed volume of ellipses enclosing points.
-    ellipsoid : Ellipsoid, optional
+    pointvol : float, optional
+        Volume represented by a single point. Sets a minimum scale for
+        each ellipsoid in all dimensions.
+    ell : Ellipsoid, optional
         If known, the bounding ellipsoid of the points `x`. If not supplied,
         it will be calculated. This option is used when the function is
         called recursively.
 
     Returns
     -------
-    ellipsoids : list of 2-tuples
+    ells : list of 2-tuples
         Ellipsoids, each represented by a tuple: ``(scaled_cov, x_mean)``
     """
 
-    ellipsoids = []
-    nobj, ndim = x.shape
+    ells = []
+    npoints, ndim = x.shape
 
     # If we don't already have a bounding ellipse for the points,
     # calculate it, and enlarge it so that it has at least the minimum
     # volume.
-    if ellipsoid is None:
-        ellipsoid = bounding_ellipsoid(x) 
-        if min_vol is not None and ellipsoid.vol < min_vol:
-            ellipsoid.scale_to_vol(min_vol)
+    if ell is None:
+        ell = bounding_ellipsoid(x, pointvol=pointvol) 
+        minvol = npoints * pointvol
+        if ell.vol < minvol:
+            ell.scale_to_vol(minvol)
+
+    # debug
+    debug = True
+    if debug:
+        print("cluster at {} with {} points and vol={:.5f}:"
+              .format(ell.ctr, len(x), ell.vol))
+
+    # starting cluster centers for kmeans (k=2)
+    p1, p2 = ell.major_axis_endpoints()  # returns two 1-d arrays
+    start_ctrs = np.vstack((p1, p2)) # shape is (k, N) = (2, N)
 
     # Split points into two clusters using k-means clustering with k=2
-    # centroid = (2, ndim) ; label = (nobj,)
+    # centroid = (2, ndim) ; label = (npoints,)
     # [Each entry in `label` is 0 or 1, corresponding to cluster number]
-    centroid, label = kmeans2(x, 2, iter=10)
-
-
+    centroid, label = kmeans2(x, k=start_ctrs, iter=10, minit='matrix')
 
     # calculate bounding ellipsoid for each cluster
     cluster_x = [None, None]
-    cluster_ellipsoids = [None, None]
-    cluster_minvols = [None, None]
+    cluster_ells = [None, None]
     for k in [0, 1]:
         cluster_x[k] = x[label == k, :] # points in this cluster
-        cluster_ellipsoids[k] = bounding_ellipsoid(cluster_x[k])
+        cluster_ells[k] = bounding_ellipsoid(cluster_x[k], pointvol=pointvol)
         
-        print "\nk =", k, "before scaling vol=", cluster_ellipsoids[k].vol
+        if debug:
+            print("    cluster {}: centroid={} len={} initvol={:.5f} "
+                  .format(k, centroid[k], len(cluster_x[k]),
+                          cluster_ells[k].vol), end='')
+
         # enlarge ellipse so that it is at least as large as the fractional
         # volume according to the number of points in the cluster
-        if min_vol is not None:
-            cluster_minvols[k] = min_vol * len(cluster_x[k]) / float(nobj)
-            if cluster_ellipsoids[k].vol < cluster_minvols[k]:
-                cluster_ellipsoids[k].scale_to_vol(cluster_minvols[k])
+        minvol = len(cluster_x[k]) * pointvol
+        if cluster_ells[k].vol < minvol:
+            cluster_ells[k].scale_to_vol(minvol)
 
-    # debug
-    print "\nvol=", ellipsoid.vol, "minvol=", min_vol
-    for k in [0, 1]:
-        print "    k=", k, "len=", len(cluster_x[k]),
-        print "centroid=", centroid[k],
-        print "vol=", cluster_ellipsoids[k].vol,
-        print "minvol=", cluster_minvols[k]
+        if debug:
+            print("minvol={:.5f} vol={:.5f}".format(minvol,
+                                                    cluster_ells[k].vol))
+
+    if debug:
+        print()
 
     # Reassign points between ellipsoids.
     while False:
@@ -250,10 +341,10 @@ def bounding_ellipsoids(x, min_vol=None, ellipsoid=None):
             #     m = np.dot(np.dot(delta, VI), delta)
             # where, in this case,
             #     VI = (f * C)^-1 = (scaled_cov)^-1
-            d = np.empty(len(x), dtype=np.float)
-            delta = x - cluster_ellipsoids[k].ctr
-            for i in range(len(x)):
-                d[i] = np.dot(np.dot(delta[i,:], cluster_ellipsoids[k].icov),
+            d = np.empty(npoints, dtype=np.float)
+            delta = x - cluster_ells[k].ctr
+            for i in range(npoints):
+                d[i] = np.dot(np.dot(delta[i,:], cluster_ells[k].icov),
                               delta[i,:])
 
             # Multiply by ellipse ratio:
@@ -284,101 +375,75 @@ def bounding_ellipsoids(x, min_vol=None, ellipsoid=None):
         label = newlabel
         for k in [0, 1]:
             cluster_x[k] = x[label == k, :] # points in this cluster
-            cluster_ellipsoids[k] = bounding_ellipsoid(cluster_x[k])
+            cluster_ells[k] = bounding_ellipsoid(cluster_x[k],
+                                                 pointvol=pointvol)
 
             # enlarge ellipse so that it is at least as large as the fractional
             # volume according to the number of points in the cluster
-            if min_vol is not None:
-                cluster_minvols[k] = min_vol * len(cluster_x[k]) / float(nobj)
-                if cluster_ellipsoids[k].vol < cluster_minvols[k]:
-                    cluster_ellipsoids[k].scale_to_vol(cluster_minvols[k])
+            minvol = len(cluster_x[k]) * pointvol
+            if cluster_ells[k].vol < minvol:
+                cluster_ells[k].scale_to_vol(minvol)
 
-    # if V(E_1) + V(E_2) < V(E) or V(E) > 2V(S):
-    # perform entire algorithm on each subset
-    if (cluster_ellipsoids[0].vol + cluster_ellipsoids[1].vol < 0.5 * ellipsoid.vol or
-        (min_vol is not None and ellipsoid.vol > 2. * min_vol)):
+    # If the total volume decreased by a significant amount,
+    #     V(E_1) + V(E_2) < 0.5 * V(E)
+    # or the original ellipsoid volume is much larger than expected,
+    #     V(E) > 2 * V(S)
+    # then we will accept the split into subsets and try to perform the
+    # algorithm on each subset.
+    #
+    # Otherwise, the full ellipse is good and should not be split;
+    # return it.
+    totvol = cluster_ells[0].vol + cluster_ells[1].vol
+    if (totvol < 0.5*ell.vol or ell.vol > 2.0*npoints*pointvol):
+        ells = []
         for k in [0, 1]:
-            ellipsoids.extend(
-                bounding_ellipsoids(cluster_x[k],
-                                    min_vol=cluster_minvols[k],
-                                    ellipsoid=cluster_ellipsoids[k]))
-
-    # Otherwise, the full ellipse is fine; just return that.
+            ells.extend(bounding_ellipsoids(cluster_x[k], pointvol=pointvol,
+                                            ell=cluster_ells[k]))
+        return ells
     else:
-        ellipsoids.append(ellipsoid)
-
-    return ellipsoids
+        return [ell]
 
 
-def sample_ellipsoid(ellipsoid, nsamples=1):
-    """Chose sample(s) randomly distributed within an ellipsoid.
-    
-    Parameters
-    ----------
-    scaled_cov : (ndim, ndim) ndarray
-        Scaled covariance matrix.
-    x_mean : (ndim,) ndarray
-        Simple average of all samples.
-
-    Returns
-    -------
-    x : (nsamples, ndim) array, or (ndim,) array when nsamples == 1
-        Coordinates within the ellipsoid.
-    """
-
-    # Get scaled eigenvectors (in columns): vs[:,i] is the i-th eigenvector.
-    w, v = np.linalg.eig(ellipsoid.cov)
-    vs = np.dot(v, np.diag(np.sqrt(w)))
-
-    ndim = len(ellipsoid.ctr)
-    if nsamples == 1:
-        return np.dot(vs, randsphere(ndim)) + ellipsoid.ctr
-
-    x = np.empty((nsamples, ndim), dtype=np.float)
-    for i in range(nsamples):
-        x[i, :] = np.dot(vs, randsphere(ndim)) + ellipsoid.ctr
-    return x
-
-
-# only needed for multi-ellipsoid method
-def sample_ellipsoids(ellipsoids, nsamples=1):
+def sample_ellipsoids(ells, rstate=np.random):
     """Chose sample(s) randomly distributed within a set of
     (possibly overlapping) ellipsoids.
     
     Parameters
     ----------
-    ellipsoids : list of 2-tuples
-        Ellipsoids, each represented by a tuple: ``(scaled_cov, x_mean)``
+    ells : list of Ellipsoid
 
     Returns
     -------
-    x : numpy.ndarray (nsamples, ndim) [or (ndim,) when nsamples == 1]
-        Coordinates within the ellipsoid. 
+    x : 1-d ndarray
+        Coordinates within the ellipsoids. 
     """
 
     # Select an ellipsoid at random, according to volumes
-    v = np.array([e.vol for e in ellipsoids])
-    i = choice(v)
-    ellipsoid = ellipsoids[i]
+    v = np.array([ell.vol for ell in ells])
+    ell = ells[choice(len(ells), p=v/v.sum())]
     
     # Select a point from the ellipsoid
-    x = sample_ellipsoid(ellipsoid)
+    x = ell.sample(rstate=rstate)
 
     # How many ellipsoids is the sample in?
     n = 0
-    for ellipsoid in ellipsoids:
-        delta = x - ellipsoid.ctr
-        n += np.dot(np.dot(delta, ellipsoid.icov), delta) < 1.
+    for ell in ells:
+        n += ell.contains(x)
 
-    # Only accept the point with probability 1/n 
-    if n > 1 and np.random.random() > 1./n:
-        return sample_ellipsoids(ellipsoids)
-    
-    return x
+    # Only accept the point with probability 1/n
+    # (If rejected, sample again).
+    if n == 1 or rstate.rand() < 1.0 / n:
+        return x
+    else:
+        return sample_ellipsoids(ells, rstate=rstate)
 
 
-def nest(loglikelihood, prior, npar, nipar=None, nobj=100, maxiter=10000,
-         method='single', enlarge=1.5, verbose=False, verbose_name=''):
+def print_logz(it, logz):
+    print("\riter={1:6d} logz={2:8f}".format(it, logz), end='', flush=True)
+
+
+def sample(loglikelihood, prior, npar, nipar=None, npoints=100, maxiter=10000,
+           method='single', enlarge=1.5, callback=None, rstate=np.random):
     """Simple nested sampling algorithm to evaluate Bayesian evidence.
 
     Parameters
@@ -405,35 +470,34 @@ def nest(loglikelihood, prior, npar, nipar=None, nobj=100, maxiter=10000,
         in the case where a parameter of loglikelihood is dependent upon
         multiple independently distributed parameters, some of which may be
         nuisance parameters.
-    nobj : int, optional
-        Number of random samples. Larger numbers result in a more finely
+    npoints : int, optional
+        Number of active points. Larger numbers result in a more finely
         sampled posterior (more accurate evidence), but also a larger
-        number of iterations required to converge. Default is 50.
+        number of iterations required to converge. Default is 100.
     maxiter : int, optional
         Maximum number of iterations. Iteration may stop earlier if
-        termination condition is reached. Default is 10000. The total number
-        of likelihood evaluations will be ``nexplore * niter``.
+        termination condition is reached. Default is 10000.
     method : {'single', 'multi'}, optional
         Method used to select new points. Choices are
         single-ellipsoidal ('single'), multi-ellipsoidal ('multi'). Default
         is 'single'.
-    verbose : bool, optional
-        Print a single line of running total iterations.
-    verbose_name : str, optional
-        Print this string at start of the iteration line printed when
-        verbose=True.
+    enlarge : float, optional
+        Enlarge the ellipsoid(s) by this fraction in volume. Default is 1.5.
+    callback : func, optional
+        Callback function called at each iteration. Two arguments are 
+        passed to the callback, the number of iterations and the logarithm
+        of the current evidence (``logz``). To print the progress at
+        each iteration, use ``callback=nestle.print_logz``.
 
     Returns
     -------
-    results : dict
+    result : dict
         Containing following keys:
 
         * ``niter`` (int) number of iterations.
-        * ``ncalls`` (int) number of likelihood calls.
-        * ``time`` (float) time in seconds.
+        * ``ncall`` (int) number of likelihood calls.
         * ``logz`` (float) log of evidence.
         * ``logzerr`` (float) error on ``logz``.
-        * ``loglmax`` (float) Maximum likelihood of any sample.
         * ``h`` (float) information.
         * ``samples`` (array, shape=(nsamples, npar)) parameter values
           of each sample.
@@ -445,8 +509,7 @@ def nest(loglikelihood, prior, npar, nipar=None, nobj=100, maxiter=10000,
     Notes
     -----
     This is an implementation of John Skilling's Nested Sampling algorithm,
-    following the ellipsoidal sampling algorithm in Shaw et al (2007). Only a
-    single ellipsoid is used.
+    following the ellipsoidal sampling algorithm in Shaw et al (2007).
 
     Sample Weights are ``likelihood * prior_vol`` where
     prior_vol is the fraction of the prior volume the sample represents.
@@ -464,134 +527,125 @@ def nest(loglikelihood, prior, npar, nipar=None, nobj=100, maxiter=10000,
         raise ValueError("scipy.cluster.vq.kmeans2 required for 'multi' "
                          "method")
 
-    # Initialize objects and calculate likelihoods
-    objects_u = np.random.random((nobj, nipar))  # position in unit cube
-    objects_v = np.empty((nobj, npar), dtype=np.float)  # position in unit cube
-    objects_logl = np.empty(nobj, dtype=np.float)  # log likelihood
-    for i in range(nobj):
-        objects_v[i, :] = prior(objects_u[i, :])
-        objects_logl[i] = loglikelihood(objects_v[i, :])
+    # Initialize active points and calculate likelihoods
+    active_u = rstate.rand(npoints, nipar)  # position in unit cube
+    active_v = np.empty((npoints, npar), dtype=np.float64)  # real params
+    active_logl = np.empty(npoints, dtype=np.float64)  # log likelihood
+    for i in range(npoints):
+        active_v[i, :] = prior(active_u[i, :])
+        active_logl[i] = loglikelihood(active_v[i, :])
 
     # Initialize values for nested sampling loop.
-    samples_parvals = []  # stored objects for posterior results
-    samples_logl = []
-    samples_logprior = []
-    samples_logwt = []
+    saved_v = []  # stored points for posterior results
+    saved_logl = []
+    saved_logprior = []
+    saved_logwt = []
     loglstar = None  # ln(Likelihood constraint)
-    h = 0.  # Information, initially 0.
-    logz = -1.e300  # ln(Evidence Z, initially 0)
+    h = 0.0  # Information, initially 0.
+    logz = -np.inf  # ln(Evidence Z), initially 0.
     # ln(width in prior mass), outermost width is 1 - e^(-1/n)
-    logwidth = math.log(1. - math.exp(-1./nobj))
-    loglcalls = nobj  # number of calls we already made
+    logwidth = math.log(1.0 - math.exp(-1.0/npoints))
+    ncall = npoints  # number of calls we already made
 
     # Nested sampling loop.
     ndecl = 0
-    logwt_old = None
-    time0 = time.time()
+    logwt_old = -np.inf
     for it in range(maxiter):
-        if verbose:
-            if logz > -1.e6:
-                print "\r{0} iter={1:6d} logz={2:8f}".format(verbose_name, it,
-                                                             logz),
-            else:
-                print "\r{0} iter={1:6d} logz=".format(verbose_name, it),
-            stdout.flush()
+        if callback is not None:
+            callback(it, logz)
 
         # worst object in collection and its weight (= width * likelihood)
-        worst = np.argmin(objects_logl)
-        logwt = logwidth + objects_logl[worst]
+        worst = np.argmin(active_logl)
+        logwt = logwidth + active_logl[worst]
 
         # update evidence Z and information h.
         logz_new = np.logaddexp(logz, logwt)
-        h = (math.exp(logwt - logz_new) * objects_logl[worst] +
+        h = (math.exp(logwt - logz_new) * active_logl[worst] +
              math.exp(logz - logz_new) * (h + logz) -
              logz_new)
         logz = logz_new
 
         # Add worst object to samples.
-        samples_parvals.append(np.array(objects_v[worst]))
-        samples_logwt.append(logwt)
-        samples_logprior.append(logwidth)
-        samples_logl.append(objects_logl[worst])
+        saved_v.append(np.array(active_v[worst]))
+        saved_logwt.append(logwt)
+        saved_logprior.append(logwidth)
+        saved_logl.append(active_logl[worst])
 
         # The new likelihood constraint is that of the worst object.
-        loglstar = objects_logl[worst]
+        loglstar = active_logl[worst]
 
-        expected_vol = math.exp(-it/nobj)
+        expected_vol = math.exp(-it/npoints)
+        pointvol = expected_vol / npoints
 
         # calculate the ellipsoid in parameter space that contains all the
         # samples (including the worst one).
         if method == 'single':
-            ell = bounding_ellipsoid(objects_u)
-            ell.scale_vol(enlarge)
+            ell = bounding_ellipsoid(active_u, pointvol=pointvol)
+            ell.scale_to_vol(ell.vol * enlarge)
         else:
-            ell = bounding_ellipsoids(objects_u, expected_vol * enlarge)
+            ells = bounding_ellipsoids(active_u, pointvol=pointvol)
+            for ell in ells:
+                ell.scale_to_vol(ell.vol * enlarge)
 
-        # choose a point from within the ellipse until it has likelihood
-        # better than loglstar
+        # Choose a point from within the ellipse until it has likelihood
+        # better than loglstar.
         while True:
             if method == 'single':
-                u = sample_ellipsoid(ell)
+                u = ell.sample(rstate=rstate)
             else:
-                u = sample_ellipsoids(ell)
-            if np.any(u < 0.) or np.any(u > 1.):
+                u = sample_ellipsoids(ells, rstate=rstate)
+            if np.any(u < 0.0) or np.any(u > 1.0):
                 continue
             v = prior(u)
             logl = loglikelihood(v)
-            loglcalls += 1
+            ncall += 1
 
             # Accept if and only if within likelihood constraint.
             if logl > loglstar:
-                objects_u[worst] = u
-                objects_v[worst] = v
-                objects_logl[worst] = logl
+                active_u[worst] = u
+                active_v[worst] = v
+                active_logl[worst] = logl
                 break
 
         # Shrink interval
-        logwidth -= 1./nobj
+        logwidth -= 1.0 / npoints
 
-        # stop when the logwt has been declining for more than nobj* 2
-        # or niter/4 consecutive iterations.
+        # Stopping criterion: stop when the logwt has been declining
+        # for more than npoints* 2 or niter/4 consecutive iterations.
         if logwt < logwt_old:
             ndecl += 1
         else:
             ndecl = 0
-        if ndecl > nobj * 2 and ndecl > it / 6:
+        if ndecl > npoints * 2 and ndecl > it // 6:
             break
         logwt_old = logwt
 
-    tottime = time.time() - time0
-    if verbose:
-        print 'calls={0:d} time={1:7.3f}s'.format(loglcalls, tottime)
-
-    # Add remaining objects.
-    # After N samples have been taken out, the remaining width is e^(-N/nobj)
-    # The remaining width for each object is e^(-N/nobj) / nobj
-    # The log of this for each object is:
-    # log(e^(-N/nobj) / nobj) = -N/nobj - log(nobj)
-    logwidth = -len(samples_parvals) / nobj - math.log(nobj)
-    for i in range(nobj):
-        logwt = logwidth + objects_logl[i]
+    # Add remaining active points.
+    # After N samples have been taken out, the remaining width is
+    # e^(-N/npoints). Thus, the remaining width for each active point
+    # is e^(-N/npoints) / npoints. The log of this for each object is:
+    # log(e^(-N/npoints) / npoints) = -N/npoints - log(npoints)
+    logwidth = -len(saved_v) / npoints - math.log(npoints)
+    for i in range(npoints):
+        logwt = logwidth + active_logl[i]
         logz_new = np.logaddexp(logz, logwt)
-        h = (math.exp(logwt - logz_new) * objects_logl[i] +
+        h = (math.exp(logwt - logz_new) * active_logl[i] +
              math.exp(logz - logz_new) * (h + logz) -
              logz_new)
         logz = logz_new
-        samples_parvals.append(np.array(objects_v[i]))
-        samples_logwt.append(logwt)
-        samples_logl.append(objects_logl[i])
-        samples_logprior.append(logwidth)
+        saved_v.append(np.array(active_v[i]))
+        saved_logwt.append(logwt)
+        saved_logl.append(active_logl[i])
+        saved_logprior.append(logwidth)
 
     return Result([
         ('niter', it + 1),
-        ('ncall', loglcalls),
-        ('time', tottime),
+        ('ncall', ncall),
         ('logz', logz),
-        ('logzerr', math.sqrt(h / nobj)),
-        ('loglmax', np.max(objects_logl)),
+        ('logzerr', math.sqrt(h / npoints)),
         ('h', h),
-        ('samples', np.array(samples_parvals)),  # (nsamp, npar)
-        ('weights', np.exp(np.array(samples_logwt) - logz)),  # (nsamp,)
-        ('logprior', np.array(samples_logprior)),  # (nsamp,)
-        ('logl', np.array(samples_logl))  # (nsamp,)
+        ('samples', np.array(saved_v)),  # (nsamples, npar)
+        ('weights', np.exp(np.array(saved_logwt) - logz)),  # (nsamples,)
+        ('logprior', np.array(saved_logprior)),  # (nsamples,)
+        ('logl', np.array(saved_logl))  # (nsamples,)
         ])

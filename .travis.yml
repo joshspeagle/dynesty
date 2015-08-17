@@ -4,23 +4,24 @@ language: python
 sudo: false
 
 python:
-    - 2.7
     - 3.4
 
 env:
     global:
+        - NUMPY_VERSION=1.9
         - SCIPY_VERSION=0.16
         - CMD='./runtests.py'
-    matrix:
-        - NUMPY_VERSION=1.5  # oldest numpy on conda
-        - NUMPY_VERSION=1.9  # latest numpy
 
 matrix:
     include:
         - python: 2.7
-          env: NUMPY_VERSION=1.5 SCIPY_VERSION=0.11  # oldest scipy on conda
+          env: NUMPY_VERSION=1.9 SCIPY_VERSION=0.16  # py2.7, latest deps
+        - python: 2.7
+          env: NUMPY_VERSION=1.5 SCIPY_VERSION=0.11  # py2.7, oldest deps
+        - python: 3.3
+          env: NUMPY_VERSION=1.7 SCIPY_VERSION=0.13  # py3.3, oldest deps
         - python: 3.4
-          env: NUMPY_VERSION=1.9 SCIPY_VERSION=0  # no scipy
+          env: NUMPY_VERSION=1.9 SCIPY_VERSION=0     # py3.4, no scipy
 
 before_install:
     - wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
@@ -32,7 +33,7 @@ before_install:
 install:
     - conda create --yes -n test python=$TRAVIS_PYTHON_VERSION pytest
     - source activate test
-    - if [[ $SCIPY_VERSION > 0 ]]; then conda install numpy=$NUMPY_VERSION scipy=$SCIPY_VERSION; fi
+    - if [[ $SCIPY_VERSION > 0 ]]; then conda install --yes numpy=$NUMPY_VERSION scipy=$SCIPY_VERSION; fi
     - source activate test
     - python setup.py install
 

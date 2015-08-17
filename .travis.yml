@@ -1,19 +1,28 @@
 language: python
 
+# Setting sudo to false opts in to Travis-CI container-based builds.
+sudo: false
+
 python:
-    - 2.6
     - 2.7
+    - 3.4
 
 env:
-    - NUMPY_VERSION=1.8
+    global:
+        - SCIPY_VERSION=0.16
+        - CMD='./runtests.py'
+    matrix:
+        - NUMPY_VERSION=1.6  # old numpy
+        - NUMPY_VERSION=1.9  # latest numpy
 
-# Extra numpy version tests
 matrix:
     include:
+        # Old scipy
         - python: 2.7
-          env: NUMPY_VERSION=1.6
+          env: NUMPY_VERSION=1.6 SCIPY_VERSION=0.10
+        # No scipy
         - python: 2.7
-          env: NUMPY_VERSION=1.7
+          env: NUMPY_VERSION=1.7 SCIPY_VERSION=0
 
 before_install:
     - wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
@@ -23,9 +32,10 @@ before_install:
     - conda update --yes conda
 
 install:
-    - conda create --yes -n test python=$TRAVIS_PYTHON_VERSION
+    - conda create --yes -n test python=$TRAVIS_PYTHON_VERSION pytest
     - source activate test
-    - conda install --yes numpy=$NUMPY_VERSION pytest
+    - if [[ $SCIPY_VERSION > 0 ]]; then conda install numpy=$NUMPY_VERSION scipy=$SCIPY_VERSION
+    - source activate test
     - python setup.py install
 
-script: ./test.py
+script: $CMD

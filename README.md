@@ -79,6 +79,7 @@ Requires the `pytest` package to be installed.
 
 ```
 ./runtests.py
+./runtests.py --cov=nestle  # report coverage in term (requires pytest-cov)
 ```
 
 License

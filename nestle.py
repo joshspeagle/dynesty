@@ -17,7 +17,7 @@ try:
 except ImportError:
     HAVE_CHOICE = False
 
-__all__ = ["sample"]
+__all__ = ["sample", "print_logz"]
 
 
 # -----------------------------------------------------------------------------
@@ -115,7 +115,16 @@ class Ellipsoid(object):
         (x - v)^T A (x - v) = 1
 
     where the vector ``v`` is the center of the ellipse and ``A`` is an N x N
-    matrix.
+    matrix. Assumes that `A` is symmetric positive definite.
+
+    Parameters
+    ----------
+    ctr : `~numpy.ndarray` with shape ``(N,)``
+        Coordinates of ellipse center. Note that the array is *not* copied.
+        This array is never modified internally.
+    a : `~numpy.ndarray` with shape ``(N, N)``
+        Matrix describing the axes. Note that the array is *not* copied.
+        This array can be modified internally.
     """
 
     def __init__(self, ctr, a):

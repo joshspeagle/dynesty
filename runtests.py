@@ -5,6 +5,7 @@ import math
 
 import numpy as np
 from numpy.random import RandomState
+from numpy.testing import assert_allclose
 import pytest
 
 import nestle
@@ -19,11 +20,11 @@ def test_vol_prefactor():
 
 
 def test_rstate_kwarg():
-    """Test that rstate works as expected."""
+    """Test that rstate keyword argument works as expected."""
     rstate = RandomState(123)
     a = nestle.randsphere(10, rstate=rstate)
     np.random.seed(123)
-    b = nestle.randsphere(10, rstate=np.random)
+    b = nestle.randsphere(10)
 
     assert np.all(a == b)
 
@@ -55,6 +56,83 @@ def test_random_choice():
         rstate.seed(seed)
         j = nestle.random_choice(10, p=p, rstate=rstate)
         assert i == j
+
+
+def test_ellipsoid_sphere():
+    """Test that Ellipsoid works like a sphere when ``a`` is proportional to
+    the identity matrix."""
+
+    scale = 5.
+    for n in range(1, 10):
+        ctr = 2.0 * scale * np.ones(n)  # arbitrary non-zero center
+        a = 1.0 / scale**2 * np.identity(n)
+        ell = nestle.Ellipsoid(ctr, a)
+
+        assert_allclose(ell.vol, nestle.vol_prefactor(n) * scale**n)
+        assert_allclose(ell.axlens, scale * np.ones(n))
+        assert_allclose(ell.axes, scale * np.identity(n))
+
+
+def test_ellipsoid_vol_scaling():
+    """Test that scaling an ellipse works as expected."""
+
+    scale = 1.5 # linear scale
+
+    for n in range(1, 10):
+        # ellipsoid centered at origin with principle axes aligned with
+        # coordinate axes, but random sizes.
+        ctr = np.zeros(n)
+        a = np.diag(np.random.rand(n))
+        ell = nestle.Ellipsoid(ctr, a)
+
+        # second ellipsoid with axes scaled.
+        ell2 = nestle.Ellipsoid(ctr, 1./scale**2 * a)
+
+        # scale volume of first ellipse to match the second.
+        ell.scale_to_vol(ell.vol * scale**n)
+        
+        # check that the ellipses are the same.
+        assert_allclose(ell.vol, ell2.vol)
+        assert_allclose(ell.a, ell2.a)
+        assert_allclose(ell.axes, ell2.axes)
+        assert_allclose(ell.axlens, ell2.axlens)
+
+
+def test_ellipsoid_contains():
+    """Test Elipsoid.contains()"""
+    eps = 1.e-7
+
+    for n in range(1, 10):
+        ell = nestle.Ellipsoid(np.zeros(n), np.identity(n))  # unit n-sphere
+        
+        # point just outside unit n-sphere:
+        pt = (1. / np.sqrt(n) + eps) * np.ones(n)
+        assert not ell.contains(pt)
+
+        # point just inside unit n-sphere:
+        pt = (1. / np.sqrt(n) - eps) * np.ones(n)
+        assert ell.contains(pt)
+
+        # non-equal axes ellipsoid, still aligned on axes:
+        a = np.diag(np.random.rand(n))
+        ell = nestle.Ellipsoid(np.zeros(n), a)
+
+        # check points on axes
+        for i in range(0, n):
+            axlen = 1. / np.sqrt(a[i, i])  # length of this axis
+            pt = np.zeros(n)
+            pt[i] = axlen + eps
+            assert not ell.contains(pt)
+            pt[i] = axlen - eps
+            assert ell.contains(pt)
+
+
+# TODO
+#def test_ellipsoid_sample():
+
+
+# TODO
+#def test_bounding_ellipsoid():
 
 
 def failing_test_two_gaussians():

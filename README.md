@@ -6,9 +6,9 @@ nestle
 Pure Python implementation of nested sampling algorithms for
 evaluating Bayesian evidence.
 
-[![Build Status](https://api.travis-ci.org/kbarbary/nestle.svg)](https://travis-ci.org/kbarbary/nestle)
+### Currently in development (e.g., not working) in preparation for a new and improved release. Pay no attention to the build status.
 
-**Currently in a development (e.g., not working) state!**
+[![Build Status](https://api.travis-ci.org/kbarbary/nestle.svg)](https://travis-ci.org/kbarbary/nestle)
 
 Install
 -------
@@ -53,13 +53,6 @@ res.logzerr  # numerical uncertainty on log evidence
 res.samples  # array of sample parameters
 res.weights  # array of weights
 res.keys()   # list of all attributes of `res`
-```
-
-View the docstring:
-
-```python
-import nestle
-help(nestle.sample)
 ```
 
 

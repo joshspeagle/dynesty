@@ -40,3 +40,7 @@ nosetests.xml
 # cache files
 .cache
 *.ipynb_checkpoints
+
+# docs
+docs/_build
+docs/api

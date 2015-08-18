@@ -188,7 +188,8 @@ class Ellipsoid(object):
 
 
 # -----------------------------------------------------------------------------
-# Functions for determining the ellipsoid(s) bounding a set of points.
+# Functions for determining the ellipsoid or set of ellipsoids bounding a
+# set of points.
 
 def bounding_ellipsoid(x, pointvol=0.):
     """Calculate bounding ellipsoid containing a set of points x.
@@ -205,52 +206,54 @@ def bounding_ellipsoid(x, pointvol=0.):
     -------
     ellipsoid : Ellipsoid
     """
-    n = x.shape[1]
-
-    # determine a minimum eigenvalue based on `point_vol`:
-    # radius of an n-sphere with volume `pointvol`
-    rpoint = (pointvol / vol_prefactor(n))**(1./n)
-    wmin = rpoint**2
+    npoints, n = x.shape
 
     # If there is only a single point, return an N-sphere with volume `pointvol`
     # centered at the point.
-    if x.shape[0] == 1:
+    if npoints == 1:
+        rpoint = (pointvol / vol_prefactor(n))**(1./n)
         return Ellipsoid(x[0], (1./rpoint**2) * np.identity(n))
 
     # Calculate covariance of points
     ctr = np.mean(x, axis=0)
     delta = x - ctr
     cov = np.cov(delta, rowvar=0)
+    
+    # when n = 1, np.cov returns a 0-d array. Make it a 1x1 2-d array.
+    if n == 1:
+        cov = np.atleast_2d(cov)
 
-    # Calculate minimum covariance in any direction.
-    # The idea here is that the minimum extent of the ellipsoid in any
-    # direction should be the "width" of a point. Each point represents a
-    # uniform n-ball with radius `rpoint`. The covariance of the ball
-    # (in each dimension) will be given by the following, which can be
-    # derived via an integral (see, e.g.,
+    # For a ball of uniformly distributed points, the covariance will be
+    # smaller than r^2 by a factor of 1/(n+2) [see, e.g.,
     # http://mathoverflow.net/questions/35276/
-    # covariance-of-points-distributed-in-a-n-ball).
-    wmin = 1. / (n+2) * rpoint**2
+    # covariance-of-points-distributed-in-a-n-ball]. In nested sampling,
+    # we are supposing the points are uniformly distributed within
+    # an ellipse, so the same factor holds. Expand `cov`
+    # to compensate for that when defining the ellipse matrix:
+    cov *= (n + 2)
 
-    # check if any eigenvalues are below the minimum value. This expands the
-    # ellipsoid in cases where it has zero volume.
+    # Check if any eigenvalues are zero and if so, increase them. This
+    # expands the ellipsoid in cases where it has zero volume, which happens
+    # when npoints <= ndim or when enough points are linear combinations
+    # of other points. (e.g., npoints = ndim+1 but one point is a linear
+    # combination of others).
     w, v = np.linalg.eigh(cov)  # use eigh because cov will be symmetric.
-    mask = w < wmin
+    mask = w < 1.e-10  # TODO: should this just be zero?
     if np.any(mask):
-        w[mask] = wmin
-        cov = np.dot(np.dot(v, np.diag(w)), np.linalg.inv(v))
+        nzprod = np.product(w[~mask])  # product of nonzero eigenvalues
+        # target product of all eigenvalues based on target vol = n*pointvol:
+        targetprod = (npoints * pointvol / vol_prefactor(n))**2
+        nzeros = mask.sum()  # number of zero eigenvalues
+        w[mask] = (targetprod / nzprod) ** (1./nzeros)  # adjust zero eigvals
+        cov = np.dot(np.dot(v, np.diag(w)), np.linalg.inv(v))  # re-form cov
 
-    # for a ball of uniformly distributed points, the covariance will be
-    # smaller than r^2 by a factor of 1/(n+2) [see above].
-    cov *= 1. / (n+2)
-
-    # ellipse is defined by `a`.
+    # Matrix defining ellipse
     a = np.linalg.inv(cov)
 
     # Calculate expansion factor necessary to bound each point.
-    # Points should obey x^T A x <= 1, so we calculate x^T A x for each
-    # point and then scale A up or down to make the "outermost" point obey
-    # x^T A x = 1.
+    # Points should obey x^T A x <= 1, so we calculate x^T A x for
+    # each point and then scale A up or down to make the
+    # "outermost" point obey x^T A x = 1.
     # 
     # The line below should be equilvalent to:
     #
@@ -259,9 +262,12 @@ def bounding_ellipsoid(x, pointvol=0.):
     #         f[i] = np.dot(np.dot(delta[i,:], icov), delta[i,:])
     #
     f = np.einsum('...i, ...i', np.tensordot(delta, a, axes=1), delta)
+
     fmax = np.max(f)
     if fmax > 1.0:
-        a *= np.max(f)
+        a /= fmax
+
+    print("n={}: fmax={}".format(n, fmax))
 
     return Ellipsoid(ctr, a)
 

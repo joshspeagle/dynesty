@@ -30,8 +30,10 @@ before_install:
     - export PATH=/home/travis/miniconda/bin:$PATH
     - conda update --yes conda
 
+# Note: leave numpy in all `conda install` commands to prevent conda from
+# upgrading it automatically.
 install:
-    - conda create --yes -n test python=$TRAVIS_PYTHON_VERSION pytest
+    - conda create --yes -n test python=$TRAVIS_PYTHON_VERSION numpy=$NUMPY_VERSION pytest
     - source activate test
     - if [[ $SCIPY_VERSION > 0 ]]; then conda install --yes numpy=$NUMPY_VERSION scipy=$SCIPY_VERSION; fi
     - source activate test

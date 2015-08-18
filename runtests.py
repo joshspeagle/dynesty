@@ -2,6 +2,7 @@
 from __future__ import print_function, division
 
 import math
+from copy import deepcopy
 
 import numpy as np
 from numpy.random import RandomState
@@ -9,6 +10,8 @@ from numpy.testing import assert_allclose
 import pytest
 
 import nestle
+
+NMAX = 10  # many tests are run for dimensions 1 to NMAX inclusive
 
 def test_vol_prefactor():
     assert nestle.vol_prefactor(1) == 2.
@@ -35,7 +38,7 @@ def test_randsphere():
     rstate = RandomState(0)
     npoints = 1000
     
-    for n in range(1, 10):
+    for n in range(1, NMAX+1):
         for i in range(npoints):
             x = nestle.randsphere(n, rstate=rstate)
             r = np.sum(x**2)
@@ -63,7 +66,7 @@ def test_ellipsoid_sphere():
     the identity matrix."""
 
     scale = 5.
-    for n in range(1, 10):
+    for n in range(1, NMAX+1):
         ctr = 2.0 * scale * np.ones(n)  # arbitrary non-zero center
         a = 1.0 / scale**2 * np.identity(n)
         ell = nestle.Ellipsoid(ctr, a)
@@ -78,7 +81,7 @@ def test_ellipsoid_vol_scaling():
 
     scale = 1.5 # linear scale
 
-    for n in range(1, 10):
+    for n in range(1, NMAX+1):
         # ellipsoid centered at origin with principle axes aligned with
         # coordinate axes, but random sizes.
         ctr = np.zeros(n)
@@ -102,7 +105,7 @@ def test_ellipsoid_contains():
     """Test Elipsoid.contains()"""
     eps = 1.e-7
 
-    for n in range(1, 10):
+    for n in range(1, NMAX+1):
         ell = nestle.Ellipsoid(np.zeros(n), np.identity(n))  # unit n-sphere
         
         # point just outside unit n-sphere:
@@ -127,13 +130,70 @@ def test_ellipsoid_contains():
             assert ell.contains(pt)
 
 
-# TODO
-#def test_ellipsoid_sample():
+def random_ellipsoid(n):
+    """Return a random `n`-d ellipsoid centered at the origin
+
+    This is a helper function for other tests.
+    """
+
+    # `a` in the ellipsoid must be positive definite, so we have to construct
+    # a positive definite matrix. For any real, non-singular matrix A,
+    # `A^T A` will be positive definite.
+    det = 0.
+    while abs(det) < 1.e-10:  # ensure a non-singular matrix
+        A = np.random.rand(n, n)
+        det = np.linalg.det(A)
+
+    return nestle.Ellipsoid(np.zeros(n), np.dot(A.T, A))
+
+
+def test_ellipsoid_sample():
+    """Ensure that Ellipsoid.sample() returns samples in itself and make
+    some test that they are evenly distributed."""
+
+    nsamples = 1000  # don't make this too small
+    volfrac = 0.5  # sets inner ellipse size
+
+    for n in range(1, NMAX+1):
+        ell = random_ellipsoid(n)  # random ellipsoid
+        ell2 = deepcopy(ell)
+        ell2.scale_to_vol(volfrac * ell2.vol)  # smaller ellipsoid
+
+        # expected number of points that will fall within inner ellipsoid
+        expect = volfrac * nsamples
+        sigma = math.sqrt((1. - volfrac) * volfrac * nsamples) # normal approx.
+
+        # sample randomly. For each point, check if point is within
+        # main ellipsoid and count the number of points within the
+        # inner ellipsoid.
+        ninner = 0
+        for i in range(nsamples):
+            x = ell.sample()
+            assert ell.contains(x)
+            ninner += ell2.contains(x)
+
+        # check that the number of points in the inner ellipse is what
+        # we expect (practically guaranteed to be in range +/- 10 sigma!)
+        assert expect - 10.*sigma < ninner < expect + 10.*sigma
+
+
+def test_bounding_ellipsoid():
+    """Test that bounding ellipsoid contains the points"""
+
+    npoints = 100
+
+    for n in range(1, 20+1):
+        ell_gen = random_ellipsoid(n)  # random elipsoid
+        x = ell_gen.samples(npoints)  # points within it
+        #pointvol = ell_gen.vol / npoints
+        pointvol = 0.
+        ell = nestle.bounding_ellipsoid(x, pointvol=pointvol)
+
+        print("n={}: true_vol={}  vol={}".format(n, ell_gen.vol, ell.vol))
 
 
 # TODO
-#def test_bounding_ellipsoid():
-
+# def test_bounding_ellipsoid_few_points(): 
 
 def failing_test_two_gaussians():
     """Two gaussians in 2-d.

@@ -19,6 +19,7 @@ except ImportError:
 
 __all__ = ["sample", "print_logz"]
 
+EPS = float(np.finfo(np.float64).eps)
 
 # -----------------------------------------------------------------------------
 # Helpers
@@ -160,7 +161,7 @@ class Ellipsoid(object):
     def contains(self, x):
         """Does the ellipse contain the point?"""
         d = x - self.ctr
-        return np.dot(np.dot(d, self.a), d) < 1.0
+        return np.dot(np.dot(d, self.a), d) <= 1.0
 
     def sample(self, rstate=np.random):
         """Chose a sample randomly distributed within the ellipsoid.
@@ -262,12 +263,15 @@ def bounding_ellipsoid(x, pointvol=0.):
     #         f[i] = np.dot(np.dot(delta[i,:], icov), delta[i,:])
     #
     f = np.einsum('...i, ...i', np.tensordot(delta, a, axes=1), delta)
-
     fmax = np.max(f)
-    if fmax > 1.0:
-        a /= fmax
 
-    print("n={}: fmax={}".format(n, fmax))
+    # Due to round-off errors, we actually scale the ellipse so the outermost
+    # point obeys x^T A x < 1 - (a bit), so that all the points will
+    # *definitely* obey x^T A x < 1.
+    one_minus_a_bit = 1. - 1e4 * n * EPS  # I'm guessing error scales with n.
+                                          # 1e4 was determined from tests.
+    if fmax > one_minus_a_bit:
+        a *= one_minus_a_bit/fmax
 
     return Ellipsoid(ctr, a)
 

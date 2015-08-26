@@ -11,7 +11,7 @@ import pytest
 
 import nestle
 
-NMAX = 10  # many tests are run for dimensions 1 to NMAX inclusive
+NMAX = 20  # many tests are run for dimensions 1 to NMAX inclusive
 
 def test_vol_prefactor():
     assert nestle.vol_prefactor(1) == 2.
@@ -182,20 +182,40 @@ def test_bounding_ellipsoid():
 
     npoints = 100
 
-    for n in range(1, 20+1):
+    for n in range(1, NMAX+1):
         ell_gen = random_ellipsoid(n)  # random elipsoid
         x = ell_gen.samples(npoints)  # points within it
-        #pointvol = ell_gen.vol / npoints
-        pointvol = 0.
-        ell = nestle.bounding_ellipsoid(x, pointvol=pointvol)
+        ell = nestle.bounding_ellipsoid(x)
+        for xi in x:
+            assert ell.contains(xi)
 
         print("n={}: true_vol={}  vol={}".format(n, ell_gen.vol, ell.vol))
 
 
-# TODO
-# def test_bounding_ellipsoid_few_points(): 
+def test_bounding_ellipsoid_few_points(): 
+    """Test that bounding ellipsoid still works when npoints < dim but
+    pointvol > 0."""
 
-def failing_test_two_gaussians():
+    for n in range(1, NMAX+1):
+        ell_gen = random_ellipsoid(n)
+        for npoints in range(1, n):
+            x = ell_gen.samples(npoints)
+
+            # check that it works
+            ell = nestle.bounding_ellipsoid(x, pointvol=ell_gen.vol/npoints)
+
+            # check that volume is as expected
+            assert_allclose(ell.vol, ell_gen.vol)
+
+            # check that points are contained
+            for xi in x:
+                assert ell.contains(xi)
+
+
+# -----------------------------------------------------------------------------
+# Case tests
+
+def test_two_gaussians():
     """Two gaussians in 2-d.
 
     Note that this is a terrible test in that it will only pass for some 

@@ -211,10 +211,12 @@ def test_bounding_ellipsoid_few_points():
             for xi in x:
                 assert ell.contains(xi)
 
+# TODO test_bounding_ellipsoid()
 
 # -----------------------------------------------------------------------------
 # Case tests
 
+# TODO: make this more stringent
 def test_two_gaussians():
     """Two gaussians in 2-d.
 

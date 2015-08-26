@@ -567,7 +567,7 @@ def sample(loglikelihood, prior, npar, nipar=None, npoints=100, maxiter=10000,
     saved_logwt = []
     loglstar = None  # ln(Likelihood constraint)
     h = 0.0  # Information, initially 0.
-    logz = -np.inf  # ln(Evidence Z), initially 0.
+    logz = -1e300  # ln(Evidence Z), initially 0.
     # ln(width in prior mass), outermost width is 1 - e^(-1/n)
     logwidth = math.log(1.0 - math.exp(-1.0/npoints))
     ncall = npoints  # number of calls we already made

@@ -6,9 +6,8 @@ nestle
 Pure Python implementation of nested sampling algorithms for
 evaluating Bayesian evidence.
 
-### Currently in development in preparation for a new and improved release.
-
-[![Build Status](https://api.travis-ci.org/kbarbary/nestle.svg)](https://travis-ci.org/kbarbary/nestle)
+[![Build Status](https://img.shields.io/travis/kbarbary/nestle.svg?style=flat-square)](https://travis-ci.org/kbarbary/nestle)
+[![Coverage Status](http://img.shields.io/coveralls/kbarbary/nestle.svg?style=flat-square)](https://coveralls.io/r/kbarbary/nestle?branch=master)
 
 Install
 -------

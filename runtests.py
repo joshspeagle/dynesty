@@ -217,67 +217,73 @@ def test_bounding_ellipsoid_few_points():
 
 # -----------------------------------------------------------------------------
 # Case tests
+import itertools
 
-# TODO: make this more stringent
-class TestTwoGaussians:
-    """Two gaussians in 2-d."""
+def integrate_on_grid(f, ranges, density=100):
+    rs = []
+    for r in ranges:
+        step = (r[1] - r[0]) / density
+        rmin = r[0] + step / 2.
+        rmax = r[1] - step / 2.
+        rs.append(np.linspace(rmin, rmax, density))
 
-    def setup_class(self):
-        # gaussians centered at (1, 1) and (-1, -1)
-        self.mu1 = np.ones(2)
-        self.mu2 = -np.ones(2)
 
-        # Width of 0.1 in each dimension
-        sigma = 0.1
-        ivar = 1.0/(sigma*sigma)
-        self.sigma1inv = np.diag([ivar, ivar])
-        self.sigma2inv = np.diag([ivar, ivar])
+    logsum = -1.e300
+    for v in itertools.product(*rs):
+        logsum = np.logaddexp(logsum, f(np.array(v)))
 
-        self.rstate = RandomState(0)
+    # adjust for prior density: divide by density^n
+    logsum -= len(ranges) * np.log(density)
 
-        #(Approximate) analytic evidence for two identical Gaussian blobs,
-        # over a uniform prior [-5:5][-5:5] with density 1/100 in this domain:
-        self.analytic_logz = np.log(2.0 * 2.0*np.pi*sigma*sigma / 100.)
-        print("analytic = {0:6.3f}".format(self.analytic_logz))
+    return logsum
 
-        # calculate evidence on fine grid.
-        dx = 0.1
-        xv = np.arange(-5.0 + dx/2., 5., dx)
-        yv = np.arange(-5.0 + dx/2., 5., dx)
-        grid_logz = -1.e300
-        for x in xv:
-            for y in yv:
-                grid_logz = np.logaddexp(grid_logz, self.logl(self, np.array([x, y])))
-        grid_logz += np.log(dx * dx / 100.)  # adjust for point density
-        print("grid_logz =", grid_logz)
-        self.grid_logz = grid_logz
+# two gaussians centered at (1, 1) and (-1, -1) with sigma = 0.1
+sigma = 0.1
+mu1 = np.ones(2)
+mu2 = -np.ones(2)
+sigma_inv = np.identity(2) / 0.1**2
 
-    def logl(self, x):
-        dx1 = x - self.mu1
-        dx2 = x - self.mu2
-        return np.logaddexp(-np.dot(dx1, np.dot(self.sigma1inv, dx1))/2.0,
-                            -np.dot(dx2, np.dot(self.sigma2inv, dx2))/2.0)
+def logl(x):
+    dx1 = x - mu1
+    dx2 = x - mu2
+    return np.logaddexp(-np.dot(dx1, np.dot(sigma_inv, dx1)) / 2.0,
+                        -np.dot(dx2, np.dot(sigma_inv, dx2)) / 2.0)
 
-        
-        # Use a flat prior, over [-5, 5] in both dimensions
-    def prior(self, x):
-        return 10.0 * x - 5.0
+# Flat prior, over [-5, 5] in both dimensions
+def prior(x):
+    return 10.0 * x - 5.0
 
-    def test_single(self):
-        res = nestle.sample(self.logl, self.prior, 2, method='single',
-                            npoints=100, rstate=self.rstate)
+#(Approximate) analytic evidence for two identical Gaussian blobs,
+# over a uniform prior [-5:5][-5:5] with density 1/100 in this domain:
+analytic_logz = np.log(2.0 * 2.0*np.pi*sigma*sigma / 100.)
+grid_logz = integrate_on_grid(logl, [(-5., 5.), (-5., 5.)])
 
-        print("single: evidence = {0:6.3f} +/- {1:6.3f}".format(res.logz, res.logzerr))
-        assert abs(res.logz - self.grid_logz) < 3.0 * res.logzerr
 
-    @pytest.mark.skipif("not nestle.HAVE_KMEANS")
-    def test_multi(self):
-        res = nestle.sample(self.logl, self.prior, 2, method='multi',
-                            npoints=100, rstate=self.rstate)
+def test_single():
+    res = nestle.sample(logl, prior, 2, method='single',
+                        npoints=100, rstate=RandomState(0))
+    print()
+    print("single: logz           = {0:6.3f} +/- {1:6.3f}".format(res.logz,
+                                                                  res.logzerr))
+    print("        grid_logz      = {0:8.5f}".format(grid_logz))
+    print("        analytic_logz  = {0:8.5f}".format(analytic_logz))
+    assert abs(res.logz - grid_logz) < 3.0 * res.logzerr
 
-        print("multi: evidence = {0:6.3f} +/- {1:6.3f}".format(res.logz, res.logzerr))
-        assert abs(res.logz - self.grid_logz) < 3.0 * res.logzerr
+@pytest.mark.skipif("not nestle.HAVE_KMEANS")
+def test_multi():
+    res = nestle.sample(logl, prior, 2, method='multi',
+                        npoints=100, rstate=RandomState(0))
+    print()
+    print("multi:  logz           = {0:6.3f} +/- {1:6.3f}".format(res.logz,
+                                                                  res.logzerr))
+    print("        grid_logz      = {0:8.5f}".format(grid_logz))
+    print("        analytic_logz  = {0:8.5f}".format(analytic_logz))
 
+    assert abs(res.logz - grid_logz) < 3.0 * res.logzerr
+
+
+# -----------------------------------------------------------------------------
+# utilities
 
 def test_weightedcov():
     x = np.random.random((10, 3))

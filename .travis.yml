@@ -11,11 +11,12 @@ env:
         - NUMPY_VERSION=1.9
         - SCIPY_VERSION=0.16
         - CMD='./runtests.py'
+        - COVERAGE=0
 
 matrix:
     include:
         - python: 2.7
-          env: NUMPY_VERSION=1.9 SCIPY_VERSION=0.16  # py2.7, latest deps
+          env: CMD='./runtests.py --cov-report= --cov=nestle.py' NUMPY_VERSION=1.9 SCIPY_VERSION=0.16 COVERAGE=1
         - python: 2.7
           env: NUMPY_VERSION=1.6 SCIPY_VERSION=0.11  # py2.7, oldest deps
         - python: 3.3
@@ -36,7 +37,10 @@ install:
     - conda create --yes -n test python=$TRAVIS_PYTHON_VERSION numpy=$NUMPY_VERSION pytest
     - source activate test
     - if [[ $SCIPY_VERSION > 0 ]]; then conda install --yes numpy=$NUMPY_VERSION scipy=$SCIPY_VERSION; fi
+    - if [[ $COVERAGE ]]; then pip install --no-deps pytest-cov coveralls; fi
     - source activate test
     - python setup.py install
 
 script: $CMD
+
+after_success: if [[ $COVERAGE ]]; then coveralls; fi

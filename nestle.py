@@ -135,8 +135,8 @@ def mean_and_cov(x, weights):
 
 def print_progress(info):
     print("\rit={:6d} logz={:8f}".format(info['it'], info['logz']),
-          end='', flush=True)
-
+          end='')
+    sys.stdout.flush()  # because flush keyword not in print() in py2.7
 
 # -----------------------------------------------------------------------------
 # Ellipsoid

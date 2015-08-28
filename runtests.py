@@ -318,7 +318,7 @@ def test_mean_and_cov():
 
 def test_result():
     r = nestle.Result(a=1, b=2)
-    assert repr(r) == ' b: 2\n a: 1'
+    assert repr(r) in [' b: 2\n a: 1', ' a: 1\n b: 2']
 
     with pytest.raises(AttributeError):
         r.c

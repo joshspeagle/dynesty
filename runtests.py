@@ -290,11 +290,11 @@ def test_multi():
 # -----------------------------------------------------------------------------
 # utilities
 
-def test_weightedcov():
+def test_mean_and_cov():
     x = np.random.random((10, 3))
     w = np.random.random((10,))
 
-    mean, cov = nestle.weightedcov(x, w)
+    mean, cov = nestle.mean_and_cov(x, w)
 
     # check individual elements
     xd = x - np.average(x, weights=w, axis=0)
@@ -306,6 +306,6 @@ def test_weightedcov():
 
     # If weights are all equal, covariance should come out to simple case
     w = np.repeat(0.2, 10)
-    mean, cov = nestle.weightedcov(x, w)
+    mean, cov = nestle.mean_and_cov(x, w)
     assert_allclose(cov, np.cov(x, rowvar=0))
     assert_allclose(mean, np.average(x, axis=0))

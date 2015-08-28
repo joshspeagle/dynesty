@@ -10,12 +10,10 @@ Installation
 
     pip install nestle
 
-*(does not yet work)*
-
 **Requirements:**
 
-- numpy
-- scipy (for multi-modal nested sampling)
+- numpy v1.6+
+- scipy (only needed for multi-ellipsoidal method)
 
 **Development version / source code:** http://github.com/kbarbary/nestle
 
@@ -27,6 +25,8 @@ Reference / API
    
    nestle.sample
    nestle.print_progress
+   nestle.mean_and_cov
+   nestle.Result
 
 Citation
 --------

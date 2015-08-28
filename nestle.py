@@ -3,6 +3,7 @@
 
 from __future__ import print_function, division
 
+import sys
 import warnings
 import math
 
@@ -13,7 +14,8 @@ try:
 except ImportError:
     HAVE_KMEANS = False
 
-__all__ = ["sample", "print_progress"]
+__all__ = ["sample", "print_progress", "mean_and_cov", "Result"]
+__version__ = "0.1.0-dev"
 
 EPS = float(np.finfo(np.float64).eps)
 
@@ -65,17 +67,18 @@ def random_choice(a, p, rstate=np.random):
 
 
 class Result(dict):
-    """Represents an optimization result.
+    """Represents a sampling result.
+
+    Attributes
+    ----------
 
     Notes
     -----
-    This is a cut and paste from scipy, normally imported with `from
-    scipy.optimize import Result`. However, it isn't available in
-    scipy 0.9 (or possibly 0.10), so it is included here.
     Since this class is essentially a subclass of dict with attribute
     accessors, one can see which attributes are available using the
     `keys()` method.
     """
+
     def __getattr__(self, name):
         try:
             return self[name]
@@ -94,37 +97,45 @@ class Result(dict):
             return self.__class__.__name__ + "()"
 
 
-def weightedcov(x, w):
-    """Estimate a covariance matrix, given data with weights.
-
-    Implements formula described here:
-    https://en.wikipedia.org/wiki/Sample_mean_and_sample_covariance
-    (see "weighted samples" section)
+def mean_and_cov(x, weights):
+    """Compute weighted sample mean and covariance.
 
     Parameters
     ----------
     x : `~numpy.ndarray`
         2-D array containing data samples. Shape is (M, N) where N is the
         number of variables and M is the number of samples or observations.
-    w : `~numpy.ndarray`
+        This is ordering is equivalent to using ``rowvar=0`` in numpy.cov.
+    weights : `~numpy.ndarray`
         1-D array of sample weights. Shape is (M,).
 
     Returns
     -------
     mean : `~numpy.ndarray`
-        Weighted mean of samples.
+        Weighted average of samples, with shape (N,).
     cov : `~numpy.ndarray`
-        Weighted covariance matrix.
+        The covariance matrix of the variables with shape (N, N).
+
+    Notes
+    -----
+    Implements formula described here:
+    https://en.wikipedia.org/wiki/Sample_mean_and_sample_covariance
+    (see "weighted samples" section)
     """
 
-    xmean = np.average(x, weights=w, axis=0)
-    xd = x - xmean
-    wsum = np.sum(w)
-    w2sum = np.sum(w**2)
+    mean = np.average(x, weights=weights, axis=0)
+    dx = x - mean
+    wsum = np.sum(weights)
+    w2sum = np.sum(weights**2)
 
-    cov = wsum / (wsum**2 - w2sum) * np.einsum('i,ij,ik', w, xd, xd)
+    cov = wsum / (wsum**2 - w2sum) * np.einsum('i,ij,ik', weights, dx, dx)
 
-    return xmean, cov
+    return mean, cov
+
+
+def print_progress(info):
+    print("\rit={:6d} logz={:8f}".format(info['it'], info['logz']),
+          end='', flush=True)
 
 
 # -----------------------------------------------------------------------------
@@ -248,6 +259,7 @@ class Ellipsoid(object):
     def __repr__(self):
         return "Ellipsoid(ctr={})".format(self.ctr)
 
+
 # -----------------------------------------------------------------------------
 # Functions for determining the ellipsoid or set of ellipsoids bounding a
 # set of points.
@@ -335,7 +347,7 @@ def bounding_ellipsoid(x, pointvol=0.):
 
     return Ellipsoid(ctr, a)
 
-# TODO: should
+
 def bounding_ellipsoids(x, pointvol=0., ell=None, debug=False):
     """Calculate a set of ellipses that bound the points.
 
@@ -474,85 +486,143 @@ def sample_ellipsoids(ells, rstate=np.random):
         return sample_ellipsoids(ells, rstate=rstate)
 
 
-def print_progress(it, logz):
-    print("\riter={:6d} logz={:8f}".format(it, logz), end='', flush=True)
+# -----------------------------------------------------------------------------
+# Sampler classes
+
+class SingleEllipsoidSampler:
+    """Bounds active points in a single ellipsoid and samples randomly
+    from within that ellipsoid"""
+
+    def __init__(self, **kwargs):
+        self.enlarge = kwargs['enlarge']
+        self.rstate = kwargs['rstate']
+
+    def update(self, points, pointvol):
+        self.ell = bounding_ellipsoid(points, pointvol=pointvol)
+        self.ell.scale_to_vol(self.ell.vol * self.enlarge)
+
+    def sample(self):
+        return self.ell.sample(rstate=self.rstate)
 
 
-def sample(loglikelihood, prior, npar, nipar=None, npoints=100, maxiter=10000,
-           method='single', enlarge=1.5, callback=None, rstate=None,
-           plot_callback=None):
+class MultiEllipsoidSampler:
+    def __init__(self, **kwargs):
+        self.enlarge = kwargs['enlarge']
+        self.rstate = kwargs['rstate']
+
+    def update(self, points, pointvol):
+        self.ells = bounding_ellipsoids(points, pointvol=pointvol)
+        for ell in self.ells:
+            ell.scale_to_vol(ell.vol * self.enlarge)
+
+    def sample(self):
+        return sample_ellipsoids(self.ells, rstate=self.rstate)
+
+
+_SAMPLER_CLASSES = {'single': SingleEllipsoidSampler,
+                    'multi': MultiEllipsoidSampler}
+
+# -----------------------------------------------------------------------------
+# Main entry point
+
+def sample(loglikelihood, prior_transform, ndim, npoints=100, method='single',
+           enlarge=1.5, npdim=None, maxiter=None, rstate=None,
+           callback=None):
     """Simple nested sampling algorithm to evaluate Bayesian evidence.
 
     Parameters
     ----------
-    loglikelihood : func
+    loglikelihood : function
         Function returning log(likelihood) given parameters as a 1-d numpy
-        array of length `npar`.
-    prior : func
+        array of length *ndim*.
+    prior_transform : function
         Function translating a unit cube to the parameter space according to
-        the prior. The input is a 1-d numpy array with length `npar`, where
+        the prior. The input is a 1-d numpy array with length *ndim*, where
         each value is in the range [0, 1). The return value should also be a
-        1-d numpy array with length `npar`, where each value is a parameter.
+        1-d numpy array with length *ndim*, where each value is a parameter.
         The return value is passed to the loglikelihood function. For example,
         for a 2 parameter model with flat priors in the range [0, 2), the
-        function would be
+        function would be::
 
-            def prior(u):
+            def prior_transform(u):
                 return 2.0 * u
 
-    npar : int
+    ndim : int
         Number of parameters returned by prior and accepted by loglikelihood.
-    nipar : int, optional
-        Number of parameters accepted by prior. This might differ from npar
-        in the case where a parameter of loglikelihood is dependent upon
-        multiple independently distributed parameters, some of which may be
-        nuisance parameters.
     npoints : int, optional
         Number of active points. Larger numbers result in a more finely
         sampled posterior (more accurate evidence), but also a larger
         number of iterations required to converge. Default is 100.
-    maxiter : int, optional
-        Maximum number of iterations. Iteration may stop earlier if
-        termination condition is reached. Default is 10000.
     method : {'single', 'multi'}, optional
         Method used to select new points. Choices are
         single-ellipsoidal ('single'), multi-ellipsoidal ('multi'). Default
         is 'single'.
     enlarge : float, optional
         Enlarge the ellipsoid(s) by this fraction in volume. Default is 1.5.
+    npdim : int, optional
+        Number of parameters accepted by prior. This might differ from *ndim*
+        in the case where a parameter of loglikelihood is dependent upon
+        multiple independently distributed parameters, some of which may be
+        nuisance parameters. 
+    maxiter : int, optional
+        Maximum number of iterations. Iteration may stop earlier if
+        termination condition is reached. Default is no limit.
     rstate : `~numpy.random.RandomState`, optional
         RandomState instance. If not given, the global random state of the
         ``np.random`` module will be used.
-    callback : func, optional
-        Callback function called at each iteration. Two arguments are 
-        passed to the callback, the number of iterations and the logarithm
-        of the current evidence (``logz``). To print the progress at
-        each iteration, use ``callback=nestle.print_progress``.
+    callback : function, optional
+        Callback function to be called at each iteration. A single argument,
+        a dictionary, is passed to the callback. The keys include ``'it'``,
+        the current iteration number, and ``'logz'``, the current total
+        log evidence of all saved points. To simply print these at each
+        iteration, use the convience function
+        ``callback=nestle.print_progress``.
 
     Returns
     -------
-    result : dict
-        Containing following keys:
+    result : `Result`
+        A dictionary-like object with attribute access: Attributes can be
+        accessed with, for example, either ``result['niter']`` or
+        ``result.niter``. Attributes:
 
-        * ``niter`` (int) number of iterations.
-        * ``ncall`` (int) number of likelihood calls.
-        * ``logz`` (float) log of evidence.
-        * ``logzerr`` (float) error on ``logz``.
-        * ``h`` (float) information.
-        * ``samples`` (array, shape=(nsamples, npar)) parameter values
-          of each sample.
-        * ``weights`` (array, shape=(nsamples,)) Weight of each sample.
-        * ``logprior`` (array, shape=(nsamples,)) log(Prior volume) of
-          each sample.
-        * ``logl`` (array, shape=(nsamples,)) log(Likelihood) of each sample.
+        niter *(int)*
+            Number of iterations.
+
+        ncall *(int)*
+            Number of likelihood calls.
+
+        logz *(float)*
+            Natural logarithm of evidence (integral of posterior).
+
+        logzerr *(float)*
+            Estimated numerical (sampling) error on *logz*.
+
+        h *(float)*
+            Information. This is a measure of the "peakiness" of the
+            likelihood function. A constant likelihood has zero information.
+
+        samples *(ndarray)*
+            Parameter values of each sample. Shape is *(nsamples, ndim)*.
+
+        logvol *(ndarray)*
+            Natural log of prior volume of corresponding to each sample.
+            Shape is *(nsamples,)*.
+
+        logl *(ndarray)*
+            Natural log of the likelihood for each sample, as returned by
+            user-supplied *logl* function. Shape is *(nsamples,)*.
+
+        weights *(ndarray)*
+            Weight corresponding to each sample, normalized to unity.
+            These are proportional to ``exp(logvol + logl)``. Shape is
+            *(nsamples,)*.
+
 
     Notes
     -----
     This is an implementation of John Skilling's Nested Sampling algorithm,
     following the ellipsoidal sampling algorithm in Shaw et al (2007).
 
-    Sample Weights are ``likelihood * prior_vol`` where
-    prior_vol is the fraction of the prior volume the sample represents.
 
     References
     ----------
@@ -561,49 +631,66 @@ def sample(loglikelihood, prior, npar, nipar=None, npoints=100, maxiter=10000,
     Feroz, Hobson, Bridges 2009, MNRAS, 398, 1601
     """
 
-    if nipar is None:
-        nipar = npar
+    if npdim is None:
+        npdim = ndim
 
-    if method is 'multi' and not HAVE_KMEANS:
-        raise ValueError("scipy.cluster.vq.kmeans2 required for 'multi' "
-                         "method")
+    if maxiter is None:
+        maxiter = sys.maxsize
 
-    if npoints < npar**2:
-        warnings.warn("You really want to make npoints >= npar**2.")
+    if method == 'multi' and not HAVE_KMEANS:
+        raise ValueError("scipy.cluster.vq.kmeans2 is required for the "
+                         "'multi' method.")
+    if method not in _SAMPLER_CLASSES:
+        raise ValueError("Unknown method: {:r}".format(method))
+
+    sampler = _SAMPLER_CLASSES[method](enlarge=enlarge, rstate=rstate)
+
+    if npoints < ndim**2:
+        warnings.warn("You really want to make npoints >= ndim**2!")
 
     if rstate is None:
         rstate = np.random
 
     # Initialize active points and calculate likelihoods
-    active_u = rstate.rand(npoints, nipar)  # position in unit cube
-    active_v = np.empty((npoints, npar), dtype=np.float64)  # real params
+    active_u = rstate.rand(npoints, npdim)  # position in unit cube
+    active_v = np.empty((npoints, ndim), dtype=np.float64)  # real params
     active_logl = np.empty(npoints, dtype=np.float64)  # log likelihood
     for i in range(npoints):
-        active_v[i, :] = prior(active_u[i, :])
+        active_v[i, :] = prior_transform(active_u[i, :])
         active_logl[i] = loglikelihood(active_v[i, :])
 
     # Initialize values for nested sampling loop.
     saved_v = []  # stored points for posterior results
     saved_logl = []
-    saved_logprior = []
+    saved_logvol = []
     saved_logwt = []
     loglstar = None  # ln(Likelihood constraint)
     h = 0.0  # Information, initially 0.
     logz = -1e300  # ln(Evidence Z), initially 0.
-    # ln(width in prior mass), outermost width is 1 - e^(-1/n)
-    logwidth = math.log(1.0 - math.exp(-1.0/npoints))
+    logvol = math.log(1.0 - math.exp(-1.0/npoints))  # first point removed will
+                                                     # have volume 1-e^(1/n)
     ncall = npoints  # number of calls we already made
+
+    # Initialize sampler
+    sampler.update(active_u, 1./npoints)
+
+    callback_info = {'it': 0,
+                     'logz': logz,
+                     'active_u': active_u,
+                     'sampler': sampler}
 
     # Nested sampling loop.
     ndecl = 0
     logwt_old = -np.inf
-    for it in range(maxiter):
+    it = 0
+    while it < maxiter:
         if callback is not None:
-            callback(it, logz)
+            callback_info.update(it=it, logz=logz)
+            callback(callback_info)
 
-        # worst object in collection and its weight (= width * likelihood)
+        # worst object in collection and its weight (= volume * likelihood)
         worst = np.argmin(active_logl)
-        logwt = logwidth + active_logl[worst]
+        logwt = logvol + active_logl[worst]
 
         # update evidence Z and information h.
         logz_new = np.logaddexp(logz, logwt)
@@ -615,40 +702,25 @@ def sample(loglikelihood, prior, npar, nipar=None, npoints=100, maxiter=10000,
         # Add worst object to samples.
         saved_v.append(np.array(active_v[worst]))
         saved_logwt.append(logwt)
-        saved_logprior.append(logwidth)
+        saved_logvol.append(logvol)
         saved_logl.append(active_logl[worst])
 
         # The new likelihood constraint is that of the worst object.
         loglstar = active_logl[worst]
 
-        expected_vol = math.exp(-it/npoints)
+        expected_vol = math.exp(-it / npoints)
         pointvol = expected_vol / npoints
 
-        # calculate the ellipsoid in parameter space that contains all the
-        # samples (including the worst one).
-        if method == 'single':
-            ell = bounding_ellipsoid(active_u, pointvol=pointvol)
-            ell.scale_to_vol(ell.vol * enlarge)
-        else:
-            ells = bounding_ellipsoids(active_u, pointvol=pointvol)
-            for ell in ells:
-                ell.scale_to_vol(ell.vol * enlarge)
-
-        if plot_callback is not None:
-            plot_callback(active_v, ells)
-
-
+        # Update the sampler based on the current active points.
+        sampler.update(active_u, pointvol)
 
         # Choose a point from within the ellipse until it has likelihood
         # better than loglstar.
         while True:
-            if method == 'single':
-                u = ell.sample(rstate=rstate)
-            else:
-                u = sample_ellipsoids(ells, rstate=rstate)
+            u = sampler.sample()
             if np.any(u < 0.0) or np.any(u > 1.0):
                 continue
-            v = prior(u)
+            v = prior_transform(u)
             logl = loglikelihood(v)
             ncall += 1
 
@@ -660,7 +732,7 @@ def sample(loglikelihood, prior, npar, nipar=None, npoints=100, maxiter=10000,
                 break
 
         # Shrink interval
-        logwidth -= 1.0 / npoints
+        logvol -= 1.0 / npoints
 
         # Stopping criterion: stop when the logwt has been declining
         # for more than npoints* 2 and niter/6 consecutive iterations.
@@ -672,14 +744,16 @@ def sample(loglikelihood, prior, npar, nipar=None, npoints=100, maxiter=10000,
             break
         logwt_old = logwt
 
+        it += 1
+
     # Add remaining active points.
-    # After N samples have been taken out, the remaining width is
-    # e^(-N/npoints). Thus, the remaining width for each active point
+    # After N samples have been taken out, the remaining volume is
+    # e^(-N/npoints). Thus, the remaining volume for each active point
     # is e^(-N/npoints) / npoints. The log of this for each object is:
     # log(e^(-N/npoints) / npoints) = -N/npoints - log(npoints)
-    logwidth = -len(saved_v) / npoints - math.log(npoints)
+    logvol = -len(saved_v) / npoints - math.log(npoints)
     for i in range(npoints):
-        logwt = logwidth + active_logl[i]
+        logwt = logvol + active_logl[i]
         logz_new = np.logaddexp(logz, logwt)
         h = (math.exp(logwt - logz_new) * active_logl[i] +
              math.exp(logz - logz_new) * (h + logz) -
@@ -688,7 +762,7 @@ def sample(loglikelihood, prior, npar, nipar=None, npoints=100, maxiter=10000,
         saved_v.append(np.array(active_v[i]))
         saved_logwt.append(logwt)
         saved_logl.append(active_logl[i])
-        saved_logprior.append(logwidth)
+        saved_logvol.append(logvol)
 
     return Result([
         ('niter', it + 1),
@@ -696,10 +770,10 @@ def sample(loglikelihood, prior, npar, nipar=None, npoints=100, maxiter=10000,
         ('logz', logz),
         ('logzerr', math.sqrt(h / npoints)),
         ('h', h),
-        ('samples', np.array(saved_v)),  # (nsamples, npar)
-        ('weights', np.exp(np.array(saved_logwt) - logz)),  # (nsamples,)
-        ('logprior', np.array(saved_logprior)),  # (nsamples,)
-        ('logl', np.array(saved_logl))  # (nsamples,)
+        ('samples', np.array(saved_v)),
+        ('weights', np.exp(np.array(saved_logwt) - logz)),
+        ('logvol', np.array(saved_logvol)),
+        ('logl', np.array(saved_logl))
         ])
 
 

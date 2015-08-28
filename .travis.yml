@@ -37,7 +37,7 @@ install:
     - conda create --yes -n test python=$TRAVIS_PYTHON_VERSION numpy=$NUMPY_VERSION pytest
     - source activate test
     - if [[ $SCIPY_VERSION > 0 ]]; then conda install --yes numpy=$NUMPY_VERSION scipy=$SCIPY_VERSION; fi
-    - if [[ $COVERAGE ]]; then pip install --no-deps pytest-cov coveralls; fi
+    - if [[ $COVERAGE ]]; then pip install pytest-cov coveralls; fi
     - source activate test
     - python setup.py install
 

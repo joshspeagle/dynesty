@@ -8,6 +8,11 @@ import numpy as np
 from numpy.random import RandomState
 from numpy.testing import assert_allclose, assert_approx_equal
 import pytest
+try:
+    from numpy.random import choice
+    HAVE_CHOICE = True
+except ImportError:
+    HAVE_CHOICE = False
 
 import nestle
 
@@ -45,7 +50,7 @@ def test_randsphere():
             assert r < 1.0
         
 
-@pytest.mark.skipif("not nestle.HAVE_CHOICE")
+@pytest.mark.skipif("not HAVE_CHOICE")
 def test_random_choice():
     """nestle.random_choice() is designed to mimic np.random.choice(),
     for numpy < v1.7.0. In cases where we have both, test that they agree.

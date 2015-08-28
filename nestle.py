@@ -12,11 +12,6 @@ try:
     HAVE_KMEANS = True
 except ImportError:
     HAVE_KMEANS = False
-try:
-    from numpy.random import choice
-    HAVE_CHOICE = True
-except ImportError:
-    HAVE_CHOICE = False
 
 __all__ = ["sample", "print_progress"]
 
@@ -54,13 +49,10 @@ def randsphere(n, rstate=np.random):
     return z * rstate.rand()**(1./n) / np.sqrt(np.sum(z**2))
 
 
-def random_choice(a, p=None, rstate=np.random):
+def random_choice(a, p, rstate=np.random):
     """replacement for numpy.random.choice (only in numpy 1.7+)"""
 
-    if p is None:
-        p = np.ones(a)/len(a)
-
-    if np.sum(p) != 1.0:
+    if np.sum(p) - 1. > math.sqrt(EPS):  # same tol as in np.random.choice.
         raise ValueError("probabilities do not sum to 1")
 
     r = rstate.rand()
@@ -70,10 +62,6 @@ def random_choice(a, p=None, rstate=np.random):
         i += 1
         t += p[i]
     return i
-
-
-if not HAVE_CHOICE:
-    choice = random_choice
 
 
 class Result(dict):
@@ -468,7 +456,7 @@ def sample_ellipsoids(ells, rstate=np.random):
 
     # Select an ellipsoid at random, according to volumes
     v = np.array([ell.vol for ell in ells])
-    ell = ells[choice(len(ells), p=v/v.sum())]
+    ell = ells[random_choice(len(ells), v/v.sum(), rstate=rstate)]
     
     # Select a point from the ellipsoid
     x = ell.sample(rstate=rstate)

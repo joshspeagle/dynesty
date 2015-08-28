@@ -3,6 +3,7 @@
 
 from __future__ import print_function, division
 
+import warnings
 import math
 
 import numpy as np
@@ -17,7 +18,7 @@ try:
 except ImportError:
     HAVE_CHOICE = False
 
-__all__ = ["sample", "print_logz"]
+__all__ = ["sample", "print_progress"]
 
 EPS = float(np.finfo(np.float64).eps)
 
@@ -105,6 +106,39 @@ class Result(dict):
             return self.__class__.__name__ + "()"
 
 
+def weightedcov(x, w):
+    """Estimate a covariance matrix, given data with weights.
+
+    Implements formula described here:
+    https://en.wikipedia.org/wiki/Sample_mean_and_sample_covariance
+    (see "weighted samples" section)
+
+    Parameters
+    ----------
+    x : `~numpy.ndarray`
+        2-D array containing data samples. Shape is (M, N) where N is the
+        number of variables and M is the number of samples or observations.
+    w : `~numpy.ndarray`
+        1-D array of sample weights. Shape is (M,).
+
+    Returns
+    -------
+    mean : `~numpy.ndarray`
+        Weighted mean of samples.
+    cov : `~numpy.ndarray`
+        Weighted covariance matrix.
+    """
+
+    xmean = np.average(x, weights=w, axis=0)
+    xd = x - xmean
+    wsum = np.sum(w)
+    w2sum = np.sum(w**2)
+
+    cov = wsum / (wsum**2 - w2sum) * np.einsum('i,ij,ik', w, xd, xd)
+
+    return xmean, cov
+
+
 # -----------------------------------------------------------------------------
 # Ellipsoid
 
@@ -187,6 +221,44 @@ class Ellipsoid(object):
             x[i, :] = self.sample(rstate=rstate)
         return x
 
+    def plot(self, ax, show_axes=False):
+        """Plot the ellipse on a matplotlib Axes object. (Ellipsoid must be
+        2-d).
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            The Axes to draw on.
+        show_axes : bool, optional
+            If true, plot arrows giving the major and minor semi axes of the
+            ellipse.
+
+        Returns
+        -------
+        e : matplotlib.patches.Ellipse
+        """
+
+        try:
+            from matplotlib.patches import Ellipse
+        except ImportError:
+            raise ImportError("matplotlib must be installed to use plot "
+                              "method.")
+    
+        # angle of 0-th axis
+        theta = 180. / math.pi * math.atan(self.axes[1, 0] / self.axes[0, 0])
+
+        e = Ellipse(self.ctr, 2. * self.axlens[0], 2. * self.axlens[1], theta)
+        e.set_facecolor('None')
+        ax.add_artist(e)
+        if show_axes:
+            ax.arrow(self.ctr[0], self.ctr[1],
+                     self.axes[0, 0], self.axes[1, 0])
+            ax.arrow(self.ctr[0], self.ctr[1],
+                     self.axes[0, 1], self.axes[1, 1])
+        return e
+
+    def __repr__(self):
+        return "Ellipsoid(ctr={})".format(self.ctr)
 
 # -----------------------------------------------------------------------------
 # Functions for determining the ellipsoid or set of ellipsoids bounding a
@@ -275,9 +347,8 @@ def bounding_ellipsoid(x, pointvol=0.):
 
     return Ellipsoid(ctr, a)
 
-
-# only needed for multi-ellipsoid method
-def bounding_ellipsoids(x, pointvol=0., ell=None):
+# TODO: should
+def bounding_ellipsoids(x, pointvol=0., ell=None, debug=False):
     """Calculate a set of ellipses that bound the points.
 
     Parameters
@@ -285,17 +356,18 @@ def bounding_ellipsoids(x, pointvol=0., ell=None):
     x : (npoints, ndim) ndarray
         Coordinates of points.
     pointvol : float, optional
-        Volume represented by a single point. Sets a minimum scale for
-        each ellipsoid in all dimensions.
+        Volume represented by a single point. Used when number of points
+        per ellipsoid is less than number of dimensions in order to make
+        volume non-zero.
     ell : Ellipsoid, optional
         If known, the bounding ellipsoid of the points `x`. If not supplied,
-        it will be calculated. This option is used when the function is
-        called recursively.
+        it will be calculated. This option is used when the function calls
+        itself recursively.
 
     Returns
     -------
-    ells : list of 2-tuples
-        Ellipsoids, each represented by a tuple: ``(scaled_cov, x_mean)``
+    ells : list of Ellipsoid
+        Ellipsoids.
     """
 
     ells = []
@@ -311,7 +383,6 @@ def bounding_ellipsoids(x, pointvol=0., ell=None):
             ell.scale_to_vol(minvol)
 
     # debug
-    debug = True
     if debug:
         print("cluster at {} with {} points and vol={:.5f}:"
               .format(ell.ctr, len(x), ell.vol))
@@ -324,12 +395,17 @@ def bounding_ellipsoids(x, pointvol=0., ell=None):
     # centroid = (2, ndim) ; label = (npoints,)
     # [Each entry in `label` is 0 or 1, corresponding to cluster number]
     centroid, label = kmeans2(x, k=start_ctrs, iter=10, minit='matrix')
+    cluster_x = [x[label == k, :] for k in [0, 1]]  # points in each cluster
+
+    # If either cluster has less than ndim+1 points, the bounding ellipsoid
+    # will be ill-constrained, so we reject the split and simply return the
+    # ellipsoid bounding all the points.
+    if cluster_x[0].shape[0] <= ndim or cluster_x[1].shape[0] <= ndim:
+        return [ell]
 
     # calculate bounding ellipsoid for each cluster
-    cluster_x = [None, None]
     cluster_ells = [None, None]
     for k in [0, 1]:
-        cluster_x[k] = x[label == k, :] # points in this cluster
         cluster_ells[k] = bounding_ellipsoid(cluster_x[k], pointvol=pointvol)
         
         if debug:
@@ -350,77 +426,30 @@ def bounding_ellipsoids(x, pointvol=0., ell=None):
     if debug:
         print()
 
-    # Reassign points between ellipsoids.
-    while False:
-        h = []
-        for k in [0, 1]:
-            # Calculate mahalanobis distance between ALL points and the
-            # current cluster. The mahalanobis distance squared is given by:
-            #     delta = u - v
-            #     m = np.dot(np.dot(delta, VI), delta)
-            # where, in this case,
-            #     VI = (f * C)^-1 = (scaled_cov)^-1
-            d = np.empty(npoints, dtype=np.float)
-            delta = x - cluster_ells[k].ctr
-            for i in range(npoints):
-                d[i] = np.dot(np.dot(delta[i,:], cluster_ells[k].icov),
-                              delta[i,:])
-
-            # Multiply by ellipse ratio:
-            # h_k(point) = V_k(actual) / V_k(expected) * d_k(point)
-            # TODO: d is M. distance *squared*. Should it not be squared?
-            # TODO: should this even be done? We've already scaled up each
-            #       ellipsoid to the minvolume  when we found the bounding
-            #       ellipse.
-
-            #if cluster_minvols[k] is not None:
-            #    d *= (cluster_ellipsoids[k] / cluster_minvols[k])
-
-            h.append(d)
-
-        # reassign each point to the cluster that gives it the smallest h.
-        # Here, we are creating a bool array, h[1] < h[0]
-        #     True -> h smaller for #1 -> assign to cluster 1
-        #     False -> h smaller for #0 -> assign to cluster 0
-        # then the cast to int converts True->1, False->0
-        newlabel = (h[1] < h[0]).astype(np.int)
-
-        # If no points were reassigned, exit the loop.
-        if np.all(newlabel == label):
-            break
-
-        # Otherwise, update the label of the points and recalculate the
-        # ellipsoids
-        label = newlabel
-        for k in [0, 1]:
-            cluster_x[k] = x[label == k, :] # points in this cluster
-            cluster_ells[k] = bounding_ellipsoid(cluster_x[k],
-                                                 pointvol=pointvol)
-
-            # enlarge ellipse so that it is at least as large as the fractional
-            # volume according to the number of points in the cluster
-            minvol = len(cluster_x[k]) * pointvol
-            if cluster_ells[k].vol < minvol:
-                cluster_ells[k].scale_to_vol(minvol)
-
     # If the total volume decreased by a significant amount,
-    #     V(E_1) + V(E_2) < 0.5 * V(E)
-    # or the original ellipsoid volume is much larger than expected,
-    #     V(E) > 2 * V(S)
     # then we will accept the split into subsets and try to perform the
     # algorithm on each subset.
-    #
-    # Otherwise, the full ellipse is good and should not be split;
-    # return it.
-    totvol = cluster_ells[0].vol + cluster_ells[1].vol
-    if (totvol < 0.5*ell.vol or ell.vol > 2.0*npoints*pointvol):
+    if  cluster_ells[0].vol + cluster_ells[1].vol < 0.5 * ell.vol:
         ells = []
         for k in [0, 1]:
             ells.extend(bounding_ellipsoids(cluster_x[k], pointvol=pointvol,
-                                            ell=cluster_ells[k]))
+                                            ell=cluster_ells[k], debug=debug))
         return ells
-    else:
-        return [ell]
+
+    # Otherwise, see if the total ellipse volume is significantly greater
+    # than expected. If it is, this indicates that there may be more than 2
+    # clusters and we should try to subdivide further.
+    if ell.vol > 2. * npoints * pointvol:
+        ells = []
+        for k in [0, 1]:
+            ells.extend(bounding_ellipsoids(cluster_x[k], pointvol=pointvol,
+                                            ell=cluster_ells[k], debug=debug))
+        # only accept split if volume decreased significantly
+        if sum(e.vol for e in ells) < 0.5*ell.vol:
+            return ells
+
+    # Otherwise, we are happy with the single bounding ellipse.
+    return [ell]
 
 
 def sample_ellipsoids(ells, rstate=np.random):
@@ -457,12 +486,13 @@ def sample_ellipsoids(ells, rstate=np.random):
         return sample_ellipsoids(ells, rstate=rstate)
 
 
-def print_logz(it, logz):
-    print("\riter={1:6d} logz={2:8f}".format(it, logz), end='', flush=True)
+def print_progress(it, logz):
+    print("\riter={:6d} logz={:8f}".format(it, logz), end='', flush=True)
 
 
 def sample(loglikelihood, prior, npar, nipar=None, npoints=100, maxiter=10000,
-           method='single', enlarge=1.5, callback=None, rstate=None):
+           method='single', enlarge=1.5, callback=None, rstate=None,
+           plot_callback=None):
     """Simple nested sampling algorithm to evaluate Bayesian evidence.
 
     Parameters
@@ -509,7 +539,7 @@ def sample(loglikelihood, prior, npar, nipar=None, npoints=100, maxiter=10000,
         Callback function called at each iteration. Two arguments are 
         passed to the callback, the number of iterations and the logarithm
         of the current evidence (``logz``). To print the progress at
-        each iteration, use ``callback=nestle.print_logz``.
+        each iteration, use ``callback=nestle.print_progress``.
 
     Returns
     -------
@@ -540,6 +570,7 @@ def sample(loglikelihood, prior, npar, nipar=None, npoints=100, maxiter=10000,
     ----------
     http://www.inference.phy.cam.ac.uk/bayesys/
     Shaw, Bridges, Hobson 2007, MNRAS, 378, 1365
+    Feroz, Hobson, Bridges 2009, MNRAS, 398, 1601
     """
 
     if nipar is None:
@@ -548,6 +579,9 @@ def sample(loglikelihood, prior, npar, nipar=None, npoints=100, maxiter=10000,
     if method is 'multi' and not HAVE_KMEANS:
         raise ValueError("scipy.cluster.vq.kmeans2 required for 'multi' "
                          "method")
+
+    if npoints < npar**2:
+        warnings.warn("You really want to make npoints >= npar**2.")
 
     if rstate is None:
         rstate = np.random
@@ -612,6 +646,11 @@ def sample(loglikelihood, prior, npar, nipar=None, npoints=100, maxiter=10000,
             for ell in ells:
                 ell.scale_to_vol(ell.vol * enlarge)
 
+        if plot_callback is not None:
+            plot_callback(active_v, ells)
+
+
+
         # Choose a point from within the ellipse until it has likelihood
         # better than loglstar.
         while True:
@@ -636,7 +675,7 @@ def sample(loglikelihood, prior, npar, nipar=None, npoints=100, maxiter=10000,
         logwidth -= 1.0 / npoints
 
         # Stopping criterion: stop when the logwt has been declining
-        # for more than npoints* 2 or niter/4 consecutive iterations.
+        # for more than npoints* 2 and niter/6 consecutive iterations.
         if logwt < logwt_old:
             ndecl += 1
         else:
@@ -674,3 +713,63 @@ def sample(loglikelihood, prior, npar, nipar=None, npoints=100, maxiter=10000,
         ('logprior', np.array(saved_logprior)),  # (nsamples,)
         ('logl', np.array(saved_logl))  # (nsamples,)
         ])
+
+
+# -----------------------------------------------------------------------------
+# Mahalanobis distance reassignment.  This code was originally in
+# bounding_ellipsoids, implemented as described in Feroz, Hobson &
+# Bridges (2009). However, I don't think it helps, so I took it out.
+
+"""
+    while True:
+        h = []
+        for k in [0, 1]:
+            # Calculate mahalanobis distance between ALL points and the
+            # current cluster. The mahalanobis distance squared is given by:
+            #     delta = u - v
+            #     m = np.dot(np.dot(delta, VI), delta)
+            # where, in this case,
+            #     VI = (f * C)^-1 = (scaled_cov)^-1
+            d = np.empty(npoints, dtype=np.float)
+            delta = x - cluster_ells[k].ctr
+            for i in range(npoints):
+                d[i] = np.dot(np.dot(delta[i,:], cluster_ells[k].a),
+                              delta[i,:])
+
+            # Multiply by ellipse ratio:
+            # h_k(point) = V_k(actual) / V_k(expected) * d_k(point)
+            # TODO: d is M. distance *squared*. Should it not be squared?
+            # TODO: should this even be done? We've already scaled up each
+            #       ellipsoid to the minvolume  when we found the bounding
+            #       ellipse.
+
+            #if cluster_minvols[k] is not None:
+            #    d *= (cluster_ellipsoids[k] / cluster_minvols[k])
+
+            h.append(d)
+
+        # reassign each point to the cluster that gives it the smallest h.
+        # Here, we are creating a bool array, h[1] < h[0]
+        #     True -> h smaller for #1 -> assign to cluster 1
+        #     False -> h smaller for #0 -> assign to cluster 0
+        # then the cast to int converts True->1, False->0
+        newlabel = (h[1] < h[0]).astype(np.int)
+
+        # If no points were reassigned, exit the loop.
+        if np.all(newlabel == label):
+            break
+
+        # Otherwise, update the label of the points and recalculate the
+        # ellipsoids
+        label = newlabel
+        for k in [0, 1]:
+            cluster_x[k] = x[label == k, :] # points in this cluster
+            cluster_ells[k] = bounding_ellipsoid(cluster_x[k],
+                                                 pointvol=pointvol)
+
+            # enlarge ellipse so that it is at least as large as the fractional
+            # volume according to the number of points in the cluster
+            minvol = len(cluster_x[k]) * pointvol
+            if cluster_ells[k].vol < minvol:
+                cluster_ells[k].scale_to_vol(minvol)
+"""

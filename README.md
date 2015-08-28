@@ -6,7 +6,7 @@ nestle
 Pure Python implementation of nested sampling algorithms for
 evaluating Bayesian evidence.
 
-### Currently in development (e.g., not working) in preparation for a new and improved release. Pay no attention to the build status.
+### Currently in development in preparation for a new and improved release.
 
 [![Build Status](https://api.travis-ci.org/kbarbary/nestle.svg)](https://travis-ci.org/kbarbary/nestle)
 
@@ -16,6 +16,9 @@ Install
 ```
 ./setup.py install
 ```
+
+Requires numpy v1.6 or later. Optional requirement on scipy v0.11 or
+later for multi-ellipsoidal method.
 
 
 Usage
@@ -65,6 +68,35 @@ directory.
 * [Fitting a line](http://nbviewer.ipython.org/github/kbarbary/nestle/tree/master/examples/line.ipynb)
 * [Eggbox likelihood](http://nbviewer.ipython.org/github/kbarbary/nestle/tree/master/examples/eggbox.ipynb)
 
+About the Algorithms
+--------------------
+
+### Single-ellipsoid method: `method='single'`
+
+Determines a single ellipsoid that bounds all active points, enlarges the
+ellipsoid by a factor of `enlarge` in volume, and selects a new point at random
+from within the ellipsoid.
+
+### Multi-ellipsoid method: `method='multi'`
+
+In cases where the posterior is multi-modal, the single-ellipsoid method can be
+extremely inefficient: In such situations, there are clusters of active points
+on separate high-likelihood regions separated by regions of lower likelihood.
+Bounding all points in a single ellipsoid means that the ellipsoid includes the
+lower-likelihood regions we wish to avoid sampling from.
+
+The solution is to detect these clusters and bound them in separate ellipsoids.
+For this, we use a recursive process where we perform K-means clustering with
+K=2. If the resulting two ellipsoids have a significantly lower total volume
+than the parent ellipsoid (less than half), we accept the split and repeat the
+clustering and volume test on each of the two subset of points. This process
+continues recursively. Alternatively, if the total ellipse volume is
+significantly greater than expected (based on the expected density of points)
+this indicates that there may be more than two clusters and that K=2 was not an
+appropriate cluster division. We therefore still try to subdivide the clusters
+recursively. However, we still only accept the final split into N clusters if
+the total volume decrease is significant.
+
 
 Run test(s)
 -----------
@@ -83,5 +115,6 @@ The license is MIT. See `LICENSE.md`.
 Contributors
 ------------
 
+- @kbarbary
 - @ipashchenko
 - @RuthAngus

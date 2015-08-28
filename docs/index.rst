@@ -26,7 +26,7 @@ Reference / API
    :toctree: api
    
    nestle.sample
-   nestle.print_logz
+   nestle.print_progress
 
 Citation
 --------

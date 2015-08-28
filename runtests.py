@@ -6,7 +6,7 @@ from copy import deepcopy
 
 import numpy as np
 from numpy.random import RandomState
-from numpy.testing import assert_allclose
+from numpy.testing import assert_allclose, assert_approx_equal
 import pytest
 
 import nestle
@@ -211,61 +211,90 @@ def test_bounding_ellipsoid_few_points():
             for xi in x:
                 assert ell.contains(xi)
 
-# TODO test_bounding_ellipsoid()
+# TODO 
+#def test_bounding_ellipsoids():
+#    pass
 
 # -----------------------------------------------------------------------------
 # Case tests
 
 # TODO: make this more stringent
-def test_two_gaussians():
-    """Two gaussians in 2-d.
+class TestTwoGaussians:
+    """Two gaussians in 2-d."""
 
-    Note that this is a terrible test in that it will only pass for some 
-    random seeds, so if you change the seed, it may fail.
-    """
+    def setup_class(self):
+        # gaussians centered at (1, 1) and (-1, -1)
+        self.mu1 = np.ones(2)
+        self.mu2 = -np.ones(2)
 
-    # gaussians centered at (1, 1) and (-1, -1)
-    mu1 = np.ones(2)
-    mu2 = -np.ones(2)
+        # Width of 0.1 in each dimension
+        sigma = 0.1
+        ivar = 1.0/(sigma*sigma)
+        self.sigma1inv = np.diag([ivar, ivar])
+        self.sigma2inv = np.diag([ivar, ivar])
 
-    # Width of 0.1 in each dimension
-    sigma = 0.1
-    ivar = 1.0/(sigma*sigma)
-    sigma1inv = np.diag([ivar, ivar])
-    sigma2inv = np.diag([ivar, ivar])
+        self.rstate = RandomState(0)
 
-    def logl(x):
-        dx1 = x - mu1
-        dx2 = x - mu2
-        return np.logaddexp(-np.dot(dx1, np.dot(sigma1inv, dx1))/2.0,
-                            -np.dot(dx2, np.dot(sigma2inv, dx2))/2.0)
+        #(Approximate) analytic evidence for two identical Gaussian blobs,
+        # over a uniform prior [-5:5][-5:5] with density 1/100 in this domain:
+        self.analytic_logz = np.log(2.0 * 2.0*np.pi*sigma*sigma / 100.)
+        print("analytic = {0:6.3f}".format(self.analytic_logz))
 
-    # Use a flat prior, over [-5, 5] in both dimensions
-    def prior(x):
+        # calculate evidence on fine grid.
+        dx = 0.1
+        xv = np.arange(-5.0 + dx/2., 5., dx)
+        yv = np.arange(-5.0 + dx/2., 5., dx)
+        grid_logz = -1.e300
+        for x in xv:
+            for y in yv:
+                grid_logz = np.logaddexp(grid_logz, self.logl(self, np.array([x, y])))
+        grid_logz += np.log(dx * dx / 100.)  # adjust for point density
+        print("grid_logz =", grid_logz)
+        self.grid_logz = grid_logz
+
+    def logl(self, x):
+        dx1 = x - self.mu1
+        dx2 = x - self.mu2
+        return np.logaddexp(-np.dot(dx1, np.dot(self.sigma1inv, dx1))/2.0,
+                            -np.dot(dx2, np.dot(self.sigma2inv, dx2))/2.0)
+
+        
+        # Use a flat prior, over [-5, 5] in both dimensions
+    def prior(self, x):
         return 10.0 * x - 5.0
 
-    np.random.seed(0)
-    res = nestle.sample(logl, prior, 2, npoints=100)
-    print("evidence = {0:6.3f} +/- {1:6.3f}".format(res.logz, res.logzerr))
+    def test_single(self):
+        res = nestle.sample(self.logl, self.prior, 2, method='single',
+                            npoints=100, rstate=self.rstate)
 
-    #(Approximate) analytic evidence for two identical Gaussian blobs,
-    # over a uniform prior [-5:5][-5:5] with density 1/100 in this domain:
-    analytic_logz = np.log(2.0 * 2.0*np.pi*sigma*sigma / 100.)
-    print("analytic = {0:6.3f}".format(analytic_logz))
+        print("single: evidence = {0:6.3f} +/- {1:6.3f}".format(res.logz, res.logzerr))
+        assert abs(res.logz - self.grid_logz) < 3.0 * res.logzerr
 
-    # calculate evidence on fine grid.
-    dx = 0.1
-    xv = np.arange(-5.0 + dx/2., 5., dx)
-    yv = np.arange(-5.0 + dx/2., 5., dx)
-    grid_logz = -1.e300
-    for x in xv:
-        for y in yv:
-            grid_logz = np.logaddexp(grid_logz, logl(np.array([x, y])))
-    grid_logz += np.log(dx * dx / 100.)  # adjust for point density
-    print("grid_logz =", grid_logz)
+    @pytest.mark.skipif("not nestle.HAVE_KMEANS")
+    def test_multi(self):
+        res = nestle.sample(self.logl, self.prior, 2, method='multi',
+                            npoints=100, rstate=self.rstate)
 
-    assert abs(res.logz - analytic_logz) < 2.0 * res.logzerr
-    assert abs(res.logz - grid_logz) < 2.0 * res.logzerr
+        print("multi: evidence = {0:6.3f} +/- {1:6.3f}".format(res.logz, res.logzerr))
+        assert abs(res.logz - self.grid_logz) < 3.0 * res.logzerr
 
-if __name__ == "__main__":
-    test_two_gaussian_nest()
+
+def test_weightedcov():
+    x = np.random.random((10, 3))
+    w = np.random.random((10,))
+
+    mean, cov = nestle.weightedcov(x, w)
+
+    # check individual elements
+    xd = x - np.average(x, weights=w, axis=0)
+    prefactor = w.sum() / (w.sum()**2 - (w**2).sum())
+    ans00 = prefactor * np.sum(w * xd[:, 0] * xd[:, 0])
+    assert_approx_equal(cov[0, 0], ans00)
+    ans01 = prefactor * np.sum(w * xd[:, 0] * xd[:, 1])
+    assert_approx_equal(cov[0, 1], ans01)
+
+    # If weights are all equal, covariance should come out to simple case
+    w = np.repeat(0.2, 10)
+    mean, cov = nestle.weightedcov(x, w)
+    assert_allclose(cov, np.cov(x, rowvar=0))
+    assert_allclose(mean, np.average(x, axis=0))

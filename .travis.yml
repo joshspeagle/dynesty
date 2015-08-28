@@ -17,7 +17,7 @@ matrix:
         - python: 2.7
           env: NUMPY_VERSION=1.9 SCIPY_VERSION=0.16  # py2.7, latest deps
         - python: 2.7
-          env: NUMPY_VERSION=1.5 SCIPY_VERSION=0.11  # py2.7, oldest deps
+          env: NUMPY_VERSION=1.6 SCIPY_VERSION=0.11  # py2.7, oldest deps
         - python: 3.3
           env: NUMPY_VERSION=1.7 SCIPY_VERSION=0.13  # py3.3, oldest deps
         - python: 3.4

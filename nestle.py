@@ -11,7 +11,7 @@ import numpy as np
 try:
     from scipy.cluster.vq import kmeans2
     HAVE_KMEANS = True
-except ImportError:
+except ImportError:  # pragma: no cover
     HAVE_KMEANS = False
 
 __all__ = ["sample", "print_progress", "mean_and_cov", "Result"]

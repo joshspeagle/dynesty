@@ -182,6 +182,11 @@ def test_ellipsoid_sample():
         assert expect - 10.*sigma < ninner < expect + 10.*sigma
 
 
+def test_ellipsoid_repr():
+    ell = nestle.Ellipsoid([0., 0.], [[1., 0.], [0., 1.]])
+    assert repr(ell) == "Ellipsoid(ctr=[0.0, 0.0])"
+
+
 def test_bounding_ellipsoid():
     """Test that bounding ellipsoid contains the points"""
 
@@ -309,3 +314,15 @@ def test_mean_and_cov():
     mean, cov = nestle.mean_and_cov(x, w)
     assert_allclose(cov, np.cov(x, rowvar=0))
     assert_allclose(mean, np.average(x, axis=0))
+
+
+def test_result():
+    r = nestle.Result(a=1, b=2)
+    assert repr(r) == ' b: 2\n a: 1'
+
+    with pytest.raises(AttributeError):
+        r.c
+
+def test_print_progress():
+    """Check that print_progress don't error."""
+    nestle.print_progress({'it': 0, 'logz': 1.})

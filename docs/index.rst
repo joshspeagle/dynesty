@@ -6,16 +6,17 @@ Nestle
 Pure Python, MIT-licensed implementation of nested sampling algorithms for
 evaluating Bayesian evidence.
 
-Installation
-------------
 
-::
+Install
+-------
+
+Nestle is compatible with Python 2 and 3. Requires numpy 1.6+ and
+scipy (optional). Install with pip::
 
     pip install nestle
 
-Requirements: numpy (v1.6+), scipy (optional)
+For the latest development version, see http://github.com/kbarbary/nestle.
 
-**Development version / source code:** http://github.com/kbarbary/nestle
 
 .. toctree::
    :hidden:
@@ -24,8 +25,13 @@ Requirements: numpy (v1.6+), scipy (optional)
    examples/index
    api
 
-Reference / API
----------------
+
+:doc:`examples/index`
+---------------------
+
+
+API
+---
 
 .. autosummary::
    
@@ -37,13 +43,13 @@ Reference / API
 References
 ----------
 
-| Feroz, Hobson, Bridges 2009, *MNRAS*, **398**, 1601
-|
-| Shaw, Bridges, Hobson 2007, *MNRAS*, **378**, 1365
-|
-| Skilling, J. (2004). Nested Sampling. In *Maximum entropy and Bayesian
-  methods in science and engineering* (ed. G. Erickson, J.T. Rychert,
-  C.R. Smith). *AIP Conf. Proc.*, **735**, 395-405.
+Feroz, Hobson, Bridges 2009, *MNRAS*, **398**, 1601
+
+Shaw, Bridges, Hobson 2007, *MNRAS*, **378**, 1365
+
+Skilling, J. (2004). Nested Sampling. In *Maximum entropy and Bayesian
+methods in science and engineering* (ed. G. Erickson, J.T. Rychert,
+C.R. Smith). *AIP Conf. Proc.*, **735**, 395-405.
 
 
 See also http://www.inference.phy.cam.ac.uk/bayesys/ .

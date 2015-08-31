@@ -8,6 +8,7 @@ A likelihood surface with multiple modes of equal height.
 
 import numpy as np
 import matplotlib.pyplot as plt
+import triangle
 
 import nestle
 
@@ -16,7 +17,7 @@ import nestle
 tmax = 5.0 * np.pi
 constant = np.log(1.0 / tmax**2)
 
-def loglhood(x):
+def loglike(x):
     t = 2.0 * tmax * x - tmax
     return (2.0 + np.cos(t[0]/2.0)*np.cos(t[1]/2.0))**5.0
 
@@ -24,15 +25,26 @@ def prior(x):
     return x
 
 # plot the surface
-t0, t1 = np.meshgrid(np.linspace(0., 1., 50),
+plt.figure(figsize=(8., 8.))
+ax = plt.axes(aspect=1)
+xx, yy = np.meshgrid(np.linspace(0., 1., 50),
                      np.linspace(0., 1., 50))
-z = loglhood(np.array([t0, t1]))
-plt.imshow(z, extent=(0., 1., 0., 1.), cmap='hot')
-ax = plt.gca()
-fig = plt.gcf()
+Z = loglike(np.array([xx, yy]))
+ax.contourf(xx, yy, Z, 12, cmap=plt.cm.Blues_r)
+plt.title("True Log likelihood surface")
 
-res = nestle.sample(loglhood, prior, 2, npoints=100, method='multi')
+###############################################################################
+# Run nested sampling in multi-ellipsoid mode and print a summary of results:
+
+res = nestle.sample(loglike, prior, 2, npoints=200, method='multi',
+                    update_interval=20)
 print(res.summary())
 
-plt.figure()
-plt.scatter(x=res.samples[:, 0], y=res.samples[:, 1])
+###############################################################################
+# Plot the samples. Note that this represents the *likelihood* rather than
+# its log, hence it is much more highly peaked.
+
+fig = triangle.corner(res.samples, weights=res.weights, bins=500,
+                      extents=[(0., 1.), (0., 1.)])
+fig.set_size_inches(8., 8.)
+

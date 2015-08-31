@@ -69,11 +69,6 @@ def random_choice(a, p, rstate=np.random):
 class Result(dict):
     """Represents a sampling result.
 
-    Attributes
-    ----------
-
-    Notes
-    -----
     Since this class is essentially a subclass of dict with attribute
     accessors, one can see which attributes are available using the
     `keys()` method.
@@ -96,6 +91,15 @@ class Result(dict):
         else:
             return self.__class__.__name__ + "()"
 
+    def summary(self):
+        """Return a nicely formatted string giving summary."""
+        return ("niter: {:d}\n"
+                "ncall: {:d}\n"
+                "nsamples: {:d}\n"
+                "logz: {:6.3f} +/- {:6.3f}\n"
+                "h: {:6.3f}"
+                .format(self.niter, self.ncall, len(self.samples),
+                        self.logz, self.logzerr, self.h))
 
 def mean_and_cov(x, weights):
     """Compute weighted sample mean and covariance.
@@ -134,6 +138,14 @@ def mean_and_cov(x, weights):
 
 
 def print_progress(info):
+    """Callback function that prints a running total on a single line.
+
+    Parameters
+    ----------
+    info : dict
+        Dictionary containing keys ``'it'`` and ``'logz'``.
+    """
+
     print("\rit={:6d} logz={:8f}".format(info['it'], info['logz']),
           end='')
     sys.stdout.flush()  # because flush keyword not in print() in py2.7
@@ -488,10 +500,30 @@ def sample_ellipsoids(ells, rstate=np.random):
 
 # -----------------------------------------------------------------------------
 # Sampler classes
+#
+# The job of these samplers is simply to select a new point (ideally
+# obeying the likelihood bound) given some existing points.
+
+class ClassicSampler:
+    """Method described in original Skilling book."""
+
+    def __init__(self, **kwargs):
+        self.rstate = kwargs['rstate']
+
+    def update(self, points, pointvol):
+        self.points = points
+        self.pointvol = pointvol
+
+    def sample(self):
+        raise NotImplementedError
+        # TODO: choose a point at random from self.points and evolve it.
+        # proposal distribution should depend on points covariance and
+        # possibly also pointvol?
+
 
 class SingleEllipsoidSampler:
     """Bounds active points in a single ellipsoid and samples randomly
-    from within that ellipsoid"""
+    from within that ellipsoid."""
 
     def __init__(self, **kwargs):
         self.enlarge = kwargs['enlarge']
@@ -506,6 +538,9 @@ class SingleEllipsoidSampler:
 
 
 class MultiEllipsoidSampler:
+    """Bounds active points in multiple ellipsoids and samples randomly
+    from within joint distribution."""
+
     def __init__(self, **kwargs):
         self.enlarge = kwargs['enlarge']
         self.rstate = kwargs['rstate']
@@ -519,16 +554,17 @@ class MultiEllipsoidSampler:
         return sample_ellipsoids(self.ells, rstate=self.rstate)
 
 
-_SAMPLER_CLASSES = {'single': SingleEllipsoidSampler,
+_SAMPLER_CLASSES = {'classic': ClassicSampler,
+                    'single': SingleEllipsoidSampler,
                     'multi': MultiEllipsoidSampler}
 
 # -----------------------------------------------------------------------------
 # Main entry point
 
-def sample(loglikelihood, prior_transform, ndim, npoints=100, method='single',
-           enlarge=1.5, npdim=None, maxiter=None, rstate=None,
-           callback=None):
-    """Simple nested sampling algorithm to evaluate Bayesian evidence.
+def sample(loglikelihood, prior_transform, ndim, npoints=100,
+           method='single', enlarge=1.5, update_interval=1,
+           npdim=None, maxiter=None, rstate=None, callback=None):
+    """Perform nested sampling to evaluate Bayesian evidence.
 
     Parameters
     ----------
@@ -553,12 +589,17 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100, method='single',
         Number of active points. Larger numbers result in a more finely
         sampled posterior (more accurate evidence), but also a larger
         number of iterations required to converge. Default is 100.
-    method : {'single', 'multi'}, optional
+    method : {'classic', 'single', 'multi'}, optional
         Method used to select new points. Choices are
         single-ellipsoidal ('single'), multi-ellipsoidal ('multi'). Default
         is 'single'.
     enlarge : float, optional
         Enlarge the ellipsoid(s) by this fraction in volume. Default is 1.5.
+    update_interval : int, optional
+        Only update the ellipsoids every ``update-interval``-th iteration.
+        Update intervals larger than 1 can be more efficient when the
+        likelihood function is very fast, particularly when using the
+        multi-ellipsoid method.
     npdim : int, optional
         Number of parameters accepted by prior. This might differ from *ndim*
         in the case where a parameter of loglikelihood is dependent upon
@@ -569,14 +610,14 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100, method='single',
         termination condition is reached. Default is no limit.
     rstate : `~numpy.random.RandomState`, optional
         RandomState instance. If not given, the global random state of the
-        ``np.random`` module will be used.
+        ``numpy.random`` module will be used.
     callback : function, optional
         Callback function to be called at each iteration. A single argument,
         a dictionary, is passed to the callback. The keys include ``'it'``,
         the current iteration number, and ``'logz'``, the current total
         log evidence of all saved points. To simply print these at each
         iteration, use the convience function
-        ``callback=nestle.print_progress``.
+        ``callback=nestle.print_progress``. 
 
     Returns
     -------
@@ -616,19 +657,6 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100, method='single',
             Weight corresponding to each sample, normalized to unity.
             These are proportional to ``exp(logvol + logl)``. Shape is
             *(nsamples,)*.
-
-
-    Notes
-    -----
-    This is an implementation of John Skilling's Nested Sampling algorithm,
-    following the ellipsoidal sampling algorithm in Shaw et al (2007).
-
-
-    References
-    ----------
-    http://www.inference.phy.cam.ac.uk/bayesys/
-    Shaw, Bridges, Hobson 2007, MNRAS, 378, 1365
-    Feroz, Hobson, Bridges 2009, MNRAS, 398, 1601
     """
 
     if npdim is None:
@@ -643,13 +671,17 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100, method='single',
     if method not in _SAMPLER_CLASSES:
         raise ValueError("Unknown method: {:r}".format(method))
 
-    sampler = _SAMPLER_CLASSES[method](enlarge=enlarge, rstate=rstate)
-
     if npoints < ndim**2:
         warnings.warn("You really want to make npoints >= ndim**2!")
 
     if rstate is None:
         rstate = np.random
+
+    sampler = _SAMPLER_CLASSES[method](enlarge=enlarge, rstate=rstate)
+
+    update_interval = int(update_interval)
+    if update_interval < 1:
+        raise ValueError("update_interval must be >= 1")
 
     # Initialize active points and calculate likelihoods
     active_u = rstate.rand(npoints, npdim)  # position in unit cube
@@ -712,7 +744,8 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100, method='single',
         pointvol = expected_vol / npoints
 
         # Update the sampler based on the current active points.
-        sampler.update(active_u, pointvol)
+        if it % update_interval == 0:
+            sampler.update(active_u, pointvol)
 
         # Choose a point from within the ellipse until it has likelihood
         # better than loglstar.
@@ -735,12 +768,12 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100, method='single',
         logvol -= 1.0 / npoints
 
         # Stopping criterion: stop when the logwt has been declining
-        # for more than npoints* 2 and niter/6 consecutive iterations.
+        # for a while.
         if logwt < logwt_old:
             ndecl += 1
         else:
             ndecl = 0
-        if ndecl > npoints * 2 and ndecl > it // 6:
+        if ndecl > 2 * npoints and ndecl > it // 6:
             break
         logwt_old = logwt
 

@@ -43,4 +43,4 @@ nosetests.xml
 
 # docs
 docs/_build
-docs/api
+docs/examples

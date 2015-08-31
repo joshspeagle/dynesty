@@ -12,6 +12,8 @@
 
 import sys
 import os
+import sphinx_rtd_theme
+import sphinxgallery
 
 # generate api directory if it doesn't already exist
 if not os.path.exists('api'):
@@ -40,12 +42,16 @@ extensions = [
     'sphinx.ext.autosummary',
     'sphinx.ext.intersphinx',
     'sphinx.ext.mathjax',
-    'numpydoc'
+    'numpydoc',
+    'sphinxgallery.gen_gallery'
 ]
 numpydoc_show_class_members = False
 autosummary_generate = True
 autoclass_content = "class"
 autodoc_default_flags = ["members", "no-special-members"]
+sphinxgallery_conf = {
+    'examples_dirs' : '../examples',  # path to examples scripts
+    'gallery_dirs'  : 'examples'}     # path to gallery generated examples
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -113,8 +119,6 @@ pygments_style = 'sphinx'
 
 # -- Options for HTML output ----------------------------------------------
 
-import sphinx_rtd_theme
-
 html_theme = "sphinx_rtd_theme"
 html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 
@@ -149,7 +153,7 @@ html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = []
+html_static_path = [sphinxgallery.glr_path_static()]
 
 # Add any extra paths that contain custom files (such as robots.txt or
 # .htaccess) here, relative to this directory. These files are copied

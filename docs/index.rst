@@ -24,7 +24,7 @@ For the latest development version, see http://github.com/kbarbary/nestle.
 
    examples/index
    api
-
+   devdocs
 
 :doc:`examples/index`
 ---------------------

@@ -15,10 +15,6 @@ import os
 import sphinx_rtd_theme
 import sphinxgallery
 
-# generate api directory if it doesn't already exist
-if not os.path.exists('api'):
-    os.mkdir('api')
-
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.

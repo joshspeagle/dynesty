@@ -208,6 +208,11 @@ class Ellipsoid(object):
         d = x - self.ctr
         return np.dot(np.dot(d, self.a), d) <= 1.0
 
+    def randoffset(self, rstate=np.random):
+        """Return an offset from ellipsoid center, randomly distributed
+        within ellipsoid."""
+        return np.dot(self.axes, randsphere(self.n, rstate=rstate))
+
     def sample(self, rstate=np.random):
         """Chose a sample randomly distributed within the ellipsoid.
 
@@ -216,7 +221,7 @@ class Ellipsoid(object):
         x : 1-d array
             A single point within the ellipsoid.
         """
-        return self.ctr + np.dot(self.axes, randsphere(self.n, rstate=rstate))
+        return self.ctr + self.randoffset(rstate=rstate)
 
     def samples(self, nsamples, rstate=np.random):
         """Chose a sample randomly distributed within the ellipsoid.
@@ -501,57 +506,119 @@ def sample_ellipsoids(ells, rstate=np.random):
 # -----------------------------------------------------------------------------
 # Sampler classes
 #
-# The job of these samplers is simply to select a new point (ideally
-# obeying the likelihood bound) given some existing points.
+# The job of these samplers is simply to select a new point
+# obeying the likelihood bound given some existing points.
 
 class ClassicSampler:
-    """Method described in original Skilling book."""
+    """Picks an active point at random and evolves it with a
+    Metropolis-Hastings style MCMC with fixed number of iterations."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, loglikelihood, prior_transform, points, **kwargs):
+        self.loglikelihood = loglikelihood
+        self.prior_transform = prior_transform
+        self.points = points
+        self.steps = kwargs.get('steps', 20)
         self.rstate = kwargs['rstate']
 
-    def update(self, points, pointvol):
-        self.points = points
-        self.pointvol = pointvol
+    def update(self, pointvol):
+        """Calculate an ellipsoid to get the rough shape of the point
+        distribution correct, but then scale it down to the volume
+        corresponding to a single point."""
+        # TODO: simply estimate covariance and skip scaling ellipsoid to
+        # include *all* points?
+        self.ell = bounding_ellipsoid(self.points, pointvol=pointvol)
+        self.ell.scale_to_vol(pointvol)
 
-    def sample(self):
-        raise NotImplementedError
-        # TODO: choose a point at random from self.points and evolve it.
-        # proposal distribution should depend on points covariance and
-        # possibly also pointvol?
+    def new_point(self, loglstar):
+        # choose a point at random and copy it
+        i = self.rstate.randint(len(self.points))
+        u = self.points[i, :]
+
+        # evolve it.
+        scale = 1.
+        accept = 0
+        reject = 0
+        ncall = 0
+        while ncall < self.steps or accept == 0:
+            new_u = u + scale * self.ell.randoffset(rstate=self.rstate)
+            new_v = self.prior_transform(new_u)
+            new_logl = self.loglikelihood(new_v)
+            if new_logl > loglstar:
+                u = new_u
+                v = new_v
+                logl = new_logl
+                accept += 1
+            else:
+                reject += 1
+
+            # adjust scale, aiming for acceptance ratio of 0.5.
+            if accept > reject:
+                scale *= math.exp(1. / accept)
+            if accept < reject:
+                scale /= math.exp(1. / reject)
+
+            ncall += 1
+
+        return u, v, logl, ncall
 
 
 class SingleEllipsoidSampler:
     """Bounds active points in a single ellipsoid and samples randomly
     from within that ellipsoid."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, loglikelihood, prior_transform, points, **kwargs):
+        self.loglikelihood = loglikelihood
+        self.prior_transform = prior_transform
+        self.points = points
         self.enlarge = kwargs['enlarge']
         self.rstate = kwargs['rstate']
 
-    def update(self, points, pointvol):
-        self.ell = bounding_ellipsoid(points, pointvol=pointvol)
+    def update(self, pointvol):
+        self.ell = bounding_ellipsoid(self.points, pointvol=pointvol)
         self.ell.scale_to_vol(self.ell.vol * self.enlarge)
 
-    def sample(self):
-        return self.ell.sample(rstate=self.rstate)
+    def new_point(self, loglstar):
+        ncall = 0
+        logl = -float('inf')
+        while logl <= loglstar:
+            u = self.ell.sample(rstate=self.rstate)
+            if np.any(u < 0.0) or np.any(u > 1.0):
+                continue
+            v = self.prior_transform(u)
+            logl = self.loglikelihood(v)
+            ncall += 1
+
+        return u, v, logl, ncall
 
 
 class MultiEllipsoidSampler:
     """Bounds active points in multiple ellipsoids and samples randomly
     from within joint distribution."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, loglikelihood, prior_transform, points, **kwargs):
+        self.loglikelihood = loglikelihood
+        self.prior_transform = prior_transform
+        self.points = points
         self.enlarge = kwargs['enlarge']
         self.rstate = kwargs['rstate']
 
-    def update(self, points, pointvol):
-        self.ells = bounding_ellipsoids(points, pointvol=pointvol)
+    def update(self, pointvol):
+        self.ells = bounding_ellipsoids(self.points, pointvol=pointvol)
         for ell in self.ells:
             ell.scale_to_vol(ell.vol * self.enlarge)
 
-    def sample(self):
-        return sample_ellipsoids(self.ells, rstate=self.rstate)
+    def new_point(self, loglstar):
+        ncall = 0
+        logl = -float('inf')
+        while logl <= loglstar:
+            u = sample_ellipsoids(self.ells, rstate=self.rstate)
+            if np.any(u < 0.0) or np.any(u > 1.0):
+                continue
+            v = self.prior_transform(u)
+            logl = self.loglikelihood(v)
+            ncall += 1
+
+        return u, v, logl, ncall
 
 
 _SAMPLER_CLASSES = {'classic': ClassicSampler,
@@ -590,7 +657,7 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         sampled posterior (more accurate evidence), but also a larger
         number of iterations required to converge. Default is 100.
     method : {'classic', 'single', 'multi'}, optional
-        Method used to select new points. Choices are
+        Method used to select new points. Choices are 'classic',
         single-ellipsoidal ('single'), multi-ellipsoidal ('multi'). Default
         is 'single'.
     enlarge : float, optional
@@ -677,7 +744,6 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
     if rstate is None:
         rstate = np.random
 
-    sampler = _SAMPLER_CLASSES[method](enlarge=enlarge, rstate=rstate)
 
     update_interval = int(update_interval)
     if update_interval < 1:
@@ -690,6 +756,10 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
     for i in range(npoints):
         active_v[i, :] = prior_transform(active_u[i, :])
         active_logl[i] = loglikelihood(active_v[i, :])
+
+    sampler = _SAMPLER_CLASSES[method](loglikelihood, prior_transform,
+                                       active_u,
+                                       enlarge=enlarge, rstate=rstate)
 
     # Initialize values for nested sampling loop.
     saved_v = []  # stored points for posterior results
@@ -704,7 +774,7 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
     ncall = npoints  # number of calls we already made
 
     # Initialize sampler
-    sampler.update(active_u, 1./npoints)
+    sampler.update(1./npoints)
 
     callback_info = {'it': 0,
                      'logz': logz,
@@ -745,24 +815,17 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
 
         # Update the sampler based on the current active points.
         if it % update_interval == 0:
-            sampler.update(active_u, pointvol)
+            sampler.update(pointvol)
 
-        # Choose a point from within the ellipse until it has likelihood
-        # better than loglstar.
-        while True:
-            u = sampler.sample()
-            if np.any(u < 0.0) or np.any(u > 1.0):
-                continue
-            v = prior_transform(u)
-            logl = loglikelihood(v)
-            ncall += 1
+        # Choose a new point from within the likelihood constraint
+        # (having logl > loglstar).
+        u, v, logl, nc = sampler.new_point(loglstar)
 
-            # Accept if and only if within likelihood constraint.
-            if logl > loglstar:
-                active_u[worst] = u
-                active_v[worst] = v
-                active_logl[worst] = logl
-                break
+        # replace worst point with new point
+        active_u[worst] = u
+        active_v[worst] = v
+        active_logl[worst] = logl
+        ncall += nc
 
         # Shrink interval
         logvol -= 1.0 / npoints

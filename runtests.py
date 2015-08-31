@@ -223,7 +223,7 @@ def test_bounding_ellipsoid_few_points():
 
 # TODO 
 #def test_bounding_ellipsoids():
-#    pass
+
 
 # -----------------------------------------------------------------------------
 # Case tests
@@ -269,12 +269,22 @@ analytic_logz = np.log(2.0 * 2.0*np.pi*sigma*sigma / 100.)
 grid_logz = integrate_on_grid(logl, [(-5., 5.), (-5., 5.)])
 
 
+def test_classic():
+    res = nestle.sample(logl, prior, 2, method='classic',
+                        npoints=100, rstate=RandomState(0))
+    print()
+    print("classic: logz           = {0:6.3f} +/- {1:6.3f}"
+          .format(res.logz, res.logzerr))
+    print("        grid_logz      = {0:8.5f}".format(grid_logz))
+    print("        analytic_logz  = {0:8.5f}".format(analytic_logz))
+    assert abs(res.logz - grid_logz) < 3.0 * res.logzerr
+
 def test_single():
     res = nestle.sample(logl, prior, 2, method='single',
                         npoints=100, rstate=RandomState(0))
     print()
-    print("single: logz           = {0:6.3f} +/- {1:6.3f}".format(res.logz,
-                                                                  res.logzerr))
+    print("single: logz           = {0:6.3f} +/- {1:6.3f}"
+          .format(res.logz, res.logzerr))
     print("        grid_logz      = {0:8.5f}".format(grid_logz))
     print("        analytic_logz  = {0:8.5f}".format(analytic_logz))
     assert abs(res.logz - grid_logz) < 3.0 * res.logzerr
@@ -284,8 +294,8 @@ def test_multi():
     res = nestle.sample(logl, prior, 2, method='multi',
                         npoints=100, rstate=RandomState(0))
     print()
-    print("multi:  logz           = {0:6.3f} +/- {1:6.3f}".format(res.logz,
-                                                                  res.logzerr))
+    print("multi:  logz           = {0:6.3f} +/- {1:6.3f}"
+          .format(res.logz, res.logzerr))
     print("        grid_logz      = {0:8.5f}".format(grid_logz))
     print("        analytic_logz  = {0:8.5f}".format(analytic_logz))
 

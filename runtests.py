@@ -279,6 +279,7 @@ def test_classic():
     print("        analytic_logz  = {0:8.5f}".format(analytic_logz))
     assert abs(res.logz - grid_logz) < 3.0 * res.logzerr
 
+
 def test_single():
     res = nestle.sample(logl, prior, 2, method='single',
                         npoints=100, rstate=RandomState(0))
@@ -288,6 +289,7 @@ def test_single():
     print("        grid_logz      = {0:8.5f}".format(grid_logz))
     print("        analytic_logz  = {0:8.5f}".format(analytic_logz))
     assert abs(res.logz - grid_logz) < 3.0 * res.logzerr
+
 
 @pytest.mark.skipif("not nestle.HAVE_KMEANS")
 def test_multi():

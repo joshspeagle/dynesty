@@ -1,5 +1,5 @@
-Developers' Documentation
-=========================
+Developers' Docs
+================
 
 Running tests
 -------------
@@ -10,8 +10,15 @@ can only be run from the source repository. Execute ::
 
     ./runtests.py
 
-Building docs
--------------
+To also report code coverage (requires ``pytest-cov``)::
 
-Documentation depends on ``sphinx``, ``sphinx_rtd_theme`` and the
-development version of ``sphinx_gallery``.
+    ./runtests.py --cov=nestle
+
+
+Building the documentation
+--------------------------
+
+Requirements are ``sphinx``, ``sphinx_rtd_theme`` and the development
+version of ``sphinx_gallery``. In the ``docs`` directory, ::
+
+    make html

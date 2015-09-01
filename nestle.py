@@ -101,6 +101,7 @@ class Result(dict):
                 .format(self.niter, self.ncall, len(self.samples),
                         self.logz, self.logzerr, self.h))
 
+
 def mean_and_cov(x, weights):
     """Compute weighted sample mean and covariance.
 
@@ -237,42 +238,6 @@ class Ellipsoid(object):
             x[i, :] = self.sample(rstate=rstate)
         return x
 
-    def plot(self, ax, show_axes=False):
-        """Plot the ellipse on a matplotlib Axes object. (Ellipsoid must be
-        2-d).
-
-        Parameters
-        ----------
-        ax : matplotlib.axes.Axes
-            The Axes to draw on.
-        show_axes : bool, optional
-            If true, plot arrows giving the major and minor semi axes of the
-            ellipse.
-
-        Returns
-        -------
-        e : matplotlib.patches.Ellipse
-        """
-
-        try:
-            from matplotlib.patches import Ellipse
-        except ImportError:
-            raise ImportError("matplotlib must be installed to use plot "
-                              "method.")
-    
-        # angle of 0-th axis
-        theta = 180. / math.pi * math.atan(self.axes[1, 0] / self.axes[0, 0])
-
-        e = Ellipse(self.ctr, 2. * self.axlens[0], 2. * self.axlens[1], theta)
-        e.set_facecolor('None')
-        ax.add_artist(e)
-        if show_axes:
-            ax.arrow(self.ctr[0], self.ctr[1],
-                     self.axes[0, 0], self.axes[1, 0])
-            ax.arrow(self.ctr[0], self.ctr[1],
-                     self.axes[0, 1], self.axes[1, 1])
-        return e
-
     def __repr__(self):
         return "Ellipsoid(ctr={})".format(self.ctr)
 
@@ -399,11 +364,6 @@ def bounding_ellipsoids(x, pointvol=0., ell=None, debug=False):
         if ell.vol < minvol:
             ell.scale_to_vol(minvol)
 
-    # debug
-    if debug:
-        print("cluster at {} with {} points and vol={:.5f}:"
-              .format(ell.ctr, len(x), ell.vol))
-
     # starting cluster centers for kmeans (k=2)
     p1, p2 = ell.major_axis_endpoints()  # returns two 1-d arrays
     start_ctrs = np.vstack((p1, p2)) # shape is (k, N) = (2, N)
@@ -425,23 +385,11 @@ def bounding_ellipsoids(x, pointvol=0., ell=None, debug=False):
     for k in [0, 1]:
         cluster_ells[k] = bounding_ellipsoid(cluster_x[k], pointvol=pointvol)
         
-        if debug:
-            print("    cluster {}: centroid={} len={} initvol={:.5f} "
-                  .format(k, centroid[k], len(cluster_x[k]),
-                          cluster_ells[k].vol), end='')
-
         # enlarge ellipse so that it is at least as large as the fractional
         # volume according to the number of points in the cluster
         minvol = len(cluster_x[k]) * pointvol
         if cluster_ells[k].vol < minvol:
             cluster_ells[k].scale_to_vol(minvol)
-
-        if debug:
-            print("minvol={:.5f} vol={:.5f}".format(minvol,
-                                                    cluster_ells[k].vol))
-
-    if debug:
-        print()
 
     # If the total volume decreased by a significant amount,
     # then we will accept the split into subsets and try to perform the

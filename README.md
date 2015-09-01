@@ -10,7 +10,7 @@ evaluating Bayesian evidence.
 [![Coverage Status](http://img.shields.io/coveralls/kbarbary/nestle.svg?style=flat-square)](https://coveralls.io/r/kbarbary/nestle?branch=master)
 
 
-Full Documentation
-------------------
+Documentation
+-------------
 
-Coming soon to http://kbarbary.github.io/nestle.
+See http://kbarbary.github.io/nestle.

@@ -1,6 +1,4 @@
 """
-.. _bounding-ellipsoids:
-
 ===================
 Bounding Ellipsoids
 ===================

@@ -4,9 +4,22 @@ Nestle
 
 /ˈnesəl/ *(rhymes with "wrestle")*
 
-Pure Python, MIT-licensed implementation of nested sampling algorithms for
-evaluating Bayesian evidence.
+.. image:: _images/sphx_glr_plot_ellipsoids_001.png
+   :width: 280px
+   :align: right
+   :target: examples/plot_ellipsoids.html
 
+Pure Python, MIT-licensed implementation of nested sampling algorithms.
+
+`Nested Sampling
+<https://en.wikipedia.org/wiki/Nested_sampling_algorithm>`_ is a
+computational approach for integrating posterior probability in order
+to compare models in Bayesian statistics. It is similar to Markov
+Chain Monte Carlo (MCMC) in that it generates samples that can be used
+to estimate the posterior probability distribution. Unlike MCMC, the
+nature of the sampling also allows one to calculate the integral of
+the distribution. It also happens to be a pretty good method for finding
+global function extrema.
 
 Install
 =======
@@ -134,6 +147,13 @@ C.R. Smith). *AIP Conf. Proc.*, **735**,
 `395 <http://adsabs.harvard.edu/abs/2004AIPC..735..395S>`_.
 
 See also http://www.inference.phy.cam.ac.uk/bayesys/.
+
+
+Citation
+========
+
+If you use Nestle in your work, please cite the github repository and the
+relevant references listed above.
 
 
 .. toctree::

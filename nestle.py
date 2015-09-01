@@ -186,7 +186,7 @@ class Ellipsoid(object):
 
         # Scaled eigenvectors are the axes: axes[:,i] is the i-th
         # axis.  Multiplying this matrix by a vector will transform a
-        # point inthe unit n-sphere into a point in the ellipsoid.
+        # point in the unit n-sphere into a point in the ellipsoid.
         self.axes = np.dot(v, np.diag(self.axlens))
 
     def scale_to_vol(self, vol):

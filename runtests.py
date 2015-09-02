@@ -66,6 +66,18 @@ def test_random_choice():
         assert i == j
 
 
+def test_random_choice_error():
+    """random_choice should raise an error when probabilities do not sum
+    to one."""
+
+    rstate = RandomState(0)
+    p = rstate.rand(10)
+    p /= p.sum()
+    p *= 1.001
+    with pytest.raises(ValueError):
+        nestle.random_choice(10, p=p, rstate=rstate)
+
+
 def test_ellipsoid_sphere():
     """Test that Ellipsoid works like a sphere when ``a`` is proportional to
     the identity matrix."""
@@ -329,11 +341,23 @@ def test_mean_and_cov():
 
 
 def test_result():
+    # test repr
     r = nestle.Result(a=1, b=2)
     assert repr(r) in [' b: 2\n a: 1', ' a: 1\n b: 2']
 
+    # test attribute error
     with pytest.raises(AttributeError):
         r.c
+
+    # test printing empty result
+    r = nestle.Result()
+    assert repr(r) == 'Result()'
+
+    # test summary (needs specific keys):
+    r = nestle.Result(niter=100, ncall=100, samples=[1., 2., 3.],
+                      logz=1., logzerr=0.1, h=0.1)
+    assert r.summary() == ('niter: 100\nncall: 100\nnsamples: 3\n'
+                           'logz:  1.000 +/-  0.100\nh:  0.100')
 
 def test_print_progress():
     """Check that print_progress don't error."""

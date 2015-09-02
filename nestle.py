@@ -17,7 +17,7 @@ except ImportError:  # pragma: no cover
 __all__ = ["sample", "print_progress", "mean_and_cov", "Result"]
 __version__ = "0.1.0-dev"
 
-EPS = float(np.finfo(np.float64).eps)
+SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 # -----------------------------------------------------------------------------
 # Helpers
@@ -54,7 +54,7 @@ def randsphere(n, rstate=np.random):
 def random_choice(a, p, rstate=np.random):
     """replacement for numpy.random.choice (only in numpy 1.7+)"""
 
-    if np.sum(p) - 1. > math.sqrt(EPS):  # same tol as in np.random.choice.
+    if np.sum(p) - 1. > SQRTEPS:  # same tol as in np.random.choice.
         raise ValueError("probabilities do not sum to 1")
 
     r = rstate.rand()
@@ -322,8 +322,8 @@ def bounding_ellipsoid(x, pointvol=0.):
     # Due to round-off errors, we actually scale the ellipse so the outermost
     # point obeys x^T A x < 1 - (a bit), so that all the points will
     # *definitely* obey x^T A x < 1.
-    one_minus_a_bit = 1. - 1e4 * n * EPS  # I'm guessing error scales with n.
-                                          # 1e4 was determined from tests.
+    one_minus_a_bit = 1. - SQRTEPS
+
     if fmax > one_minus_a_bit:
         a *= one_minus_a_bit/fmax
 
@@ -453,20 +453,26 @@ def sample_ellipsoids(ells, rstate=np.random):
 
 # -----------------------------------------------------------------------------
 # Sampler classes
-#
-# The job of these samplers is simply to select a new point
-# obeying the likelihood bound given some existing points.
 
-class ClassicSampler:
-    """Picks an active point at random and evolves it with a
-    Metropolis-Hastings style MCMC with fixed number of iterations."""
+class Sampler:
+    """A sampler simply selects a new point obeying the likelihood bound,
+    given some existing set of points."""
 
-    def __init__(self, loglikelihood, prior_transform, points, **kwargs):
+    def __init__(self, loglikelihood, prior_transform, points, rstate,
+                 options):
         self.loglikelihood = loglikelihood
         self.prior_transform = prior_transform
         self.points = points
-        self.steps = kwargs.get('steps', 20)
-        self.rstate = kwargs['rstate']
+        self.rstate = rstate
+        self.set_options(options)
+
+
+class ClassicSampler(Sampler):
+    """Picks an active point at random and evolves it with a
+    Metropolis-Hastings style MCMC with fixed number of iterations."""
+
+    def set_options(self, options):
+        self.steps = options.get('steps', 20)
 
     def update(self, pointvol):
         """Calculate an ellipsoid to get the rough shape of the point
@@ -489,15 +495,18 @@ class ClassicSampler:
         ncall = 0
         while ncall < self.steps or accept == 0:
             new_u = u + scale * self.ell.randoffset(rstate=self.rstate)
-            new_v = self.prior_transform(new_u)
-            new_logl = self.loglikelihood(new_v)
-            if new_logl > loglstar:
-                u = new_u
-                v = new_v
-                logl = new_logl
-                accept += 1
-            else:
+            if np.any(new_u < 0.) or np.any(new_u > 1.):
                 reject += 1
+            else:
+                new_v = self.prior_transform(new_u)
+                new_logl = self.loglikelihood(new_v)
+                if new_logl > loglstar:
+                    u = new_u
+                    v = new_v
+                    logl = new_logl
+                    accept += 1
+                else:
+                    reject += 1
 
             # adjust scale, aiming for acceptance ratio of 0.5.
             if accept > reject:
@@ -510,16 +519,12 @@ class ClassicSampler:
         return u, v, logl, ncall
 
 
-class SingleEllipsoidSampler:
+class SingleEllipsoidSampler(Sampler):
     """Bounds active points in a single ellipsoid and samples randomly
     from within that ellipsoid."""
 
-    def __init__(self, loglikelihood, prior_transform, points, **kwargs):
-        self.loglikelihood = loglikelihood
-        self.prior_transform = prior_transform
-        self.points = points
-        self.enlarge = kwargs['enlarge']
-        self.rstate = kwargs['rstate']
+    def set_options(self, options):
+        self.enlarge = options.get('enlarge', 1.5)
 
     def update(self, pointvol):
         self.ell = bounding_ellipsoid(self.points, pointvol=pointvol)
@@ -539,16 +544,12 @@ class SingleEllipsoidSampler:
         return u, v, logl, ncall
 
 
-class MultiEllipsoidSampler:
+class MultiEllipsoidSampler(Sampler):
     """Bounds active points in multiple ellipsoids and samples randomly
     from within joint distribution."""
 
-    def __init__(self, loglikelihood, prior_transform, points, **kwargs):
-        self.loglikelihood = loglikelihood
-        self.prior_transform = prior_transform
-        self.points = points
-        self.enlarge = kwargs['enlarge']
-        self.rstate = kwargs['rstate']
+    def set_options(self, options):
+        self.enlarge = options.get('enlarge', 1.5)
 
     def update(self, pointvol):
         self.ells = bounding_ellipsoids(self.points, pointvol=pointvol)
@@ -569,16 +570,16 @@ class MultiEllipsoidSampler:
         return u, v, logl, ncall
 
 
-_SAMPLER_CLASSES = {'classic': ClassicSampler,
-                    'single': SingleEllipsoidSampler,
-                    'multi': MultiEllipsoidSampler}
-
 # -----------------------------------------------------------------------------
 # Main entry point
 
+_SAMPLERS = {'classic': ClassicSampler,
+             'single': SingleEllipsoidSampler,
+             'multi': MultiEllipsoidSampler}
+
 def sample(loglikelihood, prior_transform, ndim, npoints=100,
-           method='single', enlarge=1.5, update_interval=1,
-           npdim=None, maxiter=None, rstate=None, callback=None):
+           method='single', update_interval=1,
+           npdim=None, maxiter=None, rstate=None, callback=None, **options):
     """Perform nested sampling to evaluate Bayesian evidence.
 
     Parameters
@@ -608,13 +609,11 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         Method used to select new points. Choices are 'classic',
         single-ellipsoidal ('single'), multi-ellipsoidal ('multi'). Default
         is 'single'.
-    enlarge : float, optional
-        Enlarge the ellipsoid(s) by this fraction in volume. Default is 1.5.
     update_interval : int, optional
-        Only update the ellipsoids every ``update-interval``-th iteration.
-        Update intervals larger than 1 can be more efficient when the
-        likelihood function is very fast, particularly when using the
-        multi-ellipsoid method.
+        Only update the new point selector every ``update_interval``-th
+        iteration. Update intervals larger than 1 can be more efficient
+        when the likelihood function is very fast, particularly when
+        using the multi-ellipsoid method.
     npdim : int, optional
         Number of parameters accepted by prior. This might differ from *ndim*
         in the case where a parameter of loglikelihood is dependent upon
@@ -633,6 +632,15 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         log evidence of all saved points. To simply print these at each
         iteration, use the convience function
         ``callback=nestle.print_progress``. 
+
+    Other Parameters
+    ----------------
+    steps : int, optional
+        For the 'classic' method, the number of steps to take when selecting
+        a new point. Default is 20.
+    enlarge : float, optional
+        For the 'single' and 'multi' methods, enlarge the ellipsoid(s) by
+        this fraction in volume. Default is 1.5.
 
     Returns
     -------
@@ -682,8 +690,9 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
 
     if method == 'multi' and not HAVE_KMEANS:
         raise ValueError("scipy.cluster.vq.kmeans2 is required for the "
-                         "'multi' method.")
-    if method not in _SAMPLER_CLASSES:
+                         "'multi' method.")  # pragma: no cover
+
+    if method not in _SAMPLERS:
         raise ValueError("Unknown method: {:r}".format(method))
 
     if npoints < ndim**2:
@@ -691,7 +700,6 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
 
     if rstate is None:
         rstate = np.random
-
 
     update_interval = int(update_interval)
     if update_interval < 1:
@@ -705,18 +713,16 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         active_v[i, :] = prior_transform(active_u[i, :])
         active_logl[i] = loglikelihood(active_v[i, :])
 
-    sampler = _SAMPLER_CLASSES[method](loglikelihood, prior_transform,
-                                       active_u,
-                                       enlarge=enlarge, rstate=rstate)
+    sampler = _SAMPLERS[method](loglikelihood, prior_transform, active_u,
+                                rstate, options)
 
     # Initialize values for nested sampling loop.
     saved_v = []  # stored points for posterior results
     saved_logl = []
     saved_logvol = []
     saved_logwt = []
-    loglstar = None  # ln(Likelihood constraint)
     h = 0.0  # Information, initially 0.
-    logz = -1e300  # ln(Evidence Z), initially 0.
+    logz = -1e300  # ln(Evidence Z), initially Z=0.
     logvol = math.log(1.0 - math.exp(-1.0/npoints))  # first point removed will
                                                      # have volume 1-e^(1/n)
     ncall = npoints  # number of calls we already made

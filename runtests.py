@@ -214,7 +214,7 @@ def test_bounding_ellipsoid():
         print("n={}: true_vol={}  vol={}".format(n, ell_gen.vol, ell.vol))
 
 
-def test_bounding_ellipsoid_few_points(): 
+def test_bounding_ellipsoid_robust():
     """Test that bounding ellipsoid still works when npoints < dim but
     pointvol > 0."""
 

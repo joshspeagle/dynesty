@@ -162,7 +162,7 @@ class Ellipsoid(object):
         (x - v)^T A (x - v) = 1
 
     where the vector ``v`` is the center of the ellipse and ``A`` is an N x N
-    matrix. Assumes that `A` is symmetric positive definite.
+    matrix. Assumes that ``A`` is symmetric positive definite.
 
     Parameters
     ----------
@@ -170,8 +170,8 @@ class Ellipsoid(object):
         Coordinates of ellipse center. Note that the array is *not* copied.
         This array is never modified internally.
     a : `~numpy.ndarray` with shape ``(N, N)``
-        Matrix describing the axes. Note that the array is *not* copied.
-        This array can be modified internally.
+        Matrix describing the axes. Watch out! This array is *not* copied.
+        but may be modified internally!
     """
 
     def __init__(self, ctr, a):
@@ -246,7 +246,7 @@ class Ellipsoid(object):
 # Functions for determining the ellipsoid or set of ellipsoids bounding a
 # set of points.
 
-def bounding_ellipsoid(x, pointvol=0.):
+def bounding_ellipsoid(x, pointvol=0., minvol=False):
     """Calculate bounding ellipsoid containing a set of points x.
 
     Parameters
@@ -254,8 +254,13 @@ def bounding_ellipsoid(x, pointvol=0.):
     x : (npoints, ndim) ndarray
         Coordinates of points.
     pointvol : float, optional
-        Volume represented by a single point. Sets a minimum scale for the
-        ellipse in all dimensions.
+        Volume represented by a single point. Used to expand ellipsoid
+        in cases where npoints < ndim + 1 that would cause internal
+        failures (due to the volume of the ellipsoid being zero).
+        Also used to set a minimum bound on the ellipsoid volume when
+        minvol is True.
+    minvol : bool, optional
+        If True, ensure that ellipsoid volume is at least len(x) * pointvol.
 
     Returns
     -------
@@ -327,10 +332,17 @@ def bounding_ellipsoid(x, pointvol=0.):
     if fmax > one_minus_a_bit:
         a *= one_minus_a_bit/fmax
 
-    return Ellipsoid(ctr, a)
+    ell = Ellipsoid(ctr, a)
+
+    if minvol:
+        v = len(x) * pointvol
+        if ell.vol < v:
+            ell.scale_to_vol(v)
+
+    return ell
 
 
-def bounding_ellipsoids(x, pointvol=0., ell=None, debug=False):
+def bounding_ellipsoids(x, pointvol=0., ell=None):
     """Calculate a set of ellipses that bound the points.
 
     Parameters
@@ -359,10 +371,7 @@ def bounding_ellipsoids(x, pointvol=0., ell=None, debug=False):
     # calculate it, and enlarge it so that it has at least the minimum
     # volume.
     if ell is None:
-        ell = bounding_ellipsoid(x, pointvol=pointvol) 
-        minvol = npoints * pointvol
-        if ell.vol < minvol:
-            ell.scale_to_vol(minvol)
+        ell = bounding_ellipsoid(x, pointvol=pointvol, minvol=True)
 
     # starting cluster centers for kmeans (k=2)
     p1, p2 = ell.major_axis_endpoints()  # returns two 1-d arrays
@@ -372,46 +381,36 @@ def bounding_ellipsoids(x, pointvol=0., ell=None, debug=False):
     # centroid = (2, ndim) ; label = (npoints,)
     # [Each entry in `label` is 0 or 1, corresponding to cluster number]
     centroid, label = kmeans2(x, k=start_ctrs, iter=10, minit='matrix')
-    cluster_x = [x[label == k, :] for k in [0, 1]]  # points in each cluster
 
+    # Get points in each cluster and bounding ellipsoid for each cluster.
     # If either cluster has less than ndim+1 points, the bounding ellipsoid
     # will be ill-constrained, so we reject the split and simply return the
     # ellipsoid bounding all the points.
-    if cluster_x[0].shape[0] <= ndim or cluster_x[1].shape[0] <= ndim:
+    xs = [x[label == k, :] for k in (0, 1)]  # points in each cluster
+
+    if xs[0].shape[0] <= ndim or xs[1].shape[0] <= ndim:
         return [ell]
 
-    # calculate bounding ellipsoid for each cluster
-    cluster_ells = [None, None]
-    for k in [0, 1]:
-        cluster_ells[k] = bounding_ellipsoid(cluster_x[k], pointvol=pointvol)
-        
-        # enlarge ellipse so that it is at least as large as the fractional
-        # volume according to the number of points in the cluster
-        minvol = len(cluster_x[k]) * pointvol
-        if cluster_ells[k].vol < minvol:
-            cluster_ells[k].scale_to_vol(minvol)
+    ells = [bounding_ellipsoid(xi, pointvol=pointvol, minvol=True)
+            for xi in xs]
 
     # If the total volume decreased by a significant amount,
     # then we will accept the split into subsets and try to perform the
     # algorithm on each subset.
-    if  cluster_ells[0].vol + cluster_ells[1].vol < 0.5 * ell.vol:
-        ells = []
-        for k in [0, 1]:
-            ells.extend(bounding_ellipsoids(cluster_x[k], pointvol=pointvol,
-                                            ell=cluster_ells[k], debug=debug))
-        return ells
+    if ells[0].vol + ells[1].vol < 0.5 * ell.vol:
+        return (bounding_ellipsoids(xs[0], pointvol=pointvol, ell=ells[0]) +
+                bounding_ellipsoids(xs[1], pointvol=pointvol, ell=ells[1]))
 
     # Otherwise, see if the total ellipse volume is significantly greater
     # than expected. If it is, this indicates that there may be more than 2
     # clusters and we should try to subdivide further.
-    if ell.vol > 2. * npoints * pointvol:
-        ells = []
-        for k in [0, 1]:
-            ells.extend(bounding_ellipsoids(cluster_x[k], pointvol=pointvol,
-                                            ell=cluster_ells[k], debug=debug))
+    elif ell.vol > 2. * npoints * pointvol:
+        out = (bounding_ellipsoids(xs[0], pointvol=pointvol, ell=ells[0]) +
+               bounding_ellipsoids(xs[1], pointvol=pointvol, ell=ells[1]))
+
         # only accept split if volume decreased significantly
-        if sum(e.vol for e in ells) < 0.5*ell.vol:
-            return ells
+        if sum(e.vol for e in out) < 0.5 * ell.vol:
+            return out
 
     # Otherwise, we are happy with the single bounding ellipse.
     return [ell]
@@ -478,8 +477,7 @@ class ClassicSampler(Sampler):
         """Calculate an ellipsoid to get the rough shape of the point
         distribution correct, but then scale it down to the volume
         corresponding to a single point."""
-        # TODO: simply estimate covariance and skip scaling ellipsoid to
-        # include *all* points?
+
         self.ell = bounding_ellipsoid(self.points, pointvol=pointvol)
         self.ell.scale_to_vol(pointvol)
 
@@ -527,7 +525,8 @@ class SingleEllipsoidSampler(Sampler):
         self.enlarge = options.get('enlarge', 1.5)
 
     def update(self, pointvol):
-        self.ell = bounding_ellipsoid(self.points, pointvol=pointvol)
+        self.ell = bounding_ellipsoid(self.points, pointvol=pointvol,
+                                      minvol=True)
         self.ell.scale_to_vol(self.ell.vol * self.enlarge)
 
     def new_point(self, loglstar):
@@ -825,63 +824,3 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         ('logvol', np.array(saved_logvol)),
         ('logl', np.array(saved_logl))
         ])
-
-
-# -----------------------------------------------------------------------------
-# Mahalanobis distance reassignment.  This code was originally in
-# bounding_ellipsoids, implemented as described in Feroz, Hobson &
-# Bridges (2009). However, I don't think it helps, so I took it out.
-
-"""
-    while True:
-        h = []
-        for k in [0, 1]:
-            # Calculate mahalanobis distance between ALL points and the
-            # current cluster. The mahalanobis distance squared is given by:
-            #     delta = u - v
-            #     m = np.dot(np.dot(delta, VI), delta)
-            # where, in this case,
-            #     VI = (f * C)^-1 = (scaled_cov)^-1
-            d = np.empty(npoints, dtype=np.float)
-            delta = x - cluster_ells[k].ctr
-            for i in range(npoints):
-                d[i] = np.dot(np.dot(delta[i,:], cluster_ells[k].a),
-                              delta[i,:])
-
-            # Multiply by ellipse ratio:
-            # h_k(point) = V_k(actual) / V_k(expected) * d_k(point)
-            # TODO: d is M. distance *squared*. Should it not be squared?
-            # TODO: should this even be done? We've already scaled up each
-            #       ellipsoid to the minvolume  when we found the bounding
-            #       ellipse.
-
-            #if cluster_minvols[k] is not None:
-            #    d *= (cluster_ellipsoids[k] / cluster_minvols[k])
-
-            h.append(d)
-
-        # reassign each point to the cluster that gives it the smallest h.
-        # Here, we are creating a bool array, h[1] < h[0]
-        #     True -> h smaller for #1 -> assign to cluster 1
-        #     False -> h smaller for #0 -> assign to cluster 0
-        # then the cast to int converts True->1, False->0
-        newlabel = (h[1] < h[0]).astype(np.int)
-
-        # If no points were reassigned, exit the loop.
-        if np.all(newlabel == label):
-            break
-
-        # Otherwise, update the label of the points and recalculate the
-        # ellipsoids
-        label = newlabel
-        for k in [0, 1]:
-            cluster_x[k] = x[label == k, :] # points in this cluster
-            cluster_ells[k] = bounding_ellipsoid(cluster_x[k],
-                                                 pointvol=pointvol)
-
-            # enlarge ellipse so that it is at least as large as the fractional
-            # volume according to the number of points in the cluster
-            minvol = len(cluster_x[k]) * pointvol
-            if cluster_ells[k].vol < minvol:
-                cluster_ells[k].scale_to_vol(minvol)
-"""

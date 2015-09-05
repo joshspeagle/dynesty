@@ -28,7 +28,8 @@ import sphinxgallery
 
 intersphinx_mapping = {
     'python': ('http://docs.python.org/', None),
-    'numpy': ('http://docs.scipy.org/doc/numpy/', None)}
+    'numpy': ('http://docs.scipy.org/doc/numpy/', None),
+    'scipy': ('http://docs.scipy.org/doc/scipy/reference/', None)}
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom

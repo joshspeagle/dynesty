@@ -66,8 +66,9 @@ uncertainties::
     result.weights  # array of weights associated with each sample
 
 
-See :doc:`examples/index` for more detailed examples. See the :doc:`api` page
-for detailed API documentation.
+- See :doc:`examples/index` for more detailed examples.
+- See :doc:`prior` for more information on the ``prior_tranform`` function.
+- See the :doc:`api` page for detailed API documentation.
 
 
 Available methods
@@ -161,5 +162,6 @@ relevant references listed above.
    :maxdepth: 2
 
    examples/index
+   prior
    api
    devdocs

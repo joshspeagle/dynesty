@@ -577,8 +577,8 @@ _SAMPLERS = {'classic': ClassicSampler,
              'multi': MultiEllipsoidSampler}
 
 def sample(loglikelihood, prior_transform, ndim, npoints=100,
-           method='single', update_interval=1,
-           npdim=None, maxiter=None, rstate=None, callback=None, **options):
+           method='single', update_interval=None, npdim=None,
+           maxiter=None, rstate=None, callback=None, **options):
     """Perform nested sampling to evaluate Bayesian evidence.
 
     Parameters
@@ -612,7 +612,7 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         Only update the new point selector every ``update_interval``-th
         iteration. Update intervals larger than 1 can be more efficient
         when the likelihood function is very fast, particularly when
-        using the multi-ellipsoid method.
+        using the multi-ellipsoid method. Default is round(0.2 * npoints).
     npdim : int, optional
         Number of parameters accepted by prior. This might differ from *ndim*
         in the case where a parameter of loglikelihood is dependent upon
@@ -700,9 +700,12 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
     if rstate is None:
         rstate = np.random
 
-    update_interval = int(update_interval)
-    if update_interval < 1:
-        raise ValueError("update_interval must be >= 1")
+    if update_interval is None:
+        update_interval = max(1, round(0.2 * npoints))
+    else:
+        update_interval = round(update_interval)
+        if update_interval < 1:
+            raise ValueError("update_interval must be >= 1")
 
     # Initialize active points and calculate likelihoods
     active_u = rstate.rand(npoints, npdim)  # position in unit cube

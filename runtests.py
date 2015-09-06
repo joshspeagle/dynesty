@@ -204,6 +204,8 @@ def test_bounding_ellipsoid():
 
     npoints = 100
 
+    print("\ntest_bounding_ellipsoid")
+
     for n in range(1, NMAX+1):
         ell_gen = random_ellipsoid(n)  # random elipsoid
         x = ell_gen.samples(npoints)  # points within it
@@ -238,10 +240,11 @@ def test_bounding_ellipsoid_robust():
 
 
 # -----------------------------------------------------------------------------
-# Case tests
+# Case test helpers
 import itertools
 
 def integrate_on_grid(f, ranges, density=100):
+    """Return log of integral"""
     rs = []
     for r in ranges:
         step = (r[1] - r[0]) / density
@@ -259,59 +262,89 @@ def integrate_on_grid(f, ranges, density=100):
 
     return logsum
 
-# two gaussians centered at (1, 1) and (-1, -1) with sigma = 0.1
-sigma = 0.1
-mu1 = np.ones(2)
-mu2 = -np.ones(2)
-sigma_inv = np.identity(2) / 0.1**2
+def integrate_on_grid_refine(f, ranges):
+    """Integrate on grid, tuning sampling density."""
 
-def logl(x):
-    dx1 = x - mu1
-    dx2 = x - mu2
-    return np.logaddexp(-np.dot(dx1, np.dot(sigma_inv, dx1)) / 2.0,
-                        -np.dot(dx2, np.dot(sigma_inv, dx2)) / 2.0)
+    density = 100
+    logsum_old = -np.inf
+    while True:
+        logsum = integrate_on_grid(f, ranges, density=density)
+        if abs(logsum - logsum_old) < 0.001:
+            return logsum
+        logsum_old = logsum
+        density *= 2
 
-# Flat prior, over [-5, 5] in both dimensions
-def prior(x):
-    return 10.0 * x - 5.0
 
-#(Approximate) analytic evidence for two identical Gaussian blobs,
-# over a uniform prior [-5:5][-5:5] with density 1/100 in this domain:
-analytic_logz = np.log(2.0 * 2.0*np.pi*sigma*sigma / 100.)
-grid_logz = integrate_on_grid(logl, [(-5., 5.), (-5., 5.)])
+# -----------------------------------------------------------------------------
+# Case Test 1: two gaussians centered at (1, 1) and (-1, -1) with sigma = 0.1
+
+def run_two_gaussians(method):
+    sigma = 0.1
+    mu1 = np.ones(2)
+    mu2 = -np.ones(2)
+    sigma_inv = np.identity(2) / 0.1**2
+
+    def logl(x):
+        dx1 = x - mu1
+        dx2 = x - mu2
+        return np.logaddexp(-np.dot(dx1, np.dot(sigma_inv, dx1)) / 2.0,
+                            -np.dot(dx2, np.dot(sigma_inv, dx2)) / 2.0)
+
+    # Flat prior, over [-5, 5] in both dimensions
+    def prior(x):
+        return 10.0 * x - 5.0
+
+    #(Approximate) analytic evidence for two identical Gaussian blobs,
+    # over a uniform prior [-5:5][-5:5] with density 1/100 in this domain:
+    analytic_logz = np.log(2.0 * 2.0*np.pi*sigma*sigma / 100.)
+    grid_logz = integrate_on_grid_refine(logl, [(-5., 5.), (-5., 5.)])
+
+    res = nestle.sample(logl, prior, 2, method=method,
+                        npoints=100, rstate=RandomState(0))
+    print()
+    print("{}: logz           = {:6.3f} +/- {:6.3f}"
+          .format(method, res.logz, res.logzerr))
+    print("        grid_logz      = {0:8.5f}".format(grid_logz))
+    print("        analytic_logz  = {0:8.5f}".format(analytic_logz))
+    assert abs(res.logz - grid_logz) < 3.0 * res.logzerr
 
 
 def test_classic():
-    res = nestle.sample(logl, prior, 2, method='classic',
-                        npoints=100, rstate=RandomState(0))
-    print()
-    print("classic: logz           = {0:6.3f} +/- {1:6.3f}"
-          .format(res.logz, res.logzerr))
-    print("        grid_logz      = {0:8.5f}".format(grid_logz))
-    print("        analytic_logz  = {0:8.5f}".format(analytic_logz))
-    assert abs(res.logz - grid_logz) < 3.0 * res.logzerr
+    run_two_gaussians('classic')
 
 
 def test_single():
-    res = nestle.sample(logl, prior, 2, method='single',
-                        npoints=100, rstate=RandomState(0))
-    print()
-    print("single: logz           = {0:6.3f} +/- {1:6.3f}"
-          .format(res.logz, res.logzerr))
-    print("        grid_logz      = {0:8.5f}".format(grid_logz))
-    print("        analytic_logz  = {0:8.5f}".format(analytic_logz))
-    assert abs(res.logz - grid_logz) < 3.0 * res.logzerr
+    run_two_gaussians('single')
 
 
 @pytest.mark.skipif("not nestle.HAVE_KMEANS")
 def test_multi():
-    res = nestle.sample(logl, prior, 2, method='multi',
-                        npoints=100, rstate=RandomState(0))
-    print()
-    print("multi:  logz           = {0:6.3f} +/- {1:6.3f}"
+    run_two_gaussians('multi')
+
+
+# -----------------------------------------------------------------------------
+# Case Test 2: Eggbox
+
+def test_eggbox():
+    tmax = 5.0 * np.pi
+    constant = np.log(1.0 / tmax**2)
+
+    def loglike(x):
+        t = 2.0 * tmax * x - tmax
+        return (2.0 + np.cos(t[0]/2.0)*np.cos(t[1]/2.0))**5.0
+
+    def prior(x):
+        return x
+
+    res = nestle.sample(loglike, prior, 2, npoints=500, method='multi',
+                        rstate=RandomState(0))
+
+    grid_logz = integrate_on_grid_refine(loglike, [(0., 1.), (0., 1.)])
+
+    print("\nEggbox")
+    print("multi : logz           = {:6.3f} +/- {:6.3f}"
           .format(res.logz, res.logzerr))
     print("        grid_logz      = {0:8.5f}".format(grid_logz))
-    print("        analytic_logz  = {0:8.5f}".format(analytic_logz))
 
     assert abs(res.logz - grid_logz) < 3.0 * res.logzerr
 

@@ -325,6 +325,7 @@ def test_multi():
 # -----------------------------------------------------------------------------
 # Case Test 2: Eggbox
 
+@pytest.mark.skipif("not nestle.HAVE_KMEANS")
 def test_eggbox():
     tmax = 5.0 * np.pi
     constant = np.log(1.0 / tmax**2)

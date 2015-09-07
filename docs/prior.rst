@@ -15,6 +15,9 @@ function <https://en.wikipedia.org/wiki/Quantile_function>`_ (also
 known as the *percent point function* or *quantile function*) for each
 parameter.
 
+Uniform priors
+--------------
+
 This is easier to illustrate with a concrete example.  Suppose we
 wanted a uniform prior in the range [-5, 5.) in all variables:
 

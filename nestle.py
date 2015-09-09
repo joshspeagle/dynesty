@@ -342,21 +342,22 @@ def bounding_ellipsoid(x, pointvol=0., minvol=False):
     return ell
 
 
-def bounding_ellipsoids(x, pointvol=0., ell=None):
-    """Calculate a set of ellipses that bound the points.
+def _bounding_ellipsoids(x, ell, pointvol=0.):
+    """Internal bounding ellipsoids method for when a bounding ellipsoid for
+    the entire set has already been calculated.
 
     Parameters
     ----------
     x : (npoints, ndim) ndarray
         Coordinates of points.
-    pointvol : float, optional
-        Volume represented by a single point. Used when number of points
-        per ellipsoid is less than number of dimensions in order to make
-        volume non-zero.
     ell : Ellipsoid, optional
         If known, the bounding ellipsoid of the points `x`. If not supplied,
         it will be calculated. This option is used when the function calls
         itself recursively.
+    pointvol : float, optional
+        Volume represented by a single point. Used when number of points
+        per ellipsoid is less than number of dimensions in order to make
+        volume non-zero.
 
     Returns
     -------
@@ -364,14 +365,7 @@ def bounding_ellipsoids(x, pointvol=0., ell=None):
         Ellipsoids.
     """
 
-    ells = []
     npoints, ndim = x.shape
-
-    # If we don't already have a bounding ellipse for the points,
-    # calculate it, and enlarge it so that it has at least the minimum
-    # volume.
-    if ell is None:
-        ell = bounding_ellipsoid(x, pointvol=pointvol, minvol=True)
 
     # starting cluster centers for kmeans (k=2)
     p1, p2 = ell.major_axis_endpoints()  # returns two 1-d arrays
@@ -382,15 +376,16 @@ def bounding_ellipsoids(x, pointvol=0., ell=None):
     # [Each entry in `label` is 0 or 1, corresponding to cluster number]
     centroid, label = kmeans2(x, k=start_ctrs, iter=10, minit='matrix')
 
-    # Get points in each cluster and bounding ellipsoid for each cluster.
+    # Get points in each cluster.
+    xs = [x[label == k, :] for k in (0, 1)]  # points in each cluster
+
     # If either cluster has less than ndim+1 points, the bounding ellipsoid
     # will be ill-constrained, so we reject the split and simply return the
     # ellipsoid bounding all the points.
-    xs = [x[label == k, :] for k in (0, 1)]  # points in each cluster
-
     if xs[0].shape[0] <= ndim or xs[1].shape[0] <= ndim:
         return [ell]
 
+    # Bounding ellipsoid for each cluster, enlarging to minimum volume.
     ells = [bounding_ellipsoid(xi, pointvol=pointvol, minvol=True)
             for xi in xs]
 
@@ -398,15 +393,15 @@ def bounding_ellipsoids(x, pointvol=0., ell=None):
     # then we will accept the split into subsets and try to perform the
     # algorithm on each subset.
     if ells[0].vol + ells[1].vol < 0.5 * ell.vol:
-        return (bounding_ellipsoids(xs[0], pointvol=pointvol, ell=ells[0]) +
-                bounding_ellipsoids(xs[1], pointvol=pointvol, ell=ells[1]))
+        return (_bounding_ellipsoids(xs[0], ells[0], pointvol=pointvol) +
+                _bounding_ellipsoids(xs[1], ells[1], pointvol=pointvol))
 
     # Otherwise, see if the total ellipse volume is significantly greater
     # than expected. If it is, this indicates that there may be more than 2
     # clusters and we should try to subdivide further.
-    elif ell.vol > 2. * npoints * pointvol:
-        out = (bounding_ellipsoids(xs[0], pointvol=pointvol, ell=ells[0]) +
-               bounding_ellipsoids(xs[1], pointvol=pointvol, ell=ells[1]))
+    if ell.vol > 2. * npoints * pointvol:
+        out = (_bounding_ellipsoids(xs[0], ells[0], pointvol=pointvol) +
+               _bounding_ellipsoids(xs[1], ells[1], pointvol=pointvol))
 
         # only accept split if volume decreased significantly
         if sum(e.vol for e in out) < 0.5 * ell.vol:
@@ -414,6 +409,31 @@ def bounding_ellipsoids(x, pointvol=0., ell=None):
 
     # Otherwise, we are happy with the single bounding ellipse.
     return [ell]
+
+
+def bounding_ellipsoids(x, pointvol=0.):
+    """Calculate a set of ellipses that bound the points.
+
+    Parameters
+    ----------
+    x : (npoints, ndim) ndarray
+        Coordinates of points.
+    pointvol : float, optional
+        Volume represented by a single point. Used when number of points
+        per ellipsoid is less than number of dimensions in order to make
+        volume non-zero.
+
+    Returns
+    -------
+    ells : list of Ellipsoid
+        Ellipsoids.
+    """
+
+    # Calculate a single bounding ellipsoid for the points, and enlarge it
+    # so that it has at least the minimum volume.
+    ell = bounding_ellipsoid(x, pointvol=pointvol, minvol=True)
+
+    return _bounding_ellipsoids(x, ell, pointvol=pointvol)
 
 
 def sample_ellipsoids(ells, rstate=np.random):

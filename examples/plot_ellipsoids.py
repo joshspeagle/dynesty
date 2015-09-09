@@ -59,7 +59,7 @@ def plot_ellipsoid_3d(ell, ax):
             x[i,j], y[i,j], z[i,j] = ell.ctr + np.dot(ell.axes,
                                                       [x[i,j],y[i,j],z[i,j]])
 
-    ax.plot_wireframe(x, y, z,  rstride=4, cstride=4, color='b', alpha=0.2)
+    ax.plot_wireframe(x, y, z,  rstride=4, cstride=4, color='#2980b9', alpha=0.2)
 
 
 # Generate points within a torus

@@ -68,6 +68,7 @@ uncertainties::
 
 - See :doc:`examples/index` for more detailed examples.
 - See :doc:`prior` for more information on the ``prior_tranform`` function.
+- See :doc:`stopping` for discussion on when the algorithm terminates.
 - See the :doc:`api` page for detailed API documentation.
 
 
@@ -163,5 +164,6 @@ relevant references listed above.
 
    examples/index
    prior
+   stopping
    api
    devdocs

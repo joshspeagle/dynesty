@@ -650,7 +650,7 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         this threshold. Explicitly, the stopping criterion is
         ``log(z + z_est) - log(z) < dlogz`` where *z* is the current evidence
         from all saved samples, and *z_est* is the estimated contribution
-        from the remaining volume.
+        from the remaining volume. A value of 0.5 is used in the literature.
     rstate : `~numpy.random.RandomState`, optional
         RandomState instance. If not given, the global random state of the
         ``numpy.random`` module will be used.

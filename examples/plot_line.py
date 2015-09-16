@@ -10,7 +10,7 @@ from __future__ import print_function
 
 import numpy as np
 import matplotlib.pyplot as plt
-import triangle
+import corner
 
 import nestle
 
@@ -58,6 +58,6 @@ plt.show()
 ###############################################################################
 # Plot samples to see the full posterior surface.
 
-fig = triangle.corner(res.samples, weights=res.weights, labels=['m', 'b'],
-                      extents=[0.99999, 0.99999], truths=theta_true, bins=30)
+fig = corner.corner(res.samples, weights=res.weights, labels=['m', 'b'],
+                    range=[0.99999, 0.99999], truths=theta_true, bins=30)
 plt.show()

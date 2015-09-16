@@ -8,7 +8,7 @@ A likelihood surface with multiple modes of equal height.
 
 import numpy as np
 import matplotlib.pyplot as plt
-import triangle
+import corner
 
 import nestle
 
@@ -44,7 +44,7 @@ print(res.summary())
 # Plot the samples. Note that this represents the *likelihood* rather than
 # its log, hence it is much more highly peaked.
 
-fig = triangle.corner(res.samples, weights=res.weights, bins=500,
-                      extents=[(0., 1.), (0., 1.)])
+fig = corner.corner(res.samples, weights=res.weights, bins=500,
+                    range=[(0., 1.), (0., 1.)])
 fig.set_size_inches(8., 8.)
 

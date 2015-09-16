@@ -594,7 +594,8 @@ _SAMPLERS = {'classic': ClassicSampler,
 
 def sample(loglikelihood, prior_transform, ndim, npoints=100,
            method='single', update_interval=None, npdim=None,
-           maxiter=None, rstate=None, callback=None, **options):
+           maxiter=None, rstate=None, callback=None, decline_factor=None,
+           dlogz=None, **options):
     """Perform nested sampling to evaluate Bayesian evidence.
 
     Parameters
@@ -637,6 +638,19 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
     maxiter : int, optional
         Maximum number of iterations. Iteration may stop earlier if
         termination condition is reached. Default is no limit.
+    decline_factor : float, optional
+        If supplied, iteration will stop when the weight
+        (likelihood times prior volume) of newly saved samples has been
+        declining for ``decline_factor * nsamples`` consecutive samples.
+        This option and dlogz are mutually exclusive. If neither is
+        specified, the default is decline_factor=1.
+    dlogz : float, optional
+        If supplied, iteration will stop when the estimated contribution
+        of the remaining prior volume to the total evidence falls below
+        this threshold. Explicitly, the stopping criterion is
+        ``log(z + z_est) - log(z) < dlogz`` where *z* is the current evidence
+        from all saved samples, and *z_est* is the estimated contribution
+        from the remaining volume.
     rstate : `~numpy.random.RandomState`, optional
         RandomState instance. If not given, the global random state of the
         ``numpy.random`` module will be used.
@@ -715,6 +729,13 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
 
     if rstate is None:
         rstate = np.random
+
+    # Stopping criterion.
+    if decline_factor is not None and dlogz is not None:
+        raise ValueError("Cannot specify two separate stopping criteria: "
+                         "decline_factor and dlogz")
+    elif decline_factor is None and dlogz is None:
+        decline_factor = 1.0
 
     if update_interval is None:
         update_interval = max(1, round(0.2 * npoints))
@@ -802,15 +823,19 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         # Shrink interval
         logvol -= 1.0 / npoints
 
-        # Stopping criterion: stop when the logwt has been declining
-        # for a while.
-        if logwt < logwt_old:
-            ndecl += 1
-        else:
-            ndecl = 0
-        if ndecl > 2 * npoints and ndecl > it // 6:
-            break
-        logwt_old = logwt
+        # Stopping criterion 1: logwt has been declining for a while.
+        if decline_factor is not None:
+            ndecl = ndecl + 1 if logwt < logwt_old else 0
+            logwt_old = logwt
+            if ndecl > decline_factor * npoints:
+                break
+
+        # Stopping criterion 2: estimated fractional remaining evidence
+        # below some threshold.
+        if dlogz is not None:
+            logz_remain = np.max(active_logl) - it / npoints
+            if np.logaddexp(logz, logz_remain) - logz < dlogz:
+                break
 
         it += 1
 

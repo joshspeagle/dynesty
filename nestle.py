@@ -516,7 +516,7 @@ class ClassicSampler(Sampler):
             new_u -= np.floor(new_u)
             new_v = self.prior_transform(new_u)
             new_logl = self.loglikelihood(new_v)
-            if new_logl > loglstar:
+            if new_logl >= loglstar:
                 u = new_u
                 v = new_v
                 logl = new_logl
@@ -550,7 +550,7 @@ class SingleEllipsoidSampler(Sampler):
     def new_point(self, loglstar):
         ncall = 0
         logl = -float('inf')
-        while logl <= loglstar:
+        while logl < loglstar:
             u = self.ell.sample(rstate=self.rstate)
             u -= np.floor(u)
             v = self.prior_transform(u)
@@ -575,7 +575,7 @@ class MultiEllipsoidSampler(Sampler):
     def new_point(self, loglstar):
         ncall = 0
         logl = -float('inf')
-        while logl <= loglstar:
+        while logl < loglstar:
             u = sample_ellipsoids(self.ells, rstate=self.rstate)
             u -= np.floor(u)
             v = self.prior_transform(u)
@@ -724,8 +724,8 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
     if method not in _SAMPLERS:
         raise ValueError("Unknown method: {:r}".format(method))
 
-    if npoints < ndim**2:
-        warnings.warn("You really want to make npoints >= ndim**2!")
+    if npoints < 2 * ndim:
+        warnings.warn("You really want to make npoints >= 2 * ndim!")
 
     if rstate is None:
         rstate = np.random
@@ -856,6 +856,16 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         saved_logwt.append(logwt)
         saved_logl.append(active_logl[i])
         saved_logvol.append(logvol)
+
+    # h should always be nonnegative (we take the sqrt below).
+    # Numerical error makes it negative in pathological corner cases
+    # such as flat likelihoods. Here we correct those cases to zero.
+    if h < 0.0:
+        if h > -SQRTEPS:
+            h = 0.0
+        else:
+            raise RuntimeError("Negative h encountered (h={}). Please report "
+                               "this as a likely bug.".format(h))
 
     return Result([
         ('niter', it + 1),

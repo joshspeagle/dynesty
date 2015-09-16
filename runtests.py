@@ -8,6 +8,7 @@ import numpy as np
 from numpy.random import RandomState
 from numpy.testing import assert_allclose, assert_approx_equal
 import pytest
+import itertools
 try:
     from numpy.random import choice
     HAVE_CHOICE = True
@@ -235,13 +236,8 @@ def test_bounding_ellipsoid_robust():
             for xi in x:
                 assert ell.contains(xi)
 
-# TODO 
-#def test_bounding_ellipsoids():
-
-
 # -----------------------------------------------------------------------------
 # Case test helpers
-import itertools
 
 def integrate_on_grid(f, ranges, density=100):
     """Return log of integral"""
@@ -274,6 +270,28 @@ def integrate_on_grid_refine(f, ranges):
         logsum_old = logsum
         density *= 2
 
+# -----------------------------------------------------------------------------
+# Case Test 0: completely flat likelihood & prior
+# This tests if we are normalizing the integral correctly and whether we get
+# h = 0 as expected.
+
+def run_flat(method):
+    logl = lambda x: 0.0
+    prior = lambda x: x
+    res = nestle.sample(logl, prior, 2, method=method,
+                        npoints=4, rstate=RandomState(0))
+    assert_allclose(res.logz, 0.0, atol=1.e-10)
+    assert_allclose(res.h, 0.0, atol=1.e-10)
+
+def test_flat_classic():
+    run_flat("classic")
+
+def test_flat_single():
+    run_flat("single")
+
+@pytest.mark.skipif("not nestle.HAVE_KMEANS")
+def test_flat_multi():
+    run_flat("multi")
 
 # -----------------------------------------------------------------------------
 # Case Test 1: two gaussians centered at (1, 1) and (-1, -1) with sigma = 0.1
@@ -309,16 +327,16 @@ def run_two_gaussians(method):
     assert abs(res.logz - grid_logz) < 3.0 * res.logzerr
 
 
-def test_classic():
+def test_two_gaussians_classic():
     run_two_gaussians('classic')
 
 
-def test_single():
+def test_two_gaussians_single():
     run_two_gaussians('single')
 
 
 @pytest.mark.skipif("not nestle.HAVE_KMEANS")
-def test_multi():
+def test_two_gaussians_multi():
     run_two_gaussians('multi')
 
 
@@ -351,7 +369,7 @@ def test_eggbox():
 
 
 # -----------------------------------------------------------------------------
-# utilities
+# test utilities
 
 def test_mean_and_cov():
     x = np.random.random((10, 3))

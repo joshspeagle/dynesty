@@ -246,6 +246,23 @@ class Ellipsoid(object):
 # Functions for determining the ellipsoid or set of ellipsoids bounding a
 # set of points.
 
+def make_eigvals_positive(a, targetprod):
+    """For the symmetric square matrix ``a``, increase any zero eigenvalues
+    to fulfill the given target product of eigenvalues.
+
+    Returns a (possibly) new matrix."""
+
+    w, v = np.linalg.eigh(a)  # Use eigh because we assume a is symmetric.
+    mask = w < 1.e-10
+    if np.any(mask):
+        nzprod = np.product(w[~mask])  # product of nonzero eigenvalues
+        nzeros = mask.sum()  # number of zero eigenvalues
+        w[mask] = (targetprod / nzprod) ** (1./nzeros)  # adjust zero eigvals
+        a = np.dot(np.dot(v, np.diag(w)), np.linalg.inv(v))  # re-form cov
+
+    return a
+
+
 def bounding_ellipsoid(x, pointvol=0., minvol=False):
     """Calculate bounding ellipsoid containing a set of points x.
 
@@ -254,10 +271,7 @@ def bounding_ellipsoid(x, pointvol=0., minvol=False):
     x : (npoints, ndim) ndarray
         Coordinates of points.
     pointvol : float, optional
-        Volume represented by a single point. Used to expand ellipsoid
-        in cases where npoints < ndim + 1 that would cause internal
-        failures (due to the volume of the ellipsoid being zero).
-        Also used to set a minimum bound on the ellipsoid volume when
+        Used to set a minimum bound on the ellipsoid volume when
         minvol is True.
     minvol : bool, optional
         If True, ensure that ellipsoid volume is at least len(x) * pointvol.
@@ -266,21 +280,21 @@ def bounding_ellipsoid(x, pointvol=0., minvol=False):
     -------
     ellipsoid : Ellipsoid
     """
-    npoints, n = x.shape
+    npoints, ndim = x.shape
 
     # If there is only a single point, return an N-sphere with volume `pointvol`
     # centered at the point.
     if npoints == 1:
-        rpoint = (pointvol / vol_prefactor(n))**(1./n)
-        return Ellipsoid(x[0], (1./rpoint**2) * np.identity(n))
+        r = (pointvol / vol_prefactor(ndim))**(1./ndim)
+        return Ellipsoid(x[0], (1. / r**2) * np.identity(ndim))
 
     # Calculate covariance of points
     ctr = np.mean(x, axis=0)
     delta = x - ctr
     cov = np.cov(delta, rowvar=0)
     
-    # when n = 1, np.cov returns a 0-d array. Make it a 1x1 2-d array.
-    if n == 1:
+    # when ndim = 1, np.cov returns a 0-d array. Make it a 1x1 2-d array.
+    if ndim == 1:
         cov = np.atleast_2d(cov)
 
     # For a ball of uniformly distributed points, the covariance will be
@@ -290,24 +304,19 @@ def bounding_ellipsoid(x, pointvol=0., minvol=False):
     # we are supposing the points are uniformly distributed within
     # an ellipse, so the same factor holds. Expand `cov`
     # to compensate for that when defining the ellipse matrix:
-    cov *= (n + 2)
+    cov *= (ndim + 2)
 
-    # Check if any eigenvalues are zero and if so, increase them. This
-    # expands the ellipsoid in cases where it has zero volume, which happens
+    # Ensure that ``cov`` is nonsingular.
+    # It can be singular when the ellipsoid has zero volume, which happens
     # when npoints <= ndim or when enough points are linear combinations
     # of other points. (e.g., npoints = ndim+1 but one point is a linear
-    # combination of others).
-    w, v = np.linalg.eigh(cov)  # use eigh because cov will be symmetric.
-    mask = w < 1.e-10  # TODO: should this just be zero?
-    if np.any(mask):
-        nzprod = np.product(w[~mask])  # product of nonzero eigenvalues
-        # target product of all eigenvalues based on target vol = n*pointvol:
-        targetprod = (npoints * pointvol / vol_prefactor(n))**2
-        nzeros = mask.sum()  # number of zero eigenvalues
-        w[mask] = (targetprod / nzprod) ** (1./nzeros)  # adjust zero eigvals
-        cov = np.dot(np.dot(v, np.diag(w)), np.linalg.inv(v))  # re-form cov
+    # combination of others). When this happens, we expand the ellipse
+    # in the zero dimensions to fulfill the volume expected from
+    # ``pointvol``.
+    targetprod = (npoints * pointvol / vol_prefactor(ndim))**2
+    cov = make_eigvals_positive(cov, targetprod)
 
-    # Matrix defining ellipse
+    # The matrix defining the ellipsoid.
     a = np.linalg.inv(cov)
 
     # Calculate expansion factor necessary to bound each point.
@@ -315,12 +324,7 @@ def bounding_ellipsoid(x, pointvol=0., minvol=False):
     # each point and then scale A up or down to make the
     # "outermost" point obey x^T A x = 1.
     # 
-    # The line below should be equilvalent to:
-    #
-    #     f = np.empty(len(x), dtype=np.float)
-    #     for i in range(len(x)):
-    #         f[i] = np.dot(np.dot(delta[i,:], icov), delta[i,:])
-    #
+    # fast way to compute delta[i] @ A @ delta[i] for all i.
     f = np.einsum('...i, ...i', np.tensordot(delta, a, axes=1), delta)
     fmax = np.max(f)
 
@@ -330,7 +334,7 @@ def bounding_ellipsoid(x, pointvol=0., minvol=False):
     one_minus_a_bit = 1. - SQRTEPS
 
     if fmax > one_minus_a_bit:
-        a *= one_minus_a_bit/fmax
+        a *= one_minus_a_bit / fmax
 
     ell = Ellipsoid(ctr, a)
 

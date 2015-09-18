@@ -516,8 +516,10 @@ class ClassicSampler(Sampler):
         reject = 0
         ncall = 0
         while ncall < self.steps or accept == 0:
-            new_u = u + scale * self.ell.randoffset(rstate=self.rstate)
-            new_u -= np.floor(new_u)
+            while True:
+                new_u = u + scale * self.ell.randoffset(rstate=self.rstate)
+                if np.all(new_u > 0.) and np.all(new_u < 1.):
+                    break
             new_v = self.prior_transform(new_u)
             new_logl = self.loglikelihood(new_v)
             if new_logl >= loglstar:
@@ -555,8 +557,10 @@ class SingleEllipsoidSampler(Sampler):
         ncall = 0
         logl = -float('inf')
         while logl < loglstar:
-            u = self.ell.sample(rstate=self.rstate)
-            u -= np.floor(u)
+            while True:
+                u = self.ell.sample(rstate=self.rstate)
+                if np.all(u > 0.) and np.all(u < 1.):
+                    break
             v = self.prior_transform(u)
             logl = self.loglikelihood(v)
             ncall += 1
@@ -580,8 +584,10 @@ class MultiEllipsoidSampler(Sampler):
         ncall = 0
         logl = -float('inf')
         while logl < loglstar:
-            u = sample_ellipsoids(self.ells, rstate=self.rstate)
-            u -= np.floor(u)
+            while True:
+                u = sample_ellipsoids(self.ells, rstate=self.rstate)
+                if np.all(u > 0.) and np.all(u < 1.):
+                    break
             v = self.prior_transform(u)
             logl = self.loglikelihood(v)
             ncall += 1

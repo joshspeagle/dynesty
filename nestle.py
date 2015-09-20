@@ -386,7 +386,7 @@ def _bounding_ellipsoids(x, ell, pointvol=0.):
     # If either cluster has less than ndim+1 points, the bounding ellipsoid
     # will be ill-constrained, so we reject the split and simply return the
     # ellipsoid bounding all the points.
-    if xs[0].shape[0] <= ndim or xs[1].shape[0] <= ndim:
+    if xs[0].shape[0] < 2 * ndim or xs[1].shape[0] < 2 * ndim:
         return [ell]
 
     # Bounding ellipsoid for each cluster, enlarging to minimum volume.
@@ -652,15 +652,17 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         If supplied, iteration will stop when the weight
         (likelihood times prior volume) of newly saved samples has been
         declining for ``decline_factor * nsamples`` consecutive samples.
-        This option and dlogz are mutually exclusive. If neither is
-        specified, the default is decline_factor=1.
+        A value of 1.0 seems to work pretty well. This option and dlogz
+        are mutually exclusive.
     dlogz : float, optional
         If supplied, iteration will stop when the estimated contribution
         of the remaining prior volume to the total evidence falls below
         this threshold. Explicitly, the stopping criterion is
         ``log(z + z_est) - log(z) < dlogz`` where *z* is the current evidence
         from all saved samples, and *z_est* is the estimated contribution
-        from the remaining volume. A value of 0.5 is used in the literature.
+        from the remaining volume. This option and decline_factor are
+        mutually exclusive. If neither is specified, the default is
+        ``dlogz=0.5``.
     rstate : `~numpy.random.RandomState`, optional
         RandomState instance. If not given, the global random state of the
         ``numpy.random`` module will be used.
@@ -741,11 +743,11 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         rstate = np.random
 
     # Stopping criterion.
-    if decline_factor is not None and dlogz is not None:
+    if dlogz is not None and decline_factor is not None:
         raise ValueError("Cannot specify two separate stopping criteria: "
                          "decline_factor and dlogz")
-    elif decline_factor is None and dlogz is None:
-        decline_factor = 1.0
+    elif dlogz is None and decline_factor is None:
+        dlogz = 0.5
 
     if update_interval is None:
         update_interval = max(1, round(0.2 * npoints))
@@ -833,18 +835,18 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         # Shrink interval
         logvol -= 1.0 / npoints
 
-        # Stopping criterion 1: logwt has been declining for a while.
-        if decline_factor is not None:
-            ndecl = ndecl + 1 if logwt < logwt_old else 0
-            logwt_old = logwt
-            if ndecl > decline_factor * npoints:
-                break
-
-        # Stopping criterion 2: estimated fractional remaining evidence
+        # Stopping criterion 1: estimated fractional remaining evidence
         # below some threshold.
         if dlogz is not None:
             logz_remain = np.max(active_logl) - it / npoints
             if np.logaddexp(logz, logz_remain) - logz < dlogz:
+                break
+
+        # Stopping criterion 2: logwt has been declining for a while.
+        if decline_factor is not None:
+            ndecl = ndecl + 1 if logwt < logwt_old else 0
+            logwt_old = logwt
+            if ndecl > decline_factor * npoints:
                 break
 
         it += 1

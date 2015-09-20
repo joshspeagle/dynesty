@@ -15,7 +15,7 @@ except ImportError:  # pragma: no cover
     HAVE_KMEANS = False
 
 __all__ = ["sample", "print_progress", "mean_and_cov", "Result"]
-__version__ = "0.1.0-dev"
+__version__ = "0.1.0"
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 

@@ -1,12 +1,14 @@
 #!/usr/bin/env python
-import os
-from glob import glob
+import re
 from distutils.core import setup
 
 url = "https://github.com/kbarbary/nestle"
 
+# synchronize version
+version = re.findall(r"__version__ = \"(.*?)\"", open("nestle.py").read())[0]
+
 setup(name="nestle", 
-      version="0.1.0.dev",
+      version=version,
       description="Nested sampling algorithms for evaluating Bayesian evidence",
       long_description=url,
       classifiers = ["Development Status :: 2 - Pre-Alpha",

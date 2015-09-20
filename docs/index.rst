@@ -18,14 +18,13 @@ to compare models in Bayesian statistics. It is similar to Markov
 Chain Monte Carlo (MCMC) in that it generates samples that can be used
 to estimate the posterior probability distribution. Unlike MCMC, the
 nature of the sampling also allows one to calculate the integral of
-the distribution. It also happens to be a pretty good method for finding
-global function extrema.
+the distribution. It also happens to be a pretty good method for robustly
+finding global maxima.
 
 Install
 =======
 
-Nestle is compatible with Python 2 and 3. Requires numpy 1.6+ and
-scipy (optional). Install with pip::
+Nestle is compatible with both Python and Legacy Python (formerly known as Python 2). It requires numpy 1.6+ and, optionally, scipy. Install with pip::
 
     pip install nestle
 

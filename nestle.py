@@ -553,7 +553,7 @@ class SingleEllipsoidSampler(Sampler):
     from within that ellipsoid."""
 
     def set_options(self, options):
-        self.enlarge = options.get('enlarge', 1.5)
+        self.enlarge = options.get('enlarge', 1.2)
 
     def update(self, pointvol):
         self.ell = bounding_ellipsoid(self.points, pointvol=pointvol,
@@ -580,7 +580,7 @@ class MultiEllipsoidSampler(Sampler):
     from within joint distribution."""
 
     def set_options(self, options):
-        self.enlarge = options.get('enlarge', 1.5)
+        self.enlarge = options.get('enlarge', 1.2)
 
     def update(self, pointvol):
         self.ells = bounding_ellipsoids(self.points, pointvol=pointvol)
@@ -688,7 +688,7 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         a new point. Default is 20.
     enlarge : float, optional
         For the 'single' and 'multi' methods, enlarge the ellipsoid(s) by
-        this fraction in volume. Default is 1.5.
+        this fraction in volume. Default is 1.2.
 
     Returns
     -------

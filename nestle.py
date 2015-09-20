@@ -454,17 +454,24 @@ def sample_ellipsoids(ells, rstate=np.random):
         Coordinates within the ellipsoids. 
     """
 
+    nells = len(ells)
+
+    if nells == 1:
+        return ells[0].sample(rstate=rstate)
+
     # Select an ellipsoid at random, according to volumes
-    v = np.array([ell.vol for ell in ells])
-    ell = ells[random_choice(len(ells), v/v.sum(), rstate=rstate)]
+    vols = np.array([ell.vol for ell in ells])
+    i = random_choice(nells, vols / vols.sum(), rstate=rstate)
     
     # Select a point from the ellipsoid
-    x = ell.sample(rstate=rstate)
+    x = ells[i].sample(rstate=rstate)
 
     # How many ellipsoids is the sample in?
-    n = 0
-    for ell in ells:
-        n += ell.contains(x)
+    n = 1
+    for j in range(nells):
+        if j == i:
+            continue
+        n += ells[j].contains(x)
 
     # Only accept the point with probability 1/n
     # (If rejected, sample again).

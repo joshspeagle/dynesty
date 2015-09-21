@@ -57,7 +57,7 @@ uncertainties::
         return 10.0 * x - 5.0
 
     # Run nested sampling.
-    result = nestle.sample(loglike, prior_trasform, 2)
+    result = nestle.sample(loglike, prior_transform, 2)
 
     result.logz     # log evidence
     result.logzerr  # numerical (sampling) error on logz

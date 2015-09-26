@@ -611,8 +611,8 @@ _SAMPLERS = {'classic': ClassicSampler,
 
 def sample(loglikelihood, prior_transform, ndim, npoints=100,
            method='single', update_interval=None, npdim=None,
-           maxiter=None, rstate=None, callback=None, decline_factor=None,
-           dlogz=None, **options):
+           maxiter=None, maxcall=None, rstate=None, callback=None,
+           decline_factor=None, dlogz=None, **options):
     """Perform nested sampling to evaluate Bayesian evidence.
 
     Parameters
@@ -655,6 +655,9 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
     maxiter : int, optional
         Maximum number of iterations. Iteration may stop earlier if
         termination condition is reached. Default is no limit.
+    maxcall : int, optional
+        Maximum number of likelihood evaluations. Iteration may stop earlier
+        if termination condition is reached. Default is no limit.
     decline_factor : float, optional
         If supplied, iteration will stop when the weight
         (likelihood times prior volume) of newly saved samples has been
@@ -735,6 +738,9 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
 
     if maxiter is None:
         maxiter = sys.maxsize
+
+    if maxcall is None:
+        maxcall = sys.maxsize
 
     if method == 'multi' and not HAVE_KMEANS:
         raise ValueError("scipy.cluster.vq.kmeans2 is required for the "
@@ -855,6 +861,9 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
             logwt_old = logwt
             if ndecl > decline_factor * npoints:
                 break
+
+        if ncall > maxcall:
+            break
 
         it += 1
 

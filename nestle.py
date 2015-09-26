@@ -15,7 +15,7 @@ except ImportError:  # pragma: no cover
     HAVE_KMEANS = False
 
 __all__ = ["sample", "print_progress", "mean_and_cov", "Result"]
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
@@ -611,8 +611,8 @@ _SAMPLERS = {'classic': ClassicSampler,
 
 def sample(loglikelihood, prior_transform, ndim, npoints=100,
            method='single', update_interval=None, npdim=None,
-           maxiter=None, maxcall=None, rstate=None, callback=None,
-           decline_factor=None, dlogz=None, **options):
+           maxiter=None, maxcall=None, dlogz=None, decline_factor=None,
+           rstate=None, callback=None, **options):
     """Perform nested sampling to evaluate Bayesian evidence.
 
     Parameters
@@ -620,6 +620,7 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
     loglikelihood : function
         Function returning log(likelihood) given parameters as a 1-d numpy
         array of length *ndim*.
+
     prior_transform : function
         Function translating a unit cube to the parameter space according to
         the prior. The input is a 1-d numpy array with length *ndim*, where
@@ -634,36 +635,37 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
 
     ndim : int
         Number of parameters returned by prior and accepted by loglikelihood.
+
     npoints : int, optional
         Number of active points. Larger numbers result in a more finely
         sampled posterior (more accurate evidence), but also a larger
         number of iterations required to converge. Default is 100.
+
     method : {'classic', 'single', 'multi'}, optional
         Method used to select new points. Choices are 'classic',
         single-ellipsoidal ('single'), multi-ellipsoidal ('multi'). Default
         is 'single'.
+
     update_interval : int, optional
         Only update the new point selector every ``update_interval``-th
         iteration. Update intervals larger than 1 can be more efficient
         when the likelihood function is very fast, particularly when
         using the multi-ellipsoid method. Default is round(0.2 * npoints).
+
     npdim : int, optional
         Number of parameters accepted by prior. This might differ from *ndim*
         in the case where a parameter of loglikelihood is dependent upon
         multiple independently distributed parameters, some of which may be
         nuisance parameters. 
+
     maxiter : int, optional
         Maximum number of iterations. Iteration may stop earlier if
         termination condition is reached. Default is no limit.
+
     maxcall : int, optional
         Maximum number of likelihood evaluations. Iteration may stop earlier
         if termination condition is reached. Default is no limit.
-    decline_factor : float, optional
-        If supplied, iteration will stop when the weight
-        (likelihood times prior volume) of newly saved samples has been
-        declining for ``decline_factor * nsamples`` consecutive samples.
-        A value of 1.0 seems to work pretty well. This option and dlogz
-        are mutually exclusive.
+
     dlogz : float, optional
         If supplied, iteration will stop when the estimated contribution
         of the remaining prior volume to the total evidence falls below
@@ -673,9 +675,18 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         from the remaining volume. This option and decline_factor are
         mutually exclusive. If neither is specified, the default is
         ``dlogz=0.5``.
+
+    decline_factor : float, optional
+        If supplied, iteration will stop when the weight
+        (likelihood times prior volume) of newly saved samples has been
+        declining for ``decline_factor * nsamples`` consecutive samples.
+        A value of 1.0 seems to work pretty well. This option and dlogz
+        are mutually exclusive.
+
     rstate : `~numpy.random.RandomState`, optional
         RandomState instance. If not given, the global random state of the
         ``numpy.random`` module will be used.
+
     callback : function, optional
         Callback function to be called at each iteration. A single argument,
         a dictionary, is passed to the callback. The keys include ``'it'``,
@@ -684,14 +695,17 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         iteration, use the convience function
         ``callback=nestle.print_progress``. 
 
+
     Other Parameters
     ----------------
     steps : int, optional
         For the 'classic' method, the number of steps to take when selecting
         a new point. Default is 20.
+
     enlarge : float, optional
         For the 'single' and 'multi' methods, enlarge the ellipsoid(s) by
         this fraction in volume. Default is 1.2.
+
 
     Returns
     -------

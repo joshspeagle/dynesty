@@ -124,6 +124,39 @@ accept the final split into N clusters if the total volume decrease is
 significant.
 
 
+FAQ
+===
+
+**How many active points should I use?**
+
+It depends. The number of points primarily affects the numerical
+accuracy of the results, but there are a couple other
+considerations. For the ellipsoid-based methods, `ndim + 1` is the
+absolute minimum number of points necessary to characterize an
+ellipsoid, this will give pretty poor estimates. A warning is raised
+if the number of points is less than `2 * ndim`. Ideally you will have
+at least several times more than this. For problems with just a few
+parameters (<=5), I get good enough results with just 100 points. If
+the posterior is likely to be multi-modal and you're using the
+`'multi'` method, you will want additional points in order to
+characterize each mode well.
+
+**What are the differences between the 'multi' method and MultiNest?**
+
+First, the multi-ellipsoid method in Nestle is based on the algorithm
+described in Feroz, Hobson & Bridges (2009), so it doesn't yet include
+any later algorithmic improvements in the MultiNest software. Second,
+there are subtle but important differences in the part of the
+algorithm that decides when to split an ellipsoid into multiple
+ellipsoids. I found that implementing the algorithm precisely as
+described gave biased results in higher dimensions due to the
+ellipsoids being split too aggressively into a large number of very
+small ellipsoids that no longer enclose the full iso-likelihood
+surface. Therefore, the implementation in Nestle is more conservative
+about splitting ellipsoids. This results in a slightly lower
+efficiency but greater robustness.
+
+
 References
 ==========
 

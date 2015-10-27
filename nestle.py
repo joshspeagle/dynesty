@@ -719,9 +719,9 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
 
     update_interval : int, optional
         Only update the new point selector every ``update_interval``-th
-        iteration. Update intervals larger than 1 can be more efficient
+        likelihood call. Update intervals larger than 1 can be more efficient
         when the likelihood function is very fast, particularly when
-        using the multi-ellipsoid method. Default is round(0.2 * npoints).
+        using the multi-ellipsoid method. Default is round(0.6 * npoints).
 
     npdim : int, optional
         Number of parameters accepted by prior. This might differ from *ndim*
@@ -848,7 +848,7 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         dlogz = 0.5
 
     if update_interval is None:
-        update_interval = max(1, round(0.2 * npoints))
+        update_interval = max(1, round(0.6 * npoints))
     else:
         update_interval = round(update_interval)
         if update_interval < 1:
@@ -888,6 +888,7 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
     ndecl = 0
     logwt_old = -np.inf
     it = 0
+    since_update = 0
     while it < maxiter:
         if (callback is not None) and (it > 0):
             callback_info.update(it=it, logz=logz)
@@ -917,8 +918,9 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         pointvol = expected_vol / npoints
 
         # Update the sampler based on the current active points.
-        if it % update_interval == 0:
+        if since_update >= update_interval:
             sampler.update(pointvol)
+            since_update = 0
 
         # Choose a new point from within the likelihood constraint
         # (having logl > loglstar).
@@ -929,6 +931,7 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         active_v[worst] = v
         active_logl[worst] = logl
         ncall += nc
+        since_update += nc
 
         # Shrink interval
         logvol -= 1.0 / npoints

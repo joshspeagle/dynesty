@@ -65,6 +65,34 @@ def random_choice(a, p, rstate=np.random):
         t += p[i]
     return i
 
+def systematic_resample(weights):
+    """
+    Return the resampling indices using the weights. It uses systematic resampling
+    Based on http://users.isy.liu.se/rt/schon/Publications/HolSG2006.pdf
+    
+    Parameters
+    ----------
+    weights : weight of each sample
+    
+    Returns
+    -------
+    indices : indices of the array of the same size as weights that can be used for resampling
+    """
+    N = len(weights)
+
+    # make N subdivisions, and choose positions with a consistent random offset
+    positions = (np.random.random() + np.arange(N)) / N
+
+    indexes = np.zeros(N, 'i')
+    cumulative_sum = np.cumsum(weights)
+    i, j = 0, 0
+    while i < N:
+        if positions[i] < cumulative_sum[j]:
+            indexes[i] = j
+            i += 1
+        else:
+            j += 1
+    return indexes
 
 class Result(dict):
     """Represents a sampling result.
@@ -147,7 +175,7 @@ def print_progress(info):
         Dictionary containing keys ``'it'`` and ``'logz'``.
     """
 
-    print("\rit={:6d} logz={:8f}".format(info['it'], info['logz']),
+    print("\r\033[Kit={:6d} logz={:8f}".format(info['it'], info['logz']),
           end='')
     sys.stdout.flush()  # because flush keyword not in print() in py2.7
 
@@ -818,7 +846,7 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
     logwt_old = -np.inf
     it = 0
     while it < maxiter:
-        if callback is not None:
+        if ( (callback is not None) and (it > 0) ):
             callback_info.update(it=it, logz=logz)
             callback(callback_info)
 
@@ -909,6 +937,8 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
             raise RuntimeError("Negative h encountered (h={}). Please report "
                                "this as a likely bug.".format(h))
 
+    indices = systematic_resample(np.exp(np.array(saved_logwt) - logz))
+
     return Result([
         ('niter', it + 1),
         ('ncall', ncall),
@@ -917,6 +947,7 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         ('h', h),
         ('samples', np.array(saved_v)),
         ('weights', np.exp(np.array(saved_logwt) - logz)),
+        ('posteriorsamples', np.array(np.array(saved_v))[indices]),
         ('logvol', np.array(saved_logvol)),
         ('logl', np.array(saved_logl))
         ])

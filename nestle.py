@@ -71,16 +71,35 @@ def resample_equal(samples, weights):
     Parameters
     ----------
     samples : `~numpy.ndarray`
-        Unequally weight samples returned by the nested sampling algorithm
+        Unequally weight samples returned by the nested sampling algorithm. Shape is (N,M), with N the number of samples
+        and M the number of parameters.
     weights : `~numpy.ndarray`
-        Weight of each sample
+        Weight of each sample. Shape is (N,).
     
     Returns
     -------
     equal_weight_samples : `~numpy.ndarray`
-        samples with equal weights    
+        Samples with equal weights, of shape (N,M)
+
+    Notes
+    -----
+    Implements the systematic resampling method described in http://people.isy.liu.se/rt/schon/Publications/HolSG2006.pdf
+    This method is preferred because it is computationally efficient and provides a good resampling quality.
     """
-    idx = np.random.choice(len(weights), len(weights), p=weights)
+    N = len(weights)
+
+    # make N subdivisions, and choose positions with a consistent random offset
+    positions = (np.random.random() + np.arange(N)) / N
+
+    idx = np.zeros(N, 'i')
+    cumulative_sum = np.cumsum(weights)
+    i, j = 0, 0
+    while i < N:
+        if positions[i] < cumulative_sum[j]:
+            idx[i] = j
+            i += 1
+        else:
+            j += 1        
     return samples[idx,:]
 
 class Result(dict):

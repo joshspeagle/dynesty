@@ -14,7 +14,7 @@ try:
 except ImportError:  # pragma: no cover
     HAVE_KMEANS = False
 
-__all__ = ["sample", "print_progress", "mean_and_cov", "Result"]
+__all__ = ["sample", "print_progress", "mean_and_cov", "resample_equal", "Result"]
 __version__ = "0.1.1"
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
@@ -65,6 +65,42 @@ def random_choice(a, p, rstate=np.random):
         t += p[i]
     return i
 
+def resample_equal(samples, weights):
+    """Resample the samples so that the final samples all have equal weight
+    
+    Parameters
+    ----------
+    samples : `~numpy.ndarray`
+        Unequally weight samples returned by the nested sampling algorithm. Shape is (N,M), with N the number of samples
+        and M the number of parameters.
+    weights : `~numpy.ndarray`
+        Weight of each sample. Shape is (N,).
+    
+    Returns
+    -------
+    equal_weight_samples : `~numpy.ndarray`
+        Samples with equal weights, of shape (N,M)
+
+    Notes
+    -----
+    Implements the systematic resampling method described in http://people.isy.liu.se/rt/schon/Publications/HolSG2006.pdf
+    This method is preferred because it is computationally efficient and provides a good resampling quality.
+    """
+    N = len(weights)
+
+    # make N subdivisions, and choose positions with a consistent random offset
+    positions = (np.random.random() + np.arange(N)) / N
+
+    idx = np.zeros(N, 'i')
+    cumulative_sum = np.cumsum(weights)
+    i, j = 0, 0
+    while i < N:
+        if positions[i] < cumulative_sum[j]:
+            idx[i] = j
+            i += 1
+        else:
+            j += 1        
+    return samples[idx,:]
 
 class Result(dict):
     """Represents a sampling result.
@@ -147,7 +183,7 @@ def print_progress(info):
         Dictionary containing keys ``'it'`` and ``'logz'``.
     """
 
-    print("\rit={:6d} logz={:8f}".format(info['it'], info['logz']),
+    print("\r\033[Kit={:6d} logz={:8f}".format(info['it'], info['logz']),
           end='')
     sys.stdout.flush()  # because flush keyword not in print() in py2.7
 
@@ -818,7 +854,7 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
     logwt_old = -np.inf
     it = 0
     while it < maxiter:
-        if callback is not None:
+        if (callback is not None) and (it > 0):
             callback_info.update(it=it, logz=logz)
             callback(callback_info)
 
@@ -908,7 +944,7 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         else:
             raise RuntimeError("Negative h encountered (h={}). Please report "
                                "this as a likely bug.".format(h))
-
+    
     return Result([
         ('niter', it + 1),
         ('ncall', ncall),

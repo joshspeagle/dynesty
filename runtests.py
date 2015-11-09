@@ -17,6 +17,8 @@ except ImportError:
 
 import nestle
 
+SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))  # testing closeness to 1
+
 NMAX = 20  # many tests are run for dimensions 1 to NMAX inclusive
 
 def test_vol_prefactor():
@@ -325,7 +327,7 @@ def run_two_gaussians(method):
     print("        grid_logz      = {0:8.5f}".format(grid_logz))
     print("        analytic_logz  = {0:8.5f}".format(analytic_logz))
     assert abs(res.logz - grid_logz) < 3.0 * res.logzerr
-
+    assert abs(res.weights.sum() - 1.) < SQRTEPS
 
 def test_two_gaussians_classic():
     run_two_gaussians('classic')
@@ -366,6 +368,7 @@ def test_eggbox():
     print("        grid_logz      = {0:8.5f}".format(grid_logz))
 
     assert abs(res.logz - grid_logz) < 3.0 * res.logzerr
+    assert abs(res.weights.sum() - 1.) < SQRTEPS
 
 
 # -----------------------------------------------------------------------------
@@ -392,6 +395,24 @@ def test_mean_and_cov():
     assert_allclose(mean, np.average(x, axis=0))
 
 
+def test_resample_equal():
+
+    N = 1000
+
+    # N randomly weighted samples
+    x = np.arange(N).reshape((N, 1))
+    w = np.random.random((N,))
+    w /= w.sum()
+
+    new_x = nestle.resample_equal(x, w)
+    
+    # Each original sample should appear in the final sample either
+    # floor(w * N) or ceil(w * N) times.
+    for i in range(N):
+        num = (new_x == x[i]).sum()  # number of times x[i] appears in new_x
+        assert math.floor(w[i]*N) <= num <= math.ceil(w[i]*N)
+
+
 def test_result():
     # test repr
     r = nestle.Result(a=1, b=2)
@@ -410,6 +431,7 @@ def test_result():
                       logz=1., logzerr=0.1, h=0.1)
     assert r.summary() == ('niter: 100\nncall: 100\nnsamples: 3\n'
                            'logz:  1.000 +/-  0.100\nh:  0.100')
+
 
 def test_print_progress():
     """Check that print_progress don't error."""

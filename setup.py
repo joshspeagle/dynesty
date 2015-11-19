@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import re
-from distutils.core import setup
+from setuptools import setup
 
 # Synchronize version from code.
 version = re.findall(r"__version__ = \"(.*?)\"", open("nestle.py").read())[0]

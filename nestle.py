@@ -633,8 +633,7 @@ class SingleEllipsoidSampler(Sampler):
 
     def new_point(self, loglstar):
         ncall = 0
-        logl = -float('inf')
-        while logl < loglstar:
+        while True:
             while True:
                 u = self.ell.sample(rstate=self.rstate)
                 if np.all(u > 0.) and np.all(u < 1.):
@@ -642,6 +641,8 @@ class SingleEllipsoidSampler(Sampler):
             v = self.prior_transform(u)
             logl = self.loglikelihood(v)
             ncall += 1
+            if logl >= loglstar:
+                break
 
         return u, v, logl, ncall
 
@@ -660,8 +661,7 @@ class MultiEllipsoidSampler(Sampler):
 
     def new_point(self, loglstar):
         ncall = 0
-        logl = -float('inf')
-        while logl < loglstar:
+        while True:
             while True:
                 u = sample_ellipsoids(self.ells, rstate=self.rstate)
                 if np.all(u > 0.) and np.all(u < 1.):
@@ -669,6 +669,8 @@ class MultiEllipsoidSampler(Sampler):
             v = self.prior_transform(u)
             logl = self.loglikelihood(v)
             ncall += 1
+            if logl >= loglstar:
+                break
 
         return u, v, logl, ncall
 

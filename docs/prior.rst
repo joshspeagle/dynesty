@@ -94,9 +94,12 @@ would still have to specify bounds on all the parameters. You could
 use `nestle.sample` this way: pass a "loglikelihood" function that in
 fact returns the log of the posterior, and then specify a prior
 transform that is uniform in some parameter range (as illustrated in
-the first example). This will give valid results.
+the first example). This will give valid samples. However, the
+evidence will be affected by the range of the prior. A wider uniform
+prior decreases the weight of the high-likelihood regions in the
+evidence integral, leading to a lower evidence.
 
-However, there are a couple advantages to specifying the prior as a
+There are a couple advantages to specifying the prior as a
 transform rather than simply as bounds. First, it naturally allows
 priors that extend to infinity but have finite integrals, such as the
 normal distribution illustrated above. Second, assuming the prior

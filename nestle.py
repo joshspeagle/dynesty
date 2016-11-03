@@ -16,7 +16,7 @@ except ImportError:  # pragma: no cover
 
 __all__ = ["sample", "print_progress", "mean_and_cov", "resample_equal",
            "Result"]
-__version__ = "0.1.1"
+__version__ = "0.2.0"
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 

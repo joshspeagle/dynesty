@@ -24,7 +24,7 @@ finding global maxima.
 Install
 =======
 
-Nestle is compatible with both Python and Legacy Python (formerly known as Python 2). It requires numpy 1.6+ and, optionally, scipy. Install with pip::
+Nestle is compatible with both Python and Python 2. It requires numpy 1.6+ and, optionally, scipy. Install with pip::
 
     pip install nestle
 
@@ -82,22 +82,30 @@ the current set of active points as an indicator of where the target
 parameter space lies, but differ in how they select new points from
 it.
 
-MCMC exploration (`method='classic'`)
--------------------------------------
+MCMC exploration (``method='classic'``)
+---------------------------------------
 
-This is close to the method described in Skilling (2004). 
+This is close to the method described in Skilling (2004). A new point
+is drawn by starting at a one of the existing active points and doing
+a short MCMC walk away from the point, taking a fixed number of
+steps. In the walk, a new point is accepted if it has likelihood
+higher than the likelihood constraint; otherwise it is rejected. The
+number of steps can be controlled with the ``steps`` parameter.
 
-Single ellipsoid (`method='single'`)
-------------------------------------
+
+Single ellipsoid (``method='single'``)
+--------------------------------------
 
 This is the method described by Mukherjee, Parkinson & Liddle (2006).
 Determines a single ellipsoid that bounds all active points, enlarges
-the ellipsoid by a user-settable factor, and selects a new
-point at random from within the ellipsoid. The enlargement factor is designed to
-ensure that the high-likelihood region is completely enclosed in the ellipsoid.
+the ellipsoid by a user-settable factor, and selects a new point at
+random from within the ellipsoid. The enlargement factor is designed
+to ensure that the high-likelihood region is completely enclosed in
+the ellipsoid.
 
-Multiple ellipsoids (`method='multi'`)
---------------------------------------
+
+Multiple ellipsoids (``method='multi'``)
+----------------------------------------
 
 This is the method first described in Shaw, Bridges & Hobson (2007) and
 implemented in the MultiNest software (Feroz, Hobson & Bridges 2009).
@@ -127,19 +135,67 @@ significant.
 FAQ
 ===
 
+**What potential biases are there in these methods?**
+
+In all the nested sampling methods implemented here, there are
+potential biases that can affect the resulting evidence and samples.
+This is similar to the situation with traditional MCMC methods where
+one needs to be aware of potential biases such as inadequate burn-in
+and sample correlation. The nested sampling biases are perhaps even
+more nefarious as they can be more difficult to detect. They are
+particularly troublesome in high dimensional cases.
+
+In the ``'classic'`` method (MCMC exploration), the MCMC must run for
+enough steps to adequately "forget" the point it started from, in
+order for the final accepted point to be uniformly drawn from the
+parameter space with likelihood higher than the constraint.
+Particlurly for higher dimensional problems, you likely want to use a
+value higher than the default of ``steps=20``. It may be good to run
+the sampling multiple times with different numbers of steps and check
+that the results are consistent.
+
+In the ``'single'``- and ``'multi'``-ellipsoid methods, we are trying
+to draw an ellipsoid or ellipsoids that completely contain the
+iso-likelihood region; assuming we succeed in completely containing
+it, we are unbiased and the efficiency is given by the ratio of the
+volume of the iso-likelihood region to the volume of the containing
+ellipsoid. Unfortunately, in high dimensions the containing ellipsoid
+is likely to have a far, far greater volume. This is because the
+volume of a high-dimensional ellipsoid is *very* concentrated *very*
+close to its surface. And this is exactly the region likely to be
+within the containing ellipsoid but outside the actual iso-likelihood
+region.
+
+On the other hand there's no guarantee that the iso-likelihood surface
+is completely enclosed by the ellipsoid, and if it isn't, the
+calculated evidence will be biased. The ``enlarge`` parameter (default
+1.2) enlarges the ellipsoid by some factor (default 1.2), in the hopes
+that the enlarged ellipsoid completely encloses the surface. In
+practice this works pretty well for up to tens of parameters. For
+larger numbers of parameters, it is probably better to use the
+``'classic'`` method with a large number of steps.
+
+
+**So how many dimensions can my problem have?**
+
+Very roughly, the answer is "tens" and not "hundreds". However I
+haven't done any exhaustive studies of bias in high dimensions.
+
+
 **How many active points should I use?**
 
 It depends. The number of points primarily affects the numerical
 accuracy of the results, but there are a couple other
 considerations. For the ellipsoid-based methods, `ndim + 1` is the
 absolute minimum number of points necessary to characterize an
-ellipsoid, this will give pretty poor estimates. A warning is raised
+ellipsoid but this will give quite poor estimates. A warning is raised
 if the number of points is less than `2 * ndim`. Ideally you will have
 at least several times more than this. For problems with just a few
 parameters (<=5), I get good enough results with just 100 points. If
 the posterior is likely to be multi-modal and you're using the
 `'multi'` method, you will want additional points in order to
 characterize each mode well.
+
 
 **What are the differences between the 'multi' method and MultiNest?**
 
@@ -155,6 +211,31 @@ small ellipsoids that no longer enclose the full iso-likelihood
 surface. Therefore, the implementation in Nestle is more conservative
 about splitting ellipsoids. This results in a slightly lower
 efficiency but greater robustness.
+
+
+**Sampling is taking a long time. What should I do?**
+
+First, you can check the progress by passing the parameter
+``callback=nestle.print_progress`` to see how sampling is progressing.
+
+If you see the progress in iterations slowing down as sampling
+progresses, your likelihood may be multimodal. The default method is
+the single ellipsoid method (``'single'``). When the likelihood is
+multimodal a single ellipsoid encompassing all active points will
+include the "valleys" in the posterior, and sampling from the single
+ellipsoid will therefore be inefficient for selecting points higher
+than the likelihood constraint. In this case try ``method='multi'``.
+
+If sampling seems to be progressing efficiently, it might be the case
+that the high likelihood regions of the parameter space are very small
+compared to the prior volume. Nested sampling starts by uniformly
+sampling the entire prior volume. Then, on each iteration the volume
+sampled by the active points shrinks by a constant factor. Thus, the
+number of iterations necessary increases as the high-likelihood region
+becomes smaller relative to the prior volume. It is important to
+consider whether your priors are well-motivated and whether they might
+be overly conservatively wide. (Note that an overly conservative prior
+will also decrease the evidence!)
 
 
 References

@@ -13,7 +13,7 @@
 import sys
 import os
 import sphinx_rtd_theme
-import sphinxgallery
+import sphinx_gallery
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -40,13 +40,13 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.mathjax',
     'numpydoc',
-    'sphinxgallery.gen_gallery'
+    'sphinx_gallery.gen_gallery'
 ]
 numpydoc_show_class_members = False
 autosummary_generate = True
 autoclass_content = "class"
 autodoc_default_flags = ["members", "no-special-members"]
-sphinxgallery_conf = {
+sphinx_gallery_conf = {
     'examples_dirs' : '../examples',  # path to examples scripts
     'gallery_dirs'  : 'examples'}     # path to gallery generated examples
 
@@ -153,7 +153,7 @@ html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = [sphinxgallery.glr_path_static()]
+html_static_path = [sphinx_gallery.glr_path_static()]
 
 # Add any extra paths that contain custom files (such as robots.txt or
 # .htaccess) here, relative to this directory. These files are copied

@@ -3,14 +3,14 @@ import re
 from setuptools import setup
 
 # Synchronize version from code.
-version = re.findall(r"__version__ = \"(.*?)\"", open("nestle.py").read())[0]
+version = re.findall(r"__version__ = \"(.*?)\"", open("dynesty.py").read())[0]
 
-setup(name="nestle", 
+setup(name="dynesty", 
       version=version,
-      description=("Nested sampling algorithms for evaluating "
-                   "Bayesian evidence"),
+      description=("Dynamic nested sampling for evaluating "
+                   "Bayesian evidence and posteriors"),
       long_description=("Package documentation: "
-                        "http://kbarbary.github.io/nestle"),
+                        "TO BE CONTINUED"),
       classifiers = ["Development Status :: 4 - Beta",
                      "Programming Language :: Python :: 2",
                      "Programming Language :: Python :: 3",
@@ -18,7 +18,7 @@ setup(name="nestle",
                      "Topic :: Scientific/Engineering",
                      "Topic :: Scientific/Engineering :: Astronomy",
                      "Intended Audience :: Science/Research"],
-      py_modules=["nestle"],
-      url="http://github.com/kbarbary/nestle",
-      author="Kyle Barbary",
-      author_email="kylebarbary@gmail.com")
+      py_modules=["dynesty"],
+      url="http://github.com/joshspeagle/dynesty",
+      author="Josh Speagle",
+      author_email="jspeagle@cfa.harvard.edu")

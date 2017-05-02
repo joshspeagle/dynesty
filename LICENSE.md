@@ -1,6 +1,6 @@
 Nestle is licensed under the MIT Expat License:
 
-> Copyright (c) 2014 - 2015: Kyle Barbary and contributors
+> Copyright (c) 2017: Josh Speagle and contributors
 >
 > Permission is hereby granted, free of charge, to any person obtaining
 > a copy of this software and associated documentation files (the

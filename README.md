@@ -1,16 +1,8 @@
-nestle
+dynesty
 ======
 
-/ˈnesəl/ (rhymes with "wrestle")
+A dynamic nested sampling package for computing Bayesian evidences and posteriors.
+Written in pure Python. MIT license. An extension of [nestle](https://github.com/kbarbary/nestle).
 
-Pure Python, MIT-licensed implementation of nested sampling algorithms for
-evaluating Bayesian evidence.
-
-[![Build Status](https://img.shields.io/travis/kbarbary/nestle.svg?style=flat-square)](https://travis-ci.org/kbarbary/nestle)
-[![Coverage Status](http://img.shields.io/coveralls/kbarbary/nestle.svg?style=flat-square)](https://coveralls.io/r/kbarbary/nestle?branch=master)
-
-
-Documentation
--------------
-
-See http://kbarbary.github.io/nestle.
+Code is currently under active development and not ready for general use. 
+Please contact the authors if you are interested in using this code.

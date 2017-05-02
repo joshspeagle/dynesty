@@ -23,6 +23,7 @@ SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 # -----------------------------------------------------------------------------
 # Helpers
 
+
 def vol_prefactor(n):
     """Volume constant for an n-dimensional sphere:
 
@@ -82,7 +83,7 @@ def resample_equal(samples, weights, rstate=None):
 
     weights : `~numpy.ndarray`
         Weight of each sample. Shape is (N,).
-    
+
     Returns
     -------
     equal_weight_samples : `~numpy.ndarray`
@@ -353,8 +354,8 @@ def bounding_ellipsoid(x, pointvol=0., minvol=False):
     """
     npoints, ndim = x.shape
 
-    # If there is only a single point, return an N-sphere with volume `pointvol`
-    # centered at the point.
+    # If there is only a single point, return an N-sphere with volume
+    # `pointvol` centered at the point.
     if npoints == 1:
         r = (pointvol / vol_prefactor(ndim))**(1./ndim)
         return Ellipsoid(x[0], (1. / r**2) * np.identity(ndim))
@@ -363,7 +364,7 @@ def bounding_ellipsoid(x, pointvol=0., minvol=False):
     ctr = np.mean(x, axis=0)
     delta = x - ctr
     cov = np.cov(delta, rowvar=0)
-    
+
     # when ndim = 1, np.cov returns a 0-d array. Make it a 1x1 2-d array.
     if ndim == 1:
         cov = np.atleast_2d(cov)
@@ -394,7 +395,7 @@ def bounding_ellipsoid(x, pointvol=0., minvol=False):
     # Points should obey x^T A x <= 1, so we calculate x^T A x for
     # each point and then scale A up or down to make the
     # "outermost" point obey x^T A x = 1.
-    # 
+
     # fast way to compute delta[i] @ A @ delta[i] for all i.
     f = np.einsum('...i, ...i', np.tensordot(delta, a, axes=1), delta)
     fmax = np.max(f)
@@ -444,7 +445,7 @@ def _bounding_ellipsoids(x, ell, pointvol=0.):
 
     # starting cluster centers for kmeans (k=2)
     p1, p2 = ell.major_axis_endpoints()  # returns two 1-d arrays
-    start_ctrs = np.vstack((p1, p2)) # shape is (k, N) = (2, N)
+    start_ctrs = np.vstack((p1, p2))  # shape is (k, N) = (2, N)
 
     # Split points into two clusters using k-means clustering with k=2
     # centroid = (2, ndim) ; label = (npoints,)
@@ -514,7 +515,7 @@ def bounding_ellipsoids(x, pointvol=0.):
 def sample_ellipsoids(ells, rstate=np.random):
     """Chose sample(s) randomly distributed within a set of
     (possibly overlapping) ellipsoids.
-    
+
     Parameters
     ----------
     ells : list of Ellipsoid
@@ -522,7 +523,7 @@ def sample_ellipsoids(ells, rstate=np.random):
     Returns
     -------
     x : 1-d ndarray
-        Coordinates within the ellipsoids. 
+        Coordinates within the ellipsoids.
     """
 
     nells = len(ells)
@@ -533,7 +534,7 @@ def sample_ellipsoids(ells, rstate=np.random):
     # Select an ellipsoid at random, according to volumes
     vols = np.array([ell.vol for ell in ells])
     i = random_choice(nells, vols / vols.sum(), rstate=rstate)
-    
+
     # Select a point from the ellipsoid
     x = ells[i].sample(rstate=rstate)
 
@@ -551,72 +552,93 @@ def sample_ellipsoids(ells, rstate=np.random):
     else:
         return sample_ellipsoids(ells, rstate=rstate)
 
+# -----------------------------------------------------------------------------
+# Classes for dealing with non-parallel calls
+
+
+class FakePool(object):
+    """A fake Pool for serial function evaluations."""
+
+    def __init__(self):
+        pass
+
+    def submit(self, fn, *args, **kwargs):
+        return FakeFuture(fn, *args, **kwargs)
+
+    def map(self, func, *iterables):
+        return map(func, *iterables)
+
+    def shutdown(self):
+        pass
+
+
+class FakeFuture(object):
+    """A fake Future to mimic function calls."""
+
+    def __init__(self, fn, *args, **kwargs):
+        self.fn = fn
+        self.args = args
+        self.kwargs = kwargs
+
+    def result(self):
+        return self.fn(*self.args, **self.kwargs)
+
+    def cancel(self):
+        return True
 
 # -----------------------------------------------------------------------------
 # Sampler classes
+
 
 class Sampler:
     """A sampler simply selects a new point obeying the likelihood bound,
     given some existing set of points."""
 
     def __init__(self, loglikelihood, prior_transform, points, rstate,
-                 options):
+                 options, queue_size, pool):
         self.loglikelihood = loglikelihood
         self.prior_transform = prior_transform
         self.points = points
         self.rstate = rstate
         self.set_options(options)
+        self.queue_size = queue_size
+        self.pool = pool
+        self.queue = []
+        self.submitted = 0
+        self.cancelled = 0
+        self.unused = 0
+        self.used = 0
 
+    def empty_queue(self):
+        """Dump all operations on the queue."""
 
-class ClassicSampler(Sampler):
-    """Picks an active point at random and evolves it with a
-    Metropolis-Hastings style MCMC with fixed number of iterations."""
-
-    def set_options(self, options):
-        self.steps = options.get('steps', 20)
-
-    def update(self, pointvol):
-        """Calculate an ellipsoid to get the rough shape of the point
-        distribution correct, but then scale it down to the volume
-        corresponding to a single point."""
-
-        self.ell = bounding_ellipsoid(self.points, pointvol=pointvol)
-        self.ell.scale_to_vol(pointvol)
-
-    def new_point(self, loglstar):
-        # choose a point at random and copy it
-        i = self.rstate.randint(len(self.points))
-        u = self.points[i, :]
-
-        # evolve it.
-        scale = 1.
-        accept = 0
-        reject = 0
-        ncall = 0
-        while ncall < self.steps or accept == 0:
-            while True:
-                new_u = u + scale * self.ell.randoffset(rstate=self.rstate)
-                if np.all(new_u > 0.) and np.all(new_u < 1.):
-                    break
-            new_v = self.prior_transform(new_u)
-            new_logl = self.loglikelihood(new_v)
-            if new_logl >= loglstar:
-                u = new_u
-                v = new_v
-                logl = new_logl
-                accept += 1
+        while self.queue:
+            x, v, f = self.queue.pop()
+            if f.cancel():
+                self.cancelled += 1
             else:
-                reject += 1
+                self.unused += 1
 
-            # adjust scale, aiming for acceptance ratio of 0.5.
-            if accept > reject:
-                scale *= math.exp(1. / accept)
-            if accept < reject:
-                scale /= math.exp(1. / reject)
+    def fill_queue(self):
+        """Fill up the queue with operations."""
 
-            ncall += 1
+        while len(self.queue) < self.queue_size:
+            x = self.propose_point()
+            v = self.prior_transform(x)
+            self.queue.append((x, v, self.pool.submit(self.loglikelihood, v)))
+            self.submitted += 1
 
-        return u, v, logl, ncall
+    def get_point_value(self):
+        """ Get evaluation sequentially from the queue. If we should
+            update our proposal distribution, do not refill the queue."""
+
+        if not self.queue:
+            self.fill_queue()
+        x, v, f = self.queue.pop(0)
+        r = f.result()
+        self.fill_queue()
+        self.used += 1
+        return x, v, r
 
 
 class SingleEllipsoidSampler(Sampler):
@@ -627,19 +649,23 @@ class SingleEllipsoidSampler(Sampler):
         self.enlarge = options.get('enlarge', 1.2)
 
     def update(self, pointvol):
+        self.empty_queue()
         self.ell = bounding_ellipsoid(self.points, pointvol=pointvol,
                                       minvol=True)
         self.ell.scale_to_vol(self.ell.vol * self.enlarge)
+        self.fill_queue()
+
+    def propose_point(self):
+        while True:
+            u = self.ell.sample(rstate=self.rstate)
+            if np.all(u > 0.) and np.all(u < 1.):
+                break
+        return u
 
     def new_point(self, loglstar):
         ncall = 0
         while True:
-            while True:
-                u = self.ell.sample(rstate=self.rstate)
-                if np.all(u > 0.) and np.all(u < 1.):
-                    break
-            v = self.prior_transform(u)
-            logl = self.loglikelihood(v)
+            u, v, logl = self.get_point_value()
             ncall += 1
             if logl >= loglstar:
                 break
@@ -655,19 +681,23 @@ class MultiEllipsoidSampler(Sampler):
         self.enlarge = options.get('enlarge', 1.2)
 
     def update(self, pointvol):
+        self.empty_queue()
         self.ells = bounding_ellipsoids(self.points, pointvol=pointvol)
         for ell in self.ells:
             ell.scale_to_vol(ell.vol * self.enlarge)
+        self.fill_queue()
+
+    def propose_point(self):
+        while True:
+            u = sample_ellipsoids(self.ells, rstate=self.rstate)
+            if np.all(u > 0.) and np.all(u < 1.):
+                break
+        return u
 
     def new_point(self, loglstar):
         ncall = 0
         while True:
-            while True:
-                u = sample_ellipsoids(self.ells, rstate=self.rstate)
-                if np.all(u > 0.) and np.all(u < 1.):
-                    break
-            v = self.prior_transform(u)
-            logl = self.loglikelihood(v)
+            u, v, logl = self.get_point_value()
             ncall += 1
             if logl >= loglstar:
                 break
@@ -678,14 +708,15 @@ class MultiEllipsoidSampler(Sampler):
 # -----------------------------------------------------------------------------
 # Main entry point
 
-_SAMPLERS = {'classic': ClassicSampler,
-             'single': SingleEllipsoidSampler,
+
+_SAMPLERS = {'single': SingleEllipsoidSampler,
              'multi': MultiEllipsoidSampler}
 
+
 def sample(loglikelihood, prior_transform, ndim, npoints=100,
-           method='single', update_interval=None, npdim=None,
+           method='multi', update_interval=None, npdim=None,
            maxiter=None, maxcall=None, dlogz=None, decline_factor=None,
-           rstate=None, callback=None, **options):
+           rstate=None, callback=None, queue_size=None, pool=None, **options):
     """Perform nested sampling to evaluate Bayesian evidence.
 
     Parameters
@@ -714,10 +745,9 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         sampled posterior (more accurate evidence), but also a larger
         number of iterations required to converge. Default is 100.
 
-    method : {'classic', 'single', 'multi'}, optional
-        Method used to select new points. Choices are 'classic',
-        single-ellipsoidal ('single'), multi-ellipsoidal ('multi'). Default
-        is 'single'.
+    method : {'single', 'multi'}, optional
+        Method used to select new points. Choices are single-ellipsoidal
+        ('single') and multi-ellipsoidal ('multi'). Default is 'multi'.
 
     update_interval : int, optional
         Only update the new point selector every ``update_interval``-th
@@ -729,7 +759,7 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         Number of parameters accepted by prior. This might differ from *ndim*
         in the case where a parameter of loglikelihood is dependent upon
         multiple independently distributed parameters, some of which may be
-        nuisance parameters. 
+        nuisance parameters.
 
     maxiter : int, optional
         Maximum number of iterations. Iteration may stop earlier if
@@ -743,8 +773,8 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         If supplied, iteration will stop when the estimated contribution
         of the remaining prior volume to the total evidence falls below
         this threshold. Explicitly, the stopping criterion is
-        ``log(z + z_est) - log(z) < dlogz`` where *z* is the current evidence
-        from all saved samples, and *z_est* is the estimated contribution
+        ``log(z + z_est) - log(z) < dlogz``, where *z* is the current evidence
+        from all saved samples and *z_est* is the estimated contribution
         from the remaining volume. This option and decline_factor are
         mutually exclusive. If neither is specified, the default is
         ``dlogz=0.5``.
@@ -766,14 +796,21 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         the current iteration number, and ``'logz'``, the current total
         log evidence of all saved points. To simply print these at each
         iteration, use the convience function
-        ``callback=nestle.print_progress``. 
+        ``callback=nestle.print_progress``.
+
+    queue_size: int, optional
+        Carry out evaluation in parallel by queueing up new active point
+        proposals using at most this many threads. Each thread independently
+        proposes new live points until one is selected.
+        Default is no parallelism (queue_size=1).
+
+    pool: ThreadPoolExecutor
+        Use this pool of workers to propose live points in parallel. If
+        queue_size>1 and `pool` is not specified, an Exception will be thrown.
 
 
     Other Parameters
     ----------------
-    steps : int, optional
-        For the 'classic' method, the number of steps to take when selecting
-        a new point. Default is 20.
 
     enlarge : float, optional
         For the 'single' and 'multi' methods, enlarge the ellipsoid(s) by
@@ -814,10 +851,9 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
             Natural log of the likelihood for each sample, as returned by
             user-supplied *logl* function. Shape is *(nsamples,)*.
 
-        weights *(ndarray)*
-            Weight corresponding to each sample, normalized to unity.
-            These are proportional to ``exp(logvol + logl)``. Shape is
-            *(nsamples,)*.
+        logwt *(ndarray)*
+            Natural log of the weights corresponding to each sample,
+            which are just ``logvol + logl - logz``. Shape is *(nsamples,)*.
     """
 
     if npdim is None:
@@ -856,16 +892,23 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         if update_interval < 1:
             raise ValueError("update_interval must be >= 1")
 
+    # Parallel evaluation.
+    if queue_size is None or queue_size == 1:
+        queue_size = 1
+        pool = FakePool()
+    else:
+        if pool is None:
+            raise ValueError("Missing pool. Please provide a Pool object.")
+
     # Initialize active points and calculate likelihoods
     active_u = rstate.rand(npoints, npdim)  # position in unit cube
     active_v = np.empty((npoints, ndim), dtype=np.float64)  # real params
-    active_logl = np.empty(npoints, dtype=np.float64)  # log likelihood
     for i in range(npoints):
         active_v[i, :] = prior_transform(active_u[i, :])
-        active_logl[i] = loglikelihood(active_v[i, :])
-
+    active_logl = np.fromiter(pool.map(loglikelihood, active_v),
+                              dtype=np.float64)  # log likelihood
     sampler = _SAMPLERS[method](loglikelihood, prior_transform, active_u,
-                                rstate, options)
+                                rstate, options, queue_size, pool)
 
     # Initialize values for nested sampling loop.
     saved_v = []  # stored points for posterior results
@@ -874,8 +917,7 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
     saved_logwt = []
     h = 0.0  # Information, initially 0.
     logz = -1e300  # ln(Evidence Z), initially Z=0.
-    logvol = math.log(1.0 - math.exp(-1.0/npoints))  # first point removed will
-                                                     # have volume 1-e^(1/n)
+    logvol = math.log(1.0 - math.exp(-1.0/npoints))  # first point ~ 1-e^(1/n)
     ncall = npoints  # number of calls we already made
 
     # Initialize sampler
@@ -992,7 +1034,7 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         ('logzerr', math.sqrt(h / npoints)),
         ('h', h),
         ('samples', np.array(saved_v)),
-        ('weights', np.exp(np.array(saved_logwt) - logz)),
+        ('logwt', np.array(saved_logwt) - logz),
         ('logvol', np.array(saved_logvol)),
         ('logl', np.array(saved_logl))
         ])

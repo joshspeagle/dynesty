@@ -1,5 +1,6 @@
 # License is MIT: see LICENSE.md.
-"""Nestle: nested sampling routines to evaluate Bayesian evidence."""
+"""dynesty: dynamic nested sampling routines
+to evaluate Bayesian evidence and posteriors."""
 
 from __future__ import print_function, division
 
@@ -30,6 +31,7 @@ def vol_prefactor(n):
     for n even:      (2pi)^(n    /2) / (2 * 4 * ... * n)
     for n odd :  2 * (2pi)^((n-1)/2) / (1 * 3 * ... * n)
     """
+
     if n % 2 == 0:
         f = 1.
         i = 2
@@ -47,14 +49,15 @@ def vol_prefactor(n):
 
 
 def randsphere(n, rstate=np.random):
-    """Draw a random point within an n-dimensional unit sphere"""
+    """Draw a random point within an n-dimensional unit sphere."""
 
-    z = rstate.randn(n)
+    z = rstate.randn(n)  # initial n-dim vector
+
     return z * rstate.rand()**(1./n) / np.sqrt(np.sum(z**2))
 
 
 def random_choice(a, p, rstate=np.random):
-    """replacement for numpy.random.choice (only in numpy 1.7+)"""
+    """Replacement for numpy.random.choice (only in numpy 1.7+)."""
 
     if abs(np.sum(p) - 1.) > SQRTEPS:  # same tol as in np.random.choice.
         raise ValueError("probabilities do not sum to 1")
@@ -65,6 +68,7 @@ def random_choice(a, p, rstate=np.random):
     while t < r:
         i += 1
         t += p[i]
+
     return i
 
 
@@ -72,22 +76,21 @@ def resample_equal(samples, weights, rstate=None):
     """Resample the samples so that the final samples all have equal weight.
 
     Each input sample appears in the output array either
-    `floor(weights[i] * N)` or `ceil(weights[i] * N)` times, with
+    `floor(weights[i] * nsamples)` or `ceil(weights[i] * nsamples)` times, with
     `floor` or `ceil` randomly selected (weighted by proximity).
 
     Parameters
     ----------
-    samples : `~numpy.ndarray`
-        Unequally weight samples returned by the nested sampling algorithm.
-        Shape is (N, ...), with N the number of samples.
+    samples : `~numpy.ndarray` with shape (nsamples,)
+        Unequally weighted samples returned by the nested sampling algorithm.
 
-    weights : `~numpy.ndarray`
-        Weight of each sample. Shape is (N,).
+    weights : `~numpy.ndarray` with shape (nsamples,)
+        Corresponding weight of each sample.
 
     Returns
     -------
-    equal_weight_samples : `~numpy.ndarray`
-        Samples with equal weights, same shape as input samples.
+    equal_weight_samples : `~numpy.ndarray` with shape (nsamples,)
+        New samples with equal weights.
 
     Examples
     --------
@@ -102,32 +105,28 @@ def resample_equal(samples, weights, rstate=None):
 
     Notes
     -----
-    Implements the systematic resampling method described in
-    `this PDF <http://people.isy.liu.se/rt/schon/Publications/HolSG2006.pdf>`_.
-    Another way to sample according to weights would be::
-
-        N = len(weights)
-        new_samples = samples[np.random.choice(N, size=N, p=weights)]
-
-    However, the method used in this function is less "noisy".
+    Implements the systematic resampling method described in Hol, Schon, and
+    Gustafsson (2006), which can be found at <doi:10.1109/NSSPW.2006.4378824>.
+    This gives less "noisy" samples as compared to standard multinomial
+    resampling techniques.
 
     """
 
     if abs(np.sum(weights) - 1.) > SQRTEPS:  # same tol as in np.random.choice.
-        raise ValueError("weights do not sum to 1")
+        raise ValueError("Weights do not sum to 1.")
 
     if rstate is None:
         rstate = np.random
 
-    N = len(weights)
+    nsamples = len(weights)
 
-    # make N subdivisions, and choose positions with a consistent random offset
-    positions = (rstate.random() + np.arange(N)) / N
+    # Make N subdivisions and choose positions with a consistent random offset.
+    positions = (rstate.random() + np.arange(nsamples)) / nsamples
 
-    idx = np.zeros(N, dtype=np.int)
+    idx = np.zeros(nsamples, dtype=np.int)
     cumulative_sum = np.cumsum(weights)
     i, j = 0, 0
-    while i < N:
+    while i < nsamples:
         if positions[i] < cumulative_sum[j]:
             idx[i] = j
             i += 1
@@ -137,8 +136,8 @@ def resample_equal(samples, weights, rstate=None):
     return samples[idx]
 
 
-class Result(dict):
-    """Represents a sampling result.
+class Results(dict):
+    """Contains the output of a dynamic nested sampling run.
 
     Since this class is essentially a subclass of dict with attribute
     accessors, one can see which attributes are available using the
@@ -163,43 +162,47 @@ class Result(dict):
             return self.__class__.__name__ + "()"
 
     def summary(self):
-        """Return a nicely formatted string giving summary."""
-        return ("niter: {:d}\n"
+        """Return a formatted string giving a quick summary
+        of the results."""
+        return ("nlive: {:d}\n"
+                "niter: {:d}\n"
                 "ncall: {:d}\n"
                 "nsamples: {:d}\n"
                 "logz: {:6.3f} +/- {:6.3f}\n"
                 "h: {:6.3f}"
-                .format(self.niter, self.ncall, len(self.samples),
-                        self.logz, self.logzerr, self.h))
+                .format(self.nlive, self.niter, self.ncall,
+                        len(self.samples), self.logz, self.logzerr,
+                        self.h))
 
 
-def mean_and_cov(x, weights):
+def mean_and_cov(samples, weights):
     """Compute weighted sample mean and covariance.
 
     Parameters
     ----------
-    x : `~numpy.ndarray`
-        2-D array containing data samples. Shape is (M, N) where N is the
-        number of variables and M is the number of samples or observations.
-        This is ordering is equivalent to using ``rowvar=0`` in numpy.cov.
-    weights : `~numpy.ndarray`
-        1-D array of sample weights. Shape is (M,).
+    samples : `~numpy.ndarray` with shape (nsamples, ndim)
+        2-D array containing data samples. This ordering is equivalent to
+        using `rowvar=False` in `numpy.cov`.
+
+    weights : `~numpy.ndarray` with shape (nsamples,)
+        1-D array of sample weights.
 
     Returns
     -------
-    mean : `~numpy.ndarray`
-        Weighted average of samples, with shape (N,).
-    cov : `~numpy.ndarray`
-        The covariance matrix of the variables with shape (N, N).
+    mean : `~numpy.ndarray` with shape (ndim,)
+        Weighted sample means.
+
+    cov : `~numpy.ndarray` with shape (ndim, ndim)
+        Weighted sample covariances.
 
     Notes
     -----
-    Implements formula described here:
-    https://en.wikipedia.org/wiki/Sample_mean_and_sample_covariance
-    (see "weighted samples" section)
+    Implements the formulae in the "weighted samples" section on
+    <https://en.wikipedia.org/wiki/Sample_mean_and_sample_covariance>.
     """
 
     mean = np.average(x, weights=weights, axis=0)
+
     dx = x - mean
     wsum = np.sum(weights)
     w2sum = np.sum(weights**2)
@@ -215,7 +218,7 @@ def print_progress(info):
     Parameters
     ----------
     info : dict
-        Dictionary containing keys ``'it'`` and ``'logz'``.
+        Dictionary containing keys 'it' and 'logz'.
     """
 
     print("\r\033[Kit={:6d} logz={:8f}".format(info['it'], info['logz']),
@@ -233,37 +236,44 @@ class Ellipsoid(object):
 
         (x - v)^T A (x - v) = 1
 
-    where the vector ``v`` is the center of the ellipse and ``A`` is an N x N
-    matrix. Assumes that ``A`` is symmetric positive definite.
+    where the vector `v` is the center of the ellipsoid and `A` is an `N x N`
+    matrix. Assumes that `A` is symmetric positive definite.
 
     Parameters
     ----------
-    ctr : `~numpy.ndarray` with shape ``(N,)``
-        Coordinates of ellipse center. Note that the array is *not* copied.
+    ctr : `~numpy.ndarray` with shape (N,)
+        Coordinates of ellipsoid center. Note that the array is *not* copied.
         This array is never modified internally.
-    a : `~numpy.ndarray` with shape ``(N, N)``
-        Matrix describing the axes. Watch out! This array is *not* copied.
-        but may be modified internally!
+
+    a : `~numpy.ndarray` with shape (N, N)
+        Matrix describing the axes. Watch out! This array is *not* copied
+        and may be modified internally!
     """
 
     def __init__(self, ctr, a):
-        self.n = len(ctr)
-        self.ctr = ctr    # center coordinates
-        self.a = a        # ~ inverse of covariance of points contained
+        self.n = len(ctr)  # dimension
+        self.ctr = ctr  # center coordinates
+        self.a = a  # precision matrix (inverse of covariance)
+
+        # Volume of ellipsoid is the volume of an n-sphere divided
+        # by the (determinant of the) Jacobian associated with the
+        # transformation, which by definition is the precision matrix.
         self.vol = vol_prefactor(self.n) / np.sqrt(np.linalg.det(a))
 
-        # eigenvalues (l) are a^-2, b^-2, ... (lengths of principle axes)
-        # eigenvectors (v) are normalized principle axes
+        # The eigenvalues (l) of `a` are (a^-2, b^-2, ...) where
+        # (a, b, ...) are the lengths of principle axes.
+        # The eigenvectors (v) are the normalized principle axes.
         l, v = np.linalg.eigh(a)
         self.axlens = 1. / np.sqrt(l)
 
-        # Scaled eigenvectors are the axes: axes[:,i] is the i-th
-        # axis.  Multiplying this matrix by a vector will transform a
-        # point in the unit n-sphere into a point in the ellipsoid.
+        # Scaled eigenvectors are the axes, where `axes[:,i]` is the
+        # i-th axis.  Multiplying this matrix by a vector will transform a
+        # point in the unit n-sphere to a point in the ellipsoid.
         self.axes = np.dot(v, np.diag(self.axlens))
 
     def scale_to_vol(self, vol):
-        """Scale ellipoid to satisfy a target volume."""
+        """Scale ellipoid to encompass a target volume."""
+
         f = (vol / self.vol) ** (1.0 / self.n)  # linear factor
         self.a *= f**-2
         self.axlens *= f
@@ -271,43 +281,50 @@ class Ellipsoid(object):
         self.vol = vol
 
     def major_axis_endpoints(self):
-        """Return the endpoints of the major axis"""
-        i = np.argmax(self.axlens)  # which is the major axis?
-        v = self.axes[:, i]  # vector to end of major axis
+        """Return the endpoints of the major axis."""
+
+        i = np.argmax(self.axlens)  # find the major axis
+        v = self.axes[:, i]  # vector from center to major axis endpoint
+
         return self.ctr - v, self.ctr + v
 
     def contains(self, x):
-        """Does the ellipse contain the point?"""
+        """Checks if ellipsoid contains `x`."""
+
         d = x - self.ctr
+
         return np.dot(np.dot(d, self.a), d) <= 1.0
 
     def randoffset(self, rstate=np.random):
-        """Return an offset from ellipsoid center, randomly distributed
-        within ellipsoid."""
+        """Return an offset from ellipsoid center that is randomly
+        distributed within the ellipsoid."""
+
         return np.dot(self.axes, randsphere(self.n, rstate=rstate))
 
     def sample(self, rstate=np.random):
-        """Chose a sample randomly distributed within the ellipsoid.
+        """Draw a sample randomly distributed within the ellipsoid.
 
         Returns
         -------
-        x : 1-d array
-            A single point within the ellipsoid.
+        x : `~numpy.ndarray` with shape (ndim,)
+            A coordinate within the ellipsoid.
         """
+
         return self.ctr + self.randoffset(rstate=rstate)
 
     def samples(self, nsamples, rstate=np.random):
-        """Chose a sample randomly distributed within the ellipsoid.
+        """Draw `nsamples` samples randomly distributed within the ellipsoid.
 
         Returns
         -------
-        x : (nsamples, ndim) array
-            Coordinates within the ellipsoid.
+        x : `~numpy.ndarray` with shape (nsamples, ndim)
+            A collection of coordinates within the ellipsoid.
         """
 
         x = np.empty((nsamples, self.n), dtype=np.float)
         for i in range(nsamples):
             x[i, :] = self.sample(rstate=rstate)
+
         return x
 
     def __repr__(self):
@@ -318,13 +335,14 @@ class Ellipsoid(object):
 # Functions for determining the ellipsoid or set of ellipsoids bounding a
 # set of points.
 
+
 def make_eigvals_positive(a, targetprod):
-    """For the symmetric square matrix ``a``, increase any zero eigenvalues
+    """For the symmetric square matrix `a`, increase any zero eigenvalues
     to fulfill the given target product of eigenvalues.
 
     Returns a (possibly) new matrix."""
 
-    w, v = np.linalg.eigh(a)  # Use eigh because we assume a is symmetric.
+    w, v = np.linalg.eigh(a)  # use eigh since a is symmetric
     mask = w < 1.e-10
     if np.any(mask):
         nzprod = np.product(w[~mask])  # product of nonzero eigenvalues
@@ -335,169 +353,210 @@ def make_eigvals_positive(a, targetprod):
     return a
 
 
-def bounding_ellipsoid(x, pointvol=0., minvol=False):
-    """Calculate bounding ellipsoid containing a set of points x.
+def bounding_ellipsoid(points, pointvol=None):
+    """Calculate bounding ellipsoid containing a collection of points.
 
     Parameters
     ----------
-    x : (npoints, ndim) ndarray
-        Coordinates of points.
+    points : `~numpy.ndarray` with shape (npoints, ndim)
+        A set of coordinates.
+
     pointvol : float, optional
-        Used to set a minimum bound on the ellipsoid volume when
-        minvol is True.
-    minvol : bool, optional
-        If True, ensure that ellipsoid volume is at least len(x) * pointvol.
+        The minimum volume occupied by a single point. When provided,
+        used to set a minimum bound on the ellipsoid volume
+        as `npoints * pointvol`. Default is *None*.
 
     Returns
     -------
     ellipsoid : Ellipsoid
     """
-    npoints, ndim = x.shape
+    npoints, ndim = points.shape
 
-    # If there is only a single point, return an N-sphere with volume
+    # Check for valid `pointvol` value if provided.
+    if pointvol is not None and pointvol <= 0.:
+        raise ValueError("You must specify a positive value for `pointvol`.")
+
+    # If there is only a single point, return an n-sphere with volume
     # `pointvol` centered at the point.
     if npoints == 1:
-        r = (pointvol / vol_prefactor(ndim))**(1./ndim)
-        return Ellipsoid(x[0], (1. / r**2) * np.identity(ndim))
+        if pointvol is not None:
+            ctr = points[0]
+            r = (pointvol / vol_prefactor(ndim))**(1./ndim)
+            a = (1. / r**2) * np.identity(ndim)
+            return Ellipsoid(ctr, a)
+        else:
+            raise ValueError("Cannot compute a bounding ellipsoid to a "
+                             "single point if `pointvol` is not specified.")
 
-    # Calculate covariance of points
-    ctr = np.mean(x, axis=0)
-    delta = x - ctr
-    cov = np.cov(delta, rowvar=0)
+    # Calculate covariance of points.
+    ctr = np.mean(points, axis=0)
+    cov = np.cov(points, rowvar=False)
 
-    # when ndim = 1, np.cov returns a 0-d array. Make it a 1x1 2-d array.
+    # When ndim = 1, np.cov returns a 0-d array. Make it a 1x1 2-d array.
     if ndim == 1:
         cov = np.atleast_2d(cov)
 
-    # For a ball of uniformly distributed points, the covariance will be
-    # smaller than r^2 by a factor of 1/(n+2) [see, e.g.,
-    # http://mathoverflow.net/questions/35276/
-    # covariance-of-points-distributed-in-a-n-ball]. In nested sampling,
-    # we are supposing the points are uniformly distributed within
-    # an ellipse, so the same factor holds. Expand `cov`
-    # to compensate for that when defining the ellipse matrix:
+    # For a ball of uniformly distributed points, the sample covariance
+    # will be smaller than the true covariance by a factor of 1/(n+2)
+    # [see, e.g., goo.gl/UbsjYl]. Since we are assuming all points are
+    # uniformly distributed within the unit cube, they are uniformly
+    # distributed within any sub-volume within the cube. We expand
+    # our sample covariance `cov` to compensate for this.
     cov *= (ndim + 2)
 
-    # Ensure that ``cov`` is nonsingular.
-    # It can be singular when the ellipsoid has zero volume, which happens
-    # when npoints <= ndim or when enough points are linear combinations
-    # of other points. (e.g., npoints = ndim+1 but one point is a linear
-    # combination of others). When this happens, we expand the ellipse
+    # Ensure that `cov` is nonsingular to deal with pathological cases
+    # where the ellipsoid has zero volume. This can occur when
+    # `npoints <= ndim` or when enough points are linear combinations
+    # of other points. When this happens, we expand the ellipsoid
     # in the zero dimensions to fulfill the volume expected from
-    # ``pointvol``.
-    targetprod = (npoints * pointvol / vol_prefactor(ndim))**2
-    cov = make_eigvals_positive(cov, targetprod)
+    # `pointvol`.
+    if pointvol is not None:
+        targetprod = (npoints * pointvol / vol_prefactor(ndim))**2
+        cov = make_eigvals_positive(cov, targetprod)
+    else:
+        raise ValueError("Cannot modify `a` to be non-singular to give "
+                         "our ellipsoid non-zero volume if `pointvol` "
+                         "is not specified.")
 
     # The matrix defining the ellipsoid.
     a = np.linalg.inv(cov)
 
     # Calculate expansion factor necessary to bound each point.
-    # Points should obey x^T A x <= 1, so we calculate x^T A x for
+    # Points should obey `(x-v)^T A (x-v) <= 1`, so we calculate this for
     # each point and then scale A up or down to make the
-    # "outermost" point obey x^T A x = 1.
-
-    # fast way to compute delta[i] @ A @ delta[i] for all i.
+    # "outermost" point obey `(x-v)^T A (x-v) = 1`. This can be done
+    # quickly using `einsum` and `tensordot` to iterate over all points.
+    delta = points - ctr
     f = np.einsum('...i, ...i', np.tensordot(delta, a, axes=1), delta)
     fmax = np.max(f)
 
-    # Due to round-off errors, we actually scale the ellipse so the outermost
-    # point obeys x^T A x < 1 - (a bit), so that all the points will
-    # *definitely* obey x^T A x < 1.
+    # Due to round-off errors, we actually scale the ellipsoid so the outermost
+    # point obeys `(x-v)^T A (x-v) < 1 - (a bit) < 1`.
     one_minus_a_bit = 1. - SQRTEPS
 
     if fmax > one_minus_a_bit:
         a *= one_minus_a_bit / fmax
 
+    # Initialize our ellipsoid.
     ell = Ellipsoid(ctr, a)
 
-    if minvol:
-        v = len(x) * pointvol
+    # Expand our ellipsoid to encompass a minimum volume.
+    if pointvol is not None:
+        v = npoints * pointvol
         if ell.vol < v:
             ell.scale_to_vol(v)
+    else:
+        raise ValueError("Cannot expand ellipsoid if `pointvol` "
+                         "is not specified.")
 
     return ell
 
 
-def _bounding_ellipsoids(x, ell, pointvol=0.):
-    """Internal bounding ellipsoids method for when a bounding ellipsoid for
+def _bounding_ellipsoids(points, ell, pointvol=None, vol_dec=0.5,
+                         vol_check=2.):
+    """Internal bounding ellipsoids method used when a bounding ellipsoid for
     the entire set has already been calculated.
 
     Parameters
     ----------
-    x : (npoints, ndim) ndarray
+    points : `~numpy.ndarray` with shape (npoints, ndim)
         Coordinates of points.
-    ell : Ellipsoid, optional
-        If known, the bounding ellipsoid of the points `x`. If not supplied,
-        it will be calculated. This option is used when the function calls
-        itself recursively.
+
+    ell : Ellipsoid
+        The bounding ellipsoid of the set of points.
+
     pointvol : float, optional
-        Volume represented by a single point. Used when number of points
-        per ellipsoid is less than number of dimensions in order to make
-        volume non-zero.
+        Volume represented by a single point. When provided,
+        used to set a minimum bound on the ellipsoid volume
+        as `npoints * pointvol`. Default is *None*.
+
+    vol_dec : float, optional
+        The required fractional reduction in volume after splitting an
+        ellipsoid in order to to accept the split. Default is *0.5*.
+
+    vol_check : float, optional
+        The factor used to when checking whether the volume of the
+        original bounding ellipsoid is large enough to warrant more
+        trial splits via `ell.vol > vol_check * npoints * pointvol`.
+        Default is *2.0*.
 
     Returns
     -------
-    ells : list of Ellipsoid
-        Ellipsoids.
+    ells : list of Ellipsoid objects
     """
 
-    npoints, ndim = x.shape
+    npoints, ndim = points.shape
 
-    # starting cluster centers for kmeans (k=2)
-    p1, p2 = ell.major_axis_endpoints()  # returns two 1-d arrays
-    start_ctrs = np.vstack((p1, p2))  # shape is (k, N) = (2, N)
+    # Starting cluster centers are initialized using the major-axis
+    # endpoints of the original bounding ellipsoid.
+    p1, p2 = ell.major_axis_endpoints()
+    start_ctrs = np.vstack((p1, p2))  # shape is (k, ndim) = (2, ndim)
 
-    # Split points into two clusters using k-means clustering with k=2
-    # centroid = (2, ndim) ; label = (npoints,)
-    # [Each entry in `label` is 0 or 1, corresponding to cluster number]
-    centroid, label = kmeans2(x, k=start_ctrs, iter=10, minit='matrix')
+    # Split points into two clusters using k-means clustering with k=2.
+    k2_res = kmeans2(points, k=start_ctrs, iter=10, minit='matrix')
+    centroids = k2_res[0]  # shape is (k, ndim) = (2, ndim)
+    labels = k2_res[1]  # cluster identifier ; shape is (npoints,)
 
     # Get points in each cluster.
-    xs = [x[label == k, :] for k in (0, 1)]  # points in each cluster
+    points_k = [points[labels == k, :] for k in (0, 1)]
 
     # If either cluster has less than ndim+1 points, the bounding ellipsoid
-    # will be ill-constrained, so we reject the split and simply return the
-    # ellipsoid bounding all the points.
-    if xs[0].shape[0] < 2 * ndim or xs[1].shape[0] < 2 * ndim:
+    # will be ill-constrained. Reject the split and simply return the
+    # original ellipsoid bounding all the points.
+    if points_k[0].shape[0] < 2 * ndim or points_k[1].shape[0] < 2 * ndim:
         return [ell]
 
-    # Bounding ellipsoid for each cluster, enlarging to minimum volume.
-    ells = [bounding_ellipsoid(xi, pointvol=pointvol, minvol=True)
-            for xi in xs]
+    # Bounding ellipsoid for each cluster, possibly enlarged to minimum volume.
+    ells = [bounding_ellipsoid(points_j, pointvol=pointvol)
+            for points_j in points_k]
 
-    # If the total volume decreased by a significant amount,
-    # then we will accept the split into subsets and try to perform the
-    # algorithm on each subset.
-    if ells[0].vol + ells[1].vol < 0.5 * ell.vol:
-        return (_bounding_ellipsoids(xs[0], ells[0], pointvol=pointvol) +
-                _bounding_ellipsoids(xs[1], ells[1], pointvol=pointvol))
+    # If the total volume decreased by a factor of `vol_dec`, we accept
+    # the split into subsets. We then recursively split each subset.
+    if ells[0].vol + ells[1].vol < vol_dec * ell.vol:
+        return (_bounding_ellipsoids(points_k[0], ells[0], pointvol=pointvol,
+                                     vol_dec=vol_dec, vol_check=vol_check) +
+                _bounding_ellipsoids(points_k[1], ells[1], pointvol=pointvol,
+                                     vol_dec=vol_dec, vol_check=vol_check))
 
-    # Otherwise, see if the total ellipse volume is significantly greater
-    # than expected. If it is, this indicates that there may be more than 2
-    # clusters and we should try to subdivide further.
-    if ell.vol > 2. * npoints * pointvol:
-        out = (_bounding_ellipsoids(xs[0], ells[0], pointvol=pointvol) +
-               _bounding_ellipsoids(xs[1], ells[1], pointvol=pointvol))
+    # Otherwise, see if the total ellipsoid volume is larger than the minimum
+    # volume by a factor of `vol_check`. If it is, this indicates that there
+    # may be more than 2 clusters and we should try to subdivide further.
+    if ell.vol > vol_check * npoints * pointvol:
+        out = (_bounding_ellipsoids(points_k[0], ells[0], pointvol=pointvol,
+                                    vol_dec=vol_dec, vol_check=vol_check) +
+               _bounding_ellipsoids(points_k[1], ells[1], pointvol=pointvol,
+                                    vol_dec=vol_dec, vol_check=vol_check))
 
         # only accept split if volume decreased significantly
-        if sum(e.vol for e in out) < 0.5 * ell.vol:
+        if sum(e.vol for e in out) < vol_dec * ell.vol:
             return out
 
-    # Otherwise, we are happy with the single bounding ellipse.
+    # Otherwise, we are happy with the single bounding ellipsoid.
     return [ell]
 
 
-def bounding_ellipsoids(x, pointvol=0.):
-    """Calculate a set of ellipses that bound the points.
+def bounding_ellipsoids(points, pointvol=None, vol_dec=0.5, vol_check=2.):
+    """Calculate a set of ellipsoids that bound the points.
 
     Parameters
     ----------
-    x : (npoints, ndim) ndarray
+    points : `~numpy.ndarray` with shape (npoints, ndim)
         Coordinates of points.
+
     pointvol : float, optional
-        Volume represented by a single point. Used when number of points
-        per ellipsoid is less than number of dimensions in order to make
-        volume non-zero.
+        Volume represented by a single point. When provided,
+        used to set a minimum bound on the ellipsoid volume
+        as `npoints * pointvol`. Default is *None*.
+
+    vol_dec : float, optional
+        The required fractional reduction in volume after splitting an
+        ellipsoid in order to to accept the split. Default is *0.5*.
+
+    vol_check : float, optional
+        The factor used to when checking whether the volume of the
+        original bounding ellipsoid is large enough to warrant more
+        trial splits via `ell.vol > vol_check * npoints * pointvol`.
+        Default is *2.0*.
 
     Returns
     -------
@@ -505,55 +564,64 @@ def bounding_ellipsoids(x, pointvol=0.):
         Ellipsoids.
     """
 
-    # Calculate a single bounding ellipsoid for the points, and enlarge it
-    # so that it has at least the minimum volume.
-    ell = bounding_ellipsoid(x, pointvol=pointvol, minvol=True)
+    # Calculate the bounding ellipsoid for the points possibly
+    # enlarged to a minimum volume.
+    ell = bounding_ellipsoid(points, pointvol=pointvol)
 
-    return _bounding_ellipsoids(x, ell, pointvol=pointvol)
+    # Recursively split the bounding ellipsoid until the volume of each
+    # split no longer decreases by a factor of `vol_dec`.
+    ells = _bounding_ellipsoids(points, ell, pointvol=pointvol,
+                                vol_dec=vol_dec, vol_check=vol_check)
+    nells = len(ells)
+
+    return ells, nells
 
 
-def sample_ellipsoids(ells, rstate=np.random):
-    """Chose sample(s) randomly distributed within a set of
-    (possibly overlapping) ellipsoids.
+def check_ellipsoid_overlap(point, ells, nells):
+    """Check how many ellipsoids in `ells` a point lies within."""
+
+    return sum([ells[j].contains(point) for j in xrange(nells)])
+
+
+def check_unit_cube(point):
+    """Check whether a point falls within the unit cube."""
+
+    return np.all(point > 0.) and np.all(point < 1.)
+
+
+def sample_ellipsoids(ells, nells, rstate=np.random):
+    """Sample a point uniformly distributed within a set of ellipsoids.
 
     Parameters
     ----------
-    ells : list of Ellipsoid
+    ells : list of Ellipsoid objects
 
     Returns
     -------
-    x : 1-d ndarray
+    point : `~numpy.ndarray` with shape (ndim,)
         Coordinates within the ellipsoids.
     """
 
-    nells = len(ells)
-
     if nells == 1:
-        return ells[0].sample(rstate=rstate)
+        point = ells[0].sample(rstate=rstate)
+        q = 1
+        return point, q
 
-    # Select an ellipsoid at random, according to volumes
+    # Select an ellipsoid at random proportional to its volume.
     vols = np.array([ell.vol for ell in ells])
     i = random_choice(nells, vols / vols.sum(), rstate=rstate)
 
-    # Select a point from the ellipsoid
-    x = ells[i].sample(rstate=rstate)
+    # Select a point from the ellipsoid.
+    point = ells[i].sample(rstate=rstate)
 
-    # How many ellipsoids is the sample in?
-    n = 1
-    for j in range(nells):
-        if j == i:
-            continue
-        n += ells[j].contains(x)
+    # Check how many ellipsoids the point lies within.
+    q = check_ellipsoid_overlap(point, ells, nells)
 
-    # Only accept the point with probability 1/n
-    # (If rejected, sample again).
-    if n == 1 or rstate.rand() < 1.0 / n:
-        return x
-    else:
-        return sample_ellipsoids(ells, rstate=rstate)
+    return point, q
+
 
 # -----------------------------------------------------------------------------
-# Classes for dealing with non-parallel calls
+# Classes for dealing with the serial case (i.e. no parallelism)
 
 
 class FakePool(object):
@@ -586,6 +654,7 @@ class FakeFuture(object):
     def cancel(self):
         return True
 
+
 # -----------------------------------------------------------------------------
 # Sampler classes
 
@@ -604,6 +673,7 @@ class Sampler:
         self.queue_size = queue_size
         self.pool = pool
         self.queue = []
+        self.nqueue = 0
         self.submitted = 0
         self.cancelled = 0
         self.unused = 0
@@ -612,37 +682,39 @@ class Sampler:
     def empty_queue(self):
         """Dump all operations on the queue."""
 
-        while self.queue:
+        while self.nqueue > 0:
             x, v, f = self.queue.pop()
             if f.cancel():
                 self.cancelled += 1
             else:
                 self.unused += 1
+            self.nqueue -= 1
 
     def fill_queue(self):
-        """Fill up the queue with operations."""
+        """Sequentially add operations to the queue."""
 
-        while len(self.queue) < self.queue_size:
+        while self.nqueue < self.queue_size:
             x = self.propose_point()
             v = self.prior_transform(x)
             self.queue.append((x, v, self.pool.submit(self.loglikelihood, v)))
+            self.nqueue += 1
             self.submitted += 1
 
     def get_point_value(self):
-        """ Get evaluation sequentially from the queue. If we should
-            update our proposal distribution, do not refill the queue."""
+        """Get an evaluation sequentially from the filled queue. Afterwards,
+        refill the queue."""
 
-        if not self.queue:
-            self.fill_queue()
         x, v, f = self.queue.pop(0)
+        self.nqueue -= 1
         r = f.result()
         self.fill_queue()
         self.used += 1
+
         return x, v, r
 
 
 class SingleEllipsoidSampler(Sampler):
-    """Bounds active points in a single ellipsoid and samples randomly
+    """Bounds live points in a single ellipsoid and samples uniformly
     from within that ellipsoid."""
 
     def set_options(self, options):
@@ -650,16 +722,16 @@ class SingleEllipsoidSampler(Sampler):
 
     def update(self, pointvol):
         self.empty_queue()
-        self.ell = bounding_ellipsoid(self.points, pointvol=pointvol,
-                                      minvol=True)
+        self.ell = bounding_ellipsoid(self.points, pointvol=pointvol)
         self.ell.scale_to_vol(self.ell.vol * self.enlarge)
         self.fill_queue()
 
     def propose_point(self):
         while True:
             u = self.ell.sample(rstate=self.rstate)
-            if np.all(u > 0.) and np.all(u < 1.):
+            if check_unit_cube(u):
                 break
+
         return u
 
     def new_point(self, loglstar):
@@ -674,24 +746,33 @@ class SingleEllipsoidSampler(Sampler):
 
 
 class MultiEllipsoidSampler(Sampler):
-    """Bounds active points in multiple ellipsoids and samples randomly
-    from within joint distribution."""
+    """Bounds live points in multiple ellipsoids and samples uniformly
+    from within the volume spanned by their union."""
 
     def set_options(self, options):
         self.enlarge = options.get('enlarge', 1.2)
+        self.vol_dec = options.get('vol_dec', 0.5)
+        self.vol_check = options.get('vol_check', 2.0)
 
     def update(self, pointvol):
         self.empty_queue()
-        self.ells = bounding_ellipsoids(self.points, pointvol=pointvol)
-        for ell in self.ells:
+        ells, nells = bounding_ellipsoids(self.points, pointvol=pointvol,
+                                          vol_dec=self.vol_dec,
+                                          vol_check=self.vol_check)
+        for ell in ells:
             ell.scale_to_vol(ell.vol * self.enlarge)
+        self.ells, self.nells = ells, nells
         self.fill_queue()
 
     def propose_point(self):
         while True:
-            u = sample_ellipsoids(self.ells, rstate=self.rstate)
-            if np.all(u > 0.) and np.all(u < 1.):
-                break
+            u, q = sample_ellipsoids(self.ells, self.nells,
+                                     rstate=self.rstate)
+            if check_unit_cube(u):
+                # Accept the point with probability 1/q to properly
+                # sample from the union of overlapping ellipsoids.
+                if q == 1 or self.rstate.rand() < 1.0 / q:
+                    break
         return u
 
     def new_point(self, loglstar):
@@ -713,23 +794,23 @@ _SAMPLERS = {'single': SingleEllipsoidSampler,
              'multi': MultiEllipsoidSampler}
 
 
-def sample(loglikelihood, prior_transform, ndim, npoints=100,
+def sample(loglikelihood, prior_transform, ndim, nlive=100,
            method='multi', update_interval=None, npdim=None,
            maxiter=None, maxcall=None, dlogz=None, decline_factor=None,
-           rstate=None, callback=None, queue_size=None, pool=None, **options):
+           rstate=None, callback=None, queue_size=1, pool=None, **options):
     """Perform nested sampling to evaluate Bayesian evidence.
 
     Parameters
     ----------
     loglikelihood : function
         Function returning log(likelihood) given parameters as a 1-d numpy
-        array of length *ndim*.
+        array of length `ndim`.
 
     prior_transform : function
         Function translating a unit cube to the parameter space according to
-        the prior. The input is a 1-d numpy array with length *ndim*, where
+        the prior. The input is a 1-d numpy array with length `ndim`, where
         each value is in the range [0, 1). The return value should also be a
-        1-d numpy array with length *ndim*, where each value is a parameter.
+        1-d numpy array with length `ndim`, where each value is a parameter.
         The return value is passed to the loglikelihood function. For example,
         for a 2 parameter model with flat priors in the range [0, 2), the
         function would be::
@@ -740,73 +821,74 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
     ndim : int
         Number of parameters returned by prior and accepted by loglikelihood.
 
-    npoints : int, optional
-        Number of active points. Larger numbers result in a more finely
+    nlive : int, optional
+        Number of "live" points. Larger numbers result in a more finely
         sampled posterior (more accurate evidence), but also a larger
-        number of iterations required to converge. Default is 100.
+        number of iterations required to converge. Default is *100*.
 
     method : {'single', 'multi'}, optional
         Method used to select new points. Choices are single-ellipsoidal
         ('single') and multi-ellipsoidal ('multi'). Default is 'multi'.
 
     update_interval : int, optional
-        Only update the new point selector every ``update_interval``-th
+        Only update the new point selector every `update_interval`-th
         likelihood call. Update intervals larger than 1 can be more efficient
         when the likelihood function is very fast, particularly when
-        using the multi-ellipsoid method. Default is round(0.6 * npoints).
+        using the multi-ellipsoid method. Default is `round(0.6 * nlive)`.
 
     npdim : int, optional
-        Number of parameters accepted by prior. This might differ from *ndim*
+        Number of parameters accepted by prior. This might differ from `ndim`
         in the case where a parameter of loglikelihood is dependent upon
         multiple independently distributed parameters, some of which may be
         nuisance parameters.
 
     maxiter : int, optional
         Maximum number of iterations. Iteration may stop earlier if
-        termination condition is reached. Default is no limit.
+        termination condition is reached. Default is no limit (`sys.maxsize`).
 
     maxcall : int, optional
         Maximum number of likelihood evaluations. Iteration may stop earlier
-        if termination condition is reached. Default is no limit.
+        if termination condition is reached. Default is no limit
+        (`sys.maxsize`).
 
     dlogz : float, optional
         If supplied, iteration will stop when the estimated contribution
         of the remaining prior volume to the total evidence falls below
         this threshold. Explicitly, the stopping criterion is
-        ``log(z + z_est) - log(z) < dlogz``, where *z* is the current evidence
-        from all saved samples and *z_est* is the estimated contribution
+        `log(z + z_est) - log(z) < dlogz`, where `z` is the current evidence
+        from all saved samples and `z_est` is the estimated contribution
         from the remaining volume. This option and decline_factor are
-        mutually exclusive. If neither is specified, the default is
-        ``dlogz=0.5``.
+        mutually exclusive. Default is *0.5*.
 
     decline_factor : float, optional
-        If supplied, iteration will stop when the weight
+        If supplied, iteration will stop when the sample weights
         (likelihood times prior volume) of newly saved samples has been
-        declining for ``decline_factor * nsamples`` consecutive samples.
-        A value of 1.0 seems to work pretty well. This option and dlogz
-        are mutually exclusive.
+        declining for `decline_factor * nsamples` consecutive samples.
+        A value of *1.0* works well for most cases. This option and `dlogz`
+        are mutually exclusive. If not specified, the default `dlogz` criterion
+        is used.
 
     rstate : `~numpy.random.RandomState`, optional
         RandomState instance. If not given, the global random state of the
-        ``numpy.random`` module will be used.
+        `numpy.random` module will be used.
 
     callback : function, optional
         Callback function to be called at each iteration. A single argument,
-        a dictionary, is passed to the callback. The keys include ``'it'``,
-        the current iteration number, and ``'logz'``, the current total
+        a dictionary, is passed to the callback. The keys include 'it',
+        the current iteration number, and 'logz', the current total
         log evidence of all saved points. To simply print these at each
-        iteration, use the convience function
-        ``callback=nestle.print_progress``.
+        iteration, use the convience function `callback=nestle.print_progress`.
 
     queue_size: int, optional
-        Carry out evaluation in parallel by queueing up new active point
-        proposals using at most this many threads. Each thread independently
-        proposes new live points until one is selected.
-        Default is no parallelism (queue_size=1).
+        Carry out likelihood evaluations in parallel by queueing up new live
+        point proposals using at most this many threads. Each thread
+        independently proposes new live points until the proposal distribution
+        is updated. Default is *1* (no parallelism).
 
-    pool: ThreadPoolExecutor
+    pool: ThreadPoolExecutor, optional
         Use this pool of workers to propose live points in parallel. If
-        queue_size>1 and `pool` is not specified, an Exception will be thrown.
+        `queue_size > 1` and `pool` is not specified, a `ValueError` will be
+        thrown.
 
 
     Other Parameters
@@ -814,48 +896,59 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
 
     enlarge : float, optional
         For the 'single' and 'multi' methods, enlarge the ellipsoid(s) by
-        this fraction in volume. Default is 1.2.
+        this fraction in volume. Default is *1.2*.
+
+    vol_dec : float, optional
+        For the 'multi' method, the required fractional reduction in volume
+        after splitting an ellipsoid in order to to accept the split.
+        Default is *0.5*.
+
+    vol_check : float, optional
+        For the 'multi' method, the factor used to when checking whether the
+        volume of the original bounding ellipsoid is large enough to warrant
+        more trial splits via `ell.vol > vol_check * nlive * pointvol`.
+        Default is *2.0*.
 
 
     Returns
     -------
     result : `Result`
         A dictionary-like object with attribute access: Attributes can be
-        accessed with, for example, either ``result['niter']`` or
-        ``result.niter``. Attributes:
+        accessed with, for example, either `result['niter']` or
+        `result.niter`. Attributes:
 
-        niter *(int)*
+        niter : int
             Number of iterations.
 
-        ncall *(int)*
+        ncall : int
             Number of likelihood calls.
 
-        logz *(float)*
-            Natural logarithm of evidence (integral of posterior).
+        logz : float
+            Natural logarithm of the evidence (integral of posterior).
 
-        logzerr *(float)*
-            Estimated numerical (sampling) error on *logz*.
+        logzerr : float
+            Estimated numerical (sampling) error on `logz`.
 
-        h *(float)*
+        h : float
             Information. This is a measure of the "peakiness" of the
             likelihood function. A constant likelihood has zero information.
 
-        samples *(ndarray)*
-            Parameter values of each sample. Shape is *(nsamples, ndim)*.
+        samples : `~numpy.ndarray` with shape (nsamples, ndim)
+            Parameter values of each sample.
 
-        logvol *(ndarray)*
+        logvol : `~numpy.ndarray` with shape (nsamples,)
             Natural log of prior volume of corresponding to each sample.
-            Shape is *(nsamples,)*.
 
-        logl *(ndarray)*
+        logl : `~numpy.ndarray` with shape (nsamples,)
             Natural log of the likelihood for each sample, as returned by
-            user-supplied *logl* function. Shape is *(nsamples,)*.
+            user-supplied `loglikelihood` function.
 
-        logwt *(ndarray)*
-            Natural log of the weights corresponding to each sample,
-            which are just ``logvol + logl - logz``. Shape is *(nsamples,)*.
+        logwt : `~numpy.ndarray` with shape (nsamples,)
+            Natural log of the weights corresponding to each sample defined as
+            `logwt = logvol + logl - logz`.
     """
 
+    # Initialize variables.
     if npdim is None:
         npdim = ndim
 
@@ -870,15 +963,15 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
                          "'multi' method.")  # pragma: no cover
 
     if method not in _SAMPLERS:
-        raise ValueError("Unknown method: {:r}".format(method))
+        raise ValueError("Unknown method: '{:r}'".format(method))
 
-    if npoints < 2 * ndim:
-        warnings.warn("You really want to make npoints >= 2 * ndim!")
+    if nlive < 2 * ndim:
+        warnings.warn("You really want to make `nlive >= 2 * ndim`!")
 
     if rstate is None:
         rstate = np.random
 
-    # Stopping criterion.
+    # Establish stopping criterion.
     if dlogz is not None and decline_factor is not None:
         raise ValueError("Cannot specify two separate stopping criteria: "
                          "decline_factor and dlogz")
@@ -886,136 +979,153 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
         dlogz = 0.5
 
     if update_interval is None:
-        update_interval = max(1, round(0.6 * npoints))
+        update_interval = max(1, round(0.6 * nlive))
     else:
         update_interval = round(update_interval)
         if update_interval < 1:
             raise ValueError("update_interval must be >= 1")
 
-    # Parallel evaluation.
-    if queue_size is None or queue_size == 1:
-        queue_size = 1
+    # Set up parallel evaluation.
+    if queue_size == 1:
         pool = FakePool()
     else:
         if pool is None:
-            raise ValueError("Missing pool. Please provide a Pool object.")
+            raise ValueError("Missing `pool`. Please provide a Pool.")
 
-    # Initialize active points and calculate likelihoods
-    active_u = rstate.rand(npoints, npdim)  # position in unit cube
-    active_v = np.empty((npoints, ndim), dtype=np.float64)  # real params
-    for i in range(npoints):
-        active_v[i, :] = prior_transform(active_u[i, :])
-    active_logl = np.fromiter(pool.map(loglikelihood, active_v),
-                              dtype=np.float64)  # log likelihood
-    sampler = _SAMPLERS[method](loglikelihood, prior_transform, active_u,
+    # Initialize live points and calculate likelihoods.
+    live_u = rstate.rand(nlive, npdim)  # positions in unit cube
+    live_v = np.empty((nlive, ndim), dtype=np.float64)  # real params
+    for i in range(nlive):
+        live_v[i, :] = prior_transform(live_u[i, :])
+    live_logl = np.fromiter(pool.map(loglikelihood, live_v),
+                            dtype=np.float64)  # log likelihood
+
+    # Initialize our sampler.
+    sampler = _SAMPLERS[method](loglikelihood, prior_transform, live_u,
                                 rstate, options, queue_size, pool)
 
     # Initialize values for nested sampling loop.
-    saved_v = []  # stored points for posterior results
-    saved_logl = []
-    saved_logvol = []
-    saved_logwt = []
-    h = 0.0  # Information, initially 0.
-    logz = -1e300  # ln(Evidence Z), initially Z=0.
-    logvol = math.log(1.0 - math.exp(-1.0/npoints))  # first point ~ 1-e^(1/n)
-    ncall = npoints  # number of calls we already made
+    saved_u = []  # samples (unit cube)
+    saved_v = []  # samples (transformed)
+    saved_logl = []  # ln(likelihood)
+    saved_logvol = []  # ln(volume)
+    saved_logwt = []  # ln(weight)
+    h = 0.0  # Information, initially *0.*
+    logz = -1e300  # ln(evidence), initially *0.*
+    logvol = math.log(1.0 - math.exp(-1.0/nlive))  # initially `1-e^(1/n)`
+    ncall = nlive  # number of calls we already made
 
-    # Initialize sampler
-    sampler.update(1./npoints)
+    # Initialize proposal distribution for our sampler.
+    pointvol = 1./nlive
+    sampler.update(pointvol)
 
     callback_info = {'it': 0,
                      'logz': logz,
-                     'active_u': active_u,
+                     'live_u': live_u,
                      'sampler': sampler}
 
-    # Nested sampling loop.
+    # The main nested sampling loop.
     ndecl = 0
     logwt_old = -np.inf
-    it = 0
+    it = 1  # iterations start from 1
     since_update = 0
     while it < maxiter:
-        if (callback is not None) and (it > 0):
+        # Output callback if requested.
+        if callback is not None:
             callback_info.update(it=it, logz=logz)
             callback(callback_info)
 
-        # worst object in collection and its weight (= volume * likelihood)
-        worst = np.argmin(active_logl)
-        logwt = logvol + active_logl[worst]
+        # After `update_interval` interations have passed, update the sampler
+        # using the current set of live points.
+        if since_update >= update_interval:
+            expected_vol = math.exp(-it / nlive)  # average volume
+            pointvol = expected_vol / nlive  # volume per point
+            sampler.update(pointvol)
+            since_update = 0
 
-        # update evidence Z and information h.
+        # Locate the "live" point with the lowest `logl` (the "worst" point).
+        worst = np.argmin(live_logl)
+
+        # Set our new worst likelihood constraint.
+        ustar, vstar = live_u[worst], live_v[worst]  # position
+        loglstar = live_logl[worst]  # likelihood
+
+        # Set our new weight.
+        logwt = logvol + loglstar
+
+        # Sample a new live point from within the likelihood constraint
+        # `logl > loglstar` using the proposal distribution from our sampler.
+        u, v, logl, nc = sampler.new_point(loglstar)
+        ncall += nc
+        since_update += nc
+
+        # Add the worst live point to samples. It is now a "dead" point.
+        saved_u.append(np.array(ustar))
+        saved_v.append(np.array(vstar))
+        saved_logl.append(loglstar)
+        saved_logvol.append(logvol)
+        saved_logwt.append(logwt)
+
+        # Update evidence `logz` and information `h` using our new dead point.
         logz_new = np.logaddexp(logz, logwt)
-        h = (math.exp(logwt - logz_new) * active_logl[worst] +
+        h = (math.exp(logwt - logz_new) * loglstar +
              math.exp(logz - logz_new) * (h + logz) -
              logz_new)
         logz = logz_new
 
-        # Add worst object to samples.
-        saved_v.append(np.array(active_v[worst]))
-        saved_logwt.append(logwt)
-        saved_logvol.append(logvol)
-        saved_logl.append(active_logl[worst])
+        # Update the live point (previously our "worst" point).
+        live_u[worst] = u
+        live_v[worst] = v
+        live_logl[worst] = logl
 
-        # The new likelihood constraint is that of the worst object.
-        loglstar = active_logl[worst]
+        # Apply expected shrinkage to `logvol` for the next live point.
+        logvol -= 1.0 / nlive
 
-        expected_vol = math.exp(-it / npoints)
-        pointvol = expected_vol / npoints
-
-        # Update the sampler based on the current active points.
-        if since_update >= update_interval:
-            sampler.update(pointvol)
-            since_update = 0
-
-        # Choose a new point from within the likelihood constraint
-        # (having logl > loglstar).
-        u, v, logl, nc = sampler.new_point(loglstar)
-
-        # replace worst point with new point
-        active_u[worst] = u
-        active_v[worst] = v
-        active_logl[worst] = logl
-        ncall += nc
-        since_update += nc
-
-        # Shrink interval
-        logvol -= 1.0 / npoints
-
-        # Stopping criterion 1: estimated fractional remaining evidence
-        # below some threshold.
+        # Stopping criterion 1: estimated (fractional) remaining evidence
+        # lies below some threshold set by `dlogz`.
         if dlogz is not None:
-            logz_remain = np.max(active_logl) - it / npoints
+            logz_remain = np.max(live_logl) - it / nlive
             if np.logaddexp(logz, logz_remain) - logz < dlogz:
                 break
 
-        # Stopping criterion 2: logwt has been declining for a while.
+        # Stopping criterion 2: `logwt` has been declining for longer
+        # than `decline_factor`.
         if decline_factor is not None:
-            ndecl = ndecl + 1 if logwt < logwt_old else 0
+            if logwt < logwt_old:
+                ndecl += 1
+            else:
+                ndecl = 0
             logwt_old = logwt
-            if ndecl > decline_factor * npoints:
+            if ndecl > decline_factor * nlive:
                 break
 
+        # Stopping criterion 3: number of `loglikelihood` calls
+        # exceeds `maxcall`.
         if ncall > maxcall:
             break
 
         it += 1
 
-    # Add remaining active points.
+    # Add remaining live points to our set of dead points.
     # After N samples have been taken out, the remaining volume is
-    # e^(-N/npoints). Thus, the remaining volume for each active point
-    # is e^(-N/npoints) / npoints. The log of this for each object is:
-    # log(e^(-N/npoints) / npoints) = -N/npoints - log(npoints)
-    logvol = -len(saved_v) / npoints - math.log(npoints)
-    for i in range(npoints):
-        logwt = logvol + active_logl[i]
+    # `e^(-N / nlive)`. Thus, the remaining volume for each live point
+    # is `e^(-N / nlive) / nlive`. The log of this for each live point is:
+    # `log(e^(-N / nlive) / nlive) = -N / nlive - log(nlive)`.
+    logvol = -len(saved_v) / nlive - math.log(nlive)
+    for i in xrange(nlive):
+        ustar, vstar = live_u[i], live_v[i]
+        loglstar = live_logl[i]
+        logwt = logvol + loglstar
         logz_new = np.logaddexp(logz, logwt)
-        h = (math.exp(logwt - logz_new) * active_logl[i] +
+        h = (math.exp(logwt - logz_new) * loglstar +
              math.exp(logz - logz_new) * (h + logz) -
              logz_new)
         logz = logz_new
-        saved_v.append(np.array(active_v[i]))
-        saved_logwt.append(logwt)
-        saved_logl.append(active_logl[i])
+        saved_u.append(np.array(ustar))
+        saved_v.append(np.array(vstar))
+        saved_logl.append(loglstar)
         saved_logvol.append(logvol)
+        saved_logwt.append(logwt)
 
     # h should always be nonnegative (we take the sqrt below).
     # Numerical error makes it negative in pathological corner cases
@@ -1027,14 +1137,17 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
             raise RuntimeError("Negative h encountered (h={}). Please report "
                                "this as a likely bug.".format(h))
 
-    return Result([
-        ('niter', it + 1),
-        ('ncall', ncall),
-        ('logz', logz),
-        ('logzerr', math.sqrt(h / npoints)),
-        ('h', h),
-        ('samples', np.array(saved_v)),
-        ('logwt', np.array(saved_logwt) - logz),
-        ('logvol', np.array(saved_logvol)),
-        ('logl', np.array(saved_logl))
-        ])
+    # Saving results.
+    results = Results([('nlive', nlive),
+                       ('niter', it + 1),
+                       ('ncall', ncall),
+                       ('logz', logz),
+                       ('logzerr', math.sqrt(h / nlive)),
+                       ('h', h),
+                       ('samples_unit', np.array(saved_u)),
+                       ('samples', np.array(saved_v)),
+                       ('logwt', np.array(saved_logwt) - logz),
+                       ('logvol', np.array(saved_logvol)),
+                       ('logl', np.array(saved_logl))])
+
+    return results

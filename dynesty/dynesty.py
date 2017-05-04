@@ -13,6 +13,7 @@ import sys
 import warnings
 import math
 import numpy as np
+import scipy.misc as misc
 
 from .sampler import *
 from .globalsampler import *
@@ -105,7 +106,7 @@ def sample(loglikelihood, prior_transform, ndim, nlive=100,
 
     method : {'single_ell', 'multi_ell'}, optional
         Method used to select new points. Choices are single-ellipsoidal
-        ('single_ell') and multi-ellipsoidal ('multi_ell'). 
+        ('single_ell') and multi-ellipsoidal ('multi_ell').
         Default is 'multi_ell'.
 
     update_interval : int, optional
@@ -287,8 +288,9 @@ def sample(loglikelihood, prior_transform, ndim, nlive=100,
     saved_logwt = []  # log(weight)
     h = 0.0  # Information, initially *0.*
     logz = -1e300  # log(evidence), initially *0.*
-    logvol = math.log(1.0 - math.exp(-1.0/nlive))  # initially `1-e^(1/n)`
+    logvol = 0.  # initially contains the whole prior (volume=1.)
     ncall = nlive  # number of calls we already made
+    dlv = 1. / nlive  # expected shrinkage in log(volume) per iteration
 
     # Initialize proposal distribution for our sampler.
     pointvol = 1./nlive
@@ -313,7 +315,7 @@ def sample(loglikelihood, prior_transform, ndim, nlive=100,
         # After `update_interval` interations have passed, update the sampler
         # using the current set of live points.
         if since_update >= update_interval:
-            expected_vol = math.exp(-it / nlive)  # average volume
+            expected_vol = math.exp(-it / nlive)  # expected volume
             pointvol = expected_vol / nlive  # volume per point
             sampler.update(pointvol)
             since_update = 0
@@ -325,8 +327,11 @@ def sample(loglikelihood, prior_transform, ndim, nlive=100,
         ustar, vstar = live_u[worst], live_v[worst]  # position
         loglstar = live_logl[worst]  # likelihood
 
-        # Set our new weight.
-        logwt = logvol + loglstar
+        # Set our new weight using quadratic estimates for dvol.
+        logvol -= dlv  # expected log(volume) shrinkage
+        logdvol = misc.logsumexp(a=[logvol + dlv, logvol - dlv],
+                                 b=[0.5, -0.5])  # log(dvol)
+        logwt = loglstar + logdvol  # log(weight)
 
         # Sample a new live point from within the likelihood constraint
         # `logl > loglstar` using the proposal distribution from our sampler.
@@ -352,9 +357,6 @@ def sample(loglikelihood, prior_transform, ndim, nlive=100,
         live_u[worst] = u
         live_v[worst] = v
         live_logl[worst] = logl
-
-        # Apply expected shrinkage to `logvol` for the next live point.
-        logvol -= 1.0 / nlive
 
         # Stopping criterion 1: estimated (fractional) remaining evidence
         # lies below some threshold set by `dlogz`.
@@ -383,14 +385,21 @@ def sample(loglikelihood, prior_transform, ndim, nlive=100,
 
     # Add remaining live points to our set of dead points.
     # After N samples have been taken out, the remaining volume is
-    # `e^(-N / nlive)`. Thus, the remaining volume for each live point
-    # is `e^(-N / nlive) / nlive`. The log of this for each live point is:
-    # `log(e^(-N / nlive) / nlive) = -N / nlive - log(nlive)`.
-    logvol = -len(saved_v) / nlive - math.log(nlive)
+    # `e^(-N / nlive)`. The remaining points are distributed uniformly within
+    # the remaining volume so that the expected volume enclosed by the `i`-th
+    # worst likelihood is is `e^(-N / nlive) * (nlive - i + 1) / (nlive + 1)`.
+    logvols = -(it - 1.) / nlive
+    logvols += np.log(1. - (np.arange(nlive) + 1.) / (nlive + 1.))
+    logvols_pad = np.concatenate(([-(it - 1.) / nlive], logvols, [-1e300]))
+    logdvols = misc.logsumexp(a=np.c_[logvols_pad[:-2], logvols_pad[2:]],
+                              axis=1,
+                              b=np.c_[np.ones(nlive), -np.ones(nlive)])
+    logdvols += math.log(0.5)
     for i in xrange(nlive):
+        logvol, logdvol = logvols[i], logdvols[i]
         ustar, vstar = live_u[i], live_v[i]
         loglstar = live_logl[i]
-        logwt = logvol + loglstar
+        logwt = loglstar + logdvol
         logz_new = np.logaddexp(logz, logwt)
         h = (math.exp(logwt - logz_new) * loglstar +
              math.exp(logz - logz_new) * (h + logz) -

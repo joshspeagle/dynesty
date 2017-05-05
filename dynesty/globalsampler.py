@@ -24,16 +24,68 @@ __all__ = ["SingleEllipsoidSampler", "MultiEllipsoidSampler"]
 
 
 class SingleEllipsoidSampler(Sampler):
-    """Bounds live points in a single ellipsoid and samples uniformly
-    from within that ellipsoid."""
+    """
+    Bounds live points in a single ellipsoid and samples uniformly
+    from within that ellipsoid.
 
-    def set_options(self, options):
-        self.enlarge = options.get('enlarge', 1.2)
+
+    Parameters
+    ----------
+    loglikelihood : function
+        Function returning log(likelihood) given parameters as a 1-d numpy
+        array of length `ndim`.
+
+    prior_transform : function
+        Function translating a unit cube to the parameter space according to
+        the prior.
+
+    npdim : int
+        Number of parameters accepted by prior.
+
+    live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
+        Initial set of "live" points. Contains `live_u`, the coordinates
+        on the unit cube, `live_v`, the transformed variables, and
+        `live_logl`, the associated loglikelihoods.
+
+    update_interval : int
+        Only update the proposal distribution every `update_interval`-th
+        likelihood call.
+
+    rstate : `~numpy.random.RandomState`
+        RandomState instance.
+
+    queue_size: int
+        Carry out likelihood evaluations in parallel by queueing up new live
+        point proposals using at most this many threads. Each thread
+        independently proposes new live points until the proposal distribution
+        is updated.
+
+    pool: ThreadPoolExecutor
+        Use this pool of workers to propose live points in parallel.
+
+
+    Other Parameters
+    ----------------
+
+    enlarge : float, optional
+        Enlarge the volume of the bounding ellipsoid by this fraction.
+        Default is *1.2*.
+
+    """
+
+    def __init__(self, loglikelihood, prior_transform, npdim, live_points,
+                 update_interval, rstate, queue_size, pool, kwargs={}):
+        self.kwargs = kwargs
+        self.enlarge = kwargs.get('enlarge', 1.2)
+        super(SingleEllipsoidSampler,
+              self).__init__(loglikelihood, prior_transform, npdim,
+                             live_points, update_interval, rstate,
+                             queue_size, pool)
 
     def update(self, pointvol):
         """Update bounding ellipsoid using the current set of live points."""
         self.empty_queue()
-        self.ell = bounding_ellipsoid(self.live_points, pointvol=pointvol)
+        self.ell = bounding_ellipsoid(self.live_u, pointvol=pointvol)
         self.ell.scale_to_vol(self.ell.vol * self.enlarge)
         self.fill_queue()
 
@@ -47,29 +99,80 @@ class SingleEllipsoidSampler(Sampler):
 
         return u, v, logl
 
-    def new_point(self, loglstar):
-        ncall = 0
-        while True:
-            u, v, logl = self.get_point_value()
-            ncall += 1
-            if logl >= loglstar:
-                break
-
-        return u, v, logl, ncall
-
 
 class MultiEllipsoidSampler(Sampler):
-    """Bounds live points in multiple ellipsoids and samples uniformly
-    from within the volume spanned by their union."""
+    """
+    Bounds live points in multiple ellipsoids and samples uniformly
+    from within their union.
 
-    def set_options(self, options):
-        self.enlarge = options.get('enlarge', 1.2)
-        self.vol_dec = options.get('vol_dec', 0.5)
-        self.vol_check = options.get('vol_check', 2.0)
+
+    Parameters
+    ----------
+    loglikelihood : function
+        Function returning log(likelihood) given parameters as a 1-d numpy
+        array of length `ndim`.
+
+    prior_transform : function
+        Function translating a unit cube to the parameter space according to
+        the prior.
+
+    npdim : int
+        Number of parameters accepted by prior.
+
+    live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
+        Initial set of "live" points. Contains `live_u`, the coordinates
+        on the unit cube, `live_v`, the transformed variables, and
+        `live_logl`, the associated loglikelihoods.
+
+    update_interval : int
+        Only update the proposal distribution every `update_interval`-th
+        likelihood call.
+
+    rstate : `~numpy.random.RandomState`
+        RandomState instance.
+
+    queue_size: int
+        Carry out likelihood evaluations in parallel by queueing up new live
+        point proposals using at most this many threads. Each thread
+        independently proposes new live points until the proposal distribution
+        is updated.
+
+    pool: ThreadPoolExecutor
+        Use this pool of workers to propose live points in parallel.
+
+
+    Other Parameters
+    ----------------
+
+    enlarge : float, optional
+        Enlarge the volume of all bounding ellipsoids by this fraction.
+        Default is *1.2*.
+
+    vol_dec : float, optional
+        The required fractional reduction in volume after splitting an
+        ellipsoid in order to to accept the proposed split. Default is *0.5*.
+
+    vol_check : float, optional
+        The factor used to when checking whether the volume of the original
+        bounding ellipsoid is large enough to warrant more trial splits via
+        `ell.vol > vol_check * nlive * pointvol`. Default is *2.0*.
+
+    """
+
+    def __init__(self, loglikelihood, prior_transform, npdim, live_points,
+                 update_interval, rstate, queue_size, pool, kwargs={}):
+        self.kwargs = kwargs
+        self.enlarge = kwargs.get('enlarge', 1.2)
+        self.vol_dec = kwargs.get('vol_dec', 0.5)
+        self.vol_check = kwargs.get('vol_check', 2.0)
+        super(MultiEllipsoidSampler,
+              self).__init__(loglikelihood, prior_transform, npdim,
+                             live_points, update_interval, rstate,
+                             queue_size, pool)
 
     def update(self, pointvol):
         self.empty_queue()
-        self.mell = bounding_ellipsoids(self.live_points, pointvol=pointvol,
+        self.mell = bounding_ellipsoids(self.live_u, pointvol=pointvol,
                                         vol_dec=self.vol_dec,
                                         vol_check=self.vol_check)
         self.mell.scale_to_vols(self.mell.vols * self.enlarge)
@@ -87,13 +190,3 @@ class MultiEllipsoidSampler(Sampler):
         logl = self.loglikelihood(v)
 
         return u, v, logl
-
-    def new_point(self, loglstar):
-        ncall = 0
-        while True:
-            u, v, logl = self.get_point_value()
-            ncall += 1
-            if logl >= loglstar:
-                break
-
-        return u, v, logl, ncall

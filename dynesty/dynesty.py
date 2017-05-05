@@ -20,7 +20,7 @@ from .globalsampler import *
 from .localsampler import *
 from .fakepool import *
 
-__all__ = ["sample", "Results"]
+__all__ = ["NestedSampler"]
 
 _SAMPLERS = {'single_ell': SingleEllipsoidSampler,
              'multi_ell': MultiEllipsoidSampler}
@@ -28,55 +28,12 @@ _SAMPLERS = {'single_ell': SingleEllipsoidSampler,
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
-class Results(dict):
+def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
+                  method='multi', update_interval=None, npdim=None,
+                  rstate=None, queue_size=1, pool=None, **kwargs):
     """
-    Contains the output of a dynamic nested sampling run.
-
-    Since this class is essentially a subclass of dict with attribute
-    accessors, one can see which attributes are available using the
-    `keys()` method.
-
-    """
-
-    def __getattr__(self, name):
-        try:
-            return self[name]
-        except KeyError:
-            raise AttributeError(name)
-
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
-
-    def __repr__(self):
-        if self.keys():
-            m = max(map(len, list(self.keys()))) + 1
-            return '\n'.join([k.rjust(m) + ': ' + repr(v)
-                              for k, v in self.items()])
-        else:
-            return self.__class__.__name__ + "()"
-
-    def summary(self):
-        """Return a formatted string giving a quick summary
-        of the results."""
-
-        return ("nlive: {:d}\n"
-                "niter: {:d}\n"
-                "ncall: {:d}\n"
-                "eff(%): {:6.3f}\n"
-                "nsamples: {:d}\n"
-                "logz: {:6.3f} +/- {:6.3f}\n"
-                "h: {:6.3f}"
-                .format(self.nlive, self.niter, self.ncall, self.eff,
-                        len(self.samples), self.logz, self.logzerr,
-                        self.h))
-
-
-def sample(loglikelihood, prior_transform, ndim, nlive=100,
-           method='multi', update_interval=None, npdim=None,
-           maxiter=None, maxcall=None, dlogz=None, decline_factor=None,
-           rstate=None, callback=None, queue_size=1, pool=None, **options):
-    """
-    Perform nested sampling to evaluate Bayesian evidence.
+    Initializes and returns a chosen sampler that will perform nested sampling
+    to evaluate Bayesian evidence and posteriors.
 
     Parameters
     ----------
@@ -110,7 +67,7 @@ def sample(loglikelihood, prior_transform, ndim, nlive=100,
         Default is 'multi_ell'.
 
     update_interval : int, optional
-        Only update the new point selector every `update_interval`-th
+        Only update the proposal distribution every `update_interval`-th
         likelihood call. Update intervals larger than 1 can be more efficient
         when the likelihood function is very fast, particularly when
         using the multi-ellipsoid method. Default is `round(0.6 * nlive)`.
@@ -121,42 +78,9 @@ def sample(loglikelihood, prior_transform, ndim, nlive=100,
         multiple independently distributed parameters, some of which may be
         nuisance parameters.
 
-    maxiter : int, optional
-        Maximum number of iterations. Iteration may stop earlier if
-        termination condition is reached. Default is no limit (`sys.maxsize`).
-
-    maxcall : int, optional
-        Maximum number of likelihood evaluations. Iteration may stop earlier
-        if termination condition is reached. Default is no limit
-        (`sys.maxsize`).
-
-    dlogz : float, optional
-        If supplied, iteration will stop when the estimated contribution
-        of the remaining prior volume to the total evidence falls below
-        this threshold. Explicitly, the stopping criterion is
-        `log(z + z_est) - log(z) < dlogz`, where `z` is the current evidence
-        from all saved samples and `z_est` is the estimated contribution
-        from the remaining volume. This option and decline_factor are
-        mutually exclusive. Default is *0.5*.
-
-    decline_factor : float, optional
-        If supplied, iteration will stop when the sample weights
-        (likelihood times prior volume) of newly saved samples has been
-        declining for `decline_factor * nsamples` consecutive samples.
-        A value of *1.0* works well for most cases. This option and `dlogz`
-        are mutually exclusive. If not specified, the default `dlogz` criterion
-        is used.
-
     rstate : `~numpy.random.RandomState`, optional
         RandomState instance. If not given, the global random state of the
         `numpy.random` module will be used.
-
-    callback : function, optional
-        Callback function to be called at each iteration. A single argument,
-        a dictionary, is passed to the callback. The keys include 'it',
-        the current iteration number, and 'logz', the current total
-        log evidence of all saved points. To simply print these at each
-        iteration, use the convience function `callback=nestle.print_progress`.
 
     queue_size: int, optional
         Carry out likelihood evaluations in parallel by queueing up new live
@@ -174,57 +98,25 @@ def sample(loglikelihood, prior_transform, ndim, nlive=100,
     ----------------
 
     enlarge : float, optional
-        For the 'single' and 'multi' methods, enlarge the ellipsoid(s) by
-        this fraction in volume. Default is *1.2*.
+        For the 'single_ell' and 'multi_ell' methods, enlarge the volumes of
+        the ellipsoid(s) by this fraction. Default is *1.2*.
 
     vol_dec : float, optional
-        For the 'multi' method, the required fractional reduction in volume
-        after splitting an ellipsoid in order to to accept the split.
+        For the 'multi_ell' method, the required fractional reduction in
+        volume after splitting an ellipsoid in order to to accept the split.
         Default is *0.5*.
 
     vol_check : float, optional
-        For the 'multi' method, the factor used to when checking whether the
-        volume of the original bounding ellipsoid is large enough to warrant
-        more trial splits via `ell.vol > vol_check * nlive * pointvol`.
+        For the 'multi_ell' method, the factor used to when checking whether
+        the volume of the original bounding ellipsoid is large enough to
+        warrant more trial splits via `ell.vol > vol_check * nlive * pointvol`.
         Default is *2.0*.
 
 
     Returns
     -------
-    result : `Result`
-        A dictionary-like object with attribute access: Attributes can be
-        accessed with, for example, either `result['niter']` or
-        `result.niter`. Attributes:
-
-        niter : int
-            Number of iterations.
-
-        ncall : int
-            Number of likelihood calls.
-
-        logz : float
-            Natural logarithm of the evidence (integral of posterior).
-
-        logzerr : float
-            Estimated numerical (sampling) error on `logz`.
-
-        h : float
-            Information. This is a measure of the "peakiness" of the
-            likelihood function. A constant likelihood has zero information.
-
-        samples : `~numpy.ndarray` with shape (nsamples, ndim)
-            Parameter values of each sample.
-
-        logvol : `~numpy.ndarray` with shape (nsamples,)
-            Natural log of prior volume of corresponding to each sample.
-
-        logl : `~numpy.ndarray` with shape (nsamples,)
-            Natural log of the likelihood for each sample, as returned by
-            user-supplied `loglikelihood` function.
-
-        logwt : `~numpy.ndarray` with shape (nsamples,)
-            Natural log of the weights corresponding to each sample defined as
-            `logwt = logvol + logl - logz`.
+    sampler : A child of `Sampler`
+        An initialized instance of the chosen sampler specified via `method`.
 
     """
 
@@ -232,27 +124,11 @@ def sample(loglikelihood, prior_transform, ndim, nlive=100,
     if npdim is None:
         npdim = ndim
 
-    if maxiter is None:
-        maxiter = sys.maxsize
-
-    if maxcall is None:
-        maxcall = sys.maxsize
-
     if method not in _SAMPLERS:
         raise ValueError("Unknown method: '{:r}'".format(method))
 
     if nlive < 2 * ndim:
         warnings.warn("You really want to make `nlive >= 2 * ndim`!")
-
-    if rstate is None:
-        rstate = np.random
-
-    # Establish stopping criterion.
-    if dlogz is not None and decline_factor is not None:
-        raise ValueError("Cannot specify two separate stopping criteria: "
-                         "decline_factor and dlogz")
-    elif dlogz is None and decline_factor is None:
-        dlogz = 0.5
 
     if update_interval is None:
         update_interval = max(1, round(0.6 * nlive))
@@ -260,6 +136,9 @@ def sample(loglikelihood, prior_transform, ndim, nlive=100,
         update_interval = round(update_interval)
         if update_interval < 1:
             raise ValueError("update_interval must be >= 1")
+
+    if rstate is None:
+        rstate = np.random
 
     # Set up parallel evaluation.
     if queue_size == 1:
@@ -275,167 +154,11 @@ def sample(loglikelihood, prior_transform, ndim, nlive=100,
         live_v[i, :] = prior_transform(live_u[i, :])
     live_logl = np.fromiter(pool.map(loglikelihood, live_v),
                             dtype=np.float64)  # log likelihood
+    live_points = [live_u, live_v, live_logl]
 
     # Initialize our sampler.
-    sampler = _SAMPLERS[method](loglikelihood, prior_transform, live_u,
-                                rstate, options, queue_size, pool)
+    sampler = _SAMPLERS[method](loglikelihood, prior_transform, npdim,
+                                live_points, update_interval, rstate,
+                                queue_size, pool, kwargs)
 
-    # Initialize values for nested sampling loop.
-    saved_u = []  # samples (unit cube)
-    saved_v = []  # samples (transformed)
-    saved_logl = []  # log(likelihood)
-    saved_logvol = []  # log(volume)
-    saved_logwt = []  # log(weight)
-    h = 0.0  # Information, initially *0.*
-    logz = -1e300  # log(evidence), initially *0.*
-    logvol = 0.  # initially contains the whole prior (volume=1.)
-    ncall = nlive  # number of calls we already made
-    dlv = 1. / nlive  # expected shrinkage in log(volume) per iteration
-
-    # Initialize proposal distribution for our sampler.
-    pointvol = 1./nlive
-    sampler.update(pointvol)
-
-    callback_info = {'it': 0,
-                     'logz': logz,
-                     'live_u': live_u,
-                     'sampler': sampler}
-
-    # The main nested sampling loop.
-    ndecl = 0
-    logwt_old = -np.inf
-    it = 1  # iterations start from 1
-    since_update = 0
-    while it < maxiter:
-        # Output callback if requested.
-        if callback is not None:
-            callback_info.update(it=it, logz=logz)
-            callback(callback_info)
-
-        # After `update_interval` interations have passed, update the sampler
-        # using the current set of live points.
-        if since_update >= update_interval:
-            expected_vol = math.exp(-it / nlive)  # expected volume
-            pointvol = expected_vol / nlive  # volume per point
-            sampler.update(pointvol)
-            since_update = 0
-
-        # Locate the "live" point with the lowest `logl` (the "worst" point).
-        worst = np.argmin(live_logl)
-
-        # Set our new worst likelihood constraint.
-        ustar, vstar = live_u[worst], live_v[worst]  # position
-        loglstar = live_logl[worst]  # likelihood
-
-        # Set our new weight using quadratic estimates for dvol.
-        logvol -= dlv  # expected log(volume) shrinkage
-        logdvol = misc.logsumexp(a=[logvol + dlv, logvol - dlv],
-                                 b=[0.5, -0.5])  # log(dvol)
-        logwt = loglstar + logdvol  # log(weight)
-
-        # Sample a new live point from within the likelihood constraint
-        # `logl > loglstar` using the proposal distribution from our sampler.
-        u, v, logl, nc = sampler.new_point(loglstar)
-        ncall += nc
-        since_update += nc
-
-        # Add the worst live point to samples. It is now a "dead" point.
-        saved_u.append(np.array(ustar))
-        saved_v.append(np.array(vstar))
-        saved_logl.append(loglstar)
-        saved_logvol.append(logvol)
-        saved_logwt.append(logwt)
-
-        # Update evidence `logz` and information `h` using our new dead point.
-        logz_new = np.logaddexp(logz, logwt)
-        h = (math.exp(logwt - logz_new) * loglstar +
-             math.exp(logz - logz_new) * (h + logz) -
-             logz_new)
-        logz = logz_new
-
-        # Update the live point (previously our "worst" point).
-        live_u[worst] = u
-        live_v[worst] = v
-        live_logl[worst] = logl
-
-        # Stopping criterion 1: estimated (fractional) remaining evidence
-        # lies below some threshold set by `dlogz`.
-        if dlogz is not None:
-            logz_remain = np.max(live_logl) - it / nlive
-            if np.logaddexp(logz, logz_remain) - logz < dlogz:
-                break
-
-        # Stopping criterion 2: `logwt` has been declining for longer
-        # than `decline_factor`.
-        if decline_factor is not None:
-            if logwt < logwt_old:
-                ndecl += 1
-            else:
-                ndecl = 0
-            logwt_old = logwt
-            if ndecl > decline_factor * nlive:
-                break
-
-        # Stopping criterion 3: number of `loglikelihood` calls
-        # exceeds `maxcall`.
-        if ncall > maxcall:
-            break
-
-        it += 1
-
-    # Add remaining live points to our set of dead points.
-    # After N samples have been taken out, the remaining volume is
-    # `e^(-N / nlive)`. The remaining points are distributed uniformly within
-    # the remaining volume so that the expected volume enclosed by the `i`-th
-    # worst likelihood is is `e^(-N / nlive) * (nlive - i + 1) / (nlive + 1)`.
-    logvols = -(it - 1.) / nlive
-    logvols += np.log(1. - (np.arange(nlive) + 1.) / (nlive + 1.))
-    logvols_pad = np.concatenate(([-(it - 1.) / nlive], logvols, [-1e300]))
-    logdvols = misc.logsumexp(a=np.c_[logvols_pad[:-2], logvols_pad[2:]],
-                              axis=1,
-                              b=np.c_[np.ones(nlive), -np.ones(nlive)])
-    logdvols += math.log(0.5)
-    for i in xrange(nlive):
-        logvol, logdvol = logvols[i], logdvols[i]
-        ustar, vstar = live_u[i], live_v[i]
-        loglstar = live_logl[i]
-        logwt = loglstar + logdvol
-        logz_new = np.logaddexp(logz, logwt)
-        h = (math.exp(logwt - logz_new) * loglstar +
-             math.exp(logz - logz_new) * (h + logz) -
-             logz_new)
-        logz = logz_new
-        saved_u.append(np.array(ustar))
-        saved_v.append(np.array(vstar))
-        saved_logl.append(loglstar)
-        saved_logvol.append(logvol)
-        saved_logwt.append(logwt)
-
-    # h should always be nonnegative (we take the sqrt below).
-    # Numerical error makes it negative in pathological corner cases
-    # such as flat likelihoods. Here we correct those cases to zero.
-    if h < 0.0:
-        if h > -SQRTEPS:
-            h = 0.0
-        else:
-            raise RuntimeError("Negative h encountered (h={}). Please report "
-                               "this as a likely bug.".format(h))
-
-    # Compute our sampling efficiency.
-    eff = 100. * it / (ncall - nlive)
-
-    # Saving results.
-    results = Results([('nlive', nlive),
-                       ('niter', it),
-                       ('ncall', ncall),
-                       ('eff', eff),
-                       ('logz', logz),
-                       ('logzerr', math.sqrt(h / nlive)),
-                       ('h', h),
-                       ('samples_unit', np.array(saved_u)),
-                       ('samples', np.array(saved_v)),
-                       ('logwt', np.array(saved_logwt) - logz),
-                       ('logvol', np.array(saved_logvol)),
-                       ('logl', np.array(saved_logl))])
-
-    return results
+    return sampler

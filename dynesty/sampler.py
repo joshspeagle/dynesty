@@ -16,50 +16,9 @@ import scipy.misc as misc
 
 import numpy as np
 
-__all__ = ["Results", "Sampler"]
+from .results import *
 
-
-class Results(dict):
-    """
-    Contains the output of a dynamic nested sampling run.
-
-    Since this class is essentially a subclass of dict with attribute
-    accessors, one can see which attributes are available using the
-    `keys()` method.
-
-    """
-
-    def __getattr__(self, name):
-        try:
-            return self[name]
-        except KeyError:
-            raise AttributeError(name)
-
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
-
-    def __repr__(self):
-        if self.keys():
-            m = max(map(len, list(self.keys()))) + 1
-            return '\n'.join([k.rjust(m) + ': ' + repr(v)
-                              for k, v in self.items()])
-        else:
-            return self.__class__.__name__ + "()"
-
-    def summary(self):
-        """Return a formatted string giving a quick summary
-        of the results."""
-
-        return ("nlive: {:d}\n"
-                "niter: {:d}\n"
-                "ncall: {:d}\n"
-                "eff(%): {:6.3f}\n"
-                "nsamples: {:d}\n"
-                "logz: {:6.3f} +/- {:6.3f}\n"
-                "h: {:6.3f}"
-                .format(self.nlive, self.niter, self.ncall, self.eff,
-                        len(self.samples), self.logz, self.logzerr,
-                        self.h))
+__all__ = ["Sampler"]
 
 
 class Sampler(object):
@@ -144,6 +103,7 @@ class Sampler(object):
         self.saved_logvol = []  # expected log(volume)
         self.saved_logwt = []  # log(weights)
         self.saved_logz = []  # cumulative log(evidence)
+        self.saved_logzerr = []  # cumulative error on log(evidence)
         self.saved_h = []  # cumulative information
 
     def check_unit_cube(self, point):
@@ -195,23 +155,103 @@ class Sampler(object):
 
         return u, v, logl, ncall
 
-    def get_results(self):
+    def _add_live_points(self):
+        """Add the remaining set of live points to the current set of dead
+        points to avoid wasting samples."""
 
+        # After N samples have been taken out, the remaining volume is
+        # `e^(-N / nlive)`. The remaining points are distributed uniformly
+        # within the remaining volume so that the expected volume enclosed
+        # by the `i`-th worst likelihood is
+        # `e^(-N / nlive) * (nlive + 1 - i) / (nlive + 1)`.
+        logvols = self.saved_logvol[-1]
+        logvols += np.log(1. - (np.arange(self.nlive)+1.) / (self.nlive+1.))
+        logvols_pad = np.concatenate(([self.saved_logvol[-1]], logvols,
+                                      [-1.e300]))
+        logdvols = misc.logsumexp(a=np.c_[logvols_pad[:-2], logvols_pad[2:]],
+                                  axis=1, b=np.c_[np.ones(self.nlive),
+                                                  -np.ones(self.nlive)])
+
+        logdvols += math.log(0.5)
+
+        # Add contributions from the remaining live points in order
+        # from the lowest to the highest loglikelihoods.
+        lsort_idx = np.argsort(self.live_logl)
         logz, h = self.saved_logz[-1], self.saved_h[-1]
-        logzerr = math.sqrt(h / self.nlive)
+        for i in xrange(self.nlive):
+            idx = lsort_idx[i]
+            logvol, logdvol = logvols[i], logdvols[i]
+            ustar, vstar = self.live_u[idx], self.live_v[idx]
+            loglstar = self.live_logl[idx]
+            logwt = loglstar + logdvol
+            logz_new = np.logaddexp(logz, logwt)
+            h = (math.exp(logwt - logz_new) * loglstar +
+                 math.exp(logz - logz_new) * (h + logz) -
+                 logz_new)
+            logz = logz_new
+            self.saved_id.append(idx)
+            self.saved_u.append(np.array(ustar))
+            self.saved_v.append(np.array(vstar))
+            self.saved_logl.append(loglstar)
+            self.saved_logvol.append(logvol)
+            self.saved_logwt.append(logwt)
+            self.saved_logz.append(logz)
+            self.saved_logzerr.append(math.sqrt(h / self.nlive))
+            self.saved_h.append(h)
+
+    def get_results(self):
+        """Returns a summary of the results along with the full
+        evolution of the run."""
 
         results = Results([('nlive', self.nlive),
                            ('niter', self.it),
                            ('ncall', self.ncall),
                            ('eff', self.eff),
-                           ('logz', logz),
-                           ('logzerr', logzerr),
-                           ('h', h),
                            ('samples', np.array(self.saved_v)),
+                           ('samples_id', np.array(self.saved_id)),
+                           ('samples_u', np.array(self.saved_u)),
                            ('logwt', np.array(self.saved_logwt)),
-                           ('logl', np.array(self.saved_logl))])
+                           ('logl', np.array(self.saved_logl)),
+                           ('logvol', np.array(self.saved_logvol)),
+                           ('logz', np.array(self.saved_logz)),
+                           ('logzerr', np.array(self.saved_logzerr)),
+                           ('h', np.array(self.saved_h))])
 
         return results
+
+    def reset(self):
+        """Re-initialize the sampler."""
+
+        # live points
+        self.live_u = self.rstate.rand(self.nlive, self.npdim)
+        for i in range(self.nlive):
+            self.live_v[i, :] = self.prior_transform(self.live_u[i, :])
+        self.live_logl = np.fromiter(self.pool.map(self.loglikelihood,
+                                     self.live_v), dtype=np.float64)
+
+        # parallelism
+        self.queue = []
+        self.nqueue = 0
+        self.submitted = 0
+        self.cancelled = 0
+        self.unused = 0
+        self.used = 0
+
+        # sampling
+        self.it = 1
+        self.since_update = 0
+        self.ncall = self.nlive
+
+        # results
+        self.saved_id = []
+        self.saved_u = []
+        self.saved_v = []
+        self.saved_logl = []
+        self.saved_logvol = []
+        self.saved_logwt = []
+        self.saved_logz = []
+        self.saved_logzerr = []
+        self.saved_h = []
 
     def sample(self, maxiter=None, maxcall=None, dlogz=None,
                decline_factor=None):
@@ -275,7 +315,8 @@ class Sampler(object):
             self.update(pointvol)
             self.since_update = 0
         else:
-            # Remove final addition of leftover live points.
+            # Remove addition of leftover live points from previous run since
+            # we'll be using them now.
             del self.saved_id[-self.nlive:]
             del self.saved_u[-self.nlive:]
             del self.saved_v[-self.nlive:]
@@ -283,6 +324,7 @@ class Sampler(object):
             del self.saved_logvol[-self.nlive:]
             del self.saved_logwt[-self.nlive:]
             del self.saved_logz[-self.nlive:]
+            del self.saved_logzerr[-self.nlive:]
             del self.saved_h[-self.nlive:]
 
             # Grab last dead point.
@@ -340,6 +382,7 @@ class Sampler(object):
                  logz_new)
             logz = logz_new
             self.saved_logz.append(logz)
+            self.saved_logzerr.append(math.sqrt(h / self.nlive))
             self.saved_h.append(h)
 
             # Update the live point (previously our "worst" point).
@@ -378,43 +421,11 @@ class Sampler(object):
             it += 1  # increment current number of iterations
             self.it += 1  # increment total number of iterations
 
-        # Add remaining live points to our set of dead points.
-        # After N samples have been taken out, the remaining volume is
-        # `e^(-N / nlive)`. The remaining points are distributed uniformly
-        # within the remaining volume so that the expected volume enclosed
-        # by the `i`-th worst likelihood is
-        # `e^(-N / nlive) * (nlive + 1 - i) / (nlive + 1)`.
-        logvols = -(self.it - 1.) / self.nlive
-        logvols += np.log(1. - (np.arange(self.nlive)+1.) / (self.nlive+1.))
-        logvols_pad = np.concatenate(([-(self.it - 1.) / self.nlive],
-                                      logvols, [-1e300]))
-        logdvols = misc.logsumexp(a=np.c_[logvols_pad[:-2], logvols_pad[2:]],
-                                  axis=1, b=np.c_[np.ones(self.nlive),
-                                                  -np.ones(self.nlive)])
-
-        logdvols += math.log(0.5)
-        for i in xrange(self.nlive):
-            logvol, logdvol = logvols[i], logdvols[i]
-            ustar, vstar = self.live_u[i], self.live_v[i]
-            loglstar = self.live_logl[i]
-            logwt = loglstar + logdvol
-            logz_new = np.logaddexp(logz, logwt)
-            h = (math.exp(logwt - logz_new) * loglstar +
-                 math.exp(logz - logz_new) * (h + logz) -
-                 logz_new)
-            logz = logz_new
-            self.saved_id.append(i)
-            self.saved_u.append(np.array(ustar))
-            self.saved_v.append(np.array(vstar))
-            self.saved_logl.append(loglstar)
-            self.saved_logvol.append(logvol)
-            self.saved_logwt.append(logwt)
-            self.saved_logz.append(logz)
-            self.saved_h.append(h)
+        # Add remaining live points to samples.
+        self._add_live_points()
 
         # h should always be nonnegative (we take the sqrt below).
-        # Numerical error makes it negative in pathological corner cases
-        # such as flat likelihoods. Here we correct those cases to zero.
+        # Numerical error can makes it negative in pathological corner cases.
         if h < 0.0:
             if h > -SQRTEPS:
                 h = 0.0

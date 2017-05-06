@@ -11,7 +11,6 @@ from __future__ import (print_function, division)
 import sys
 import warnings
 import math
-
 import numpy as np
 
 __all__ = ["Results"]

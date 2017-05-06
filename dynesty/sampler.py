@@ -13,7 +13,6 @@ import sys
 import warnings
 import math
 import scipy.misc as misc
-
 import numpy as np
 
 from .results import *

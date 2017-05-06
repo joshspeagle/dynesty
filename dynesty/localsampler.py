@@ -14,7 +14,6 @@ from __future__ import (print_function, division)
 import sys
 import warnings
 import math
-
 import numpy as np
 
 from .sampler import *

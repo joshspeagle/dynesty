@@ -104,6 +104,7 @@ class Sampler(object):
         self.saved_logz = []  # cumulative log(evidence)
         self.saved_logzerr = []  # cumulative error on log(evidence)
         self.saved_h = []  # cumulative information
+        self.saved_nc = []  # number of calls at each iteration
 
     def check_unit_cube(self, point):
         """Check whether a point falls within the unit cube."""
@@ -197,6 +198,7 @@ class Sampler(object):
             self.saved_logz.append(logz)
             self.saved_logzerr.append(math.sqrt(h / self.nlive))
             self.saved_h.append(h)
+            self.saved_nc.append(1)
 
     def get_results(self):
         """Returns a summary of the results along with the full
@@ -204,7 +206,7 @@ class Sampler(object):
 
         results = Results([('nlive', self.nlive),
                            ('niter', self.it),
-                           ('ncall', self.ncall),
+                           ('ncall', np.array(self.saved_nc)),
                            ('eff', self.eff),
                            ('samples', np.array(self.saved_v)),
                            ('samples_id', np.array(self.saved_id)),
@@ -251,6 +253,7 @@ class Sampler(object):
         self.saved_logz = []
         self.saved_logzerr = []
         self.saved_h = []
+        self.saved_nc = []
 
     def sample(self, maxiter=None, maxcall=None, dlogz=None,
                decline_factor=None):
@@ -364,6 +367,7 @@ class Sampler(object):
             u, v, logl, nc = self.new_point(loglstar)
             self.ncall += nc
             self.since_update += nc
+            self.saved_nc.append(nc)
 
             # Add the worst live point to samples. It is now a "dead" point.
             self.saved_id.append(worst)

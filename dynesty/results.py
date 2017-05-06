@@ -46,5 +46,5 @@ class Results(dict):
                 "ncall: {:d}\n"
                 "eff(%): {:6.3f}\n"
                 "logz: {:6.3f} +/- {:6.3f}"
-                .format(self.nlive, self.niter, self.ncall, self.eff,
-                        self.logz[-1], self.logzerr[-1]))
+                .format(self.nlive, self.niter, sum(self.ncall),
+                        self.eff, self.logz[-1], self.logzerr[-1]))

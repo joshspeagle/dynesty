@@ -16,8 +16,7 @@ import numpy as np
 import scipy.misc as misc
 
 from .sampler import *
-from .globalsampler import *
-from .localsampler import *
+from .samplers import *
 from .fakepool import *
 
 __all__ = ["NestedSampler"]

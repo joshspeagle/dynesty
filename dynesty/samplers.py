@@ -2,11 +2,13 @@
 # -*- coding: utf-8 -*-
 
 """
-Sampler classes for proposing new live points based on bounding the set of
-live points globally. Includes:
+Sampler classes for proposing new live points. Includes:
 
-SingleEllipsoidSampler : Uses a single ellipsoid to bound the set.
-MultiEllipsoidSampler : Uses multiple ellipsoids to bound the set.
+    SingleEllipsoidSampler: 
+        Uses a single ellipsoid to bound the set pf live points.
+
+    MultiEllipsoidSampler: 
+        Uses multiple ellipsoids to bound the set of live points.
 
 """
 
@@ -84,8 +86,7 @@ class SingleEllipsoidSampler(Sampler):
                              queue_size, pool)
 
     def update(self, pointvol):
-        """Update bounding ellipsoid using the current set of live points.
-        Returns the initial state used to compute the ellipsoid."""
+        """Update bounding ellipsoid using the current set of live points."""
 
         self.empty_queue()
         self.ell = bounding_ellipsoid(self.live_u, pointvol=pointvol)
@@ -178,8 +179,7 @@ class MultiEllipsoidSampler(Sampler):
                              queue_size, pool)
 
     def update(self, pointvol):
-        """Update bounding ellipsoids using the current set of live points.
-        Returns the initial state used to compute the ellipsoids."""
+        """Update bounding ellipsoids using the current set of live points."""
 
         self.empty_queue()
         self.mell = bounding_ellipsoids(self.live_u, pointvol=pointvol,

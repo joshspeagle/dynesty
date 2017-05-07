@@ -70,9 +70,9 @@ def mean_and_cov(samples, weights):
 
     """
 
-    mean = np.average(x, weights=weights, axis=0)
+    mean = np.average(samples, weights=weights, axis=0)
 
-    dx = x - mean
+    dx = samples - mean
     wsum = np.sum(weights)
     w2sum = np.sum(weights**2)
 

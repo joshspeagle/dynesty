@@ -16,6 +16,7 @@ import sys
 import warnings
 import math
 import numpy as np
+import copy
 
 from .sampler import *
 from .ellipsoid import *
@@ -83,13 +84,19 @@ class SingleEllipsoidSampler(Sampler):
                              queue_size, pool)
 
     def update(self, pointvol):
-        """Update bounding ellipsoid using the current set of live points."""
+        """Update bounding ellipsoid using the current set of live points.
+        Returns the initial state used to compute the ellipsoid."""
+
         self.empty_queue()
         self.ell = bounding_ellipsoid(self.live_u, pointvol=pointvol)
         self.ell.scale_to_vol(self.ell.vol * self.enlarge)
         self.fill_queue()
 
+        return copy.deepcopy(self.ell)
+
     def propose_point(self):
+        """Propose a new live point."""
+
         while True:
             u = self.ell.sample(rstate=self.rstate)
             if self.check_unit_cube(u):
@@ -171,6 +178,9 @@ class MultiEllipsoidSampler(Sampler):
                              queue_size, pool)
 
     def update(self, pointvol):
+        """Update bounding ellipsoids using the current set of live points.
+        Returns the initial state used to compute the ellipsoids."""
+
         self.empty_queue()
         self.mell = bounding_ellipsoids(self.live_u, pointvol=pointvol,
                                         vol_dec=self.vol_dec,
@@ -178,7 +188,11 @@ class MultiEllipsoidSampler(Sampler):
         self.mell.scale_to_vols(self.mell.vols * self.enlarge)
         self.fill_queue()
 
+        return copy.deepcopy(self.mell)
+
     def propose_point(self):
+        """Propose a new live point."""
+
         while True:
             u, q = self.mell.sample(rstate=self.rstate, return_q=True)
             if self.check_unit_cube(u):

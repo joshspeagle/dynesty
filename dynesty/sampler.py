@@ -93,6 +93,8 @@ class Sampler(object):
         self.since_update = 0
         self.ncall = self.nlive
         self.dlv = 1. / self.nlive  # expected logvol shrinkage/iteration
+        self.prop = []  # initial states used to compute proposals
+        self.prop_iter = []  # iteration when proposal was computed
 
         # results
         self.saved_id = []  # live point labels
@@ -154,6 +156,14 @@ class Sampler(object):
                 break
 
         return u, v, logl, ncall
+
+    def get_proposal(self, it):
+        """Given the iteration, returns the proposal distribution."""
+
+        prop_iter = np.array(self.prop_iter)
+        idx = np.arange(len(prop_iter))[it >= prop_iter][-1]
+
+        return self.prop[idx]
 
     def _add_live_points(self):
         """Add the remaining set of live points to the current set of dead
@@ -242,6 +252,8 @@ class Sampler(object):
         self.it = 1
         self.since_update = 0
         self.ncall = self.nlive
+        self.prop = []
+        self.prop_iter = []
 
         # results
         self.saved_id = []
@@ -314,7 +326,8 @@ class Sampler(object):
 
             # Initialize proposal distribution.
             pointvol = 1. / self.nlive
-            self.update(pointvol)
+            self.prop.append(self.update(pointvol))
+            self.prop_iter.append(self.it)
             self.since_update = 0
         else:
             # Remove addition of leftover live points from previous run since
@@ -345,7 +358,8 @@ class Sampler(object):
             if self.since_update >= self.update_interval:
                 expected_vol = math.exp(-self.it / self.nlive)
                 pointvol = expected_vol / self.nlive
-                self.update(pointvol)
+                self.prop.append(self.update(pointvol))
+                self.prop_iter.append(self.it)
                 self.since_update = 0
 
             # Locate the "live" point with the lowest `logl`.

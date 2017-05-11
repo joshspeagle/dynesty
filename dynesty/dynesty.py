@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-dynesty: using dynamic nested sampling routines
-to evaluate Bayesian evidence and posteriors.
+dynesty: Bayesian evidence and posteriors using dynamic nested sampling
 
 """
 
@@ -21,15 +20,18 @@ from .fakepool import *
 
 __all__ = ["NestedSampler"]
 
-_SAMPLERS = {'single_ell': SingleEllipsoidSampler,
-             'multi_ell': MultiEllipsoidSampler}
+_SAMPLERS = {'none': None,  # UNITCUBESAMPLER
+             'single': SingleEllipsoidSampler,
+             'multi': MultiEllipsoidSampler}
+_SAMPLING = ['uniform', 'randomwalk', 'slice', 'randomtrajectory']
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
 def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
-                  method='multi', update_interval=None, npdim=None,
-                  rstate=None, queue_size=1, pool=None, **kwargs):
+                  bound='multi', sample='uniform', update_interval=None,
+                  npdim=None, rstate=None, queue_size=1, pool=None,
+                  **kwargs):
     """
     Initializes and returns a chosen sampler that will perform nested sampling
     to evaluate Bayesian evidence and posteriors.
@@ -60,10 +62,20 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
         sampled posterior (more accurate evidence), but also a larger
         number of iterations required to converge. Default is *100*.
 
-    method : {'single_ell', 'multi_ell'}, optional
-        Method used to select new points. Choices are single-ellipsoidal
-        ('single_ell') and multi-ellipsoidal ('multi_ell').
-        Default is 'multi_ell'.
+    bound : {'none', 'single', 'multi'}, optional
+        Method used to approximately bound the prior using the current
+        set of live points. Used to condition sampling methods used to
+        propose new live points. Choices are no bound ('none'), a single
+        bounding ellipsoid ('single'), and multiple bounding ellipsoids
+        ('multi'). Default is 'multi'.
+
+    sample : {'uniform', 'randomwalk', 'slice', 'randomtrajectory'}, optional
+        Method used to sample uniformly within the likelihood constraint,
+        conditioned on the provided bounds. Choices are uniform sampling
+        ('uniform'), random walking away from a current live point
+        ('randomwalk'), repeated slice sampling away from a current live
+        point ('slice'), and initializing a random trajectory away from a
+        current live point ('randomtrajectory').
 
     update_interval : int, optional
         Only update the proposal distribution every `update_interval`-th
@@ -123,8 +135,11 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
     if npdim is None:
         npdim = ndim
 
-    if method not in _SAMPLERS:
-        raise ValueError("Unknown method: '{:r}'".format(method))
+    if bound not in _SAMPLERS:
+        raise ValueError("Unknown bounding method: '{:r}'".format(method))
+
+    if sample not in _SAMPLING:
+        raise ValueError("Unknown sampling method: '{:r}'".format(sample))
 
     if nlive < 2 * ndim:
         warnings.warn("You really want to make `nlive >= 2 * ndim`!")
@@ -156,8 +171,8 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
     live_points = [live_u, live_v, live_logl]
 
     # Initialize our sampler.
-    sampler = _SAMPLERS[method](loglikelihood, prior_transform, npdim,
-                                live_points, update_interval, rstate,
-                                queue_size, pool, kwargs)
+    sampler = _SAMPLERS[bound](loglikelihood, prior_transform, npdim,
+                               live_points, sample, update_interval,
+                               rstate, queue_size, pool, kwargs)
 
     return sampler

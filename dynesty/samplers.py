@@ -53,6 +53,9 @@ class SingleEllipsoidSampler(Sampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
+    method : {'uniform', 'randomwalk', 'slice', 'randomtrajectory'}
+        A chosen method for sampling conditioned on the single ellipsoid.
+
     update_interval : int
         Only update the proposal distribution every `update_interval`-th
         likelihood call.
@@ -80,7 +83,13 @@ class SingleEllipsoidSampler(Sampler):
     """
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
-                 update_interval, rstate, queue_size, pool, kwargs={}):
+                 method, update_interval, rstate, queue_size, pool,
+                 kwargs={}):
+        self._SAMPLE = {'uniform': self.propose_unif,
+                        'randomwalk': self.propose_rwalk,
+                        'slice': self.propose_slice,
+                        'randomtrajectory': self.propose_rtraj}
+        self._sample = self._SAMPLE[method]
         self.kwargs = kwargs
         self.enlarge = kwargs.get('enlarge', 1.2)
         super(SingleEllipsoidSampler,
@@ -95,17 +104,43 @@ class SingleEllipsoidSampler(Sampler):
         self._empty_queue()
         self.ell.update(self.live_u, pointvol=pointvol)
         self.ell.scale_to_vol(self.ell.vol * self.enlarge)
-        self._fill_queue()
 
         return copy.deepcopy(self.ell)
 
-    def propose_point(self):
-        """Propose a new live point."""
+    def propose_unif(self, loglstar):
+        """Propose a new live point by sampling *uniformly*
+        the ellipsoid."""
 
         while True:
             u = self.ell.sample(rstate=self.rstate)
             if self._check_unit_cube(u):
                 break
+
+        return u
+
+    def propose_rwalk(self, loglstar):
+        """Propose a new live point by starting a *random walk* away
+        from an existing live point within the likelihood constraint."""
+
+        return None
+
+    def propose_slice(self, loglstar):
+        """Propose a new live point using *slice sampling* starting
+        from an existing live point subject to the likelihood constraint."""
+
+        return None
+
+    def propose_rtraj(self, loglstar):
+        """Propose a new live point by initializing a *random trajectory*
+        away from an existing live point whose path remains within the
+        likelihood constraint."""
+
+        return None
+
+    def propose_point(self, loglstar):
+        """Propose a new live point."""
+
+        u = self._sample(loglstar)
         v = self.prior_transform(u)
         logl = self.loglikelihood(v)
 
@@ -135,6 +170,10 @@ class MultiEllipsoidSampler(Sampler):
         Initial set of "live" points. Contains `live_u`, the coordinates
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
+
+    method : {'uniform', 'randomwalk', 'slice', 'randomtrajectory'}
+        A chosen method for sampling conditioned on the collection of
+        ellipsoids.
 
     update_interval : int
         Only update the proposal distribution every `update_interval`-th
@@ -172,7 +211,13 @@ class MultiEllipsoidSampler(Sampler):
     """
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
-                 update_interval, rstate, queue_size, pool, kwargs={}):
+                 method, update_interval, rstate, queue_size, pool,
+                 kwargs={}):
+        self._SAMPLE = {'uniform': self.propose_unif,
+                        'randomwalk': self.propose_rwalk,
+                        'slice': self.propose_slice,
+                        'randomtrajectory': self.propose_rtraj}
+        self._sample = self._SAMPLE[method]
         self.kwargs = kwargs
         self.enlarge = kwargs.get('enlarge', 1.2)
         self.vol_dec = kwargs.get('vol_dec', 0.5)
@@ -191,12 +236,12 @@ class MultiEllipsoidSampler(Sampler):
         self.mell.update(self.live_u, pointvol=pointvol,
                          vol_dec=self.vol_dec, vol_check=self.vol_check)
         self.mell.scale_to_vols(self.mell.vols * self.enlarge)
-        self._fill_queue()
 
         return copy.deepcopy(self.mell)
 
-    def propose_point(self):
-        """Propose a new live point."""
+    def propose_unif(self, loglstar):
+        """Propose a new live point by sampling *uniformly*
+        the ellipsoid."""
 
         while True:
             u, q = self.mell.sample(rstate=self.rstate, return_q=True)
@@ -205,6 +250,32 @@ class MultiEllipsoidSampler(Sampler):
                 # overlapping ellipsoids.
                 if q == 1 or self.rstate.rand() < 1.0 / q:
                     break
+
+        return u
+
+    def propose_rwalk(self, loglstar):
+        """Propose a new live point by starting a *random walk* away
+        from an existing live point within the likelihood constraint."""
+
+        return None
+
+    def propose_slice(self, loglstar):
+        """Propose a new live point using *slice sampling* starting
+        from an existing live point subject to the likelihood constraint."""
+
+        return None
+
+    def propose_rtraj(self, loglstar):
+        """Propose a new live point by initializing a *random trajectory*
+        away from an existing live point whose path remains within the
+        likelihood constraint."""
+
+        return None
+
+    def propose_point(self, loglstar):
+        """Propose a new live point."""
+
+        u = self._sample(loglstar)
         v = self.prior_transform(u)
         logl = self.loglikelihood(v)
 

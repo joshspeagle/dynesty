@@ -141,6 +141,20 @@ class Sampler(object):
 
         return np.all(point > 0.) and np.all(point < 1.)
 
+    def _check_h(self, h):
+        """Check whether the information is non-negative
+        to numerical precision. Numerical error can make it negative in
+        pathological corner cases."""
+
+        if h < 0.0:
+            if h > -SQRTEPS:
+                h = 0.0
+            else:
+                raise RuntimeError("Negative h encountered (h={}). Please "
+                                   "report this as a likely bug.".format(h))
+
+        return h
+
     def _empty_queue(self):
         """Dump all live point proposals currently on the queue."""
 
@@ -152,22 +166,22 @@ class Sampler(object):
                 self.unused += 1
             self.nqueue -= 1
 
-    def _fill_queue(self):
+    def _fill_queue(self, loglstar):
         """Sequentially add new live point proposals to the queue."""
 
         while self.nqueue < self.queue_size:
-            self.queue.append(self.pool.submit(self.propose_point))
+            self.queue.append(self.pool.submit(self.propose_point, loglstar))
             self.nqueue += 1
             self.submitted += 1
 
-    def _get_point_value(self):
+    def _get_point_value(self, loglstar):
         """Get a live point proposal sequentially from the filled queue.
         Afterwards, refill the queue."""
 
+        self._fill_queue(loglstar)
         f = self.queue.pop(0)
         self.nqueue -= 1
         u, v, logl = f.result()
-        self._fill_queue()
         self.used += 1
 
         return u, v, logl
@@ -178,7 +192,7 @@ class Sampler(object):
 
         ncall = 0
         while True:
-            u, v, logl = self._get_point_value()
+            u, v, logl = self._get_point_value(loglstar)
             ncall += 1
             if logl >= loglstar:
                 break
@@ -219,6 +233,7 @@ class Sampler(object):
                  math.exp(logz - logz_new) * (h + logz) -
                  logz_new)
             logz = logz_new
+            logzerr = math.sqrt(h / self.nlive)
             self.saved_id.append(idx)
             self.saved_u.append(np.array(ustar))
             self.saved_v.append(np.array(vstar))
@@ -226,7 +241,7 @@ class Sampler(object):
             self.saved_logvol.append(logvol)
             self.saved_logwt.append(logwt)
             self.saved_logz.append(logz)
-            self.saved_logzerr.append(math.sqrt(h / self.nlive))
+            self.saved_logzerr.append(logzerr)
             self.saved_h.append(h)
             self.saved_nc.append(1)
 
@@ -267,8 +282,7 @@ class Sampler(object):
         self.saved_h = []
         self.saved_nc = []
 
-    def sample(self, maxiter=None, maxcall=None, dlogz=None,
-               decline_factor=None):
+    def sample(self, maxiter=None, maxcall=None, dlogz=None):
         """
         The main nested sampling loop. Sample an additional number of live
         points based on the current collection of live points until the
@@ -290,16 +304,7 @@ class Sampler(object):
             this threshold. Explicitly, the stopping criterion is
             `log(z + z_est) - log(z) < dlogz`, where `z` is the current
             evidence from all saved samples and `z_est` is the estimated
-            contribution from the remaining volume. This option and
-            decline_factor are mutually exclusive. Default is *0.5*.
-
-        decline_factor : float, optional
-            If supplied, iteration will stop when the sample weights
-            (likelihood times prior volume) of newly saved samples has been
-            declining for `decline_factor * nsamples` consecutive samples.
-            A value of *1.0* works well for most cases. This option and
-            `dlogz` are mutually exclusive. If not specified, the default
-            `dlogz` criterion is used.
+            contribution from the remaining volume. Default is *0.5*.
 
         """
 
@@ -310,10 +315,7 @@ class Sampler(object):
         if maxcall is None:
             maxcall = sys.maxsize
 
-        if dlogz is not None and decline_factor is not None:
-            raise ValueError("Cannot specify two separate stopping criteria: "
-                             "decline_factor and dlogz")
-        elif dlogz is None and decline_factor is None:
+        if dlogz is None:
             dlogz = 0.5
 
         # Check whether we're starting fresh or continuing a previous run.
@@ -322,7 +324,6 @@ class Sampler(object):
             h = 0.0  # Information, initially *0.*
             logz = -1.e300  # log(evidence), initially *0.*
             logvol = 0.  # initially contains the whole prior (volume=1.)
-            logwt_old = -np.inf  # initially weight = 0.
 
             # Initialize proposal distribution.
             pointvol = 1. / self.nlive
@@ -341,17 +342,28 @@ class Sampler(object):
             del self.saved_logz[-self.nlive:]
             del self.saved_logzerr[-self.nlive:]
             del self.saved_h[-self.nlive:]
+            del self.saved_nc[-self.nlive:]
 
             # Grab last dead point.
             h = self.saved_h[-1]  # Information
             logz = self.saved_logz[-1]  # log(evidence)
             logvol = self.saved_logvol[-1]  # log(volume)
-            logwt_old = self.saved_logwt[-1]  # log(weight)
 
         # The main nested sampling loop.
-        ndecl = 0  # previous number of declining weights
-        it = 0  # current iteration
-        while True:
+        ncall = 0  # current number of loglikelihood calls
+        for it in xrange(maxiter):
+
+            # Stopping criterion 1: number of `loglikelihood` calls
+            # exceeds `maxcall`.
+            if ncall > maxcall:
+                break
+
+            # Stopping criterion 2: estimated (fractional) remaining evidence
+            # lies below some threshold set by `dlogz`.
+            if dlogz is not None:
+                logz_remain = np.max(self.live_logl) - self.it / self.nlive
+                if np.logaddexp(logz, logz_remain) - logz < dlogz:
+                    break
 
             # After `update_interval` interations have passed,
             # update the sampler using the current set of live points.
@@ -379,6 +391,7 @@ class Sampler(object):
             # `logl > loglstar` using the proposal distribution
             # from our sampler.
             u, v, logl, nc = self._new_point(loglstar)
+            ncall += nc
             self.ncall += nc
             self.since_update += nc
             self.saved_nc.append(nc)
@@ -397,9 +410,11 @@ class Sampler(object):
             h = (math.exp(logwt - logz_new) * loglstar +
                  math.exp(logz - logz_new) * (h + logz) -
                  logz_new)
+            h = self._check_h(h)
             logz = logz_new
+            logzerr = math.sqrt(h / self.nlive)
             self.saved_logz.append(logz)
-            self.saved_logzerr.append(math.sqrt(h / self.nlive))
+            self.saved_logzerr.append(logzerr)
             self.saved_h.append(h)
 
             # Update the live point (previously our "worst" point).
@@ -407,48 +422,10 @@ class Sampler(object):
             self.live_v[worst] = v
             self.live_logl[worst] = logl
 
-            # Stopping criterion 1: estimated (fractional) remaining evidence
-            # lies below some threshold set by `dlogz`.
-            if dlogz is not None:
-                logz_remain = np.max(self.live_logl) - self.it / self.nlive
-                if np.logaddexp(logz, logz_remain) - logz < dlogz:
-                    break
-
-            # Stopping criterion 2: `logwt` has been declining for longer
-            # than `decline_factor`.
-            if decline_factor is not None:
-                if logwt < logwt_old:
-                    ndecl += 1
-                else:
-                    ndecl = 0
-                logwt_old = logwt
-                if ndecl > decline_factor * self.nlive:
-                    break
-
-            # Stopping criterion 3: number of `loglikelihood` calls
-            # exceeds `maxcall`.
-            if self.ncall > maxcall:
-                break
-
-            # Stopping criterion 4: number of iterations exceeds
-            # `maxiter`.
-            if it >= maxiter:
-                break
-
-            it += 1  # increment current number of iterations
             self.it += 1  # increment total number of iterations
 
         # Add remaining live points to samples.
         self._add_live_points()
-
-        # h should always be nonnegative (we take the sqrt below).
-        # Numerical error can makes it negative in pathological corner cases.
-        if h < 0.0:
-            if h > -SQRTEPS:
-                h = 0.0
-            else:
-                raise RuntimeError("Negative h encountered (h={}). Please "
-                                   "report this as a likely bug.".format(h))
 
         # Compute our sampling efficiency.
         self.eff = 100. * self.it / (self.ncall - self.nlive)

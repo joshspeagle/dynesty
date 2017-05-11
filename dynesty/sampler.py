@@ -108,12 +108,40 @@ class Sampler(object):
         self.saved_h = []  # cumulative information
         self.saved_nc = []  # number of calls at each iteration
 
-    def check_unit_cube(self, point):
+    @property
+    def results(self):
+        """The full results from the nested sampling run."""
+
+        results = Results([('nlive', self.nlive),
+                           ('niter', self.it),
+                           ('ncall', np.array(self.saved_nc)),
+                           ('eff', self.eff),
+                           ('samples', np.array(self.saved_v)),
+                           ('samples_id', np.array(self.saved_id)),
+                           ('samples_u', np.array(self.saved_u)),
+                           ('logwt', np.array(self.saved_logwt)),
+                           ('logl', np.array(self.saved_logl)),
+                           ('logvol', np.array(self.saved_logvol)),
+                           ('logz', np.array(self.saved_logz)),
+                           ('logzerr', np.array(self.saved_logzerr)),
+                           ('h', np.array(self.saved_h))])
+
+        return results
+
+    def get_proposal(self, it):
+        """Given the iteration, returns the proposal distribution."""
+
+        prop_iter = np.array(self.prop_iter)
+        idx = np.arange(len(prop_iter))[it >= prop_iter][-1]
+
+        return self.prop[idx]
+
+    def _check_unit_cube(self, point):
         """Check whether a point falls within the unit cube."""
 
         return np.all(point > 0.) and np.all(point < 1.)
 
-    def empty_queue(self):
+    def _empty_queue(self):
         """Dump all live point proposals currently on the queue."""
 
         while self.nqueue > 0:
@@ -124,7 +152,7 @@ class Sampler(object):
                 self.unused += 1
             self.nqueue -= 1
 
-    def fill_queue(self):
+    def _fill_queue(self):
         """Sequentially add new live point proposals to the queue."""
 
         while self.nqueue < self.queue_size:
@@ -132,38 +160,30 @@ class Sampler(object):
             self.nqueue += 1
             self.submitted += 1
 
-    def get_point_value(self):
+    def _get_point_value(self):
         """Get a live point proposal sequentially from the filled queue.
         Afterwards, refill the queue."""
 
         f = self.queue.pop(0)
         self.nqueue -= 1
         u, v, logl = f.result()
-        self.fill_queue()
+        self._fill_queue()
         self.used += 1
 
         return u, v, logl
 
-    def new_point(self, loglstar):
+    def _new_point(self, loglstar):
         """Propose points until a new point that satisfies the likelihood
         constraint is found."""
 
         ncall = 0
         while True:
-            u, v, logl = self.get_point_value()
+            u, v, logl = self._get_point_value()
             ncall += 1
             if logl >= loglstar:
                 break
 
         return u, v, logl, ncall
-
-    def get_proposal(self, it):
-        """Given the iteration, returns the proposal distribution."""
-
-        prop_iter = np.array(self.prop_iter)
-        idx = np.arange(len(prop_iter))[it >= prop_iter][-1]
-
-        return self.prop[idx]
 
     def _add_live_points(self):
         """Add the remaining set of live points to the current set of dead
@@ -209,26 +229,6 @@ class Sampler(object):
             self.saved_logzerr.append(math.sqrt(h / self.nlive))
             self.saved_h.append(h)
             self.saved_nc.append(1)
-
-    def get_results(self):
-        """Returns a summary of the results along with the full
-        evolution of the run."""
-
-        results = Results([('nlive', self.nlive),
-                           ('niter', self.it),
-                           ('ncall', np.array(self.saved_nc)),
-                           ('eff', self.eff),
-                           ('samples', np.array(self.saved_v)),
-                           ('samples_id', np.array(self.saved_id)),
-                           ('samples_u', np.array(self.saved_u)),
-                           ('logwt', np.array(self.saved_logwt)),
-                           ('logl', np.array(self.saved_logl)),
-                           ('logvol', np.array(self.saved_logvol)),
-                           ('logz', np.array(self.saved_logz)),
-                           ('logzerr', np.array(self.saved_logzerr)),
-                           ('h', np.array(self.saved_h))])
-
-        return results
 
     def reset(self):
         """Re-initialize the sampler."""
@@ -378,7 +378,7 @@ class Sampler(object):
             # Sample a new live point from within the likelihood constraint
             # `logl > loglstar` using the proposal distribution
             # from our sampler.
-            u, v, logl, nc = self.new_point(loglstar)
+            u, v, logl, nc = self._new_point(loglstar)
             self.ncall += nc
             self.since_update += nc
             self.saved_nc.append(nc)

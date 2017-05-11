@@ -19,7 +19,7 @@ def prior_transform(self, unit_coords, priors, prior_args=[]):
 
     :param priors:
         A list of `Prior` objects, iterable of same length as `unit_coords`.
-    
+
     :param prior_args: (optional)
         A list of dictionaries of prior function keyword arguments.
 
@@ -37,7 +37,7 @@ def prior_transform(self, unit_coords, priors, prior_args=[]):
         theta.append(func(u, **kwargs))
     return theta
 
-    
+
 class Prior(object):
     """Encapsulate the priors in an object.  Each prior should have a
     distribution name and optional parameters specifying scale and location
@@ -56,7 +56,7 @@ class Prior(object):
         :param parnames:
             A list of names of the parameters, used to alias the intrinsic
             parameter names.  This way different instances of the same Prior
-            can have different parameter names, in case they are being fit for....
+            can have different parameter names in case they are being fit for.
         """
         if len(parnames) == 0:
             parnames = self.prior_params
@@ -216,7 +216,7 @@ class Normal(Prior):
                 self.params['mean'] + self.params['sigma'])
 
     def bounds(self, **kwargs):
-        #if len(kwargs) > 0:
+        # if len(kwargs) > 0:
         #    self.update(**kwargs)
         return (-np.inf, np.inf)
 
@@ -299,7 +299,7 @@ class Beta(Prior):
 
     @property
     def range(self):
-        return (self.params.get('mini',0), self.params.get('maxi',1))
+        return (self.params.get('mini', 0), self.params.get('maxi', 1))
 
     def bounds(self, **kwargs):
         if len(kwargs) > 0:

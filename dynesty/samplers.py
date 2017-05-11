@@ -4,10 +4,13 @@
 """
 Sampler classes for proposing new live points. Includes:
 
-    SingleEllipsoidSampler: 
-        Uses a single ellipsoid to bound the set pf live points.
+    UnitCubeSampler:
+        Samples from the unit N-cube with no constraints.
 
-    MultiEllipsoidSampler: 
+    SingleEllipsoidSampler:
+        Uses a single ellipsoid to bound the set of live points.
+
+    MultiEllipsoidSampler:
         Uses multiple ellipsoids to bound the set of live points.
 
 """
@@ -84,14 +87,15 @@ class SingleEllipsoidSampler(Sampler):
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, rstate,
                              queue_size, pool)
+        self.ell = Ellipsoid(np.zeros(self.npdim), np.identity(self.npdim))
 
     def update(self, pointvol):
         """Update bounding ellipsoid using the current set of live points."""
 
-        self.empty_queue()
-        self.ell = bounding_ellipsoid(self.live_u, pointvol=pointvol)
+        self._empty_queue()
+        self.ell.update(self.live_u, pointvol=pointvol)
         self.ell.scale_to_vol(self.ell.vol * self.enlarge)
-        self.fill_queue()
+        self._fill_queue()
 
         return copy.deepcopy(self.ell)
 
@@ -100,7 +104,7 @@ class SingleEllipsoidSampler(Sampler):
 
         while True:
             u = self.ell.sample(rstate=self.rstate)
-            if self.check_unit_cube(u):
+            if self._check_unit_cube(u):
                 break
         v = self.prior_transform(u)
         logl = self.loglikelihood(v)
@@ -177,16 +181,17 @@ class MultiEllipsoidSampler(Sampler):
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, rstate,
                              queue_size, pool)
+        self.mell = MultiEllipsoid(ctrs=[np.zeros(self.npdim)],
+                                   ams=[np.identity(self.npdim)])
 
     def update(self, pointvol):
         """Update bounding ellipsoids using the current set of live points."""
 
-        self.empty_queue()
-        self.mell = bounding_ellipsoids(self.live_u, pointvol=pointvol,
-                                        vol_dec=self.vol_dec,
-                                        vol_check=self.vol_check)
+        self._empty_queue()
+        self.mell.update(self.live_u, pointvol=pointvol,
+                         vol_dec=self.vol_dec, vol_check=self.vol_check)
         self.mell.scale_to_vols(self.mell.vols * self.enlarge)
-        self.fill_queue()
+        self._fill_queue()
 
         return copy.deepcopy(self.mell)
 
@@ -195,7 +200,7 @@ class MultiEllipsoidSampler(Sampler):
 
         while True:
             u, q = self.mell.sample(rstate=self.rstate, return_q=True)
-            if self.check_unit_cube(u):
+            if self._check_unit_cube(u):
                 # Accept the point with probability 1/q to account for
                 # overlapping ellipsoids.
                 if q == 1 or self.rstate.rand() < 1.0 / q:

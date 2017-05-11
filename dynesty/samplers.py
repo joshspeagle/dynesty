@@ -26,13 +26,114 @@ import copy
 from .sampler import *
 from .ellipsoid import *
 
-__all__ = ["SingleEllipsoidSampler", "MultiEllipsoidSampler"]
+__all__ = ["UnitCubeSampler", "SingleEllipsoidSampler",
+           "MultiEllipsoidSampler"]
+
+
+class UnitCubeSampler(Sampler):
+    """
+    Samples with no bounds (i.e. within the entire unit N-cube).
+
+
+    Parameters
+    ----------
+    loglikelihood : function
+        Function returning log(likelihood) given parameters as a 1-d numpy
+        array of length `ndim`.
+
+    prior_transform : function
+        Function translating a unit cube to the parameter space according to
+        the prior.
+
+    npdim : int
+        Number of parameters accepted by prior.
+
+    live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
+        Initial set of "live" points. Contains `live_u`, the coordinates
+        on the unit cube, `live_v`, the transformed variables, and
+        `live_logl`, the associated loglikelihoods.
+
+    method : {'uniform', 'randomwalk', 'slice', 'randomtrajectory'}
+        A chosen method for sampling conditioned on the single ellipsoid.
+
+    update_interval : int
+        Only update the proposal distribution every `update_interval`-th
+        likelihood call.
+
+    rstate : `~numpy.random.RandomState`
+        RandomState instance.
+
+    queue_size: int
+        Carry out likelihood evaluations in parallel by queueing up new live
+        point proposals using at most this many threads. Each thread
+        independently proposes new live points until the proposal distribution
+        is updated.
+
+    pool: ThreadPoolExecutor
+        Use this pool of workers to propose live points in parallel.
+
+    """
+
+    def __init__(self, loglikelihood, prior_transform, npdim, live_points,
+                 method, update_interval, rstate, queue_size, pool,
+                 kwargs={}):
+        self._SAMPLE = {'uniform': self.propose_unif,
+                        'randomwalk': self.propose_rwalk,
+                        'slice': self.propose_slice,
+                        'randomtrajectory': self.propose_rtraj}
+        self._sample = self._SAMPLE[method]
+        self.kwargs = kwargs
+        super(UnitCubeSampler,
+              self).__init__(loglikelihood, prior_transform, npdim,
+                             live_points, update_interval, rstate,
+                             queue_size, pool)
+
+    def update(self, pointvol):
+        """Filler function since bound does not change."""
+
+        return None
+
+    def propose_unif(self, loglstar):
+        """Propose a new live point by sampling *uniformly*
+        the unit cube."""
+
+        u = self.rstate.rand(self.npdim)
+
+        return u
+
+    def propose_rwalk(self, loglstar):
+        """Propose a new live point by starting a *random walk* away
+        from an existing live point within the likelihood constraint."""
+
+        return None
+
+    def propose_slice(self, loglstar):
+        """Propose a new live point using *slice sampling* starting
+        from an existing live point subject to the likelihood constraint."""
+
+        return None
+
+    def propose_rtraj(self, loglstar):
+        """Propose a new live point by initializing a *random trajectory*
+        away from an existing live point whose path remains within the
+        likelihood constraint."""
+
+        return None
+
+    def propose_point(self, loglstar):
+        """Propose a new live point."""
+
+        u = self._sample(loglstar)
+        v = self.prior_transform(u)
+        logl = self.loglikelihood(v)
+
+        return u, v, logl
 
 
 class SingleEllipsoidSampler(Sampler):
     """
-    Bounds live points in a single ellipsoid and samples uniformly
-    from within that ellipsoid.
+    Bounds live points in a single ellipsoid and samples conditioned
+    on the ellipsoid.
 
 
     Parameters
@@ -149,8 +250,8 @@ class SingleEllipsoidSampler(Sampler):
 
 class MultiEllipsoidSampler(Sampler):
     """
-    Bounds live points in multiple ellipsoids and samples uniformly
-    from within their union.
+    Bounds live points in multiple ellipsoids and samples conditioned
+    on their union.
 
 
     Parameters

@@ -20,7 +20,7 @@ from .fakepool import *
 
 __all__ = ["NestedSampler"]
 
-_SAMPLERS = {'none': None,  # UNITCUBESAMPLER
+_SAMPLERS = {'none': UnitCubeSampler,
              'single': SingleEllipsoidSampler,
              'multi': MultiEllipsoidSampler}
 _SAMPLING = ['uniform', 'randomwalk', 'slice', 'randomtrajectory']
@@ -136,7 +136,7 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
         npdim = ndim
 
     if bound not in _SAMPLERS:
-        raise ValueError("Unknown bounding method: '{:r}'".format(method))
+        raise ValueError("Unknown bounding method: '{:r}'".format(bound))
 
     if sample not in _SAMPLING:
         raise ValueError("Unknown sampling method: '{:r}'".format(sample))

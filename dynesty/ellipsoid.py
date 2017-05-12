@@ -288,12 +288,21 @@ class MultiEllipsoid(object):
 
         return np.array([ell.major_axis_endpoints() for ell in self.ells])
 
+    def within(self, x, j=None):
+        """Checks which ellipsoids `x` falls within, skipping the `j`-th
+        ellipsoid."""
+
+        within = [self.ells[i].contains(x) for i in xrange(self.nells)
+                  if i != j]
+        idxs = np.arange(self.nells)[within]
+
+        return idxs
+
     def overlap(self, x, j=None):
         """Checks how many ellipsoids `x` falls within, skipping the `j`-th
         ellipsoid."""
 
-        q = sum([self.ells[i].contains(x) for i in xrange(self.nells)
-                 if i != j])
+        q = len(self.within(x, j=j))
 
         return q
 

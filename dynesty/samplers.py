@@ -72,6 +72,13 @@ class UnitCubeSampler(Sampler):
     pool: ThreadPoolExecutor
         Use this pool of workers to propose live points in parallel.
 
+
+    Other Parameters
+    ----------------
+    walks : int, optional
+        For 'randomwalk', the minimum number of steps to take before
+        proposing a new live point. Default is *25*.
+
     """
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
@@ -81,12 +88,22 @@ class UnitCubeSampler(Sampler):
                         'randomwalk': self.propose_rwalk,
                         'slice': self.propose_slice,
                         'randomtrajectory': self.propose_rtraj}
-        self._sample = self._SAMPLE[method]
+        self._UPDATE = {'uniform': self.update_unif,
+                        'randomwalk': self.update_rwalk,
+                        'slice': self.update_slice,
+                        'randomtrajectory': self.update_rtraj}
+        self.propose_point = self._SAMPLE[method]
+        self.update_proposal = self._UPDATE[method]
         self.kwargs = kwargs
         super(UnitCubeSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, rstate,
                              queue_size, pool)
+
+        # random walk
+        self.walks = self.kwargs.get('walks', 25)
+        self.scale = 1.
+        self.blob = {'accept': 0, 'reject': 0}
 
     def update(self, pointvol):
         """Filler function since bound does not change."""
@@ -98,20 +115,68 @@ class UnitCubeSampler(Sampler):
         the unit cube."""
 
         u = self.rstate.rand(self.npdim)
+        v = self.prior_transform(u)
+        logl = self.loglikelihood(v)
 
-        return u
+        return u, v, logl, 1, None
+
+    def update_unif(self, blob):
+        """Update our uniform proposal."""
+
+        pass
 
     def propose_rwalk(self, loglstar):
         """Propose a new live point by starting a *random walk* away
         from an existing live point within the likelihood constraint."""
 
-        return None
+        # Copy a random live point.
+        i = self.rstate.randint(self.nlive)
+        u = self.live_u[i, :]
+
+        # Random walk away.
+        accept = 0
+        reject = 0
+        nc = 0
+        while nc < self.walks or accept == 0:
+            while True:
+                du = self.rstate.rand(self.npdim) - 0.5
+                new_u = u + self.scale * du
+                if self._check_unit_cube(new_u):
+                    break
+                else:
+                    reject += 1
+            new_v = self.prior_transform(new_u)
+            new_logl = self.loglikelihood(new_v)
+            if new_logl >= loglstar:
+                u = new_u
+                v = new_v
+                logl = new_logl
+                accept += 1
+            else:
+                reject += 1
+            nc += 1
+        blob = {'accept': accept, 'reject': reject}
+
+        return u, v, logl, nc, blob
+
+    def update_rwalk(self, blob):
+        """Update the random walk proposal scale based on the current
+        number of accepted/rejected steps."""
+
+        accept, reject = blob['accept'], blob['reject']
+        if accept > reject:
+            self.scale *= math.exp(1. / accept)
+        if accept < reject:
+            self.scale /= math.exp(1. / reject)
 
     def propose_slice(self, loglstar):
         """Propose a new live point using *slice sampling* starting
         from an existing live point subject to the likelihood constraint."""
 
         return None
+
+    def update_slice(self, blob):
+        pass
 
     def propose_rtraj(self, loglstar):
         """Propose a new live point by initializing a *random trajectory*
@@ -120,14 +185,8 @@ class UnitCubeSampler(Sampler):
 
         return None
 
-    def propose_point(self, loglstar):
-        """Propose a new live point."""
-
-        u = self._sample(loglstar)
-        v = self.prior_transform(u)
-        logl = self.loglikelihood(v)
-
-        return u, v, logl
+    def update_rtraj(self, blob):
+        pass
 
 
 class SingleEllipsoidSampler(Sampler):
@@ -176,10 +235,13 @@ class SingleEllipsoidSampler(Sampler):
 
     Other Parameters
     ----------------
-
     enlarge : float, optional
         Enlarge the volume of the bounding ellipsoid by this fraction.
         Default is *1.2*.
+
+    walks : int, optional
+        For 'randomwalk', the minimum number of steps to take before
+        proposing a new live point. Default is *25*.
 
     """
 
@@ -190,7 +252,12 @@ class SingleEllipsoidSampler(Sampler):
                         'randomwalk': self.propose_rwalk,
                         'slice': self.propose_slice,
                         'randomtrajectory': self.propose_rtraj}
-        self._sample = self._SAMPLE[method]
+        self._UPDATE = {'uniform': self.update_unif,
+                        'randomwalk': self.update_rwalk,
+                        'slice': self.update_slice,
+                        'randomtrajectory': self.update_rtraj}
+        self.propose_point = self._SAMPLE[method]
+        self.update_proposal = self._UPDATE[method]
         self.kwargs = kwargs
         self.enlarge = kwargs.get('enlarge', 1.2)
         super(SingleEllipsoidSampler,
@@ -198,6 +265,10 @@ class SingleEllipsoidSampler(Sampler):
                              live_points, update_interval, rstate,
                              queue_size, pool)
         self.ell = Ellipsoid(np.zeros(self.npdim), np.identity(self.npdim))
+
+        # random walk
+        self.walks = self.kwargs.get('walks', 25)
+        self.scale = 1.
 
     def update(self, pointvol):
         """Update bounding ellipsoid using the current set of live points."""
@@ -216,20 +287,68 @@ class SingleEllipsoidSampler(Sampler):
             u = self.ell.sample(rstate=self.rstate)
             if self._check_unit_cube(u):
                 break
+        v = self.prior_transform(u)
+        logl = self.loglikelihood(v)
 
-        return u
+        return u, v, logl, 1, None
+
+    def update_unif(self, blob):
+        """Update our uniform proposal."""
+
+        pass
 
     def propose_rwalk(self, loglstar):
         """Propose a new live point by starting a *random walk* away
         from an existing live point within the likelihood constraint."""
 
-        return None
+        # Copy a random live point.
+        i = self.rstate.randint(self.nlive)
+        u = self.live_u[i, :]
+
+        # Random walk away.
+        accept = 0
+        reject = 0
+        nc = 0
+        while nc < self.walks or accept == 0:
+            while True:
+                du = self.ell.randoffset(rstate=self.rstate)
+                new_u = u + self.scale * du
+                if self._check_unit_cube(new_u):
+                    break
+                else:
+                    reject += 1
+            new_v = self.prior_transform(new_u)
+            new_logl = self.loglikelihood(new_v)
+            if new_logl >= loglstar:
+                u = new_u
+                v = new_v
+                logl = new_logl
+                accept += 1
+            else:
+                reject += 1
+            nc += 1
+        blob = {'accept': accept, 'reject': reject}
+
+        return u, v, logl, nc, blob
+
+    def update_rwalk(self, blob):
+        """Update the random walk proposal scale based on the current
+        number of accepted/rejected steps."""
+
+        accept, reject = blob['accept'], blob['reject']
+        if accept > reject:
+            self.scale *= math.exp(1. / accept)
+        if accept < reject:
+            self.scale /= math.exp(1. / reject)
 
     def propose_slice(self, loglstar):
         """Propose a new live point using *slice sampling* starting
         from an existing live point subject to the likelihood constraint."""
 
         return None
+
+    def update_slice(self, blog):
+        pass
 
     def propose_rtraj(self, loglstar):
         """Propose a new live point by initializing a *random trajectory*
@@ -238,14 +357,8 @@ class SingleEllipsoidSampler(Sampler):
 
         return None
 
-    def propose_point(self, loglstar):
-        """Propose a new live point."""
-
-        u = self._sample(loglstar)
-        v = self.prior_transform(u)
-        logl = self.loglikelihood(v)
-
-        return u, v, logl
+    def update_rtraj(self, blob):
+        pass
 
 
 class MultiEllipsoidSampler(Sampler):
@@ -295,7 +408,6 @@ class MultiEllipsoidSampler(Sampler):
 
     Other Parameters
     ----------------
-
     enlarge : float, optional
         Enlarge the volume of all bounding ellipsoids by this fraction.
         Default is *1.2*.
@@ -309,6 +421,10 @@ class MultiEllipsoidSampler(Sampler):
         bounding ellipsoid is large enough to warrant more trial splits via
         `ell.vol > vol_check * nlive * pointvol`. Default is *2.0*.
 
+    walks : int, optional
+        For 'randomwalk', the minimum number of steps to take before
+        proposing a new live point. Default is *25*.
+
     """
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
@@ -318,7 +434,12 @@ class MultiEllipsoidSampler(Sampler):
                         'randomwalk': self.propose_rwalk,
                         'slice': self.propose_slice,
                         'randomtrajectory': self.propose_rtraj}
-        self._sample = self._SAMPLE[method]
+        self._UPDATE = {'uniform': self.update_unif,
+                        'randomwalk': self.update_rwalk,
+                        'slice': self.update_slice,
+                        'randomtrajectory': self.update_rtraj}
+        self.propose_point = self._SAMPLE[method]
+        self.update_proposal = self._UPDATE[method]
         self.kwargs = kwargs
         self.enlarge = kwargs.get('enlarge', 1.2)
         self.vol_dec = kwargs.get('vol_dec', 0.5)
@@ -329,6 +450,10 @@ class MultiEllipsoidSampler(Sampler):
                              queue_size, pool)
         self.mell = MultiEllipsoid(ctrs=[np.zeros(self.npdim)],
                                    ams=[np.identity(self.npdim)])
+
+        # random walk
+        self.walks = self.kwargs.get('walks', 25)
+        self.scale = 1.
 
     def update(self, pointvol):
         """Update bounding ellipsoids using the current set of live points."""
@@ -351,20 +476,75 @@ class MultiEllipsoidSampler(Sampler):
                 # overlapping ellipsoids.
                 if q == 1 or self.rstate.rand() < 1.0 / q:
                     break
+        v = self.prior_transform(u)
+        logl = self.loglikelihood(v)
 
-        return u
+        return u, v, logl, 1, None
+
+    def update_unif(self, blob):
+        """Update our uniform proposal."""
+
+        pass
 
     def propose_rwalk(self, loglstar):
         """Propose a new live point by starting a *random walk* away
         from an existing live point within the likelihood constraint."""
 
-        return None
+        # Copy a random live point.
+        i = self.rstate.randint(self.nlive)
+        u = self.live_u[i, :]
+        ell_idxs = self.mell.within(u)  # check ellipsoid overlap
+        nidx = len(ell_idxs)  # get number of overlapping ellipsoids
+        ell_idx = ell_idxs[self.rstate.randint(nidx)]  # sample one randomly
+
+        # Random walk away.
+        accept = 0
+        reject = 0
+        nc = 0
+        while nc < self.walks or accept == 0:
+            while True:
+                du = self.mell.ells[ell_idx].randoffset(rstate=self.rstate)
+                new_u = u + self.scale * du
+                if self._check_unit_cube(new_u):
+                    break
+                else:
+                    reject += 1
+            new_v = self.prior_transform(new_u)
+            new_logl = self.loglikelihood(new_v)
+            if new_logl >= loglstar:
+                u = new_u
+                v = new_v
+                logl = new_logl
+                ell_idxs = self.mell.within(u)
+                nidx = len(ell_idxs)
+                if nidx > 0:  # in case ellipsoids miss likelihood bound
+                    ell_idx = ell_idxs[self.rstate.randint(nidx)]
+                accept += 1
+            else:
+                reject += 1
+            nc += 1
+        blob = {'accept': accept, 'reject': reject}
+
+        return u, v, logl, nc, blob
+
+    def update_rwalk(self, blob):
+        """Update the random walk proposal scale based on the current
+        number of accepted/rejected steps."""
+
+        accept, reject = blob['accept'], blob['reject']
+        if accept > reject:
+            self.scale *= math.exp(1. / accept)
+        if accept < reject:
+            self.scale /= math.exp(1. / reject)
 
     def propose_slice(self, loglstar):
         """Propose a new live point using *slice sampling* starting
         from an existing live point subject to the likelihood constraint."""
 
         return None
+
+    def update_slice(self, blob):
+        pass
 
     def propose_rtraj(self, loglstar):
         """Propose a new live point by initializing a *random trajectory*
@@ -373,11 +553,5 @@ class MultiEllipsoidSampler(Sampler):
 
         return None
 
-    def propose_point(self, loglstar):
-        """Propose a new live point."""
-
-        u = self._sample(loglstar)
-        v = self.prior_transform(u)
-        logl = self.loglikelihood(v)
-
-        return u, v, logl
+    def update_rtraj(self, blob):
+        pass

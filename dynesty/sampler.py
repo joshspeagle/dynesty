@@ -223,10 +223,10 @@ class Sampler(object):
         self._fill_queue(loglstar)
         f = self.queue.pop(0)
         self.nqueue -= 1
-        u, v, logl = f.result()
+        u, v, logl, nc, blob = f.result()
         self.used += 1
 
-        return u, v, logl
+        return u, v, logl, nc, blob
 
     def _new_point(self, loglstar):
         """Propose points until a new point that satisfies the likelihood
@@ -234,8 +234,9 @@ class Sampler(object):
 
         ncall = 0
         while True:
-            u, v, logl = self._get_point_value(loglstar)
-            ncall += 1
+            u, v, logl, nc, blob = self._get_point_value(loglstar)
+            ncall += nc
+            self.update_proposal(blob)
             if logl >= loglstar:
                 break
 

@@ -119,19 +119,23 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
     ----------------
 
     enlarge : float, optional
-        For the 'single_ell' and 'multi_ell' methods, enlarge the volumes of
+        For the 'single' and 'multi' bounding options, enlarge the volumes of
         the ellipsoid(s) by this fraction. Default is *1.2*.
 
     vol_dec : float, optional
-        For the 'multi_ell' method, the required fractional reduction in
+        For the 'multi' bounding option, the required fractional reduction in
         volume after splitting an ellipsoid in order to to accept the split.
         Default is *0.5*.
 
     vol_check : float, optional
-        For the 'multi_ell' method, the factor used to when checking whether
+        For the 'multi' bounding option, the factor used when checking if
         the volume of the original bounding ellipsoid is large enough to
-        warrant more trial splits via `ell.vol > vol_check * nlive * pointvol`.
+        warrant >2 splits via `ell.vol > vol_check * nlive * pointvol`.
         Default is *2.0*.
+
+    walks : int, optional
+        For the 'randomwalk' sampling option, the minimum number of steps
+        to take before proposing a new live point. Default is *25*.
 
 
     Returns

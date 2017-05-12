@@ -31,7 +31,7 @@ SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
                   bound='multi', sample='uniform', update_interval=None,
                   npdim=None, rstate=None, queue_size=1, pool=None,
-                  **kwargs):
+                  live_points=None, **kwargs):
     """
     Initializes and returns a chosen sampler that will perform nested sampling
     to evaluate Bayesian evidence and posteriors.
@@ -93,16 +93,26 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
         RandomState instance. If not given, the global random state of the
         `numpy.random` module will be used.
 
-    queue_size: int, optional
+    queue_size : int, optional
         Carry out likelihood evaluations in parallel by queueing up new live
         point proposals using at most this many threads. Each thread
         independently proposes new live points until the proposal distribution
         is updated. Default is *1* (no parallelism).
 
-    pool: ThreadPoolExecutor, optional
+    pool : ThreadPoolExecutor, optional
         Use this pool of workers to propose live points in parallel. If
         `queue_size > 1` and `pool` is not specified, a `ValueError` will be
         thrown.
+
+    live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
+        A set of live points used to initialize the nested sampling run.
+        Contains `live_u`, the coordinates on the unit cube, `live_v`, the
+        transformed variables, and `live_logl`, the associated loglikelihoods.
+        By default, if these are not provided the initial set of live points
+        will be drawn uniformly from the unit `npdim`-cube.
+        **WARNING: It is crucial that the initial set of live points have been
+        sampled from the prior. Failure to provide a set of valid live points
+        will result in biased results.**
 
 
     Other Parameters
@@ -154,7 +164,7 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
     if rstate is None:
         rstate = np.random
 
-    # Set up parallel evaluation.
+    # Set up parallel (or serial) evaluation.
     if queue_size == 1:
         pool = FakePool()
     else:
@@ -162,15 +172,16 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
             raise ValueError("Missing `pool`. Please provide a Pool.")
 
     # Initialize live points and calculate likelihoods.
-    live_u = rstate.rand(nlive, npdim)  # positions in unit cube
-    live_v = np.empty((nlive, ndim), dtype=np.float64)  # real params
-    for i in range(nlive):
-        live_v[i, :] = prior_transform(live_u[i, :])
-    live_logl = np.fromiter(pool.map(loglikelihood, live_v),
-                            dtype=np.float64)  # log likelihood
-    live_points = [live_u, live_v, live_logl]
+    if live_points is None:
+        live_u = rstate.rand(nlive, npdim)  # positions in unit cube
+        live_v = np.empty((nlive, ndim), dtype=np.float64)  # real params
+        for i in range(nlive):
+            live_v[i, :] = prior_transform(live_u[i, :])
+        live_logl = np.fromiter(pool.map(loglikelihood, live_v),
+                                dtype=np.float64)  # log likelihood
+        live_points = [live_u, live_v, live_logl]
 
-    # Initialize our sampler.
+    # Initialize our nested sampler.
     sampler = _SAMPLERS[bound](loglikelihood, prior_transform, npdim,
                                live_points, sample, update_interval,
                                rstate, queue_size, pool, kwargs)

@@ -81,20 +81,21 @@ class Sampler(object):
         # parallelism
         self.queue_size = queue_size
         self.pool = pool
-        self.queue = []
-        self.nqueue = 0
-        self.submitted = 0
-        self.cancelled = 0
-        self.unused = 0
-        self.used = 0
+        self.queue = []  # proposed live point queue
+        self.nqueue = 0  # current size of the queue
+        self.submitted = 0  # total number of submitted jobs
+        self.cancelled = 0  # total number of cancelled jobs
+        self.unused = 0  # total number of unused cores
+        self.used = 0  # total number of used cores
 
         # sampling
-        self.it = 1
-        self.since_update = 0
-        self.ncall = self.nlive
+        self.it = 1  # current iteration
+        self.since_update = 0  # number of calls since the last update
+        self.ncall = self.nlive  # number of function calls
         self.dlv = 1. / self.nlive  # expected logvol shrinkage/iteration
         self.prop = []  # initial states used to compute proposals
         self.prop_iter = []  # iteration when proposal was computed
+        self.added_live = False  # whether leftover live points were used
 
         # results
         self.saved_id = []  # live point labels
@@ -108,12 +109,50 @@ class Sampler(object):
         self.saved_h = []  # cumulative information
         self.saved_nc = []  # number of calls at each iteration
 
+    def reset(self):
+        """Re-initialize the sampler."""
+
+        # live points
+        self.live_u = self.rstate.rand(self.nlive, self.npdim)
+        for i in range(self.nlive):
+            self.live_v[i, :] = self.prior_transform(self.live_u[i, :])
+        self.live_logl = np.fromiter(self.pool.map(self.loglikelihood,
+                                     self.live_v), dtype=np.float64)
+
+        # parallelism
+        self.queue = []
+        self.nqueue = 0
+        self.submitted = 0
+        self.cancelled = 0
+        self.unused = 0
+        self.used = 0
+
+        # sampling
+        self.it = 1
+        self.since_update = 0
+        self.ncall = self.nlive
+        self.prop = []
+        self.prop_iter = []
+        self.added_live = False
+
+        # results
+        self.saved_id = []
+        self.saved_u = []
+        self.saved_v = []
+        self.saved_logl = []
+        self.saved_logvol = []
+        self.saved_logwt = []
+        self.saved_logz = []
+        self.saved_logzerr = []
+        self.saved_h = []
+        self.saved_nc = []
+
     @property
     def results(self):
         """The full results from the nested sampling run."""
 
         results = Results([('nlive', self.nlive),
-                           ('niter', self.it),
+                           ('niter', self.it - 1),
                            ('ncall', np.array(self.saved_nc)),
                            ('eff', self.eff),
                            ('samples', np.array(self.saved_v)),
@@ -130,6 +169,9 @@ class Sampler(object):
 
     def get_proposal(self, it):
         """Given the iteration, returns the proposal distribution."""
+
+        if self.prop_iter:
+            raise ValueError("No proposals are currently saved!")
 
         prop_iter = np.array(self.prop_iter)
         idx = np.arange(len(prop_iter))[it >= prop_iter][-1]
@@ -199,9 +241,16 @@ class Sampler(object):
 
         return u, v, logl, ncall
 
-    def _add_live_points(self):
+    def add_live_points(self):
         """Add the remaining set of live points to the current set of dead
-        points to avoid wasting samples."""
+        points to avoid wasting samples. Instantiates a generator object
+        that will be called by the user with the same outputs as `sample`."""
+
+        if self.added_live:
+            raise ValueError("The remaining live points have already "
+                             "been added to the list of samples!")
+        else:
+            self.added_live = True
 
         # After N samples have been taken out, the remaining volume is
         # `e^(-N / nlive)`. The remaining points are distributed uniformly
@@ -225,7 +274,8 @@ class Sampler(object):
         for i in xrange(self.nlive):
             idx = lsort_idx[i]
             logvol, logdvol = logvols[i], logdvols[i]
-            ustar, vstar = self.live_u[idx], self.live_v[idx]
+            ustar = np.array(self.live_u[idx])
+            vstar = np.array(self.live_v[idx])
             loglstar = self.live_logl[idx]
             logwt = loglstar + logdvol
             logz_new = np.logaddexp(logz, logwt)
@@ -235,8 +285,8 @@ class Sampler(object):
             logz = logz_new
             logzerr = math.sqrt(h / self.nlive)
             self.saved_id.append(idx)
-            self.saved_u.append(np.array(ustar))
-            self.saved_v.append(np.array(vstar))
+            self.saved_u.append(ustar)
+            self.saved_v.append(vstar)
             self.saved_logl.append(loglstar)
             self.saved_logvol.append(logvol)
             self.saved_logwt.append(logwt)
@@ -244,49 +294,36 @@ class Sampler(object):
             self.saved_logzerr.append(logzerr)
             self.saved_h.append(h)
             self.saved_nc.append(1)
+            yield (idx, ustar, vstar, loglstar, logvol, logwt,
+                   logz, logzerr, h, 1)
 
-    def reset(self):
-        """Re-initialize the sampler."""
+    def _remove_live_points(self):
+        """Remove the remaining set of live points previously added to the
+        current set of dead points."""
 
-        # live points
-        self.live_u = self.rstate.rand(self.nlive, self.npdim)
-        for i in range(self.nlive):
-            self.live_v[i, :] = self.prior_transform(self.live_u[i, :])
-        self.live_logl = np.fromiter(self.pool.map(self.loglikelihood,
-                                     self.live_v), dtype=np.float64)
+        if self.added_live:
+            del self.saved_id[-self.nlive:]
+            del self.saved_u[-self.nlive:]
+            del self.saved_v[-self.nlive:]
+            del self.saved_logl[-self.nlive:]
+            del self.saved_logvol[-self.nlive:]
+            del self.saved_logwt[-self.nlive:]
+            del self.saved_logz[-self.nlive:]
+            del self.saved_logzerr[-self.nlive:]
+            del self.saved_h[-self.nlive:]
+            del self.saved_nc[-self.nlive:]
+            self.added_live = False
+        else:
+            raise ValueError("No live points were added to the "
+                             "list of samples!")
 
-        # parallelism
-        self.queue = []
-        self.nqueue = 0
-        self.submitted = 0
-        self.cancelled = 0
-        self.unused = 0
-        self.used = 0
-
-        # sampling
-        self.it = 1
-        self.since_update = 0
-        self.ncall = self.nlive
-        self.prop = []
-        self.prop_iter = []
-
-        # results
-        self.saved_id = []
-        self.saved_u = []
-        self.saved_v = []
-        self.saved_logl = []
-        self.saved_logvol = []
-        self.saved_logwt = []
-        self.saved_logz = []
-        self.saved_logzerr = []
-        self.saved_h = []
-        self.saved_nc = []
-
-    def sample(self, maxiter=None, maxcall=None, dlogz=None):
+    def sample(self, maxiter=None, maxcall=None, dlogz=None,
+               save_proposals=True, save_samples=True):
         """
-        The main nested sampling loop. Sample an additional number of live
-        points based on the current collection of live points until the
-        provided stopping criteria are reached.
+        The main nested sampling loop. Iteratively replace the worst live
+        point with a sample drawn uniformly from the prior until the
+        provided stopping criteria are reached. Instantiates a generator
+        object that will be called by the user.
 
         Parameters
         ----------
@@ -299,12 +336,55 @@ class Sampler(object):
             earlier if termination condition is reached. Default is no limit.
 
         dlogz : float, optional
-            If supplied, iteration will stop when the estimated contribution
-            of the remaining prior volume to the total evidence falls below
+            Iteration will stop when the estimated contribution of the
+            remaining prior volume to the total evidence falls below
             this threshold. Explicitly, the stopping criterion is
             `log(z + z_est) - log(z) < dlogz`, where `z` is the current
             evidence from all saved samples and `z_est` is the estimated
             contribution from the remaining volume. Default is *0.5*.
+
+        save_proposals : bool, optional
+            Whether or not to save past proposal distributions used to bound
+            the live points internally. Default is *True*.
+
+        save_samples : bool, optional
+            Whether or not to save past samples from the nested sampling run
+            (along with other ancillary quantities) internally.
+            Default is *True*.
+
+        Returns
+        -------
+        worst : int
+            Index of the live point with the worst likelihood. This is our
+            new dead point sample.
+
+        ustar : `~numpy.ndarray` with shape (npdim,)
+            Position of the sample.
+
+        vstar : `~numpy.ndarray` with shape (ndim,)
+            Transformed position of the sample.
+
+        loglstar : double
+            Ln(likelihood) of the sample.
+
+        logvol : double
+            Ln(volume) of the prior contained within the sample.
+
+        logwt : double
+            Ln(weight) of the sample.
+
+        logz : double
+            Cumulative ln(evidence) up to the sample (inclusive).
+
+        logzerr : double
+            Associated error on `logz`.
+
+        h : double
+            Cumulative information up to the sample (inclusive).
+
+        nc : int
+            Number of likelihood calls performed before a new proposed
+            live point was accepted.
 
         """
 
@@ -318,6 +398,8 @@ class Sampler(object):
         if dlogz is None:
             dlogz = 0.5
 
+        ncall = 0
+
         # Check whether we're starting fresh or continuing a previous run.
         if self.it == 1:
             # Initialize values for nested sampling loop.
@@ -327,42 +409,52 @@ class Sampler(object):
 
             # Initialize proposal distribution.
             pointvol = 1. / self.nlive
-            self.prop.append(self.update(pointvol))
-            self.prop_iter.append(self.it)
+            prop = self.update(pointvol)
+            if save_proposals:
+                self.prop.append(prop)
+                self.prop_iter.append(self.it)
             self.since_update = 0
         else:
-            # Remove addition of leftover live points from previous run since
-            # we'll be using them now.
-            del self.saved_id[-self.nlive:]
-            del self.saved_u[-self.nlive:]
-            del self.saved_v[-self.nlive:]
-            del self.saved_logl[-self.nlive:]
-            del self.saved_logvol[-self.nlive:]
-            del self.saved_logwt[-self.nlive:]
-            del self.saved_logz[-self.nlive:]
-            del self.saved_logzerr[-self.nlive:]
-            del self.saved_h[-self.nlive:]
-            del self.saved_nc[-self.nlive:]
+            # Remove live points added from previous run.
+            if self.added_live:
+                self._remove_live_points()
 
-            # Grab last dead point.
+            # Get final state from previous run.
             h = self.saved_h[-1]  # Information
             logz = self.saved_logz[-1]  # log(evidence)
             logvol = self.saved_logvol[-1]  # log(volume)
 
         # The main nested sampling loop.
-        ncall = 0  # current number of loglikelihood calls
-        for it in xrange(maxiter):
+        for it in xrange(sys.maxsize):
 
-            # Stopping criterion 1: number of `loglikelihood` calls
-            # exceeds `maxcall`.
-            if ncall > maxcall:
+            # Stopping criterion 1: current number of iterations
+            # exceeds `maxiter`.
+            if it > maxiter:
+                # If dumping past states, save only the required quantities.
+                if not save_samples:
+                    self.saved_logz.append(logz)
+                    self.saved_h.append(h)
+                    self.saved_logvol.append(logvol)
                 break
 
-            # Stopping criterion 2: estimated (fractional) remaining evidence
+            # Stopping criterion 2: current number of `loglikelihood`
+            # calls exceeds `maxcall`.
+            if ncall > maxcall:
+                if not save_samples:
+                    self.saved_logz.append(logz)
+                    self.saved_h.append(h)
+                    self.saved_logvol.append(logvol)
+                break
+
+            # Stopping criterion 3: estimated (fractional) remaining evidence
             # lies below some threshold set by `dlogz`.
             if dlogz is not None:
                 logz_remain = np.max(self.live_logl) - self.it / self.nlive
                 if np.logaddexp(logz, logz_remain) - logz < dlogz:
+                    if not save_samples:
+                        self.saved_logz.append(logz)
+                        self.saved_h.append(h)
+                        self.saved_logvol.append(logvol)
                     break
 
             # After `update_interval` interations have passed,
@@ -370,15 +462,18 @@ class Sampler(object):
             if self.since_update >= self.update_interval:
                 expected_vol = math.exp(-self.it / self.nlive)
                 pointvol = expected_vol / self.nlive
-                self.prop.append(self.update(pointvol))
-                self.prop_iter.append(self.it)
+                prop = self.update(pointvol)
+                if save_proposals:
+                    self.prop.append(prop)
+                    self.prop_iter.append(self.it)
                 self.since_update = 0
 
             # Locate the "live" point with the lowest `logl`.
             worst = np.argmin(self.live_logl)
 
             # Set our new worst likelihood constraint.
-            ustar, vstar = self.live_u[worst], self.live_v[worst]  # position
+            ustar = np.array(self.live_u[worst])  # unit cube position
+            vstar = np.array(self.live_v[worst])  # transformed position
             loglstar = self.live_logl[worst]  # likelihood
 
             # Set our new weight using quadratic estimates for dvol.
@@ -394,18 +489,8 @@ class Sampler(object):
             ncall += nc
             self.ncall += nc
             self.since_update += nc
-            self.saved_nc.append(nc)
 
-            # Add the worst live point to samples. It is now a "dead" point.
-            self.saved_id.append(worst)
-            self.saved_u.append(np.array(ustar))
-            self.saved_v.append(np.array(vstar))
-            self.saved_logl.append(loglstar)
-            self.saved_logvol.append(logvol)
-            self.saved_logwt.append(logwt)
-
-            # Update evidence `logz` and information `h` using our
-            # new dead point.
+            # Update evidence `logz` and information `h`.
             logz_new = np.logaddexp(logz, logwt)
             h = (math.exp(logwt - logz_new) * loglstar +
                  math.exp(logz - logz_new) * (h + logz) -
@@ -413,19 +498,99 @@ class Sampler(object):
             h = self._check_h(h)
             logz = logz_new
             logzerr = math.sqrt(h / self.nlive)
-            self.saved_logz.append(logz)
-            self.saved_logzerr.append(logzerr)
-            self.saved_h.append(h)
+
+            # Save the worst live point. It is now a "dead" point.
+            if save_samples:
+                self.saved_id.append(worst)
+                self.saved_u.append(ustar)
+                self.saved_v.append(vstar)
+                self.saved_logl.append(loglstar)
+                self.saved_logvol.append(logvol)
+                self.saved_logwt.append(logwt)
+                self.saved_logz.append(logz)
+                self.saved_logzerr.append(logzerr)
+                self.saved_h.append(h)
+                self.saved_nc.append(nc)
 
             # Update the live point (previously our "worst" point).
             self.live_u[worst] = u
             self.live_v[worst] = v
             self.live_logl[worst] = logl
 
-            self.it += 1  # increment total number of iterations
+            # Compute our sampling efficiency.
+            self.eff = 100. * self.it / (self.ncall - self.nlive)
 
-        # Add remaining live points to samples.
-        self._add_live_points()
+            # Increment total number of iterations.
+            self.it += 1
 
-        # Compute our sampling efficiency.
-        self.eff = 100. * self.it / (self.ncall - self.nlive)
+            # Return dead point and ancillary quantities.
+            yield (worst, ustar, vstar, loglstar, logvol, logwt,
+                   logz, logzerr, h, nc)
+
+    def run_nested(self, maxiter=None, maxcall=None, dlogz=None,
+                   add_live=True, print_progress=True):
+        """
+        Iteratively replace the worst live point with a sample drawn
+        uniformly from the prior until the provided stopping criteria
+        are reached.
+
+        Parameters
+        ----------
+        maxiter : int, optional
+            Maximum number of iterations. Iteration may stop earlier if the
+            termination condition is reached. Default is no limit.
+
+        maxcall : int, optional
+            Maximum number of likelihood evaluations. Iteration may stop
+            earlier if termination condition is reached. Default is no limit.
+
+        dlogz : float, optional
+            Iteration will stop when the estimated contribution of the
+            remaining prior volume to the total evidence falls below
+            this threshold. Explicitly, the stopping criterion is
+            `log(z + z_est) - log(z) < dlogz`, where `z` is the current
+            evidence from all saved samples and `z_est` is the estimated
+            contribution from the remaining volume. Default is *0.5*.
+
+        add_live : bool, optional
+            If *True*, adds the remaining set of live points to the list of
+            samples at the end of each run. Default is *True*.
+
+        print_progress : bool, optional
+            If *True*, outputs a simple summary of the current run that
+            updates each iteration. Default is *True*.
+
+        """
+
+        # Run the main nested sampling loop.
+        ncall = self.nlive
+        for it, results in enumerate(self.sample(maxiter=maxiter,
+                                     maxcall=maxcall, dlogz=dlogz,
+                                     save_proposals=True,
+                                     save_samples=True)):
+            if print_progress:
+                (worst, ustar, vstar, loglstar, logvol, logwt,
+                 logz, logzerr, h, nc) = results
+                ncall += nc
+                sys.stderr.write("\riter: {:d} | "
+                                 "nc: {:d} | "
+                                 "ncall: {:d} | "
+                                 "logz: {:6.3f} +/- {:6.3f}"
+                                 .format(it + 1, nc, ncall, logz, logzerr))
+
+        if add_live:
+            # Add remaining live points to samples.
+            for i, results in enumerate(self.add_live_points()):
+                if print_progress:
+                    (worst, ustar, vstar, loglstar, logvol, logwt,
+                     logz, logzerr, h, nc) = results
+                    ncall += nc
+                    sys.stderr.write("\riter: {:d}+{:d} | "
+                                     "nc: {:d} | "
+                                     "ncall: {:d} | "
+                                     "logz: {:6.3f} +/- {:6.3f}"
+                                     .format(it + 1, i + 1, nc, ncall,
+                                             logz, logzerr))
+
+        if print_progress:
+            sys.stderr.write("\n")

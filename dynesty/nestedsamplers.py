@@ -53,7 +53,7 @@ class UnitCubeSampler(Sampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {'uniform', 'randomwalk', 'slice', 'randomtrajectory'}
+    method : {'uniform', 'randomwalk', 'randomtrajectory'}
         A chosen method for sampling conditioned on the single ellipsoid.
 
     update_interval : int
@@ -86,11 +86,9 @@ class UnitCubeSampler(Sampler):
                  kwargs={}):
         self._SAMPLE = {'uniform': self.propose_unif,
                         'randomwalk': self.propose_rwalk,
-                        'slice': self.propose_slice,
                         'randomtrajectory': self.propose_rtraj}
         self._UPDATE = {'uniform': self.update_unif,
                         'randomwalk': self.update_rwalk,
-                        'slice': self.update_slice,
                         'randomtrajectory': self.update_rtraj}
         self.propose_point = self._SAMPLE[method]
         self.update_proposal = self._UPDATE[method]
@@ -103,9 +101,6 @@ class UnitCubeSampler(Sampler):
 
         # random walk
         self.walks = self.kwargs.get('walks', 25)
-
-        # slice
-        self.nrepeat = self.kwargs.get('nrepeat', 3)
 
     def update(self, pointvol):
         """Filler function since bound does not change."""
@@ -171,85 +166,6 @@ class UnitCubeSampler(Sampler):
         if accept < reject:
             self.scale /= math.exp(1. / reject)
 
-    def propose_slice(self, loglstar):
-        """Propose a new live point using *slice sampling* starting
-        from an existing live point subject to the likelihood constraint."""
-
-        # Copy a random live point.
-        i = self.rstate.randint(self.nlive)
-        u = self.live_u[i, :]
-
-        # Slice sample in each dimension.
-        nc = 0
-        fscale = 0.
-        for it in xrange(self.nrepeat):
-            # Shuffle the sampling order. Our basis here is the
-            # simple orthonormal basis that makes up the unit cube.
-            idxs = np.arange(self.npdim)
-            self.rstate.shuffle(idxs)
-            axes = np.identity(self.npdim)[idxs]
-
-            # Slice sample in each direction.
-            for axis in axes:
-                r = self.rstate.rand()  # scale
-                u_l = u - self.scale * r * axis  # left bound
-                v_l = self.prior_transform(u_l)
-                logl_l = self.loglikelihood(v_l)
-                nc += 1
-                u_r = u + self.scale * (1 - r) * axis  # right bound
-                v_r = self.prior_transform(u_r)
-                logl_r = self.loglikelihood(v_r)
-                nc += 1
-
-                # "Stepping out" the left and right bounds.
-                while logl_l >= loglstar:
-                    u_l -= self.scale * axis
-                    v_l = self.prior_transform(u_l)
-                    logl_l = self.loglikelihood(v_l)
-                    nc += 1
-                while logl_r >= loglstar:
-                    u_r += self.scale * axis
-                    v_r = self.prior_transform(u_r)
-                    logl_r = self.loglikelihood(v_r)
-                    nc += 1
-
-                # Sample within limits. If the sample is not valid, shrink
-                # the limits until we hit the `loglstar` bound.
-                while True:
-                    du = self.rstate.rand()
-                    window = np.linalg.norm(u_r - u_l)
-                    u_prop = u_l + du * window * axis
-                    v_prop = self.prior_transform(u_prop)
-                    logl_prop = self.loglikelihood(v_prop)
-                    nc += 1
-                    # If we succeed, move to the new position.
-                    if logl_prop >= loglstar:
-                        fscale += window / self.scale
-                        u = u_prop
-                        break
-                    # If we fail, check if the new point is to the 'right'
-                    # or 'left' of the original point and update the bounds
-                    # accordingly.
-                    else:
-                        s = np.dot(u_prop - u, axis)  # check sign (+/-)
-                        if s < 0:
-                            u_l = u_prop
-                        elif s > 0:
-                            u_r = u_prop
-                        else:
-                            raise RuntimeError("Slice sampler somehow shrank "
-                                               "to the original point! Please "
-                                               "report this as a likely bug.")
-
-        blob = {'fscale': fscale / (self.npdim * self.nrepeat)}
-
-        return u_prop, v_prop, logl_prop, nc, blob
-
-    def update_slice(self, blob):
-        """Filler function since initial proposal does not change."""
-
-        pass
-
     def propose_rtraj(self, loglstar):
         """Propose a new live point by initializing a *random trajectory*
         away from an existing live point whose path remains within the
@@ -285,7 +201,7 @@ class SingleEllipsoidSampler(Sampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {'uniform', 'randomwalk', 'slice', 'randomtrajectory'}
+    method : {'uniform', 'randomwalk', 'randomtrajectory'}
         A chosen method for sampling conditioned on the single ellipsoid.
 
     update_interval : int
@@ -322,11 +238,9 @@ class SingleEllipsoidSampler(Sampler):
                  kwargs={}):
         self._SAMPLE = {'uniform': self.propose_unif,
                         'randomwalk': self.propose_rwalk,
-                        'slice': self.propose_slice,
                         'randomtrajectory': self.propose_rtraj}
         self._UPDATE = {'uniform': self.update_unif,
                         'randomwalk': self.update_rwalk,
-                        'slice': self.update_slice,
                         'randomtrajectory': self.update_rtraj}
         self.propose_point = self._SAMPLE[method]
         self.update_proposal = self._UPDATE[method]
@@ -341,9 +255,6 @@ class SingleEllipsoidSampler(Sampler):
 
         # random walk
         self.walks = self.kwargs.get('walks', 25)
-
-        # slice
-        self.nrepeat = self.kwargs.get('nrepeat', 3)
 
     def update(self, pointvol):
         """Update bounding ellipsoid using the current set of live points."""
@@ -416,85 +327,6 @@ class SingleEllipsoidSampler(Sampler):
         if accept < reject:
             self.scale /= math.exp(1. / reject)
 
-    def propose_slice(self, loglstar):
-        """Propose a new live point using *slice sampling* starting
-        from an existing live point subject to the likelihood constraint."""
-
-        # Copy a random live point.
-        i = self.rstate.randint(self.nlive)
-        u = self.live_u[i, :]
-
-        # Slice sample in each dimension.
-        nc = 0
-        fscale = 0.
-        for it in xrange(self.nrepeat):
-            # Shuffle the sampling order. Our basis here is the
-            # axes that comprise our bounding ellipsoid.
-            idxs = np.arange(self.npdim)
-            self.rstate.shuffle(idxs)
-            axes = self.ell.axes[idxs]
-
-            # Slice sample in each direction.
-            for axis in axes:
-                r = self.rstate.rand()  # scale
-                u_l = u - self.scale * r * axis  # left bound
-                v_l = self.prior_transform(u_l)
-                logl_l = self.loglikelihood(v_l)
-                nc += 1
-                u_r = u + self.scale * (1 - r) * axis  # right bound
-                v_r = self.prior_transform(u_r)
-                logl_r = self.loglikelihood(v_r)
-                nc += 1
-
-                # "Stepping out" the left and right bounds.
-                while logl_l >= loglstar:
-                    u_l -= self.scale * axis
-                    v_l = self.prior_transform(u_l)
-                    logl_l = self.loglikelihood(v_l)
-                    nc += 1
-                while logl_r >= loglstar:
-                    u_r += self.scale * axis
-                    v_r = self.prior_transform(u_r)
-                    logl_r = self.loglikelihood(v_r)
-                    nc += 1
-
-                # Sample within limits. If the sample is not valid, shrink
-                # the limits until we hit the `loglstar` bound.
-                while True:
-                    du = self.rstate.rand()
-                    window = np.linalg.norm(u_r - u_l)
-                    u_prop = u_l + du * window * axis
-                    v_prop = self.prior_transform(u_prop)
-                    logl_prop = self.loglikelihood(v_prop)
-                    nc += 1
-                    # If we succeed, move to the new position.
-                    if logl_prop >= loglstar:
-                        fscale += window / self.scale
-                        u = u_prop
-                        break
-                    # If we fail, check if the new point is to the 'right'
-                    # or 'left' of the original point and update the bounds
-                    # accordingly.
-                    else:
-                        s = np.dot(u_prop - u, axis)  # check sign (+/-)
-                        if s < 0:
-                            u_l = u_prop
-                        elif s > 0:
-                            u_r = u_prop
-                        else:
-                            raise RuntimeError("Slice sampler somehow shrank "
-                                               "to the original point! Please "
-                                               "report this as a likely bug.")
-
-        blob = {'fscale': fscale / (self.npdim * self.nrepeat)}
-
-        return u_prop, v_prop, logl_prop, nc, blob
-
-    def update_slice(self, blob):
-        """Filler function since initial proposal does not change."""
-
-        pass
-
     def propose_rtraj(self, loglstar):
         """Propose a new live point by initializing a *random trajectory*
         away from an existing live point whose path remains within the
@@ -530,7 +362,7 @@ class MultiEllipsoidSampler(Sampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {'uniform', 'randomwalk', 'slice', 'randomtrajectory'}
+    method : {'uniform', 'randomwalk', 'randomtrajectory'}
         A chosen method for sampling conditioned on the collection of
         ellipsoids.
 
@@ -577,11 +409,9 @@ class MultiEllipsoidSampler(Sampler):
                  kwargs={}):
         self._SAMPLE = {'uniform': self.propose_unif,
                         'randomwalk': self.propose_rwalk,
-                        'slice': self.propose_slice,
                         'randomtrajectory': self.propose_rtraj}
         self._UPDATE = {'uniform': self.update_unif,
                         'randomwalk': self.update_rwalk,
-                        'slice': self.update_slice,
                         'randomtrajectory': self.update_rtraj}
         self.propose_point = self._SAMPLE[method]
         self.update_proposal = self._UPDATE[method]
@@ -599,9 +429,6 @@ class MultiEllipsoidSampler(Sampler):
 
         # random walk
         self.walks = self.kwargs.get('walks', 25)
-
-        # slice
-        self.nrepeat = self.kwargs.get('nrepeat', 3)
 
     def update(self, pointvol):
         """Update bounding ellipsoids using the current set of live points."""
@@ -692,100 +519,6 @@ class MultiEllipsoidSampler(Sampler):
             self.scale *= math.exp(1. / accept)
         if accept < reject:
             self.scale /= math.exp(1. / reject)
-
-    def propose_slice(self, loglstar):
-        """Propose a new live point using *slice sampling* starting
-        from an existing live point subject to the likelihood constraint."""
-
-        # Copy a random live point.
-        i = self.rstate.randint(self.nlive)
-        u = self.live_u[i, :]
-        ell_idxs = self.mell.within(u)  # check ellipsoid overlap
-        nidx = len(ell_idxs)  # get number of overlapping ellipsoids
-
-        # Automatically trigger an update if we're not in any ellipsoid.
-        if nidx == 0:
-            expected_vol = math.exp(-self.it / self.nlive)
-            pointvol = expected_vol / self.nlive
-            prop = self.update(pointvol)
-            if self.save_proposals:
-                self.prop.append(prop)
-                self.prop_iter.append(self.it)
-            self.since_update = 0
-            ell_idxs = self.mell.within(u)
-            nidx = len(ell_idxs)
-        ell_idx = ell_idxs[self.rstate.randint(nidx)]  # pick one
-
-        # Slice sample in each dimension.
-        nc = 0
-        fscale = 0.
-        for it in xrange(self.nrepeat):
-            # Shuffle the sampling order. Our basis here is the
-            # axes that comprise our bounding ellipsoid.
-            idxs = np.arange(self.npdim)
-            self.rstate.shuffle(idxs)
-            axes = self.mell.ells[ell_idx].axes[idxs]
-
-            # Slice sample in each direction.
-            for axis in axes:
-                r = self.rstate.rand()  # scale
-                u_l = u - self.scale * r * axis  # left bound
-                v_l = self.prior_transform(u_l)
-                logl_l = self.loglikelihood(v_l)
-                nc += 1
-                u_r = u + self.scale * (1 - r) * axis  # right bound
-                v_r = self.prior_transform(u_r)
-                logl_r = self.loglikelihood(v_r)
-                nc += 1
-
-                # "Stepping out" the left and right bounds.
-                while logl_l >= loglstar:
-                    u_l -= self.scale * axis
-                    v_l = self.prior_transform(u_l)
-                    logl_l = self.loglikelihood(v_l)
-                    nc += 1
-                while logl_r >= loglstar:
-                    u_r += self.scale * axis
-                    v_r = self.prior_transform(u_r)
-                    logl_r = self.loglikelihood(v_r)
-                    nc += 1
-
-                # Sample within limits. If the sample is not valid, shrink
-                # the limits until we hit the `loglstar` bound.
-                while True:
-                    du = self.rstate.rand()
-                    window = np.linalg.norm(u_r - u_l)
-                    u_prop = u_l + du * window * axis
-                    v_prop = self.prior_transform(u_prop)
-                    logl_prop = self.loglikelihood(v_prop)
-                    nc += 1
-                    # If we succeed, move to the new position.
-                    if logl_prop >= loglstar:
-                        fscale += window / self.scale
-                        u = u_prop
-                        break
-                    # If we fail, check if the new point is to the 'right'
-                    # or 'left' of the original point and update the bounds
-                    # accordingly.
-                    else:
-                        s = np.dot(u_prop - u, axis)  # check sign (+/-)
-                        if s < 0:
-                            u_l = u_prop
-                        elif s > 0:
-                            u_r = u_prop
-                        else:
-                            raise RuntimeError("Slice sampler somehow shrank "
-                                               "to the original point! Please "
-                                               "report this as a likely bug.")
-
-        blob = {'fscale': fscale / (self.npdim * self.nrepeat)}
-
-        return u_prop, v_prop, logl_prop, nc, blob
-
-    def update_slice(self, blob):
-        """Filler function since initial proposal does not change."""
-
-        pass
 
     def propose_rtraj(self, loglstar):
         """Propose a new live point by initializing a *random trajectory*

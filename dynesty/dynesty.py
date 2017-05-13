@@ -23,7 +23,7 @@ __all__ = ["NestedSampler"]
 _SAMPLERS = {'none': UnitCubeSampler,
              'single': SingleEllipsoidSampler,
              'multi': MultiEllipsoidSampler}
-_SAMPLING = ['uniform', 'randomwalk', 'slice', 'randomtrajectory']
+_SAMPLING = ['uniform', 'randomwalk', 'randomtrajectory']
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
@@ -136,11 +136,6 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
     walks : int, optional
         For the 'randomwalk' sampling option, the minimum number of steps
         to take before proposing a new live point. Default is *25*.
-
-    nrepeat : int, optional
-        For the 'slice' sampling option, the number of times to repeat a
-        slice sampling update, which consists of slicing through a set of
-        `npdim` basis vectors in a random order. Default is *3*.
 
 
     Returns

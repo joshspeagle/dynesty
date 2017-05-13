@@ -292,8 +292,8 @@ class MultiEllipsoid(object):
         """Checks which ellipsoids `x` falls within, skipping the `j`-th
         ellipsoid."""
 
-        within = [self.ells[i].contains(x) for i in xrange(self.nells)
-                  if i != j]
+        within = [self.ells[i].contains(x) if i != j else True
+                  for i in xrange(self.nells)]
         idxs = np.arange(self.nells)[within]
 
         return idxs

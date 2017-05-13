@@ -137,6 +137,11 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
         For the 'randomwalk' sampling option, the minimum number of steps
         to take before proposing a new live point. Default is *25*.
 
+    nrepeat : int, optional
+        For the 'slice' sampling option, the number of times to repeat a
+        slice sampling update, which consists of slicing through a set of
+        `npdim` basis vectors in a random order. Default is *3*.
+
 
     Returns
     -------
@@ -150,10 +155,10 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
         npdim = ndim
 
     if bound not in _SAMPLERS:
-        raise ValueError("Unknown bounding method: '{:r}'".format(bound))
+        raise ValueError("Unknown bounding method: '{0}'".format(bound))
 
     if sample not in _SAMPLING:
-        raise ValueError("Unknown sampling method: '{:r}'".format(sample))
+        raise ValueError("Unknown sampling method: '{0}'".format(sample))
 
     if nlive < 2 * ndim:
         warnings.warn("You really want to make `nlive >= 2 * ndim`!")

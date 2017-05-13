@@ -170,7 +170,7 @@ class Sampler(object):
     def get_proposal(self, it):
         """Given the iteration, returns the proposal distribution."""
 
-        if self.prop_iter:
+        if not self.prop_iter:
             raise ValueError("No proposals are currently saved!")
 
         prop_iter = np.array(self.prop_iter)

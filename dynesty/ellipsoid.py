@@ -61,7 +61,7 @@ class Ellipsoid(object):
         # Volume of ellipsoid is the volume of an n-sphere divided
         # by the (determinant of the) Jacobian associated with the
         # transformation, which by definition is the precision matrix.
-        self.vol = vol_prefactor(self.n) / np.sqrt(np.linalg.det(self.am))
+        self.vol = vol_prefactor(self.n) / np.linalg.norm(self.am)
 
         # The eigenvalues (l) of `a` are (a^-2, b^-2, ...) where
         # (a, b, ...) are the lengths of principle axes.
@@ -211,7 +211,7 @@ class Ellipsoid(object):
         self.n = ndim
         self.ctr = ctr
         self.am = am
-        self.vol = vol_prefactor(self.n) / np.sqrt(np.linalg.det(self.am))
+        self.vol = vol_prefactor(self.n) / np.linalg.norm(self.am)
         l, v = np.linalg.eigh(self.am)
         self.axlens = 1. / np.sqrt(l)
         self.axes = np.dot(v, np.diag(self.axlens))
@@ -429,7 +429,7 @@ def randsphere(n, rstate=np.random):
 
     z = rstate.randn(n)  # initial n-dim vector
 
-    return z * rstate.rand()**(1./n) / np.sqrt(np.sum(z**2))
+    return z * rstate.rand()**(1./n) / np.linalg.norm(z)
 
 
 def make_eigvals_positive(am, targetprod):

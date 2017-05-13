@@ -22,6 +22,7 @@ import warnings
 import math
 import numpy as np
 import copy
+from scipy import optimize as opt
 
 from .sampler import *
 from .ellipsoid import *
@@ -102,6 +103,11 @@ class UnitCubeSampler(Sampler):
         # random walk
         self.walks = self.kwargs.get('walks', 25)
 
+        # random trajectory
+        self.lgrad = self.kwargs.get('lgrad', None)
+        self.pathlength = self.kwargs.get('pathlength', 50)
+        self.frac_path = self.kwargs.get('frac_path', 0.7)
+
     def update(self, pointvol):
         """Filler function since bound does not change."""
 
@@ -137,17 +143,17 @@ class UnitCubeSampler(Sampler):
         while nc < self.walks or accept == 0:
             while True:
                 du = self.rstate.rand(self.npdim) - 0.5
-                new_u = u + self.scale * du
-                if self._check_unit_cube(new_u):
+                u_prop = u + self.scale * du
+                if self._check_unit_cube(u_prop):
                     break
                 else:
                     reject += 1
-            new_v = self.prior_transform(new_u)
-            new_logl = self.loglikelihood(new_v)
-            if new_logl >= loglstar:
-                u = new_u
-                v = new_v
-                logl = new_logl
+            v_prop = self.prior_transform(u_prop)
+            logl_prop = self.loglikelihood(v_prop)
+            if logl_prop >= loglstar:
+                u = u_prop
+                v = v_prop
+                logl = logl_prop
                 accept += 1
             else:
                 reject += 1
@@ -171,10 +177,86 @@ class UnitCubeSampler(Sampler):
         away from an existing live point whose path remains within the
         likelihood constraint."""
 
-        pass
+        # Copy a random live point.
+        i = self.rstate.randint(self.nlive)
+        u = self.live_u[i, :]
+        v = self.live_v[i, :]
+        logl = self.live_logl[i]
+
+        # Define a trajectory.
+        axes = np.identity(self.npdim)
+        vel = np.dot(axes, self.rstate.randn(self.npdim))  # velocity
+        vel *= self.scale  # scale based on past tuning
+
+        # Evolve trajectory.
+        reflect = 0
+        reverse = 0
+        nc = 0
+        ngrad = 0
+        while nc < self.pathlength:
+            u_prop = u + vel
+            v_prop = self.prior_transform(u_prop)
+            logl_prop = self.loglikelihood(v_prop)
+            nc += 1
+            # If point is within the likelihood bound, accept.
+            if logl_prop >= loglstar:
+                u = u_prop
+                v = v_prop
+                logl = logl_prop
+            else:
+                if self.lgrad is None:
+                    # Compute numerical approximation to the gradient.
+                    dv = self.prior_transform(u_prop + 1e-6) - v_prop
+                    h = opt.approx_fprime(v_prop, self.loglikelihood, dv)
+                    ngrad += 1
+                else:
+                    # Compute provided gradient.
+                    h = self.lgrad(v_prop)
+                    ngrad += 1
+                # Reflect off of the boundary.
+                nhat = h / np.linalg.norm(h)  # normal vector
+                vel_prop = vel - 2 * nhat * np.dot(vel, nhat)
+                u_prop = u_prop + vel_prop
+                v_prop = self.prior_transform(u_prop)
+                logl_prop = self.loglikelihood(v_prop)
+                nc += 1
+                # If reflected point is within the likelihood bound, accept.
+                if logl_prop >= loglstar:
+                    u = u_prop
+                    v = v_prop
+                    logl = logl_prop
+                    vel = vel_prop
+                    reflect += 1
+                # If everything fails, reverse course.
+                else:
+                    vel = -vel
+                    reverse += 1
+
+        blob = {'steps': nc, 'bounces': reflect, 'reversals': reverse}
+
+        if self.lgrad is None:
+            nc += ngrad * self.npdim
+        else:
+            nc += ngrad
+
+        return u, v, logl, nc, blob
 
     def update_rtraj(self, blob):
-        pass
+        """Filler."""
+
+        steps = blob['steps']
+        bounces = blob['bounces']
+        reversals = blob['reversals']
+        steps_out = 2. * (bounces + reversals)
+        steps_path = steps - steps_out
+        frac_path = (1 + steps_path) / steps
+
+        if reversals >= 2:
+            self.scale /= reversals
+        elif frac_path > self.frac_path:
+            self.scale *= frac_path / self.frac_path
+        elif frac_path < self.frac_path:
+            self.scale /= frac_path / self.frac_path
 
 
 class SingleEllipsoidSampler(Sampler):
@@ -298,17 +380,17 @@ class SingleEllipsoidSampler(Sampler):
         while nc < self.walks or accept == 0:
             while True:
                 du = self.ell.randoffset(rstate=self.rstate)
-                new_u = u + self.scale * du
-                if self._check_unit_cube(new_u):
+                u_prop = u + self.scale * du
+                if self._check_unit_cube(u_prop):
                     break
                 else:
                     reject += 1
-            new_v = self.prior_transform(new_u)
-            new_logl = self.loglikelihood(new_v)
-            if new_logl >= loglstar:
-                u = new_u
-                v = new_v
-                logl = new_logl
+            v_prop = self.prior_transform(u_prop)
+            logl_prop = self.loglikelihood(v_prop)
+            if logl_prop >= loglstar:
+                u = u_prop
+                v = v_prop
+                logl = logl_prop
                 accept += 1
             else:
                 reject += 1
@@ -491,17 +573,17 @@ class MultiEllipsoidSampler(Sampler):
         while nc < self.walks or accept == 0:
             while True:
                 du = self.mell.ells[ell_idx].randoffset(rstate=self.rstate)
-                new_u = u + self.scale * du
-                if self._check_unit_cube(new_u):
+                u_prop = u + self.scale * du
+                if self._check_unit_cube(u_prop):
                     break
                 else:
                     reject += 1
-            new_v = self.prior_transform(new_u)
-            new_logl = self.loglikelihood(new_v)
-            if new_logl >= loglstar:
-                u = new_u
-                v = new_v
-                logl = new_logl
+            v_prop = self.prior_transform(u_prop)
+            logl_prop = self.loglikelihood(v_prop)
+            if logl_prop >= loglstar:
+                u = u_prop
+                v = v_prop
+                logl = logl_prop
                 accept += 1
             else:
                 reject += 1

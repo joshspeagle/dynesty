@@ -108,7 +108,7 @@ class UnitCubeSampler(Sampler):
     def update(self, pointvol):
         """Filler function since bound does not change."""
 
-        return None
+        pass
 
     def propose_unif(self, loglstar):
         """Propose a new live point by sampling *uniformly*
@@ -173,7 +173,7 @@ class UnitCubeSampler(Sampler):
         """Propose a new live point using *slice sampling* starting
         from an existing live point subject to the likelihood constraint."""
 
-        return None
+        pass
 
     def update_slice(self, blob):
         pass
@@ -183,7 +183,7 @@ class UnitCubeSampler(Sampler):
         away from an existing live point whose path remains within the
         likelihood constraint."""
 
-        return None
+        pass
 
     def update_rtraj(self, blob):
         pass
@@ -345,7 +345,7 @@ class SingleEllipsoidSampler(Sampler):
         """Propose a new live point using *slice sampling* starting
         from an existing live point subject to the likelihood constraint."""
 
-        return None
+        pass
 
     def update_slice(self, blog):
         pass
@@ -355,7 +355,7 @@ class SingleEllipsoidSampler(Sampler):
         away from an existing live point whose path remains within the
         likelihood constraint."""
 
-        return None
+        pass
 
     def update_rtraj(self, blob):
         pass
@@ -495,7 +495,19 @@ class MultiEllipsoidSampler(Sampler):
         u = self.live_u[i, :]
         ell_idxs = self.mell.within(u)  # check ellipsoid overlap
         nidx = len(ell_idxs)  # get number of overlapping ellipsoids
-        ell_idx = ell_idxs[self.rstate.randint(nidx)]  # sample one randomly
+
+        # Automatically trigger an update if we're not in any ellipsoid.
+        if nidx == 0:
+            expected_vol = math.exp(-self.it / self.nlive)
+            pointvol = expected_vol / self.nlive
+            prop = self.update(pointvol)
+            if self.save_proposals:
+                self.prop.append(prop)
+                self.prop_iter.append(self.it)
+            self.since_update = 0
+            ell_idxs = self.mell.within(u)
+            nidx = len(ell_idxs)
+        ell_idx = ell_idxs[self.rstate.randint(nidx)]  # pick one
 
         # Random walk away.
         accept = 0
@@ -515,10 +527,6 @@ class MultiEllipsoidSampler(Sampler):
                 u = new_u
                 v = new_v
                 logl = new_logl
-                ell_idxs = self.mell.within(u)
-                nidx = len(ell_idxs)
-                if nidx > 0:  # in case ellipsoids miss likelihood bound
-                    ell_idx = ell_idxs[self.rstate.randint(nidx)]
                 accept += 1
             else:
                 reject += 1
@@ -541,7 +549,7 @@ class MultiEllipsoidSampler(Sampler):
         """Propose a new live point using *slice sampling* starting
         from an existing live point subject to the likelihood constraint."""
 
-        return None
+        pass
 
     def update_slice(self, blob):
         pass
@@ -551,7 +559,7 @@ class MultiEllipsoidSampler(Sampler):
         away from an existing live point whose path remains within the
         likelihood constraint."""
 
-        return None
+        pass
 
     def update_rtraj(self, blob):
         pass

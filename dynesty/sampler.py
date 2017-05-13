@@ -389,6 +389,9 @@ class Sampler(object):
 
         """
 
+        self.save_samples = save_samples
+        self.save_proposals = save_proposals
+
         # Establish stopping criteria.
         if maxiter is None:
             maxiter = sys.maxsize
@@ -411,7 +414,7 @@ class Sampler(object):
             # Initialize proposal distribution.
             pointvol = 1. / self.nlive
             prop = self.update(pointvol)
-            if save_proposals:
+            if self.save_proposals:
                 self.prop.append(prop)
                 self.prop_iter.append(self.it)
             self.since_update = 0
@@ -432,7 +435,7 @@ class Sampler(object):
             # exceeds `maxiter`.
             if it > maxiter:
                 # If dumping past states, save only the required quantities.
-                if not save_samples:
+                if not self.save_samples:
                     self.saved_logz.append(logz)
                     self.saved_h.append(h)
                     self.saved_logvol.append(logvol)
@@ -441,7 +444,7 @@ class Sampler(object):
             # Stopping criterion 2: current number of `loglikelihood`
             # calls exceeds `maxcall`.
             if ncall > maxcall:
-                if not save_samples:
+                if not self.save_samples:
                     self.saved_logz.append(logz)
                     self.saved_h.append(h)
                     self.saved_logvol.append(logvol)
@@ -452,7 +455,7 @@ class Sampler(object):
             if dlogz is not None:
                 logz_remain = np.max(self.live_logl) - self.it / self.nlive
                 if np.logaddexp(logz, logz_remain) - logz < dlogz:
-                    if not save_samples:
+                    if not self.save_samples:
                         self.saved_logz.append(logz)
                         self.saved_h.append(h)
                         self.saved_logvol.append(logvol)
@@ -464,7 +467,7 @@ class Sampler(object):
                 expected_vol = math.exp(-self.it / self.nlive)
                 pointvol = expected_vol / self.nlive
                 prop = self.update(pointvol)
-                if save_proposals:
+                if self.save_proposals:
                     self.prop.append(prop)
                     self.prop_iter.append(self.it)
                 self.since_update = 0
@@ -501,7 +504,7 @@ class Sampler(object):
             logzerr = math.sqrt(h / self.nlive)
 
             # Save the worst live point. It is now a "dead" point.
-            if save_samples:
+            if self.save_samples:
                 self.saved_id.append(worst)
                 self.saved_u.append(ustar)
                 self.saved_v.append(vstar)

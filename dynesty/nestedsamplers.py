@@ -86,11 +86,9 @@ class UnitCubeSampler(Sampler):
                  method, update_interval, rstate, queue_size, pool,
                  kwargs={}):
         self._SAMPLE = {'uniform': self.propose_unif,
-                        'randomwalk': self.propose_rwalk,
-                        'randomtrajectory': self.propose_rtraj}
+                        'randomwalk': self.propose_rwalk}
         self._UPDATE = {'uniform': self.update_unif,
-                        'randomwalk': self.update_rwalk,
-                        'randomtrajectory': self.update_rtraj}
+                        'randomwalk': self.update_rwalk}
         self.propose_point = self._SAMPLE[method]
         self.update_proposal = self._UPDATE[method]
         self.scale = 1.
@@ -102,11 +100,6 @@ class UnitCubeSampler(Sampler):
 
         # random walk
         self.walks = self.kwargs.get('walks', 25)
-
-        # random trajectory
-        self.lgrad = self.kwargs.get('lgrad', None)
-        self.pathlength = self.kwargs.get('pathlength', 50)
-        self.frac_path = self.kwargs.get('frac_path', 0.7)
 
     def update(self, pointvol):
         """Filler function since bound does not change."""
@@ -167,96 +160,8 @@ class UnitCubeSampler(Sampler):
         number of accepted/rejected steps."""
 
         accept, reject = blob['accept'], blob['reject']
-        if accept > reject:
-            self.scale *= math.exp(1. / accept)
-        if accept < reject:
-            self.scale /= math.exp(1. / reject)
-
-    def propose_rtraj(self, loglstar):
-        """Propose a new live point by initializing a *random trajectory*
-        away from an existing live point whose path remains within the
-        likelihood constraint."""
-
-        # Copy a random live point.
-        i = self.rstate.randint(self.nlive)
-        u = self.live_u[i, :]
-        v = self.live_v[i, :]
-        logl = self.live_logl[i]
-
-        # Define a trajectory.
-        axes = np.identity(self.npdim)
-        vel = np.dot(axes, self.rstate.randn(self.npdim))  # velocity
-        vel *= self.scale  # scale based on past tuning
-
-        # Evolve trajectory.
-        reflect = 0
-        reverse = 0
-        nc = 0
-        ngrad = 0
-        while nc < self.pathlength:
-            u_prop = u + vel
-            v_prop = self.prior_transform(u_prop)
-            logl_prop = self.loglikelihood(v_prop)
-            nc += 1
-            # If point is within the likelihood bound, accept.
-            if logl_prop >= loglstar:
-                u = u_prop
-                v = v_prop
-                logl = logl_prop
-            else:
-                if self.lgrad is None:
-                    # Compute numerical approximation to the gradient.
-                    dv = self.prior_transform(u_prop + 1e-6) - v_prop
-                    h = opt.approx_fprime(v_prop, self.loglikelihood, dv)
-                    ngrad += 1
-                else:
-                    # Compute provided gradient.
-                    h = self.lgrad(v_prop)
-                    ngrad += 1
-                # Reflect off of the boundary.
-                nhat = h / np.linalg.norm(h)  # normal vector
-                vel_prop = vel - 2 * nhat * np.dot(vel, nhat)
-                u_prop = u_prop + vel_prop
-                v_prop = self.prior_transform(u_prop)
-                logl_prop = self.loglikelihood(v_prop)
-                nc += 1
-                # If reflected point is within the likelihood bound, accept.
-                if logl_prop >= loglstar:
-                    u = u_prop
-                    v = v_prop
-                    logl = logl_prop
-                    vel = vel_prop
-                    reflect += 1
-                # If everything fails, reverse course.
-                else:
-                    vel = -vel
-                    reverse += 1
-
-        blob = {'steps': nc, 'bounces': reflect, 'reversals': reverse}
-
-        if self.lgrad is None:
-            nc += ngrad * self.npdim
-        else:
-            nc += ngrad
-
-        return u, v, logl, nc, blob
-
-    def update_rtraj(self, blob):
-        """Filler."""
-
-        steps = blob['steps']
-        bounces = blob['bounces']
-        reversals = blob['reversals']
-        steps_out = 2. * (bounces + reversals)
-        steps_path = steps - steps_out
-        frac_path = (1 + steps_path) / steps
-
-        if reversals >= 2:
-            self.scale /= reversals
-        elif frac_path > self.frac_path:
-            self.scale *= frac_path / self.frac_path
-        elif frac_path < self.frac_path:
-            self.scale /= frac_path / self.frac_path
+        facc = (1. * accept) / (accept + reject)
+        self.scale *= math.exp(2 * facc - 1)
 
 
 class SingleEllipsoidSampler(Sampler):
@@ -319,11 +224,9 @@ class SingleEllipsoidSampler(Sampler):
                  method, update_interval, rstate, queue_size, pool,
                  kwargs={}):
         self._SAMPLE = {'uniform': self.propose_unif,
-                        'randomwalk': self.propose_rwalk,
-                        'randomtrajectory': self.propose_rtraj}
+                        'randomwalk': self.propose_rwalk}
         self._UPDATE = {'uniform': self.update_unif,
-                        'randomwalk': self.update_rwalk,
-                        'randomtrajectory': self.update_rtraj}
+                        'randomwalk': self.update_rwalk}
         self.propose_point = self._SAMPLE[method]
         self.update_proposal = self._UPDATE[method]
         self.kwargs = kwargs
@@ -404,20 +307,8 @@ class SingleEllipsoidSampler(Sampler):
         number of accepted/rejected steps."""
 
         accept, reject = blob['accept'], blob['reject']
-        if accept > reject:
-            self.scale *= math.exp(1. / accept)
-        if accept < reject:
-            self.scale /= math.exp(1. / reject)
-
-    def propose_rtraj(self, loglstar):
-        """Propose a new live point by initializing a *random trajectory*
-        away from an existing live point whose path remains within the
-        likelihood constraint."""
-
-        pass
-
-    def update_rtraj(self, blob):
-        pass
+        facc = (1. * accept) / (accept + reject)
+        self.scale *= math.exp(2 * facc - 1)
 
 
 class MultiEllipsoidSampler(Sampler):
@@ -490,11 +381,9 @@ class MultiEllipsoidSampler(Sampler):
                  method, update_interval, rstate, queue_size, pool,
                  kwargs={}):
         self._SAMPLE = {'uniform': self.propose_unif,
-                        'randomwalk': self.propose_rwalk,
-                        'randomtrajectory': self.propose_rtraj}
+                        'randomwalk': self.propose_rwalk}
         self._UPDATE = {'uniform': self.update_unif,
-                        'randomwalk': self.update_rwalk,
-                        'randomtrajectory': self.update_rtraj}
+                        'randomwalk': self.update_rwalk}
         self.propose_point = self._SAMPLE[method]
         self.update_proposal = self._UPDATE[method]
         self.kwargs = kwargs
@@ -597,17 +486,5 @@ class MultiEllipsoidSampler(Sampler):
         number of accepted/rejected steps."""
 
         accept, reject = blob['accept'], blob['reject']
-        if accept > reject:
-            self.scale *= math.exp(1. / accept)
-        if accept < reject:
-            self.scale /= math.exp(1. / reject)
-
-    def propose_rtraj(self, loglstar):
-        """Propose a new live point by initializing a *random trajectory*
-        away from an existing live point whose path remains within the
-        likelihood constraint."""
-
-        pass
-
-    def update_rtraj(self, blob):
-        pass
+        facc = (1. * accept) / (accept + reject)
+        self.scale *= math.exp(2 * facc - 1)

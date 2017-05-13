@@ -23,7 +23,7 @@ __all__ = ["NestedSampler"]
 _SAMPLERS = {'none': UnitCubeSampler,
              'single': SingleEllipsoidSampler,
              'multi': MultiEllipsoidSampler}
-_SAMPLING = ['uniform', 'randomwalk', 'randomtrajectory']
+_SAMPLING = ['uniform', 'randomwalk']
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 

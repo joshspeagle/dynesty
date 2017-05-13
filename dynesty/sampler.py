@@ -554,7 +554,8 @@ class Sampler(object):
             this threshold. Explicitly, the stopping criterion is
             `log(z + z_est) - log(z) < dlogz`, where `z` is the current
             evidence from all saved samples and `z_est` is the estimated
-            contribution from the remaining volume. Default is *0.5*.
+            contribution from the remaining volume. If `add_live` is *True*,
+            the default is `ln(nlive + 1)`. Otherwise, the default is *0.5*.
 
         add_live : bool, optional
             If *True*, adds the remaining set of live points to the list of
@@ -567,6 +568,13 @@ class Sampler(object):
         """
 
         # Run the main nested sampling loop.
+
+        if dlogz is None:
+            if add_live:
+                dlogz = math.log(self.nlive + 1)
+            else:
+                dlogz = 0.5
+
         ncall = self.nlive
         for it, results in enumerate(self.sample(maxiter=maxiter,
                                      maxcall=maxcall, dlogz=dlogz,
@@ -580,7 +588,7 @@ class Sampler(object):
                                  "nc: {:d} | "
                                  "ncall: {:d} | "
                                  "logz: {:6.3f} +/- {:6.3f}"
-                                 .format(it + 1, nc, ncall, logz, logzerr))
+                                 .format(self.it, nc, ncall, logz, logzerr))
 
         if add_live:
             # Add remaining live points to samples.
@@ -593,7 +601,7 @@ class Sampler(object):
                                      "nc: {:d} | "
                                      "ncall: {:d} | "
                                      "logz: {:6.3f} +/- {:6.3f}"
-                                     .format(it + 1, i + 1, nc, ncall,
+                                     .format(self.it, i + 1, nc, ncall,
                                              logz, logzerr))
 
         if print_progress:

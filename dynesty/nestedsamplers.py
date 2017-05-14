@@ -211,8 +211,16 @@ class SingleEllipsoidSampler(Sampler):
     Other Parameters
     ----------------
     enlarge : float, optional
-        Enlarge the volume of the bounding ellipsoid by this fraction.
-        Default is *1.2*.
+        Enlarge the volumes of the ellipsoid by this fraction. The preferred
+        method is to determine this organically using bootstrapping. If
+        `bootstrap > 0`, this defaults to *1.0*. If `bootstrap = 0`,
+        this instead defaults to *1.25*.
+
+    bootstrap : int, optional
+        Compute this many bootstrap resampled realizations of the bounding
+        ellipsoid. Use the maximum distance found to the set of points
+        left out during each iteration to enlarge the resulting ellipsoids.
+        Default is *20*.
 
     walks : int, optional
         For 'randomwalk', the minimum number of steps to take before
@@ -231,7 +239,11 @@ class SingleEllipsoidSampler(Sampler):
         self.update_proposal = self._UPDATE[method]
         self.kwargs = kwargs
         self.scale = 1.
-        self.enlarge = kwargs.get('enlarge', 1.2)
+        self.bootstrap = kwargs.get('bootstrap', 20)
+        if self.bootstrap > 0:
+            self.enlarge = kwargs.get('enlarge', 1.0)
+        else:
+            self.enlarge = kwargs.get('enlarge', 1.25)
         super(SingleEllipsoidSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, rstate,
@@ -245,8 +257,10 @@ class SingleEllipsoidSampler(Sampler):
         """Update bounding ellipsoid using the current set of live points."""
 
         self._empty_queue()
-        self.ell.update(self.live_u, pointvol=pointvol)
-        self.ell.scale_to_vol(self.ell.vol * self.enlarge)
+        self.ell.update(self.live_u, pointvol=pointvol, rstate=self.rstate,
+                        bootstrap=self.bootstrap)
+        if self.enlarge != 1.:
+            self.ell.scale_to_vol(self.ell.vol * self.enlarge)
 
         return copy.deepcopy(self.ell)
 
@@ -359,8 +373,16 @@ class MultiEllipsoidSampler(Sampler):
     Other Parameters
     ----------------
     enlarge : float, optional
-        Enlarge the volume of all bounding ellipsoids by this fraction.
-        Default is *1.2*.
+        Enlarge the volumes of the ellipsoids by this fraction. The preferred
+        method is to determine this organically using bootstrapping. If
+        `bootstrap > 0`, this defaults to *1.0*. If `bootstrap = 0`,
+        this instead defaults to *1.25*.
+
+    bootstrap : int, optional
+        Compute this many bootstrap resampled realizations of the bounding
+        ellipsoids. Use the maximum distance found to the set of points
+        left out during each iteration to enlarge the resulting ellipsoids.
+        Default is *20*.
 
     vol_dec : float, optional
         The required fractional reduction in volume after splitting an
@@ -388,7 +410,11 @@ class MultiEllipsoidSampler(Sampler):
         self.update_proposal = self._UPDATE[method]
         self.kwargs = kwargs
         self.scale = 1.
-        self.enlarge = kwargs.get('enlarge', 1.2)
+        self.bootstrap = kwargs.get('bootstrap', 20)
+        if self.bootstrap > 0:
+            self.enlarge = kwargs.get('enlarge', 1.0)
+        else:
+            self.enlarge = kwargs.get('enlarge', 1.25)
         self.vol_dec = kwargs.get('vol_dec', 0.5)
         self.vol_check = kwargs.get('vol_check', 2.0)
         super(MultiEllipsoidSampler,
@@ -406,8 +432,10 @@ class MultiEllipsoidSampler(Sampler):
 
         self._empty_queue()
         self.mell.update(self.live_u, pointvol=pointvol,
-                         vol_dec=self.vol_dec, vol_check=self.vol_check)
-        self.mell.scale_to_vols(self.mell.vols * self.enlarge)
+                         vol_dec=self.vol_dec, vol_check=self.vol_check,
+                         rstate=self.rstate, bootstrap=self.bootstrap)
+        if self.enlarge != 1.:
+            self.mell.scale_to_vols(self.mell.vols * self.enlarge)
 
         return copy.deepcopy(self.mell)
 

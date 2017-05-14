@@ -532,7 +532,7 @@ class Sampler(object):
                    logz, logzerr, h, nc)
 
     def run_nested(self, maxiter=None, maxcall=None, dlogz=None,
-                   add_live=True, print_progress=True):
+                   add_live=True, print_progress=True, save_proposals=True):
         """
         Iteratively replace the worst live point with a sample drawn
         uniformly from the prior until the provided stopping criteria
@@ -565,6 +565,10 @@ class Sampler(object):
             If *True*, outputs a simple summary of the current run that
             updates each iteration. Default is *True*.
 
+        save_proposals : bool, optional
+            Whether or not to save past proposal distributions used to bound
+            the live points internally. Default is *True*.
+
         """
 
         # Run the main nested sampling loop.
@@ -578,7 +582,7 @@ class Sampler(object):
         ncall = self.nlive
         for it, results in enumerate(self.sample(maxiter=maxiter,
                                      maxcall=maxcall, dlogz=dlogz,
-                                     save_proposals=True,
+                                     save_proposals=save_proposals,
                                      save_samples=True)):
             if print_progress:
                 (worst, ustar, vstar, loglstar, logvol, logwt,

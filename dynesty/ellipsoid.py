@@ -14,6 +14,7 @@ import sys
 import warnings
 import math
 import numpy as np
+from numpy import linalg
 
 try:
     from scipy.cluster.vq import kmeans2
@@ -61,12 +62,12 @@ class Ellipsoid(object):
         # Volume of ellipsoid is the volume of an n-sphere divided
         # by the (determinant of the) Jacobian associated with the
         # transformation, which by definition is the precision matrix.
-        self.vol = vol_prefactor(self.n) / np.linalg.norm(self.am)
+        self.vol = vol_prefactor(self.n) / np.sqrt(linalg.det(self.am))
 
         # The eigenvalues (l) of `a` are (a^-2, b^-2, ...) where
         # (a, b, ...) are the lengths of principle axes.
         # The eigenvectors (v) are the normalized principle axes.
-        l, v = np.linalg.eigh(self.am)
+        l, v = linalg.eigh(self.am)
         self.axlens = 1. / np.sqrt(l)
 
         # Scaled eigenvectors are the axes, where `axes[:,i]` is the
@@ -74,10 +75,15 @@ class Ellipsoid(object):
         # point in the unit n-sphere to a point in the ellipsoid.
         self.axes = np.dot(v, np.diag(self.axlens))
 
+        # Amount by which volume was expanded after initialization (i.e.
+        # cumulative factor from `scale_to_vol`).
+        self.expand = 1.
+
     def scale_to_vol(self, vol):
         """Scale ellipoid to encompass a target volume."""
 
         f = (vol / self.vol) ** (1.0 / self.n)  # linear factor
+        self.expand *= f
         self.am *= f**-2
         self.axlens *= f
         self.axes *= f
@@ -91,12 +97,18 @@ class Ellipsoid(object):
 
         return self.ctr - v, self.ctr + v
 
-    def contains(self, x):
-        """Checks if ellipsoid contains `x`."""
+    def distance(self, x):
+        """Compute the normalized distance to `x` from the center of the
+        ellipsoid."""
 
         d = x - self.ctr
 
-        return np.dot(np.dot(d, self.am), d) <= 1.0
+        return np.dot(np.dot(d, self.am), d)
+
+    def contains(self, x):
+        """Checks if ellipsoid contains `x`."""
+
+        return self.distance(x) <= 1.0
 
     def randoffset(self, rstate=np.random):
         """Return an offset from ellipsoid center that is randomly
@@ -132,7 +144,7 @@ class Ellipsoid(object):
 
         return xs
 
-    def update(self, points, pointvol=None):
+    def update(self, points, pointvol=None, rstate=np.random, bootstrap=0):
         """
         Update the ellipsoid to bound the collection of points.
 
@@ -149,81 +161,139 @@ class Ellipsoid(object):
         # `pointvol` centered at the point.
         if npoints == 1:
             if pointvol is not None:
+                self.n = ndim
                 self.ctr = points[0]
                 r = (pointvol / vol_prefactor(ndim))**(1./ndim)
                 self.am = (1. / r**2) * np.identity(ndim)
-                return Ellipsoid(ctr, am)
+                self.vol = vol_prefactor(self.n) / np.sqrt(linalg.det(self.am))
+                l, v = linalg.eigh(self.am)
+                self.axlens = 1. / np.sqrt(l)
+                self.axes = np.dot(v, np.diag(self.axlens))
             else:
                 raise ValueError("Cannot compute a bounding ellipsoid to a "
                                  "single point if `pointvol` is not "
                                  "specified.")
 
-        # Calculate covariance of points.
-        ctr = np.mean(points, axis=0)
-        cov = np.cov(points, rowvar=False)
-
-        # When ndim = 1, np.cov returns a 0-d array. Make it a 1x1 2-d array.
-        if ndim == 1:
-            cov = np.atleast_2d(cov)
-
-        # For a ball of uniformly distributed points, the sample covariance
-        # will be smaller than the true covariance by a factor of 1/(n+2)
-        # [see, e.g., goo.gl/UbsjYl]. Since we are assuming all points are
-        # uniformly distributed within the unit cube, they are uniformly
-        # distributed within any sub-volume within the cube. We expand
-        # our sample covariance `cov` to compensate for this.
-        cov *= (ndim + 2)
-
-        # Ensure that `cov` is nonsingular to deal with pathological cases
-        # where the ellipsoid has zero volume. This can occur when
-        # `npoints <= ndim` or when enough points are linear combinations
-        # of other points. When this happens, we expand the ellipsoid
-        # in the zero dimensions to fulfill the volume expected from
-        # `pointvol`.
-        if pointvol is not None:
-            targetprod = (npoints * pointvol / vol_prefactor(ndim))**2
-            cov = make_eigvals_positive(cov, targetprod)
+        # Otherwise, go ahead and compute the bounding ellipsoid.
         else:
-            raise ValueError("Cannot modify `a` to be non-singular to give "
-                             "our ellipsoid non-zero volume if `pointvol` "
-                             "is not specified.")
 
-        # The matrix defining the ellipsoid.
-        am = np.linalg.inv(cov)
+            # Calculate covariance of points.
+            ctr = np.mean(points, axis=0)
+            cov = np.cov(points, rowvar=False)
 
-        # Calculate expansion factor necessary to bound each point.
-        # Points should obey `(x-v)^T A (x-v) <= 1`, so we calculate this for
-        # each point and then scale A up or down to make the
-        # "outermost" point obey `(x-v)^T A (x-v) = 1`. This can be done
-        # quickly using `einsum` and `tensordot` to iterate over all points.
-        delta = points - ctr
-        f = np.einsum('...i, ...i', np.tensordot(delta, am, axes=1), delta)
-        fmax = np.max(f)
+            # When ndim = 1, np.cov returns a 0-d array.
+            # Make it a 1x1 2-d array.
+            if ndim == 1:
+                cov = np.atleast_2d(cov)
 
-        # Due to round-off errors, we actually scale the ellipsoid
-        # so the outermost point obeys `(x-v)^T A (x-v) < 1 - (a bit) < 1`.
-        one_minus_a_bit = 1. - SQRTEPS
+            # For a ball of uniformly distributed points, the sample covariance
+            # will be smaller than the true covariance by a factor of 1/(n+2)
+            # [see, e.g., goo.gl/UbsjYl]. Since we are assuming all points are
+            # uniformly distributed within the unit cube, they are uniformly
+            # distributed within any sub-volume within the cube. We expand
+            # our sample covariance `cov` to compensate for this.
+            cov *= (ndim + 2)
 
-        if fmax > one_minus_a_bit:
-            am *= one_minus_a_bit / fmax
+            # Ensure that `cov` is nonsingular to deal with pathological cases
+            # where the ellipsoid has zero volume. This can occur when
+            # `npoints <= ndim` or when enough points are linear combinations
+            # of other points. When this happens, we expand the ellipsoid
+            # in the zero dimensions to fulfill the volume expected from
+            # `pointvol`.
+            if pointvol is not None:
+                targetprod = (npoints * pointvol / vol_prefactor(ndim))**2
+                cov = make_eigvals_positive(cov, targetprod)
+            else:
+                raise ValueError("Cannot modify `a` to be non-singular to "
+                                 "give our ellipsoid non-zero volume if "
+                                 "`pointvol` is not specified.")
 
-        # Update the ellipsoid.
-        self.n = ndim
-        self.ctr = ctr
-        self.am = am
-        self.vol = vol_prefactor(self.n) / np.linalg.norm(self.am)
-        l, v = np.linalg.eigh(self.am)
-        self.axlens = 1. / np.sqrt(l)
-        self.axes = np.dot(v, np.diag(self.axlens))
+            # The matrix defining the ellipsoid.
+            am = linalg.inv(cov)
 
-        # Expand our ellipsoid to encompass a minimum volume.
-        if pointvol is not None:
-            v = npoints * pointvol
-            if self.vol < v:
-                self.scale_to_vol(v)
-        else:
-            raise ValueError("Cannot expand ellipsoid if `pointvol` "
-                             "is not specified.")
+            # Calculate expansion factor necessary to bound each point.
+            # Points should obey `(x-v)^T A (x-v) <= 1`, so we calculate this
+            # for each point and then scale A up or down to make the
+            # "outermost" point obey `(x-v)^T A (x-v) = 1`. This can be done
+            # quickly using `einsum` and `tensordot`.
+            delta = points - ctr
+            f = np.einsum('...i, ...i', np.tensordot(delta, am, axes=1), delta)
+            fmax = np.max(f)
+
+            # Due to round-off errors, we actually scale the ellipsoid
+            # so the outermost point obeys `(x-v)^T A (x-v) < 1 - (a bit) < 1`.
+            one_minus_a_bit = 1. - SQRTEPS
+
+            if fmax > one_minus_a_bit:
+                am *= one_minus_a_bit / fmax
+
+            # Update the ellipsoid.
+            self.n = ndim
+            self.ctr = ctr
+            self.am = am
+            self.vol = vol_prefactor(self.n) / np.sqrt(linalg.det(self.am))
+            l, v = linalg.eigh(self.am)
+            self.axlens = 1. / np.sqrt(l)
+            self.axes = np.dot(v, np.diag(self.axlens))
+
+            # Expand our ellipsoid to encompass a minimum volume.
+            if pointvol is not None:
+                v = npoints * pointvol
+                if self.vol < v:
+                    self.scale_to_vol(v)
+            else:
+                raise ValueError("Cannot expand ellipsoid if `pointvol` "
+                                 "is not specified.")
+
+            # Use bootstrapping to determine volume expansion factor.
+            expand = 1.
+            for it in xrange(bootstrap):
+                idxs = rstate.randint(npoints, size=npoints)  # resample
+                idx_in = np.unique(idxs)  # selected objects
+                sel = np.ones(npoints, dtype='bool')
+                sel[idx_in] = False
+                idx_out = np.arange(npoints)[sel]  # "missing" objects
+                if len(idx_out) < 2:  # edge case
+                    idx_out = np.append(idx_out, [0, 1])
+
+                # Recompute the bounding ellipsoid over the resampled
+                # set of points.
+                rpoints, points_out = points[idxs], points[idx_out]
+                ctr = np.mean(rpoints, axis=0)
+                cov = np.cov(rpoints, rowvar=False)
+                if ndim == 1:
+                    cov = np.atleast_2d(cov)
+                cov *= (ndim + 2)
+                targetprod = (npoints * pointvol / vol_prefactor(ndim))**2
+                cov = make_eigvals_positive(cov, targetprod)
+                am = linalg.inv(cov)
+                delta = rpoints - ctr
+                f = np.einsum('...i, ...i', np.tensordot(delta, am, axes=1),
+                              delta)
+                fmax = np.max(f)
+                if fmax > one_minus_a_bit:
+                    am *= one_minus_a_bit / fmax
+                vol = vol_prefactor(ndim) / np.sqrt(linalg.det(self.am))
+                l, v = linalg.eigh(am)
+                axlens = 1. / np.sqrt(l)
+                axes = np.dot(v, np.diag(self.axlens))
+
+                # Expand the ellipsoid to encompass a minimum volume.
+                v = npoints * pointvol
+                f = (v / vol) ** (1.0 / ndim)
+                am *= f**-2
+                axlens *= f
+                axes *= f
+                vol = v
+
+                # Compute distances to missing points.
+                dctrs = points_out - ctr
+                dists = [np.dot(np.dot(d, am), d) for d in dctrs]
+                expand = max(expand, max(dists))  # assign maximum factor
+
+            # If our ellipsoid  is overly-constrained, expand it.
+            if expand > 1.:
+                self.scale_to_vol(self.vol * expand)
 
 
 class MultiEllipsoid(object):
@@ -256,7 +326,9 @@ class MultiEllipsoid(object):
                 self.ctrs = np.array([ell.ctr for ell in self.ells])
                 self.ams = np.array([ell.am for ell in self.ells])
                 self.vols = np.array([ell.vol for ell in self.ells])
+                self.expands = np.ones(self.nells)
                 self.vol_tot = sum(self.vols)
+                self.expand_tot = 1.
             else:
                 raise ValueError("You cannot specific both `ells` and "
                                  "(`ctrs`, `ams`)!")
@@ -271,6 +343,9 @@ class MultiEllipsoid(object):
                 self.ells = [Ellipsoid(ctrs[i], ams[i])
                              for i in xrange(self.nells)]
                 self.vols = [ell.vol for ell in self.ells]
+                self.expands = np.ones(self.nells)
+                self.vol_tot = sum(self.vols)
+                self.expand_tot = 1.
 
     def scale_to_vols(self, vols):
         """Scale ellipoids to encompass a corresponding set of
@@ -278,7 +353,11 @@ class MultiEllipsoid(object):
 
         _ = [self.ells[i].scale_to_vol(vols[i]) for i in xrange(self.nells)]
         self.vols = np.array(vols)
-        self.vol_tot = sum(vols)
+        self.expands = np.array([self.ells[i].expand
+                                 for i in xrange(self.nells)])
+        vol_tot = sum(vols)
+        self.expand_tot *= vol_tot / self.vol_tot
+        self.vol_tot = vol_tot
 
     def major_axis_endpoints(self):
         """Return the endpoints of the major axis of each ellipsoid."""
@@ -371,7 +450,8 @@ class MultiEllipsoid(object):
                            for i in xrange(nsamples)])
             return xs
 
-    def update(self, points, pointvol=None, vol_dec=0.5, vol_check=2.):
+    def update(self, points, pointvol=None, vol_dec=0.5, vol_check=2.,
+               rstate=np.random, bootstrap=0):
         """
         Update the set of ellipsoids to bound the collection of points.
 
@@ -380,6 +460,8 @@ class MultiEllipsoid(object):
         if not HAVE_KMEANS:
             raise ValueError("scipy.cluster.vq.kmeans2 is required to compute "
                              "ellipsoid decompositions.")  # pragma: no cover
+
+        npoints, ndim = points.shape
 
         # Calculate the bounding ellipsoid for the points possibly
         # enlarged to a minimum volume.
@@ -397,6 +479,31 @@ class MultiEllipsoid(object):
         self.ams = np.array([ell.am for ell in self.ells])
         self.vols = np.array([ell.vol for ell in self.ells])
         self.vol_tot = sum(self.vols)
+
+        # Use bootstrapping to determine volume expansion factor.
+        expand = 1.
+        for it in xrange(bootstrap):
+            idxs = rstate.randint(npoints, size=npoints)  # resample
+            idx_in = np.unique(idxs)  # selected objects
+            sel = np.ones(npoints, dtype='bool')
+            sel[idx_in] = False
+            idx_out = np.arange(npoints)[sel]  # "missing" objects
+            if len(idx_out) < 2:  # edge case
+                idx_out = np.append(idx_out, [0, 1])
+
+            # Recompute bounding ellipsoids over resampled points.
+            rpoints, points_out = points[idxs], points[idx_out]
+            ell = bounding_ellipsoid(rpoints, pointvol=pointvol)
+            ells = _bounding_ellipsoids(rpoints, ell, pointvol=pointvol,
+                                        vol_dec=vol_dec, vol_check=vol_check)
+
+            # Compute distances to missing points.
+            dists = [min([el.distance(p) for el in ells]) for p in points_out]
+            expand = max(expand, max(dists))  # assign maximum factor
+
+        # If our ellipsoids are overly constrained, expand them.
+        if expand > 1.:
+            self.scale_to_vols(self.vols * expand)
 
 
 def vol_prefactor(n):
@@ -429,7 +536,7 @@ def randsphere(n, rstate=np.random):
 
     z = rstate.randn(n)  # initial n-dim vector
 
-    return z * rstate.rand()**(1./n) / np.linalg.norm(z)
+    return z * rstate.rand()**(1./n) / np.sqrt(np.sum(z**2))
 
 
 def make_eigvals_positive(am, targetprod):
@@ -437,13 +544,13 @@ def make_eigvals_positive(am, targetprod):
     to fulfill the given target product of eigenvalues. Returns a
     (possibly) new matrix."""
 
-    w, v = np.linalg.eigh(am)  # use eigh since a is symmetric
+    w, v = linalg.eigh(am)  # use eigh since a is symmetric
     mask = w < 1.e-10
     if np.any(mask):
         nzprod = np.product(w[~mask])  # product of nonzero eigenvalues
         nzeros = mask.sum()  # number of zero eigenvalues
         w[mask] = (targetprod / nzprod) ** (1./nzeros)  # adjust zero eigvals
-        am = np.dot(np.dot(v, np.diag(w)), np.linalg.inv(v))  # re-form cov
+        am = np.dot(np.dot(v, np.diag(w)), linalg.inv(v))  # re-form cov
 
     return am
 
@@ -517,7 +624,7 @@ def bounding_ellipsoid(points, pointvol=None):
                          "is not specified.")
 
     # The matrix defining the ellipsoid.
-    am = np.linalg.inv(cov)
+    am = linalg.inv(cov)
 
     # Calculate expansion factor necessary to bound each point.
     # Points should obey `(x-v)^T A (x-v) <= 1`, so we calculate this for
@@ -593,7 +700,9 @@ def _bounding_ellipsoids(points, ell, pointvol=None, vol_dec=0.5,
     start_ctrs = np.vstack((p1, p2))  # shape is (k, ndim) = (2, ndim)
 
     # Split points into two clusters using k-means clustering with k=2.
-    k2_res = kmeans2(points, k=start_ctrs, iter=10, minit='matrix')
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        k2_res = kmeans2(points, k=start_ctrs, iter=10, minit='matrix')
     centroids = k2_res[0]  # shape is (k, ndim) = (2, ndim)
     labels = k2_res[1]  # cluster identifier ; shape is (npoints,)
 

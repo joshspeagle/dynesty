@@ -69,13 +69,11 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
         bounding ellipsoid ('single'), and multiple bounding ellipsoids
         ('multi'). Default is 'multi'.
 
-    sample : {'uniform', 'randomwalk', 'slice', 'randomtrajectory'}, optional
+    sample : {'uniform', 'randomwalk'}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds. Choices are uniform sampling
-        ('uniform'), random walking away from a current live point
-        ('randomwalk'), repeated slice sampling away from a current live
-        point ('slice'), and initializing a random trajectory away from a
-        current live point ('randomtrajectory').
+        ('uniform') and random walking away from a current live point
+        ('randomwalk'). Default is 'uniform'.
 
     update_interval : int, optional
         Only update the proposal distribution every `update_interval`-th
@@ -114,13 +112,21 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
         sampled from the prior. Failure to provide a set of valid live points
         will result in biased results.**
 
-
     Other Parameters
     ----------------
 
     enlarge : float, optional
         For the 'single' and 'multi' bounding options, enlarge the volumes of
-        the ellipsoid(s) by this fraction. Default is *1.2*.
+        the ellipsoid(s) by this fraction. The preferred method is to
+        determine this organically using bootstrapping. If `bootstrap > 0`,
+        this defaults to *1.0*. If `bootstrap = 0`, this instead defaults
+        to *1.25*.
+
+    bootstrap : int, optional
+        For the 'single' and 'multi' bounding options, compute this many
+        bootstrap resampled realizations of the bounding ellipsoid(s). Use
+        the maximum distance found to the set of points left out during each
+        iteration to enlarge the resulting ellipsoids. Default is *20*.
 
     vol_dec : float, optional
         For the 'multi' bounding option, the required fractional reduction in

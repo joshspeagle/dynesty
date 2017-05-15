@@ -15,6 +15,7 @@ import warnings
 import math
 import numpy as np
 from numpy import linalg
+from scipy import special
 
 try:
     from scipy.cluster.vq import kmeans2
@@ -506,27 +507,19 @@ class MultiEllipsoid(object):
             self.scale_to_vols(self.vols * expand)
 
 
-def vol_prefactor(n):
+def vol_prefactor(n, p=2.):
     """
-    Volume constant for an n-dimensional sphere:
+    Volume constant for an n-dimensional sphere with an L^p norm, which
+    is::
 
-    for n even:      (2pi)^(n    /2) / (2 * 4 * ... * n)
-    for n odd :  2 * (2pi)^((n-1)/2) / (1 * 3 * ... * n)
+    f = (2 * Gamma(1/p + 1))**n / Gamma(n/p + 1)
+
+    By default the norm is p=2 (the standard Euclidean norm).
 
     """
 
-    if n % 2 == 0:
-        f = 1.
-        i = 2
-        while i <= n:
-            f *= (2. / i * math.pi)
-            i += 2
-    else:
-        f = 2.
-        i = 3
-        while i <= n:
-            f *= (2. / i * math.pi)
-            i += 2
+    p *= 1.  # convert to float in case user inputs int
+    f = (2 * special.gamma(1./p + 1.))**n / special.gamma(n/p + 1)
 
     return f
 
@@ -536,7 +529,7 @@ def randsphere(n, rstate=np.random):
 
     z = rstate.randn(n)  # initial n-dim vector
 
-    return z * rstate.rand()**(1./n) / np.sqrt(np.sum(z**2))
+    return z / linalg.norm(z) * rstate.rand()**(1./n)
 
 
 def make_eigvals_positive(am, targetprod):

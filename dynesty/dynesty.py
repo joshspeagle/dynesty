@@ -22,7 +22,9 @@ __all__ = ["NestedSampler"]
 
 _SAMPLERS = {'none': UnitCubeSampler,
              'single': SingleEllipsoidSampler,
-             'multi': MultiEllipsoidSampler}
+             'multi': MultiEllipsoidSampler,
+             'balls': RadFriendsSampler,
+             'cubes': SupFriendsSampler}
 _SAMPLING = ['uniform', 'randomwalk']
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
@@ -62,12 +64,13 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
         sampled posterior (more accurate evidence), but also a larger
         number of iterations required to converge. Default is *100*.
 
-    bound : {'none', 'single', 'multi'}, optional
+    bound : {'none', 'single', 'multi', 'balls', 'cubes'}, optional
         Method used to approximately bound the prior using the current
         set of live points. Used to condition sampling methods used to
         propose new live points. Choices are no bound ('none'), a single
-        bounding ellipsoid ('single'), and multiple bounding ellipsoids
-        ('multi'). Default is 'multi'.
+        bounding ellipsoid ('single'), multiple bounding ellipsoids
+        ('multi'), balls centered on each live point ('balls'), and
+        cubes centered on each live point ('cubes'). Default is 'multi'.
 
     sample : {'uniform', 'randomwalk'}, optional
         Method used to sample uniformly within the likelihood constraint,

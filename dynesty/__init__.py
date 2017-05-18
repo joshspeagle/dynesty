@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import (division, print_function)
+from builtins import range
+
 from .dynesty import *
 from . import ellipsoid
 from . import utils

@@ -26,6 +26,7 @@ Sampler classes for proposing new live points. Includes:
 """
 
 from __future__ import (print_function, division)
+from builtins import range
 
 import sys
 import warnings
@@ -629,7 +630,7 @@ class RadFriendsSampler(Sampler):
         # Bootstrap radius.
         points = self.live_u
         npoints = self.nlive
-        for it in xrange(self.bootstrap):
+        for it in range(self.bootstrap):
             idxs = self.rstate.randint(npoints, size=npoints)  # resample
             idx_in = np.unique(idxs)  # selected objects
             sel = np.ones(npoints, dtype='bool')
@@ -650,8 +651,8 @@ class RadFriendsSampler(Sampler):
         # Construct radius using leave-one-out if no bootstraps used.
         if self.bootstrap == 0.:
             self.radius = max([min([linalg.norm(points[i] - points[j])
-                                    for i in xrange(self.nlive) if i != j])
-                               for j in xrange(self.nlive)])
+                                    for i in range(self.nlive) if i != j])
+                               for j in range(self.nlive)])
 
         # Expand volume (proportional to (cR)^n)
         if self.enlarge != 1.:
@@ -832,7 +833,7 @@ class SupFriendsSampler(Sampler):
         # Bootstrap side-length.
         points = self.live_u
         npoints = self.nlive
-        for it in xrange(self.bootstrap):
+        for it in range(self.bootstrap):
             idxs = self.rstate.randint(npoints, size=npoints)  # resample
             idx_in = np.unique(idxs)  # selected objects
             sel = np.ones(npoints, dtype='bool')
@@ -853,8 +854,8 @@ class SupFriendsSampler(Sampler):
         # Construct radius using leave-one-out if no bootstraps used.
         if self.bootstrap == 0.:
             self.side = max([min([max(points[i] - points[j])
-                                  for i in xrange(self.nlive) if i != j])
-                             for j in xrange(self.nlive)])
+                                  for i in range(self.nlive) if i != j])
+                             for j in range(self.nlive)])
 
         # Expand volume (proportional to (cL)^n)
         if self.enlarge != 1.:

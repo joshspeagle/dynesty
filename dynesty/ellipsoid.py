@@ -9,6 +9,7 @@ a set of points using one or more ellipsoids based on Feroz et al. (2009)
 """
 
 from __future__ import (print_function, division)
+from builtins import range
 
 import sys
 import warnings
@@ -23,7 +24,7 @@ try:
 except ImportError:  # pragma: no cover
     HAVE_KMEANS = False
 
-from utils import random_choice
+from .utils import random_choice
 
 __all__ = ["Ellipsoid", "MultiEllipsoid", "vol_prefactor", "randsphere",
            "make_eigvals_positive", "bounding_ellipsoid",
@@ -141,7 +142,7 @@ class Ellipsoid(object):
 
         """
 
-        xs = np.array([self.sample(rstate=rstate) for i in xrange(nsamples)])
+        xs = np.array([self.sample(rstate=rstate) for i in range(nsamples)])
 
         return xs
 
@@ -248,7 +249,7 @@ class Ellipsoid(object):
 
             # Use bootstrapping to determine volume expansion factor.
             expand = 1.
-            for it in xrange(bootstrap):
+            for it in range(bootstrap):
                 idxs = rstate.randint(npoints, size=npoints)  # resample
                 idx_in = np.unique(idxs)  # selected objects
                 sel = np.ones(npoints, dtype='bool')
@@ -342,7 +343,7 @@ class MultiEllipsoid(object):
                 self.ctrs = ctrs
                 self.ams = ams
                 self.ells = [Ellipsoid(ctrs[i], ams[i])
-                             for i in xrange(self.nells)]
+                             for i in range(self.nells)]
                 self.vols = [ell.vol for ell in self.ells]
                 self.expands = np.ones(self.nells)
                 self.vol_tot = sum(self.vols)
@@ -352,10 +353,10 @@ class MultiEllipsoid(object):
         """Scale ellipoids to encompass a corresponding set of
         target volume."""
 
-        _ = [self.ells[i].scale_to_vol(vols[i]) for i in xrange(self.nells)]
+        _ = [self.ells[i].scale_to_vol(vols[i]) for i in range(self.nells)]
         self.vols = np.array(vols)
         self.expands = np.array([self.ells[i].expand
-                                 for i in xrange(self.nells)])
+                                 for i in range(self.nells)])
         vol_tot = sum(vols)
         self.expand_tot *= vol_tot / self.vol_tot
         self.vol_tot = vol_tot
@@ -373,7 +374,7 @@ class MultiEllipsoid(object):
         ellipsoid."""
 
         within = [self.ells[i].contains(x) if i != j else True
-                  for i in xrange(self.nells)]
+                  for i in range(self.nells)]
         idxs = np.arange(self.nells)[within]
 
         return idxs
@@ -443,12 +444,12 @@ class MultiEllipsoid(object):
 
         if return_qs:
             samples = np.array([self.sample(rstate=rstate, return_q=True)
-                                for i in xrange(nsamples)])
+                                for i in range(nsamples)])
             xs, qs = samples[:, 0], samples[:, 1]
             return xs, qs
         else:
             xs = np.array([self.sample(rstate=rstate, return_q=False)
-                           for i in xrange(nsamples)])
+                           for i in range(nsamples)])
             return xs
 
     def update(self, points, pointvol=None, vol_dec=0.5, vol_check=2.,
@@ -483,7 +484,7 @@ class MultiEllipsoid(object):
 
         # Use bootstrapping to determine volume expansion factor.
         expand = 1.
-        for it in xrange(bootstrap):
+        for it in range(bootstrap):
             idxs = rstate.randint(npoints, size=npoints)  # resample
             idx_in = np.unique(idxs)  # selected objects
             sel = np.ones(npoints, dtype='bool')

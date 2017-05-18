@@ -8,6 +8,7 @@ Base `Sampler` class containing various helpful functions. Also contains a
 """
 
 from __future__ import (print_function, division)
+from builtins import range
 
 import sys
 import warnings
@@ -272,7 +273,7 @@ class Sampler(object):
         # from the lowest to the highest loglikelihoods.
         lsort_idx = np.argsort(self.live_logl)
         logz, h = self.saved_logz[-1], self.saved_h[-1]
-        for i in xrange(self.nlive):
+        for i in range(self.nlive):
             idx = lsort_idx[i]
             logvol, logdvol = logvols[i], logdvols[i]
             ustar = np.array(self.live_u[idx])
@@ -429,7 +430,7 @@ class Sampler(object):
             logvol = self.saved_logvol[-1]  # log(volume)
 
         # The main nested sampling loop.
-        for it in xrange(sys.maxsize):
+        for it in range(sys.maxsize):
 
             # Stopping criterion 1: current number of iterations
             # exceeds `maxiter`.

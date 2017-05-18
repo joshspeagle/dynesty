@@ -7,6 +7,7 @@ Useful utilities.
 """
 
 from __future__ import (print_function, division)
+from builtins import range
 
 import sys
 import warnings
@@ -209,7 +210,7 @@ def simulate_run(res, rstate=np.random):
     h = 0.0  # Information, initially *0.*
     logz = -1.e300  # log(evidence), initially *0.*
     saved_logz, saved_h, saved_logzerr = [], [], []
-    for i in xrange(nsamps):
+    for i in range(nsamps):
         logz_new = np.logaddexp(logz, logwt[i])
         h = (math.exp(logwt[i] - logz_new) * res.logl[i] +
              math.exp(logz - logz_new) * (h + logz) -
@@ -291,7 +292,7 @@ def unravel_run(res):
         h = 0.0
         logz = -1.e300
         saved_logz, saved_h, saved_logzerr = [], [], []
-        for i in xrange(nsamps):
+        for i in range(nsamps):
             logz_new = np.logaddexp(logz, logwt[i])
             h = (math.exp(logwt[i] - logz_new) * logl[i] +
                  math.exp(logz - logz_new) * (h + logz) -
@@ -372,7 +373,7 @@ def merge_runs(res_list):
     h = 0.0
     logz = -1.e300
     saved_logz, saved_h, saved_logzerr = [], [], []
-    for i in xrange(nsamps):
+    for i in range(nsamps):
         logz_new = np.logaddexp(logz, logwt[i])
         h = (math.exp(logwt[i] - logz_new) * logl[i] +
              math.exp(logz - logz_new) * (h + logz) -
@@ -468,7 +469,7 @@ def resample_run(res, rstate=np.random):
     h = 0.0
     logz = -1.e300
     saved_logz, saved_h, saved_logzerr = [], [], []
-    for i in xrange(nsamps):
+    for i in range(nsamps):
         logz_new = np.logaddexp(logz, logwt[i])
         h = (math.exp(logwt[i] - logz_new) * logl[i] +
              math.exp(logz - logz_new) * (h + logz) -

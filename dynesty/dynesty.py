@@ -35,8 +35,8 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
                   npdim=None, rstate=None, queue_size=1, pool=None,
                   live_points=None, **kwargs):
     """
-    Initializes and returns a chosen sampler that will perform nested sampling
-    to evaluate Bayesian evidence and posteriors.
+    Initializes and returns a chosen sampler to evaluate Bayesian evidence
+    and posteriors using nested sampling.
 
     Parameters
     ----------
@@ -117,7 +117,6 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
 
     Other Parameters
     ----------------
-
     enlarge : float, optional
         For the 'single' and 'multi' bounding options, enlarge the volumes of
         the ellipsoid(s) by this fraction. The preferred method is to

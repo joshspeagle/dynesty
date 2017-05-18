@@ -2,9 +2,27 @@
 # -*- coding: utf-8 -*-
 
 """
-Ellipsoid and MultiEllipsoid classes along with helper functions for bounding
-a set of points using one or more ellipsoids based on Feroz et al. (2009)
-<https://arxiv.org/abs/0809.3437>.
+Bounding classes used when proposing new live points, along with relevant
+helper functions. Includes:
+
+    UnitCube:
+        The unit N-cube (unconstrained draws from the prior).
+
+    Ellipsoid:
+        Bounding ellipsoid.
+
+    MultiEllipsoid:
+        A set of (possibly overlapping) bounding ellipsoids.
+
+    RadFriends:
+        A set of (possibly overlapping) balls centered on each live point.
+
+    SupFriends:
+        A set of (possibly overlapping) cubes centered on each live point.
+
+The ellipsoid methods are based on results from Feroz et al. (2009)
+<https://arxiv.org/abs/0809.3437>. The RadFriends and SupFriends methods are
+based on results from Buchner (2014) <https://arxiv.org/abs/1407.5459>.
 
 """
 
@@ -26,11 +44,73 @@ except ImportError:  # pragma: no cover
 
 from .utils import random_choice
 
-__all__ = ["Ellipsoid", "MultiEllipsoid", "vol_prefactor", "randsphere",
-           "make_eigvals_positive", "bounding_ellipsoid",
-           "bounding_ellipsoids"]
+__all__ = ["UnitCube", "Ellipsoid", "MultiEllipsoid", "RadFriends",
+           "SupFriends"]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
+
+
+class UnitCube(object):
+    """
+    A N-dimensional unit cube.
+
+    Parameters
+    ----------
+    ndim : int
+        The number of dimensions of the unit cube.
+
+    """
+
+    def __init__(self, ndim):
+        self.n = ndim  # dimension
+        self.vol = 1.
+
+    def contains(self, x):
+        """Checks if ellipsoid contains `x`."""
+
+        return np.all(point > 0.) and np.all(point < 1.)
+
+    def randoffset(self, rstate=np.random):
+        """Draw a sample randomly offset from the center of the
+        unit cube."""
+
+        return self.sample(rstate=rstate) - 0.5
+
+    def sample(self, rstate=np.random):
+        """
+        Draw a sample uniformly distributed within the unit cube.
+
+        Returns
+        -------
+        x : `~numpy.ndarray` with shape (ndim,)
+            A coordinate within the unit cube.
+
+        """
+
+        return rstate.rand(self.n)
+
+    def samples(self, nsamples, rstate=np.random):
+        """
+        Draw `nsamples` samples randomly distributed within the unit cube.
+
+        Returns
+        -------
+        x : `~numpy.ndarray` with shape (nsamples, ndim)
+            A collection of coordinates within the unit cube.
+
+        """
+
+        xs = np.array([self.sample(rstate=rstate) for i in range(nsamples)])
+
+        return xs
+
+    def update(self, points, pointvol=None, rstate=np.random, bootstrap=0):
+        """
+        Filler function since the unit cube does not change.
+
+        """
+
+        pass
 
 
 class Ellipsoid(object):
@@ -243,9 +323,6 @@ class Ellipsoid(object):
                 v = npoints * pointvol
                 if self.vol < v:
                     self.scale_to_vol(v)
-            else:
-                raise ValueError("Cannot expand ellipsoid if `pointvol` "
-                                 "is not specified.")
 
             # Use bootstrapping to determine volume expansion factor.
             expand = 1.
@@ -295,7 +372,7 @@ class Ellipsoid(object):
 
             # If our ellipsoid  is overly-constrained, expand it.
             if expand > 1.:
-                self.scale_to_vol(self.vol * expand)
+                self.scale_to_vol(self.vol * expand**self.n)
 
 
 class MultiEllipsoid(object):
@@ -505,13 +582,336 @@ class MultiEllipsoid(object):
 
         # If our ellipsoids are overly constrained, expand them.
         if expand > 1.:
-            self.scale_to_vols(self.vols * expand)
+            self.scale_to_vols(self.vols * expand**ndim)
 
+
+class RadFriends(object):
+    """
+    A collection of N-balls of fixed size centered on each live point.
+
+    Parameters
+    ----------
+    ndim : int
+        The number of dimensions of the ball.
+
+    radius : float
+        Radius of the ball.
+
+    """
+
+    def __init__(self, ndim, radius):
+        self.n = ndim
+        self.radius = radius
+        self.vol = vol_prefactor(self.n) * self.radius**self.n
+        self.expand = 1.
+
+    def scale_to_vol(self, vol):
+        """Scale ball to encompass a target volume."""
+
+        f = (vol / self.vol) ** (1.0 / self.n)  # linear factor
+        self.expand *= f
+        self.radius *= f
+        self.vol = vol
+
+    def within(self, x, ctrs, j=None):
+        """Checks which balls `x` falls within, skipping the `j`-th
+        ball."""
+
+        nctrs = len(ctrs)
+        within = [linalg.norm(ctrs[i] - x) <= self.radius if i != j else True
+                  for i in range(nctrs)]
+        idxs = np.arange(nctrs)[within]
+
+        return idxs
+
+    def overlap(self, x, ctrs, j=None):
+        """Checks how many balls `x` falls within, skipping the `j`-th
+        ball."""
+
+        q = len(self.within(x, ctrs, j=j))
+
+        return q
+
+    def contains(self, x, ctrs):
+        """Checks if the set of balls contains `x`."""
+
+        return self.overlap(x, ctrs) > 0
+
+    def sample(self, ctrs, rstate=np.random, return_q=False):
+        """
+        Sample a point uniformly distributed within the set of balls.
+
+        Returns
+        -------
+        x : `~numpy.ndarray` with shape (ndim,)
+            A coordinate within the set of balls.
+        q : int, optional
+            The number of balls `x` falls within.
+
+        """
+
+        nctrs = len(ctrs)  # number of balls
+
+        # If there is only one ball, sample from it.
+        if nctrs == 1:
+            dx = self.radius * randsphere(self.n, rstate=rstate)
+            x = ctrs[0] + dx
+            if return_q:
+                return x, 1
+            else:
+                return x
+
+        # Select a ball at random.
+        idx = rstate.randint(nctrs)
+
+        # Select a point from the chosen ball.
+        dx = self.radius * randsphere(self.n, rstate=rstate)
+        x = ctrs[idx] + dx
+
+        if return_q:
+            # Check how many balls the point lies within, passing over
+            # the `idx`-th ball `x` was sampled from.
+            q = self.overlap(x, ctrs, j=idx) + 1
+            return x, q
+        else:
+            return x
+
+    def samples(self, nsamples, ctrs, rstate=np.random, return_qs=False):
+        """
+        Draw `nsamples` samples uniformly distributed within the set of
+        balls.
+
+        Returns
+        -------
+        xs : `~numpy.ndarray` with shape (nsamples, ndim)
+            A collection of coordinates within the set of balls.
+        qs : `~numpy.ndarray` with shape (nsamples,), optional
+            The number of balls each sample falls within.
+
+        """
+
+        if return_qs:
+            samples = np.array([self.sample(ctrs, rstate=rstate, return_q=True)
+                                for i in range(nsamples)])
+            xs, qs = samples[:, 0], samples[:, 1]
+            return xs, qs
+        else:
+            xs = np.array([self.sample(ctrs, rstate=rstate, return_q=False)
+                           for i in range(nsamples)])
+            return xs
+
+    def update(self, points, pointvol=None, rstate=np.random, bootstrap=0):
+        """
+        Update the radius/volume of our balls.
+
+        """
+
+        npoints, ndim = points.shape
+
+        # Set initial radius.
+        rmax = 0.
+
+        # Bootstrap radius using the set of live points.
+        for it in range(bootstrap):
+            idxs = rstate.randint(npoints, size=npoints)  # resample
+            idx_in = np.unique(idxs)  # selected objects
+            sel = np.ones(npoints, dtype='bool')
+            sel[idx_in] = False
+            idx_out = np.arange(npoints)[sel]  # "missing" objects
+            if len(idx_out) < 2:  # edge case
+                idx_out = np.append(idx_out, [0, 1])
+
+            # Find largest distance between resampled points and
+            # "missing" points.
+            points_in, points_out = points[idx_in], points[idx_out]
+            radius = max([min([linalg.norm(pin - pout) for pin in points_in])
+                          for pout in points_out])
+
+            # Increase radius if needed.
+            rmax = max(rmax, radius)
+
+        # Construct radius using leave-one-out if no bootstraps used.
+        if bootstrap == 0.:
+            rmax = max([min([linalg.norm(points[i] - points[j])
+                             for i in range(npoints) if i != j])
+                        for j in range(npoints)])
+
+        self.radius = rmax
+        self.vol = vol_prefactor(self.n) * self.radius**self.n
+
+        # Expand our ball to encompass a minimum volume.
+        if pointvol is not None:
+            v = pointvol
+            if self.vol < v:
+                self.scale_to_vol(v)
+
+
+class SupFriends(object):
+    """
+    A collection of N-cubes of fixed size centered on each live point.
+
+    Parameters
+    ----------
+    ndim : int
+        The number of dimensions of the cube.
+
+    hside : float
+        Half the side-length of the cube.
+
+    """
+
+    def __init__(self, ndim, hside):
+        self.n = ndim
+        self.hside = hside
+        self.vol = (2. * self.hside)**self.n
+        self.expand = 1.
+
+    def scale_to_vol(self, vol):
+        """Scale ball to encompass a target volume."""
+
+        f = (vol / self.vol) ** (1.0 / self.n)  # linear factor
+        self.expand *= f
+        self.side *= f
+        self.vol = vol
+
+    def within(self, x, ctrs, j=None):
+        """Checks which cubes `x` falls within, skipping the `j`-th
+        cube."""
+
+        nctrs = len(ctrs)
+        within = [max(ctrs[i] - x) <= self.hside if i != j else True
+                  for i in range(nctrs)]
+        idxs = np.arange(nctrs)[within]
+
+        return idxs
+
+    def overlap(self, x, ctrs, j=None):
+        """Checks how many cubes `x` falls within, skipping the `j`-th
+        cube."""
+
+        q = len(self.within(x, ctrs, j=j))
+
+        return q
+
+    def contains(self, x, ctrs):
+        """Checks if the set of cubes contains `x`."""
+
+        return self.overlap(x, ctrs) > 0
+
+    def sample(self, ctrs, rstate=np.random, return_q=False):
+        """
+        Sample a point uniformly distributed within the set of cubes.
+
+        Returns
+        -------
+        x : `~numpy.ndarray` with shape (ndim,)
+            A coordinate within the set of cubes.
+        q : int, optional
+            The number of cubes `x` falls within.
+
+        """
+
+        nctrs = len(ctrs)  # number of cubes
+
+        # If there is only one cube, sample from it.
+        if nctrs == 1:
+            dx = self.hside * (rstate.rand(self.n) - 0.5)
+            x = ctrs[0] + dx
+            if return_q:
+                return x, 1
+            else:
+                return x
+
+        # Select a cube at random.
+        idx = rstate.randint(nctrs)
+
+        # Select a point from the chosen cube.
+        dx = self.hside * (rstate.rand(self.n) - 0.5)
+        x = ctrs[idx] + dx
+
+        if return_q:
+            # Check how many cubes the point lies within, passing over
+            # the `idx`-th cube `x` was sampled from.
+            q = self.overlap(x, ctrs, j=idx) + 1
+            return x, q
+        else:
+            return x
+
+    def samples(self, nsamples, ctrs, rstate=np.random, return_qs=False):
+        """
+        Draw `nsamples` samples uniformly distributed within the set of
+        cubes.
+
+        Returns
+        -------
+        xs : `~numpy.ndarray` with shape (nsamples, ndim)
+            A collection of coordinates within the set of cubes.
+        qs : `~numpy.ndarray` with shape (nsamples,), optional
+            The number of cubes each sample falls within.
+
+        """
+
+        if return_qs:
+            samples = np.array([self.sample(ctrs, rstate=rstate, return_q=True)
+                                for i in range(nsamples)])
+            xs, qs = samples[:, 0], samples[:, 1]
+            return xs, qs
+        else:
+            xs = np.array([self.sample(ctrs, rstate=rstate, return_q=False)
+                           for i in range(nsamples)])
+            return xs
+
+    def update(self, points, pointvol=None, rstate=np.random, bootstrap=0):
+        """
+        Update the half-side-lengths/volumes of our cubes.
+
+        """
+
+        npoints, ndim = points.shape
+
+        # Set initial half-side-length.
+        hsmax = 0.
+
+        # Bootstrap half-side-length using the set of live points.
+        for it in range(bootstrap):
+            idxs = rstate.randint(npoints, size=npoints)  # resample
+            idx_in = np.unique(idxs)  # selected objects
+            sel = np.ones(npoints, dtype='bool')
+            sel[idx_in] = False
+            idx_out = np.arange(npoints)[sel]  # "missing" objects
+            if len(idx_out) < 2:  # edge case
+                idx_out = np.append(idx_out, [0, 1])
+
+            # Find largest distance between resampled points and
+            # "missing" points.
+            points_in, points_out = points[idx_in], points[idx_out]
+            hside = max([min([max(pin - pout) for pin in points_in])
+                         for pout in points_out])
+
+            # Increase radius if needed.
+            hsmax = max(hsmax, hside)
+
+        # Construct half-side-length using leave-one-out if `bootstrap = 0`.
+        if bootstrap == 0.:
+            hsmax = max([min([max(points[i] - points[j])
+                              for i in range(npoints) if i != j])
+                         for j in range(npoints)])
+
+        self.hside = hsmax
+        self.vol = (2. * self.hside)**self.n
+
+        # Expand our cube to encompass a minimum volume.
+        if pointvol is not None:
+            v = pointvol
+            if self.vol < v:
+                self.scale_to_vol(v)
+
+
+# HELPER FUNCTIONS
 
 def vol_prefactor(n, p=2.):
     """
-    Volume constant for an n-dimensional sphere with an L^p norm, which
-    is::
+    Volume constant for an n-dimensional sphere with an L^p norm::
 
     f = (2 * Gamma(1/p + 1))**n / Gamma(n/p + 1)
 
@@ -644,9 +1044,6 @@ def bounding_ellipsoid(points, pointvol=None):
         v = npoints * pointvol
         if ell.vol < v:
             ell.scale_to_vol(v)
-    else:
-        raise ValueError("Cannot expand ellipsoid if `pointvol` "
-                         "is not specified.")
 
     return ell
 

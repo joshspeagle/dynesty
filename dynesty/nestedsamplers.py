@@ -37,7 +37,7 @@ from scipy import optimize as opt
 from numpy import linalg
 
 from .sampler import *
-from .ellipsoid import *
+from .bounding import *
 
 __all__ = ["UnitCubeSampler", "SingleEllipsoidSampler",
            "MultiEllipsoidSampler", "RadFriendsSampler", "SupFriendsSampler"]
@@ -103,33 +103,39 @@ class UnitCubeSampler(Sampler):
                         'randomwalk': self.update_rwalk}
         self.propose_point = self._SAMPLE[method]
         self.update_proposal = self._UPDATE[method]
-        self.scale = 1.
         self.kwargs = kwargs
+        self.scale = 1.
+        self.bootstrap = kwargs.get('bootstrap', 20)
+        if self.bootstrap > 0:
+            self.enlarge = kwargs.get('enlarge', 1.0)
+        else:
+            self.enlarge = kwargs.get('enlarge', 1.25)
         super(UnitCubeSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, rstate,
                              queue_size, pool)
+        self.unitcube = UnitCube(self.npdim)
 
         # random walk
         self.walks = self.kwargs.get('walks', 25)
 
     def update(self, pointvol):
-        """Filler function since bound does not change."""
+        """Update the unit cube proposal."""
 
-        pass
+        return copy.deepcopy(self.unitcube)
 
     def propose_unif(self, loglstar):
         """Propose a new live point by sampling *uniformly*
         within the unit cube."""
 
-        u = self.rstate.rand(self.npdim)
+        u = self.unitcube.sample(rstate=self.rstate)
         v = self.prior_transform(u)
         logl = self.loglikelihood(v)
 
         return u, v, logl, 1, None
 
     def update_unif(self, blob):
-        """Filler function since proposal does not change."""
+        """Update the uniform proposal."""
 
         pass
 
@@ -147,7 +153,7 @@ class UnitCubeSampler(Sampler):
         nc = 0
         while nc < self.walks or accept == 0:
             while True:
-                du = self.rstate.rand(self.npdim) - 0.5
+                du = self.unitcube.randoffset(rstate=self.rstate)
                 u_prop = u + self.scale * du
                 if self._check_unit_cube(u_prop):
                     break
@@ -614,7 +620,7 @@ class RadFriendsSampler(Sampler):
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, rstate,
                              queue_size, pool)
-        self.radius = 0.
+        self.radfriends = RadFriends(self.npdim, 0.)
 
         # random walk
         self.walks = self.kwargs.get('walks', 25)
@@ -623,60 +629,23 @@ class RadFriendsSampler(Sampler):
         """Update proposal radius using the current set of live points."""
 
         self._empty_queue()
-
-        # Set initial radius
-        self.radius = 0.
-
-        # Bootstrap radius.
-        points = self.live_u
-        npoints = self.nlive
-        for it in range(self.bootstrap):
-            idxs = self.rstate.randint(npoints, size=npoints)  # resample
-            idx_in = np.unique(idxs)  # selected objects
-            sel = np.ones(npoints, dtype='bool')
-            sel[idx_in] = False
-            idx_out = np.arange(npoints)[sel]  # "missing" objects
-            if len(idx_out) < 2:  # edge case
-                idx_out = np.append(idx_out, [0, 1])
-
-            # Find largest distance between resampled points and
-            # "missing" points.
-            points_in, points_out = points[idx_in], points[idx_out]
-            radius = max([min([linalg.norm(pin - pout) for pin in points_in])
-                          for pout in points_out])
-
-            # Increase radius if needed.
-            self.radius = max(self.radius, radius)
-
-        # Construct radius using leave-one-out if no bootstraps used.
-        if self.bootstrap == 0.:
-            self.radius = max([min([linalg.norm(points[i] - points[j])
-                                    for i in range(self.nlive) if i != j])
-                               for j in range(self.nlive)])
-
-        # Expand volume (proportional to (cR)^n)
+        self.radfriends.update(self.live_u, pointvol=pointvol,
+                               rstate=self.rstate, bootstrap=self.bootstrap)
         if self.enlarge != 1.:
-            self.radius *= self.enlarge**(1. / self.npdim)
+            self.radfriends.scale_to_vol(self.radfriends.vol * self.enlarge)
 
-        return copy.deepcopy([self.radius, 2.])
+        return copy.deepcopy(self.radfriends)
 
     def propose_unif(self, loglstar):
         """Propose a new live point by sampling *uniformly* within
         the collection of n-spheres defined by our live points."""
 
-        i = self.rstate.randint(self.nlive)
-        u_init = self.live_u[i, :]
-
         while True:
-            du = self.radius * randsphere(self.npdim, rstate=self.rstate)
-            u = u_init + du  # propose point
+            u, q = self.radfriends.sample(self.live_u, rstate=self.rstate,
+                                          return_q=True)
             if self._check_unit_cube(u):
-                # Find neighbors with r <= R (i.e. number of overlapping
-                # n-spheres at the proposed `u`).
-                q = sum([linalg.norm(pos - u) <= self.radius
-                         for pos in self.live_u])
-
-                # Accept the point with probability 1/q.
+                # Accept the point with probability 1/q to account for
+                # overlapping balls.
                 if q == 1 or self.rstate.rand() < 1.0 / q:
                     break
         v = self.prior_transform(u)
@@ -703,7 +672,8 @@ class RadFriendsSampler(Sampler):
         nc = 0
         while nc < self.walks or accept == 0:
             while True:
-                du = self.radius * randsphere(self.npdim, rstate=self.rstate)
+                du = self.radfriends.radius * randsphere(self.npdim,
+                                                         rstate=self.rstate)
                 u_prop = u + self.scale * du
                 if self._check_unit_cube(u_prop):
                     break
@@ -817,7 +787,7 @@ class SupFriendsSampler(Sampler):
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, rstate,
                              queue_size, pool)
-        self.side = 0.
+        self.supfriends = SupFriends(self.npdim, 0.)
 
         # random walk
         self.walks = self.kwargs.get('walks', 25)

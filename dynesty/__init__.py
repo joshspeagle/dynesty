@@ -5,7 +5,7 @@ from __future__ import (division, print_function)
 from builtins import range
 
 from .dynesty import *
-from . import ellipsoid
+from . import bounding
 from . import utils
 
 

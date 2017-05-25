@@ -285,7 +285,7 @@ class Ellipsoid(object):
             if pointvol is not None:
                 targetprod = (npoints * pointvol / vol_prefactor(ndim))**2
                 cov = make_eigvals_positive(cov, targetprod)
-            else:
+            elif linalg.cond(cov) >= 1/sys.float_info.epsilon:
                 raise ValueError("Cannot modify `a` to be non-singular to "
                                  "give our ellipsoid non-zero volume if "
                                  "`pointvol` is not specified.")
@@ -317,6 +317,7 @@ class Ellipsoid(object):
             l, v = linalg.eigh(self.am)
             self.axlens = 1. / np.sqrt(l)
             self.axes = np.dot(v, np.diag(self.axlens))
+            self.expand = 1.
 
             # Expand our ellipsoid to encompass a minimum volume.
             if pointvol is not None:
@@ -343,8 +344,13 @@ class Ellipsoid(object):
                 if ndim == 1:
                     cov = np.atleast_2d(cov)
                 cov *= (ndim + 2)
-                targetprod = (npoints * pointvol / vol_prefactor(ndim))**2
-                cov = make_eigvals_positive(cov, targetprod)
+                if pointvol is not None:
+                    targetprod = (npoints * pointvol / vol_prefactor(ndim))**2
+                    cov = make_eigvals_positive(cov, targetprod)
+                elif linalg.cond(cov) >= 1/sys.float_info.epsilon:
+                    raise ValueError("Cannot modify `a` to be non-singular to "
+                                     "give our ellipsoid non-zero volume if "
+                                     "`pointvol` is not specified.")
                 am = linalg.inv(cov)
                 delta = rpoints - ctr
                 f = np.einsum('...i, ...i', np.tensordot(delta, am, axes=1),
@@ -358,12 +364,14 @@ class Ellipsoid(object):
                 axes = np.dot(v, np.diag(self.axlens))
 
                 # Expand the ellipsoid to encompass a minimum volume.
-                v = npoints * pointvol
-                f = (v / vol) ** (1.0 / ndim)
-                am *= f**-2
-                axlens *= f
-                axes *= f
-                vol = v
+                if pointvol is not None:
+                    v = npoints * pointvol
+                    if vol < v:
+                        f = (v / vol) ** (1.0 / ndim)
+                        am *= f**-2
+                        axlens *= f
+                        axes *= f
+                        vol = v
 
                 # Compute distances to missing points.
                 dctrs = points_out - ctr
@@ -372,7 +380,8 @@ class Ellipsoid(object):
 
             # If our ellipsoid  is overly-constrained, expand it.
             if expand > 1.:
-                self.scale_to_vol(self.vol * expand**self.n)
+                v = self.vol * expand**self.n
+                self.scale_to_vol(v)
 
 
 class MultiEllipsoid(object):
@@ -477,6 +486,8 @@ class MultiEllipsoid(object):
         -------
         x : `~numpy.ndarray` with shape (ndim,)
             A coordinate within the set of ellipsoids.
+        idx : int
+            The index of the ellipsoid `x` was sampled from.
         q : int, optional
             The number of ellipsoids `x` falls within.
 
@@ -485,10 +496,12 @@ class MultiEllipsoid(object):
         # If there is only one ellipsoid, sample from it.
         if self.nells == 1:
             x = self.ells[0].sample(rstate=rstate)
+            idx = 0
+            q = 1
             if return_q:
-                return x, 1
+                return x, idx, q
             else:
-                return x
+                return x, idx
 
         # Select an ellipsoid at random proportional to its volume.
         idx = random_choice(self.nells, self.vols / self.vol_tot,
@@ -501,11 +514,11 @@ class MultiEllipsoid(object):
             # Check how many ellipsoids the point lies within, passing over
             # the `idx`-th ellipsoid `x` was sampled from.
             q = self.overlap(x, j=idx) + 1
-            return x, q
+            return x, idx, q
         else:
-            return x
+            return x, idx
 
-    def samples(self, nsamples, rstate=np.random, return_qs=False):
+    def samples(self, nsamples, rstate=np.random):
         """
         Draw `nsamples` samples uniformly distributed within the set of
         ellipsoids.
@@ -514,20 +527,13 @@ class MultiEllipsoid(object):
         -------
         xs : `~numpy.ndarray` with shape (nsamples, ndim)
             A collection of coordinates within the set of ellipsoids.
-        qs : `~numpy.ndarray` with shape (nsamples,), optional
-            The number of ellipsoids each sample falls within.
 
         """
 
-        if return_qs:
-            samples = np.array([self.sample(rstate=rstate, return_q=True)
-                                for i in range(nsamples)])
-            xs, qs = samples[:, 0], samples[:, 1]
-            return xs, qs
-        else:
-            xs = np.array([self.sample(rstate=rstate, return_q=False)
-                           for i in range(nsamples)])
-            return xs
+        xs = np.array([self.sample(rstate=rstate)[0]
+                       for i in range(nsamples)])
+
+        return xs
 
     def update(self, points, pointvol=None, vol_dec=0.5, vol_check=2.,
                rstate=np.random, bootstrap=0):
@@ -582,7 +588,8 @@ class MultiEllipsoid(object):
 
         # If our ellipsoids are overly constrained, expand them.
         if expand > 1.:
-            self.scale_to_vols(self.vols * expand**ndim)
+            vs = self.vols * expand**ndim
+            self.scale_to_vols(vs)
 
 
 class RadFriends(object):
@@ -771,7 +778,7 @@ class SupFriends(object):
 
         f = (vol / self.vol) ** (1.0 / self.n)  # linear factor
         self.expand *= f
-        self.side *= f
+        self.hside *= f
         self.vol = vol
 
     def within(self, x, ctrs, j=None):
@@ -1012,7 +1019,7 @@ def bounding_ellipsoid(points, pointvol=None):
     if pointvol is not None:
         targetprod = (npoints * pointvol / vol_prefactor(ndim))**2
         cov = make_eigvals_positive(cov, targetprod)
-    else:
+    elif linalg.cond(cov) >= 1/sys.float_info.epsilon:
         raise ValueError("Cannot modify `a` to be non-singular to give "
                          "our ellipsoid non-zero volume if `pointvol` "
                          "is not specified.")

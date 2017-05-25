@@ -85,12 +85,14 @@ class Sampler(object):
         # parallelism
         self.queue_size = queue_size
         self.pool = pool
+        if self.pool is None:
+            self.M = map
+        else:
+            self.M = pool.map
         self.queue = []  # proposed live point queue
         self.nqueue = 0  # current size of the queue
-        self.submitted = 0  # total number of submitted jobs
-        self.cancelled = 0  # total number of cancelled jobs
-        self.unused = 0  # total number of unused cores
-        self.used = 0  # total number of used cores
+        self.unused = 0  # total number of proposals unused
+        self.used = 0  # total number of proposals used
 
         # sampling
         self.it = 1  # current iteration
@@ -120,17 +122,13 @@ class Sampler(object):
 
         # live points
         self.live_u = self.rstate.rand(self.nlive, self.npdim)
-        for i in range(self.nlive):
-            self.live_v[i, :] = self.prior_transform(self.live_u[i, :])
-        self.live_logl = np.fromiter(self.pool.map(self.loglikelihood,
-                                     self.live_v), dtype=np.float64)
+        self.live_v = self.M(self.prior_transform, self.live_u)
+        self.live_logl = self.M(self.loglikelihood, self.live_v)
         self.live_prop = np.zeros(self.nlive)
 
         # parallelism
         self.queue = []
         self.nqueue = 0
-        self.submitted = 0
-        self.cancelled = 0
         self.unused = 0
         self.used = 0
 
@@ -222,28 +220,37 @@ class Sampler(object):
 
         while self.nqueue > 0:
             f = self.queue.pop()
-            if f.cancel():
-                self.cancelled += 1
-            else:
-                self.unused += 1
+            self.unused += 1
             self.nqueue -= 1
 
     def _fill_queue(self, loglstar):
         """Sequentially add new live point proposals to the queue."""
 
+        point_queue = []
+        axes_queue = []
         while self.nqueue < self.queue_size:
-            self.queue.append(self.pool.submit(self.propose_point, loglstar))
+            point, axes = self.propose_point()
+            point_queue.append(point)
+            axes_queue.append(axes)
             self.nqueue += 1
-            self.submitted += 1
+        loglstars = [loglstar for i in range(self.queue_size)]
+        scales = [self.scale for i in range(self.queue_size)]
+        rstates = [self.rstate for i in range(self.queue_size)]
+        ptforms = [self.prior_transform for i in range(self.queue_size)]
+        logls = [self.loglikelihood for i in range(self.queue_size)]
+        kwargs = [self.kwargs for i in range(self.queue_size)]
+
+        self.queue = self.M(self.evolve_point, point_queue, loglstars,
+                            axes_queue, scales, rstates, ptforms,
+                            logls, kwargs)
 
     def _get_point_value(self, loglstar):
-        """Get a live point proposal sequentially from the filled queue.
-        Afterwards, refill the queue."""
+        """Get a live point proposal sequentially from the filled queue."""
 
-        self._fill_queue(loglstar)
-        f = self.queue.pop(0)
+        if self.nqueue == 0:
+            self._fill_queue(loglstar)
+        u, v, logl, nc, blob = self.queue.pop(0)
         self.nqueue -= 1
-        u, v, logl, nc, blob = f.result()
         self.used += 1
 
         return u, v, logl, nc, blob
@@ -256,7 +263,8 @@ class Sampler(object):
         while True:
             u, v, logl, nc, blob = self._get_point_value(loglstar)
             ncall += nc
-            self.update_proposal(blob)
+            if self.nqueue == 0:
+                self.update_proposal(blob)
             if logl >= loglstar:
                 break
 
@@ -622,8 +630,10 @@ class Sampler(object):
                 sys.stderr.write("\riter: {:d} | "
                                  "nc: {:d} | "
                                  "ncall: {:d} | "
+                                 "eff(%): {:6.3f} | "
                                  "logz: {:6.3f} +/- {:6.3f}"
-                                 .format(self.it, nc, ncall, logz, logzerr))
+                                 .format(self.it, nc, ncall, self.eff,
+                                         logz, logzerr))
 
         if add_live:
             # Add remaining live points to samples.
@@ -635,9 +645,10 @@ class Sampler(object):
                     sys.stderr.write("\riter: {:d}+{:d} | "
                                      "nc: {:d} | "
                                      "ncall: {:d} | "
+                                     "eff(%): {:6.3f} | "
                                      "logz: {:6.3f} +/- {:6.3f}"
                                      .format(self.it, i + 1, nc, ncall,
-                                             logz, logzerr))
+                                             self.eff, logz, logzerr))
 
         if print_progress:
             sys.stderr.write("\n")

@@ -15,6 +15,7 @@ import numpy as np
 import scipy.misc as misc
 
 from .sampler import *
+from .sampling import *
 from .nestedsamplers import *
 from .fakepool import *
 
@@ -25,7 +26,10 @@ _SAMPLERS = {'none': UnitCubeSampler,
              'multi': MultiEllipsoidSampler,
              'balls': RadFriendsSampler,
              'cubes': SupFriendsSampler}
-_SAMPLING = ['uniform', 'randomwalk']
+_SAMPLING = {'unif': sample_unif,
+             'rwalk': sample_rwalk,
+             'slice': sample_slice,
+             'rtraj': sample_rtraj}
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
@@ -72,17 +76,19 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
         ('multi'), balls centered on each live point ('balls'), and
         cubes centered on each live point ('cubes'). Default is 'multi'.
 
-    sample : {'uniform', 'randomwalk'}, optional
+    sample : {'unif', 'rwalk', 'slice', 'rtraj'}, optional
         Method used to sample uniformly within the likelihood constraint,
-        conditioned on the provided bounds. Choices are uniform sampling
-        ('uniform') and random walking away from a current live point
-        ('randomwalk'). Default is 'uniform'.
+        conditioned on the provided bounds. Choices are uniform
+        ('unif'), random walks ('rwalk'), slices ('slice'), and random
+        trajectories ('rtraj'). Default is 'uniform'.
 
-    update_interval : int, optional
-        Only update the proposal distribution every `update_interval`-th
-        likelihood call. Update intervals larger than 1 can be more efficient
+    update_interval : int or float, optional
+        If an integer is passed, only update the proposal distribution every
+        `update_interval`-th likelihood call. If a float is passed, update the
+        proposal after every `round(update_interval * nlive)`-th likelihood
+        call. Update intervals larger than 1 can be more efficient
         when the likelihood function is very fast, particularly when
-        using the multi-ellipsoid method. Default is `round(0.6 * nlive)`.
+        using the `multi` bounding method. Default is 0.6.
 
     npdim : int, optional
         Number of parameters accepted by prior. This might differ from `ndim`
@@ -142,14 +148,26 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
         Default is *2.0*.
 
     walks : int, optional
-        For the 'randomwalk' sampling option, the minimum number of steps
+        For the 'rwalk' sampling option, the minimum number of steps
         to take before proposing a new live point. Default is *25*.
 
+    slices : int, optional
+        For the 'slice' sampling option, the number of times to slice through
+        **all dimensions** before proposing a new live point. Default is *3*.
+
+    lgrad : function, optional
+        The gradient of the likelihood. Used to compute reflections off
+        the iso-likelihood contours using the 'rtraj' sampling option. If not
+        provided, gradients are calculated numerically.
+
+    steps : int, optional
+        For the 'rtraj' sampling option, the minimum number of steps to take
+        before proposing a new live point. Default is *25*.
 
     Returns
     -------
-    sampler : A child of `Sampler`
-        An initialized instance of the chosen sampler specified via `method`.
+    NestedSampler : `NestedSampler` instance
+        An initialized instance of the chosen sampler specified via `bound`.
 
     """
 
@@ -167,30 +185,29 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=100,
         warnings.warn("You really want to make `nlive >= 2 * ndim`!")
 
     if update_interval is None:
-        update_interval = max(1, round(0.6 * nlive))
-    else:
-        update_interval = round(update_interval)
-        if update_interval < 1:
-            raise ValueError("update_interval must be >= 1")
+        update_interval = 0.6
+    if isinstance(update_interval, float):
+        update_interval = max(1, round(update_interval * nlive))
 
     if rstate is None:
         rstate = np.random
 
     # Set up parallel (or serial) evaluation.
-    if queue_size == 1:
-        pool = FakePool()
+    if queue_size < 1:
+        raise ValueError("The queue must contain at least one element!")
+    elif queue_size == 1:
+        M = map
     else:
-        if pool is None:
+        if pool is not None:
+            M = pool.map
+        else:
             raise ValueError("Missing `pool`. Please provide a Pool.")
 
     # Initialize live points and calculate likelihoods.
     if live_points is None:
         live_u = rstate.rand(nlive, npdim)  # positions in unit cube
-        live_v = np.empty((nlive, ndim), dtype=np.float64)  # real params
-        for i in range(nlive):
-            live_v[i, :] = prior_transform(live_u[i, :])
-        live_logl = np.fromiter(pool.map(loglikelihood, live_v),
-                                dtype=np.float64)  # log likelihood
+        live_v = M(prior_transform, live_u)  # real parameters
+        live_logl = M(loglikelihood, live_v)  # log likelihood
         live_points = [live_u, live_v, live_logl]
 
     # Initialize our nested sampler.

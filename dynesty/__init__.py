@@ -6,6 +6,7 @@ from builtins import range
 
 from .dynesty import *
 from . import bounding
+from . import sampling
 from . import utils
 
 

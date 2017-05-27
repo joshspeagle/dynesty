@@ -296,7 +296,7 @@ class SingleEllipsoidSampler(Sampler):
 
         self._empty_queue()
         self.ell.update(self.live_u, pointvol=pointvol, rstate=self.rstate,
-                        bootstrap=self.bootstrap)
+                        bootstrap=self.bootstrap, pool=self.pool)
         if self.enlarge != 1.:
             self.ell.scale_to_vol(self.ell.vol * self.enlarge)
 
@@ -472,7 +472,8 @@ class MultiEllipsoidSampler(Sampler):
         self._empty_queue()
         self.mell.update(self.live_u, pointvol=pointvol,
                          vol_dec=self.vol_dec, vol_check=self.vol_check,
-                         rstate=self.rstate, bootstrap=self.bootstrap)
+                         rstate=self.rstate, bootstrap=self.bootstrap,
+                         pool=self.pool)
         if self.enlarge != 1.:
             self.mell.scale_to_vols(self.mell.vols * self.enlarge)
 
@@ -655,7 +656,8 @@ class RadFriendsSampler(Sampler):
 
         self._empty_queue()
         self.radfriends.update(self.live_u, pointvol=pointvol,
-                               rstate=self.rstate, bootstrap=self.bootstrap)
+                               rstate=self.rstate, bootstrap=self.bootstrap,
+                               pool=self.pool)
         if self.enlarge != 1.:
             self.radfriends.scale_to_vol(self.radfriends.vol * self.enlarge)
 
@@ -823,7 +825,8 @@ class SupFriendsSampler(Sampler):
 
         self._empty_queue()
         self.supfriends.update(self.live_u, pointvol=pointvol,
-                               rstate=self.rstate, bootstrap=self.bootstrap)
+                               rstate=self.rstate, bootstrap=self.bootstrap,
+                               pool=self.pool)
         if self.enlarge != 1.:
             self.supfriends.scale_to_vol(self.supfriends.vol * self.enlarge)
 

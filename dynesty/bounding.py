@@ -104,7 +104,8 @@ class UnitCube(object):
 
         return xs
 
-    def update(self, points, pointvol=None, rstate=np.random, bootstrap=0):
+    def update(self, points, pointvol=None, rstate=np.random, bootstrap=0,
+               pool=None):
         """
         Filler function since the unit cube does not change.
 
@@ -226,159 +227,42 @@ class Ellipsoid(object):
 
         return xs
 
-    def update(self, points, pointvol=None, rstate=np.random, bootstrap=0):
+    def update(self, points, pointvol=None, rstate=np.random, bootstrap=0,
+               pool=None):
         """
         Update the ellipsoid to bound the collection of points.
 
         """
 
-        npoints, ndim = points.shape
+        # Compute new bounding ellipsoid.
+        ell = bounding_ellipsoid(points, pointvol=pointvol)
+        self.n = ell.n
+        self.ctr = ell.ctr
+        self.am = ell.am
+        self.vol = ell.vol
+        self.axlens = ell.axlens
+        self.axes = ell.axes
+        self.expand = ell.expand
 
-        # Check for valid `pointvol` value if provided.
-        if pointvol is not None and pointvol <= 0.:
-            raise ValueError("You must specify a positive value "
-                             "for `pointvol`.")
+        # Use bootstrapping to determine volume expansion factor.
+        if bootstrap > 0:
 
-        # If there is only a single point, return an n-sphere with volume
-        # `pointvol` centered at the point.
-        if npoints == 1:
-            if pointvol is not None:
-                self.n = ndim
-                self.ctr = points[0]
-                r = (pointvol / vol_prefactor(ndim))**(1./ndim)
-                self.am = (1. / r**2) * np.identity(ndim)
-                self.vol = vol_prefactor(self.n) / np.sqrt(linalg.det(self.am))
-                l, v = linalg.eigh(self.am)
-                self.axlens = 1. / np.sqrt(l)
-                self.axes = np.dot(v, np.diag(self.axlens))
+            # If possible, compute bootstraps in parallel using a pool.
+            if pool is None:
+                M = map
             else:
-                raise ValueError("Cannot compute a bounding ellipsoid to a "
-                                 "single point if `pointvol` is not "
-                                 "specified.")
+                M = pool.map
+            ps = [points for it in range(bootstrap)]
+            pvs = [pointvol for it in range(bootstrap)]
+            rstates = [rstate for it in range(bootstrap)]
+            args = zip(ps, pvs, rstates)
+            expands = M(_ellipsoid_bootstrap_expand, args)
 
-        # Otherwise, go ahead and compute the bounding ellipsoid.
-        else:
+            # Conservatively set the expansion factor to be the maximum
+            # factor derived from our set of bootstraps.
+            expand = max(expands)
 
-            # Calculate covariance of points.
-            ctr = np.mean(points, axis=0)
-            cov = np.cov(points, rowvar=False)
-
-            # When ndim = 1, np.cov returns a 0-d array.
-            # Make it a 1x1 2-d array.
-            if ndim == 1:
-                cov = np.atleast_2d(cov)
-
-            # For a ball of uniformly distributed points, the sample covariance
-            # will be smaller than the true covariance by a factor of 1/(n+2)
-            # [see, e.g., goo.gl/UbsjYl]. Since we are assuming all points are
-            # uniformly distributed within the unit cube, they are uniformly
-            # distributed within any sub-volume within the cube. We expand
-            # our sample covariance `cov` to compensate for this.
-            cov *= (ndim + 2)
-
-            # Ensure that `cov` is nonsingular to deal with pathological cases
-            # where the ellipsoid has zero volume. This can occur when
-            # `npoints <= ndim` or when enough points are linear combinations
-            # of other points. When this happens, we expand the ellipsoid
-            # in the zero dimensions to fulfill the volume expected from
-            # `pointvol`.
-            if pointvol is not None:
-                targetprod = (npoints * pointvol / vol_prefactor(ndim))**2
-                cov = make_eigvals_positive(cov, targetprod)
-            elif linalg.cond(cov) >= 1/sys.float_info.epsilon:
-                raise ValueError("Cannot modify `a` to be non-singular to "
-                                 "give our ellipsoid non-zero volume if "
-                                 "`pointvol` is not specified.")
-
-            # The matrix defining the ellipsoid.
-            am = linalg.inv(cov)
-
-            # Calculate expansion factor necessary to bound each point.
-            # Points should obey `(x-v)^T A (x-v) <= 1`, so we calculate this
-            # for each point and then scale A up or down to make the
-            # "outermost" point obey `(x-v)^T A (x-v) = 1`. This can be done
-            # quickly using `einsum` and `tensordot`.
-            delta = points - ctr
-            f = np.einsum('...i, ...i', np.tensordot(delta, am, axes=1), delta)
-            fmax = np.max(f)
-
-            # Due to round-off errors, we actually scale the ellipsoid
-            # so the outermost point obeys `(x-v)^T A (x-v) < 1 - (a bit) < 1`.
-            one_minus_a_bit = 1. - SQRTEPS
-
-            if fmax > one_minus_a_bit:
-                am *= one_minus_a_bit / fmax
-
-            # Update the ellipsoid.
-            self.n = ndim
-            self.ctr = ctr
-            self.am = am
-            self.vol = vol_prefactor(self.n) / np.sqrt(linalg.det(self.am))
-            l, v = linalg.eigh(self.am)
-            self.axlens = 1. / np.sqrt(l)
-            self.axes = np.dot(v, np.diag(self.axlens))
-            self.expand = 1.
-
-            # Expand our ellipsoid to encompass a minimum volume.
-            if pointvol is not None:
-                v = npoints * pointvol
-                if self.vol < v:
-                    self.scale_to_vol(v)
-
-            # Use bootstrapping to determine volume expansion factor.
-            expand = 1.
-            for it in range(bootstrap):
-                idxs = rstate.randint(npoints, size=npoints)  # resample
-                idx_in = np.unique(idxs)  # selected objects
-                sel = np.ones(npoints, dtype='bool')
-                sel[idx_in] = False
-                idx_out = np.arange(npoints)[sel]  # "missing" objects
-                if len(idx_out) < 2:  # edge case
-                    idx_out = np.append(idx_out, [0, 1])
-
-                # Recompute the bounding ellipsoid over the resampled
-                # set of points.
-                rpoints, points_out = points[idxs], points[idx_out]
-                ctr = np.mean(rpoints, axis=0)
-                cov = np.cov(rpoints, rowvar=False)
-                if ndim == 1:
-                    cov = np.atleast_2d(cov)
-                cov *= (ndim + 2)
-                if pointvol is not None:
-                    targetprod = (npoints * pointvol / vol_prefactor(ndim))**2
-                    cov = make_eigvals_positive(cov, targetprod)
-                elif linalg.cond(cov) >= 1/sys.float_info.epsilon:
-                    raise ValueError("Cannot modify `a` to be non-singular to "
-                                     "give our ellipsoid non-zero volume if "
-                                     "`pointvol` is not specified.")
-                am = linalg.inv(cov)
-                delta = rpoints - ctr
-                f = np.einsum('...i, ...i', np.tensordot(delta, am, axes=1),
-                              delta)
-                fmax = np.max(f)
-                if fmax > one_minus_a_bit:
-                    am *= one_minus_a_bit / fmax
-                vol = vol_prefactor(ndim) / np.sqrt(linalg.det(self.am))
-                l, v = linalg.eigh(am)
-                axlens = 1. / np.sqrt(l)
-                axes = np.dot(v, np.diag(self.axlens))
-
-                # Expand the ellipsoid to encompass a minimum volume.
-                if pointvol is not None:
-                    v = npoints * pointvol
-                    if vol < v:
-                        f = (v / vol) ** (1.0 / ndim)
-                        am *= f**-2
-                        axlens *= f
-                        axes *= f
-                        vol = v
-
-                # Compute distances to missing points.
-                dctrs = points_out - ctr
-                dists = [np.dot(np.dot(d, am), d) for d in dctrs]
-                expand = max(expand, max(dists))  # assign maximum factor
-
-            # If our ellipsoid  is overly-constrained, expand it.
+            # If our ellipsoid is over-constrained, expand it.
             if expand > 1.:
                 v = self.vol * expand**self.n
                 self.scale_to_vol(v)
@@ -536,7 +420,7 @@ class MultiEllipsoid(object):
         return xs
 
     def update(self, points, pointvol=None, vol_dec=0.5, vol_check=2.,
-               rstate=np.random, bootstrap=0):
+               rstate=np.random, bootstrap=0, pool=None):
         """
         Update the set of ellipsoids to bound the collection of points.
 
@@ -566,30 +450,29 @@ class MultiEllipsoid(object):
         self.vol_tot = sum(self.vols)
 
         # Use bootstrapping to determine volume expansion factor.
-        expand = 1.
-        for it in range(bootstrap):
-            idxs = rstate.randint(npoints, size=npoints)  # resample
-            idx_in = np.unique(idxs)  # selected objects
-            sel = np.ones(npoints, dtype='bool')
-            sel[idx_in] = False
-            idx_out = np.arange(npoints)[sel]  # "missing" objects
-            if len(idx_out) < 2:  # edge case
-                idx_out = np.append(idx_out, [0, 1])
+        if bootstrap > 0:
 
-            # Recompute bounding ellipsoids over resampled points.
-            rpoints, points_out = points[idxs], points[idx_out]
-            ell = bounding_ellipsoid(rpoints, pointvol=pointvol)
-            ells = _bounding_ellipsoids(rpoints, ell, pointvol=pointvol,
-                                        vol_dec=vol_dec, vol_check=vol_check)
+            # If possible, compute bootstraps in parallel using a pool.
+            if pool is None:
+                M = map
+            else:
+                M = pool.map
+            ps = [points for it in range(bootstrap)]
+            pvs = [pointvol for it in range(bootstrap)]
+            vds = [vol_dec for it in range(bootstrap)]
+            vcs = [vol_check for it in range(bootstrap)]
+            rstates = [rstate for it in range(bootstrap)]
+            args = zip(ps, pvs, vds, vcs, rstates)
+            expands = M(_ellipsoids_bootstrap_expand, args)
 
-            # Compute distances to missing points.
-            dists = [min([el.distance(p) for el in ells]) for p in points_out]
-            expand = max(expand, max(dists))  # assign maximum factor
+            # Conservatively set the expansion factor to be the maximum
+            # factor derived from our set of bootstraps.
+            expand = max(expands)
 
-        # If our ellipsoids are overly constrained, expand them.
-        if expand > 1.:
-            vs = self.vols * expand**ndim
-            self.scale_to_vols(vs)
+            # If our ellipsoids are overly constrained, expand them.
+            if expand > 1.:
+                vs = self.vols * expand**ndim
+                self.scale_to_vols(vs)
 
 
 class RadFriends(object):
@@ -707,42 +590,37 @@ class RadFriends(object):
                            for i in range(nsamples)])
             return xs
 
-    def update(self, points, pointvol=None, rstate=np.random, bootstrap=0):
+    def update(self, points, pointvol=None, rstate=np.random, bootstrap=0,
+               pool=None):
         """
         Update the radius/volume of our balls.
 
         """
 
-        npoints, ndim = points.shape
+        # If possible, compute bootstraps in parallel using a pool.
+        if pool is None:
+            M = map
+        else:
+            M = pool.map
 
-        # Set initial radius.
-        rmax = 0.
-
-        # Bootstrap radius using the set of live points.
-        for it in range(bootstrap):
-            idxs = rstate.randint(npoints, size=npoints)  # resample
-            idx_in = np.unique(idxs)  # selected objects
-            sel = np.ones(npoints, dtype='bool')
-            sel[idx_in] = False
-            idx_out = np.arange(npoints)[sel]  # "missing" objects
-            if len(idx_out) < 2:  # edge case
-                idx_out = np.append(idx_out, [0, 1])
-
-            # Find largest distance between resampled points and
-            # "missing" points.
-            points_in, points_out = points[idx_in], points[idx_out]
-            radius = max([min([linalg.norm(pin - pout) for pin in points_in])
-                          for pout in points_out])
-
-            # Increase radius if needed.
-            rmax = max(rmax, radius)
-
-        # Construct radius using leave-one-out if no bootstraps used.
         if bootstrap == 0.:
-            rmax = max([min([linalg.norm(points[i] - points[j])
-                             for i in range(npoints) if i != j])
-                        for j in range(npoints)])
+            # Construct radius using leave-one-out if no bootstraps used.
+            npoints = len(points)
+            ps = [points for it in range(npoints)]
+            ftypes = ['balls' for it in range(npoints)]
+            idxs = [j for j in range(npoints)]
+            args = zip(ps, ftypes, idxs)
+            radii = M(_friends_leaveoneout_radius, args)
+        else:
+            # Bootstrap radius using the set of live points.
+            ps = [points for it in range(bootstrap)]
+            ftypes = ['balls' for it in range(bootstrap)]
+            rstates = [rstate for it in range(bootstrap)]
+            args = zip(ps, ftypes, rstates)
+            radii = M(_friends_bootstrap_radius, args)
 
+        # Conservatively set radius to be maximum of the set.
+        rmax = max(radii)
         self.radius = rmax
         self.vol = vol_prefactor(self.n) * self.radius**self.n
 
@@ -786,7 +664,7 @@ class SupFriends(object):
         cube."""
 
         nctrs = len(ctrs)
-        within = [max(ctrs[i] - x) <= self.hside if i != j else True
+        within = [max(abs(ctrs[i] - x)) <= self.hside if i != j else True
                   for i in range(nctrs)]
         idxs = np.arange(nctrs)[within]
 
@@ -868,42 +746,37 @@ class SupFriends(object):
                            for i in range(nsamples)])
             return xs
 
-    def update(self, points, pointvol=None, rstate=np.random, bootstrap=0):
+    def update(self, points, pointvol=None, rstate=np.random, bootstrap=0,
+               pool=None):
         """
         Update the half-side-lengths/volumes of our cubes.
 
         """
 
-        npoints, ndim = points.shape
+        # If possible, compute bootstraps in parallel using a pool.
+        if pool is None:
+            M = map
+        else:
+            M = pool.map
 
-        # Set initial half-side-length.
-        hsmax = 0.
-
-        # Bootstrap half-side-length using the set of live points.
-        for it in range(bootstrap):
-            idxs = rstate.randint(npoints, size=npoints)  # resample
-            idx_in = np.unique(idxs)  # selected objects
-            sel = np.ones(npoints, dtype='bool')
-            sel[idx_in] = False
-            idx_out = np.arange(npoints)[sel]  # "missing" objects
-            if len(idx_out) < 2:  # edge case
-                idx_out = np.append(idx_out, [0, 1])
-
-            # Find largest distance between resampled points and
-            # "missing" points.
-            points_in, points_out = points[idx_in], points[idx_out]
-            hside = max([min([max(pin - pout) for pin in points_in])
-                         for pout in points_out])
-
-            # Increase radius if needed.
-            hsmax = max(hsmax, hside)
-
-        # Construct half-side-length using leave-one-out if `bootstrap = 0`.
         if bootstrap == 0.:
-            hsmax = max([min([max(points[i] - points[j])
-                              for i in range(npoints) if i != j])
-                         for j in range(npoints)])
+            # Construct radius using leave-one-out if no bootstraps used.
+            npoints = len(points)
+            ps = [points for it in range(npoints)]
+            ftypes = ['cubes' for it in range(npoints)]
+            idxs = [j for j in range(npoints)]
+            args = zip(ps, ftypes, idxs)
+            hsides = M(_friends_leaveoneout_radius, args)
+        else:
+            # Bootstrap radius using the set of live points.
+            ps = [points for it in range(bootstrap)]
+            ftypes = ['cubes' for it in range(bootstrap)]
+            rstates = [rstate for it in range(bootstrap)]
+            args = zip(ps, ftypes, rstates)
+            hsides = M(_friends_bootstrap_radius, args)
 
+        # Conservatively set radius to be maximum of the set.
+        hsmax = max(hsides)
         self.hside = hsmax
         self.vol = (2. * self.hside)**self.n
 
@@ -914,7 +787,9 @@ class SupFriends(object):
                 self.scale_to_vol(v)
 
 
+##################
 # HELPER FUNCTIONS
+##################
 
 def vol_prefactor(n, p=2.):
     """
@@ -1186,3 +1061,123 @@ def bounding_ellipsoids(points, pointvol=None, vol_dec=0.5, vol_check=2.):
                                 vol_dec=vol_dec, vol_check=vol_check)
 
     return MultiEllipsoid(ells=ells)
+
+
+def _ellipsoid_bootstrap_expand(args):
+    """Internal method used when trying to compute the appropriate
+    radius expansion factor for a bounding ellipsoid using bootstrap
+    resampling."""
+
+    # Unzipping.
+    points, pointvol, rstate = args
+
+    # Resampling.
+    npoints, ndim = points.shape
+    idxs = rstate.randint(npoints, size=npoints)  # resample
+    idx_in = np.unique(idxs)  # selected objects
+    sel = np.ones(npoints, dtype='bool')
+    sel[idx_in] = False
+    idx_out = np.arange(npoints)[sel]  # "missing" objects
+    if len(idx_out) < 2:  # edge case
+        idx_out = np.append(idx_out, [0, 1])
+    points_in, points_out = points[idx_in], points[idx_out]
+
+    # Compute bounding ellipsoid.
+    ell = bounding_ellipsoid(points_in, pointvol=pointvol)
+
+    # Compute normalized distances to missing points.
+    dctrs = points_out - ell.ctr
+    dists = [np.dot(np.dot(d, ell.am), d) for d in dctrs]
+
+    # Compute expansion factor.
+    expand = max(1., max(dists))
+
+    return expand
+
+
+def _ellipsoids_bootstrap_expand(args):
+    """Internal method used when trying to compute the appropriate
+    radius expansion factor for a set of bounding ellipsoids using
+    bootstrap resampling."""
+
+    # Unzipping.
+    points, pointvol, vol_dec, vol_check, rstate = args
+
+    # Resampling.
+    npoints, ndim = points.shape
+    idxs = rstate.randint(npoints, size=npoints)  # resample
+    idx_in = np.unique(idxs)  # selected objects
+    sel = np.ones(npoints, dtype='bool')
+    sel[idx_in] = False
+    idx_out = np.arange(npoints)[sel]  # "missing" objects
+    if len(idx_out) < 2:  # edge case
+        idx_out = np.append(idx_out, [0, 1])
+    points_in, points_out = points[idx_in], points[idx_out]
+
+    # Compute bounding ellipsoids.
+    ell = bounding_ellipsoid(points_in, pointvol=pointvol)
+    ells = _bounding_ellipsoids(points_in, ell, pointvol=pointvol,
+                                vol_dec=vol_dec, vol_check=vol_check)
+
+    # Compute normalized distances to missing points.
+    dists = [min([el.distance(p) for el in ells]) for p in points_out]
+
+    # Compute expansion factor.
+    expand = max(1., max(dists))
+
+    return expand
+
+
+def _friends_bootstrap_radius(args):
+    """Internal method used when trying to compute the appropriate
+    radius for a set of balls/cubes centered on the collection of
+    live points using bootstrap resampling."""
+
+    # Unzipping.
+    points, ftype, rstate = args
+
+    # Resampling.
+    npoints, ndim = points.shape
+    idxs = rstate.randint(npoints, size=npoints)  # resample
+    idx_in = np.unique(idxs)  # selected objects
+    sel = np.ones(npoints, dtype='bool')
+    sel[idx_in] = False
+    idx_out = np.arange(npoints)[sel]  # "missing" objects
+    if len(idx_out) < 2:  # edge case
+        idx_out = np.append(idx_out, [0, 1])
+    points_in, points_out = points[idx_in], points[idx_out]
+
+    if ftype == 'balls':
+        # Compute radius ("radius" in Euclidean norm).
+        dists = [min([linalg.norm(pin - pout) for pin in points_in])
+                 for pout in points_out]
+    elif ftype == 'cubes':
+        # Compute half-side-length ("radius" in supremum norm).
+        dists = [min([max(abs(pin - pout)) for pin in points_in])
+                 for pout in points_out]
+
+    # Conservative upper-bound on radius.
+    dist = max(dists)
+
+    return dist
+
+
+def _friends_leaveoneout_radius(args):
+    """Internal method used when trying to compute the appropriate
+    radius for a set of balls/cubes centered on the collection of
+    live points using leave-one-out cross-validation."""
+
+    # Unzipping.
+    points, ftype, idx = args
+    npoints = len(points)
+
+    if ftype == 'balls':
+        # Compute radius ("radius" in Euclidean norm).
+        dist = min([linalg.norm(points[i] - points[idx])
+                    for i in range(npoints) if i != idx])
+    elif ftype == 'cubes':
+        # Compute half-side-length ("radius" in supremum norm).
+        dist = min([max(abs(points[i] - points[idx]))
+                    for i in range(npoints) if i != idx])
+
+    return dist

@@ -240,9 +240,9 @@ class Sampler(object):
         logls = [self.loglikelihood for i in range(self.queue_size)]
         kwargs = [self.kwargs for i in range(self.queue_size)]
 
-        self.queue = self.M(self.evolve_point, point_queue, loglstars,
-                            axes_queue, scales, rstates, ptforms,
-                            logls, kwargs)
+        args = zip(point_queue, loglstars, axes_queue, scales, rstates,
+                   ptforms, logls, kwargs)
+        self.queue = self.M(self.evolve_point, args)
 
     def _get_point_value(self, loglstar):
         """Get a live point proposal sequentially from the filled queue."""

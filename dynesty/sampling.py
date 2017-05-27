@@ -23,10 +23,13 @@ EPS = float(np.finfo(np.float64).eps)
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
-def sample_unif(u, loglstar, axes, scale, rstate,
-                prior_transform, loglikelihood, kwargs):
+def sample_unif(args):
     """Return a new live point sampled uniformly from a bounding proposal
     distribution."""
+
+    # Unzipping.
+    (u, loglstar, axes, scale, rstate,
+     prior_transform, loglikelihood, kwargs) = args
 
     v = prior_transform(u)
     logl = loglikelihood(v)
@@ -36,10 +39,13 @@ def sample_unif(u, loglstar, axes, scale, rstate,
     return u, v, logl, nc, blob
 
 
-def sample_rwalk(u, loglstar, axes, scale, rstate,
-                 prior_transform, loglikelihood, kwargs):
+def sample_rwalk(args):
     """Return a new live point proposed via a random walk away from an
     existing live point."""
+
+    # Unzipping.
+    (u, loglstar, axes, scale, rstate,
+     prior_transform, loglikelihood, kwargs) = args
 
     n = len(u)
     walks = kwargs.get('walks', 25)  # number of steps
@@ -79,10 +85,13 @@ def sample_rwalk(u, loglstar, axes, scale, rstate,
     return u, v, logl, nc, blob
 
 
-def sample_slice(u, loglstar, axes, scale, rstate,
-                 prior_transform, loglikelihood, kwargs):
+def sample_slice(args):
     """Return a new live point proposed via a series of random slices
     away from an existing live point."""
+
+    # Unzipping.
+    (u, loglstar, axes, scale, rstate,
+     prior_transform, loglikelihood, kwargs) = args
 
     n = len(u)
     slices = kwargs.get('slices', 3)  # number of slices
@@ -170,11 +179,14 @@ def sample_slice(u, loglstar, axes, scale, rstate,
     return u_prop, v_prop, logl_prop, nc, blob
 
 
-def sample_rtraj(u, loglstar, axes, scale, rstate,
-                 prior_transform, loglikelihood, kwargs):
+def sample_rtraj(args):
     """Return a new live point proposed via a random trajectory
     away from an existing live point, where we "bounce" off the
     iso-likelihood contour based on the gradient."""
+
+    # Unzipping.
+    (u, loglstar, axes, scale, rstate,
+     prior_transform, loglikelihood, kwargs) = args
 
     n = len(u)
     v = prior_transform(u)

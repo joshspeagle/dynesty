@@ -8,6 +8,7 @@ from .dynesty import *
 from . import bounding
 from . import sampling
 from . import utils
+from . import plotting
 
 
 __version__ = "0.0.1"

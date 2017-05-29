@@ -364,7 +364,7 @@ class MultiEllipsoid(object):
 
     def sample(self, rstate=np.random, return_q=False):
         """
-        Sample a point uniformly distributed within the set of ellipsoids.
+        Sample a point uniformly distributed within the union of ellipsoids.
 
         Returns
         -------
@@ -394,17 +394,29 @@ class MultiEllipsoid(object):
         # Select a point from the chosen ellipsoid.
         x = self.ells[idx].sample(rstate=rstate)
 
+        # Check how many ellipsoids the point lies within, passing over
+        # the `idx`-th ellipsoid `x` was sampled from.
+        q = self.overlap(x, j=idx) + 1
+
         if return_q:
-            # Check how many ellipsoids the point lies within, passing over
-            # the `idx`-th ellipsoid `x` was sampled from.
-            q = self.overlap(x, j=idx) + 1
+            # If `q` is being returned, assume the user wants to
+            # explicitly apply the `1. / q` acceptance criterion to
+            # properly sample from the union of ellipsoids.
             return x, idx, q
         else:
+            # If `q` is not being returned, assume the user wants this
+            # done internally.
+            while rstate.rand() > (1. / q):
+                idx = random_choice(self.nells, self.vols / self.vol_tot,
+                                    rstate=rstate)
+                x = self.ells[idx].sample(rstate=rstate)
+                q = self.overlap(x, j=idx) + 1
+
             return x, idx
 
     def samples(self, nsamples, rstate=np.random):
         """
-        Draw `nsamples` samples uniformly distributed within the set of
+        Draw `nsamples` samples uniformly distributed within the union of
         ellipsoids.
 
         Returns
@@ -529,7 +541,7 @@ class RadFriends(object):
 
     def sample(self, ctrs, rstate=np.random, return_q=False):
         """
-        Sample a point uniformly distributed within the set of balls.
+        Sample a point uniformly distributed within the union of balls.
 
         Returns
         -------
@@ -558,37 +570,41 @@ class RadFriends(object):
         dx = self.radius * randsphere(self.n, rstate=rstate)
         x = ctrs[idx] + dx
 
+        # Check how many balls the point lies within, passing over
+        # the `idx`-th ball `x` was sampled from.
+        q = self.overlap(x, ctrs, j=idx) + 1
+
         if return_q:
-            # Check how many balls the point lies within, passing over
-            # the `idx`-th ball `x` was sampled from.
-            q = self.overlap(x, ctrs, j=idx) + 1
+            # If `q` is being returned, assume the user wants to
+            # explicitly apply the `1. / q` acceptance criterion to
+            # properly sample from the union of balls.
             return x, q
         else:
+            # If `q` is not being returned, assume the user wants this
+            # done internally.
+            while rstate.rand() > (1. / q):
+                idx = rstate.randint(nctrs)
+                dx = self.radius * randsphere(self.n, rstate=rstate)
+                x = ctrs[idx] + dx
+                q = self.overlap(x, ctrs, j=idx) + 1
             return x
 
-    def samples(self, nsamples, ctrs, rstate=np.random, return_qs=False):
+    def samples(self, nsamples, ctrs, rstate=np.random):
         """
-        Draw `nsamples` samples uniformly distributed within the set of
+        Draw `nsamples` samples uniformly distributed within the union of
         balls.
 
         Returns
         -------
         xs : `~numpy.ndarray` with shape (nsamples, ndim)
             A collection of coordinates within the set of balls.
-        qs : `~numpy.ndarray` with shape (nsamples,), optional
-            The number of balls each sample falls within.
 
         """
 
-        if return_qs:
-            samples = np.array([self.sample(ctrs, rstate=rstate, return_q=True)
-                                for i in range(nsamples)])
-            xs, qs = samples[:, 0], samples[:, 1]
-            return xs, qs
-        else:
-            xs = np.array([self.sample(ctrs, rstate=rstate, return_q=False)
-                           for i in range(nsamples)])
-            return xs
+        xs = np.array([self.sample(ctrs, rstate=rstate)
+                       for i in range(nsamples)])
+
+        return xs
 
     def update(self, points, pointvol=None, rstate=np.random, bootstrap=0,
                pool=None):
@@ -685,7 +701,7 @@ class SupFriends(object):
 
     def sample(self, ctrs, rstate=np.random, return_q=False):
         """
-        Sample a point uniformly distributed within the set of cubes.
+        Sample a point uniformly distributed within the union of cubes.
 
         Returns
         -------
@@ -700,7 +716,7 @@ class SupFriends(object):
 
         # If there is only one cube, sample from it.
         if nctrs == 1:
-            dx = self.hside * (rstate.rand(self.n) - 0.5)
+            dx = self.hside * (2. * rstate.rand(self.n) - 1.)
             x = ctrs[0] + dx
             if return_q:
                 return x, 1
@@ -711,40 +727,44 @@ class SupFriends(object):
         idx = rstate.randint(nctrs)
 
         # Select a point from the chosen cube.
-        dx = self.hside * (rstate.rand(self.n) - 0.5)
+        dx = self.hside * (2. * rstate.rand(self.n) - 1.)
         x = ctrs[idx] + dx
 
+        # Check how many cubes the point lies within, passing over
+        # the `idx`-th cube `x` was sampled from.
+        q = self.overlap(x, ctrs, j=idx) + 1
+
         if return_q:
-            # Check how many cubes the point lies within, passing over
-            # the `idx`-th cube `x` was sampled from.
-            q = self.overlap(x, ctrs, j=idx) + 1
+            # If `q` is being returned, assume the user wants to
+            # explicitly apply the `1. / q` acceptance criterion to
+            # properly sample from the union of balls.
             return x, q
         else:
+            # If `q` is not being returned, assume the user wants this
+            # done internally.
+            while rstate.rand() > (1. / q):
+                idx = rstate.randint(nctrs)
+                dx = self.hside * (2. * rstate.rand(self.n) - 1.)
+                x = ctrs[idx] + dx
+                q = self.overlap(x, ctrs, j=idx) + 1
             return x
 
-    def samples(self, nsamples, ctrs, rstate=np.random, return_qs=False):
+    def samples(self, nsamples, ctrs, rstate=np.random):
         """
-        Draw `nsamples` samples uniformly distributed within the set of
+        Draw `nsamples` samples uniformly distributed within the union of
         cubes.
 
         Returns
         -------
         xs : `~numpy.ndarray` with shape (nsamples, ndim)
             A collection of coordinates within the set of cubes.
-        qs : `~numpy.ndarray` with shape (nsamples,), optional
-            The number of cubes each sample falls within.
 
         """
 
-        if return_qs:
-            samples = np.array([self.sample(ctrs, rstate=rstate, return_q=True)
-                                for i in range(nsamples)])
-            xs, qs = samples[:, 0], samples[:, 1]
-            return xs, qs
-        else:
-            xs = np.array([self.sample(ctrs, rstate=rstate, return_q=False)
-                           for i in range(nsamples)])
-            return xs
+        xs = np.array([self.sample(ctrs, rstate=rstate)
+                       for i in range(nsamples)])
+
+        return xs
 
     def update(self, points, pointvol=None, rstate=np.random, bootstrap=0,
                pool=None):

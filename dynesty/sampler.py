@@ -185,17 +185,6 @@ class Sampler(object):
 
         return Results(results)
 
-    def get_proposal(self, it):
-        """Given the iteration, returns the proposal distribution."""
-
-        if not self.prop_iter:
-            raise ValueError("No proposals are currently saved!")
-
-        prop_iter = np.array(self.prop_iter)
-        idx = np.arange(len(prop_iter))[it >= prop_iter][-1]
-
-        return self.prop[idx]
-
     def _check_unit_cube(self, point):
         """Check whether a point falls within the unit cube."""
 
@@ -293,7 +282,6 @@ class Sampler(object):
         logdvols = misc.logsumexp(a=np.c_[logvols_pad[:-2], logvols_pad[2:]],
                                   axis=1, b=np.c_[np.ones(self.nlive),
                                                   -np.ones(self.nlive)])
-
         logdvols += math.log(0.5)
 
         # Add contributions from the remaining live points in order

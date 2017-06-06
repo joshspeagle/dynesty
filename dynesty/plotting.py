@@ -128,18 +128,21 @@ def runplot(results, bounds=None, color='blue', plot_kwargs=None,
     logzerr = results['logzerr']  # error in ln(evidence)
     nsamps = len(logwt)  # number of samples
 
+    try:
+        nlive_dynamic = results['samples_n']
+        mark_final_live = False
+    except:
+        pass
+
     # Check if the final set of live points were added to the results.
-    if niter != nsamps:
+    it = np.arange(nsamps)
+    if mark_final_live:
         if nsamps - niter == nlive:
-            it = np.arange(nsamps)
             live_idx = niter
         else:
             raise ValueError("The number of iterations and samples differ "
                              "by an amount that isn't the number of final "
                              "live points.")
-    else:
-        it = np.arange(nsamps)
-        mark_final_live = False  # no live points added
 
     # Determine plotting bounds for each subplot.
     data = [it, np.exp(logl), np.exp(logwt), np.exp(logz)]
@@ -1047,7 +1050,7 @@ def cornerplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84],
                 fmt = "{{0:{0}}}".format(title_fmt).format
                 title = r"${{{0}}}_{{-{1}}}^{{+{2}}}$"
                 title = title.format(fmt(qm), fmt(q_minus), fmt(q_plus))
-                title = "{0} = {1}".format(label, title)
+                title = "{0} = {1}".format(labels[i], title)
                 ax.set_title(title, **title_kwargs)
 
         for j, y in enumerate(samples):
@@ -1232,11 +1235,12 @@ def proposal(results, dims, it=None, idx=None, prior_transform=None,
             raise ValueError("Cannot reconstruct the proposal used at the "
                              "specified iteration since proposal "
                              "iterations were not saved in the results.")
-        # Sort iterations.
-        sidx = np.argsort(prop_iter)
 
         # Find proposal at the specified iteration.
-        pidx = sidx[np.arange(nprop)[it >= prop_iter[sidx]][-1]]
+        if it == 0:
+            pidx = 0
+        else:
+            pidx = prop_iter[it]
     else:
         if idx >= nsamps:
             raise ValueError("The index requested goes beyond the "
@@ -1256,6 +1260,7 @@ def proposal(results, dims, it=None, idx=None, prior_transform=None,
 
     # Do we want to show the live points at the specified iteration?
     # If so, we need to rewind our proposal to check.
+    # (We could also go forward; this is an arbitrary choice.)
     if show_live:
         # We can only reconstruct the run if the final set of
         # live points were added to the results.
@@ -1270,24 +1275,13 @@ def proposal(results, dims, it=None, idx=None, prior_transform=None,
         live_u = np.empty((nlive, ndim))
         live_u[samples_id[-nlive:]] = samples[-nlive:]
         # Run our sampling backwards.
-        if it is not None:
-            # If we're searching for a specific iteration,
-            # we just run until we hit it.
-            for i in range(1, niter - it + 1):
-                r = -(nlive + i)
-                uidx = samples_id[r]
-                live_u[uidx] = samples[r]
-        else:
-            # If we're searching for the proposal for a specific dead
-            # point, we need to run until the iteration where it was
-            # originally proposed.
-            sample_idx = samples_id[idx]
-            for i in range(1, niter + 1):
-                r = -(nlive + i)
-                uidx = samples_id[r]
-                live_u[uidx] = samples[r]
-                if i > niter - idx and uidx == sample_idx:
-                    break
+        if it is None:
+            it = results['samples_it'][idx]
+        # Run until we hit the target iteration.
+        for i in range(1, niter - it + 1):
+            r = -(nlive + i)
+            uidx = samples_id[r]
+            live_u[uidx] = samples[r]
 
     # Draw samples from the proposal.
     try:
@@ -1309,24 +1303,12 @@ def proposal(results, dims, it=None, idx=None, prior_transform=None,
             live_u = np.empty((nlive, ndim))
             live_u[samples_id[-nlive:]] = samples[-nlive:]
             # Run our sampling backwards.
-            if it is not None:
-                # If we're searching for a specific iteration,
-                # we just run until we hit it.
-                for i in range(1, niter - it + 1):
-                    r = -(nlive + i)
-                    uidx = samples_id[r]
-                    live_u[uidx] = samples[r]
-            else:
-                # If we're searching for the proposal for a specific dead
-                # point, we need to run until the iteration where it was
-                # originally proposed.
-                sample_idx = samples_id[idx]
-                for i in range(1, niter + 1):
-                    r = -(nlive + i)
-                    uidx = samples_id[r]
-                    live_u[uidx] = samples[r]
-                    if i > niter - idx and uidx == sample_idx:
-                        break
+            if it is None:
+                it = results['samples_it'][idx]
+            for i in range(1, niter - it + 1):
+                r = -(nlive + i)
+                uidx = samples_id[r]
+                live_u[uidx] = samples[r]
         psamps = prop.samples(ndraws, live_u)
 
     # Projecting samples to input dimensions and possibly
@@ -1498,11 +1480,12 @@ def cornerprop(results, it=None, idx=None, prior_transform=None,
             raise ValueError("Cannot reconstruct the proposal used at the "
                              "specified iteration since proposal "
                              "iterations were not saved in the results.")
-        # Sort iterations.
-        sidx = np.argsort(prop_iter)
 
         # Find proposal at the specified iteration.
-        pidx = sidx[np.arange(nprop)[it >= prop_iter[sidx]][-1]]
+        if it == 0:
+            pidx = 0
+        else:
+            pidx = prop_iter[it]
     else:
         if idx >= nsamps:
             raise ValueError("The index requested goes beyond the "
@@ -1522,6 +1505,7 @@ def cornerprop(results, it=None, idx=None, prior_transform=None,
 
     # Do we want to show the live points at the specified iteration?
     # If so, we need to rewind our proposal to check.
+    # (We could also go forward; this is an arbitrary choice.)
     if show_live:
         # We can only reconstruct the run if the final set of
         # live points were added to the results.
@@ -1536,24 +1520,13 @@ def cornerprop(results, it=None, idx=None, prior_transform=None,
         live_u = np.empty((nlive, ndim))
         live_u[samples_id[-nlive:]] = samples[-nlive:]
         # Run our sampling backwards.
-        if it is not None:
-            # If we're searching for a specific iteration,
-            # we just run until we hit it.
-            for i in range(1, niter - it + 1):
-                r = -(nlive + i)
-                uidx = samples_id[r]
-                live_u[uidx] = samples[r]
-        else:
-            # If we're searching for the proposal for a specific dead
-            # point, we need to run until the iteration where it was
-            # originally proposed.
-            sample_idx = samples_id[idx]
-            for i in range(1, niter + 1):
-                r = -(nlive + i)
-                uidx = samples_id[r]
-                live_u[uidx] = samples[r]
-                if i > niter - idx and uidx == sample_idx:
-                    break
+        if it is None:
+            it = results['samples_it'][idx]
+        # Run until we hit the target iteration.
+        for i in range(1, niter - it + 1):
+            r = -(nlive + i)
+            uidx = samples_id[r]
+            live_u[uidx] = samples[r]
 
     # Draw samples from the proposal.
     try:
@@ -1575,24 +1548,12 @@ def cornerprop(results, it=None, idx=None, prior_transform=None,
             live_u = np.empty((nlive, ndim))
             live_u[samples_id[-nlive:]] = samples[-nlive:]
             # Run our sampling backwards.
-            if it is not None:
-                # If we're searching for a specific iteration,
-                # we just run until we hit it.
-                for i in range(1, niter - it + 1):
-                    r = -(nlive + i)
-                    uidx = samples_id[r]
-                    live_u[uidx] = samples[r]
-            else:
-                # If we're searching for the proposal for a specific dead
-                # point, we need to run until the iteration where it was
-                # originally proposed.
-                sample_idx = samples_id[idx]
-                for i in range(1, niter + 1):
-                    r = -(nlive + i)
-                    uidx = samples_id[r]
-                    live_u[uidx] = samples[r]
-                    if i > niter - idx and uidx == sample_idx:
-                        break
+            if it is None:
+                it = results['samples_it'][idx]
+            for i in range(1, niter - it + 1):
+                r = -(nlive + i)
+                uidx = samples_id[r]
+                live_u[uidx] = samples[r]
         psamps = prop.samples(ndraws, live_u)
 
     # Projecting samples to input dimensions and possibly

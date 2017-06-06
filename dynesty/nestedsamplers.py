@@ -126,6 +126,8 @@ class UnitCubeSampler(Sampler):
                              live_points, update_interval, rstate,
                              queue_size, pool)
         self.unitcube = UnitCube(self.npdim)
+        self.bound = 'none'
+        self.method = method
 
         # random walk
         self.walks = self.kwargs.get('walks', 25)
@@ -284,6 +286,8 @@ class SingleEllipsoidSampler(Sampler):
                              live_points, update_interval, rstate,
                              queue_size, pool)
         self.ell = Ellipsoid(np.zeros(self.npdim), np.identity(self.npdim))
+        self.bound = 'single'
+        self.method = method
 
         # random walk
         self.walks = self.kwargs.get('walks', 25)
@@ -459,6 +463,8 @@ class MultiEllipsoidSampler(Sampler):
                              queue_size, pool)
         self.mell = MultiEllipsoid(ctrs=[np.zeros(self.npdim)],
                                    ams=[np.identity(self.npdim)])
+        self.bound = 'multi'
+        self.method = method
 
         # random walk
         self.walks = self.kwargs.get('walks', 25)
@@ -644,6 +650,8 @@ class RadFriendsSampler(Sampler):
                              live_points, update_interval, rstate,
                              queue_size, pool)
         self.radfriends = RadFriends(self.npdim, 0.)
+        self.bound = 'balls'
+        self.method = method
 
         # random walk
         self.walks = self.kwargs.get('walks', 25)
@@ -813,6 +821,8 @@ class SupFriendsSampler(Sampler):
                              live_points, update_interval, rstate,
                              queue_size, pool)
         self.supfriends = SupFriends(self.npdim, 0.)
+        self.bound = 'cubes'
+        self.method = method
 
         # random walk
         self.walks = self.kwargs.get('walks', 25)

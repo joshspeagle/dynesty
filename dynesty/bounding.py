@@ -63,7 +63,8 @@ class UnitCube(object):
 
     def __init__(self, ndim):
         self.n = ndim  # dimension
-        self.vol = 1.
+        self.vol = 1.  # volume
+        self.funit = 1.  # overlap with the unit cube
 
     def contains(self, x):
         """Checks if ellipsoid contains `x`."""
@@ -227,6 +228,15 @@ class Ellipsoid(object):
 
         return xs
 
+    def unitcube_overlap(self, ndraws=10000, rstate=np.random):
+        """Using `ndraws` Monte Carlo draws, evaluate the amount of
+        overlap with the unit cube."""
+
+        samples = [self.sample(rstate=rstate) for i in range(ndraws)]
+        nin = sum([np.all(x > 0.) and np.all(x < 1.) for x in samples])
+
+        return 1. * nin / ndraws
+
     def update(self, points, pointvol=None, rstate=np.random, bootstrap=0,
                pool=None):
         """
@@ -267,6 +277,9 @@ class Ellipsoid(object):
                 v = self.vol * expand**self.n
                 self.scale_to_vol(v)
 
+        # Compute overlap with the unit cube.
+        self.funit = self.unitcube_overlap()
+
 
 class MultiEllipsoid(object):
     """
@@ -297,10 +310,6 @@ class MultiEllipsoid(object):
                 self.ells = ells
                 self.ctrs = np.array([ell.ctr for ell in self.ells])
                 self.ams = np.array([ell.am for ell in self.ells])
-                self.vols = np.array([ell.vol for ell in self.ells])
-                self.expands = np.ones(self.nells)
-                self.vol_tot = sum(self.vols)
-                self.expand_tot = 1.
             else:
                 raise ValueError("You cannot specific both `ells` and "
                                  "(`ctrs`, `ams`)!")
@@ -314,10 +323,10 @@ class MultiEllipsoid(object):
                 self.ams = ams
                 self.ells = [Ellipsoid(ctrs[i], ams[i])
                              for i in range(self.nells)]
-                self.vols = [ell.vol for ell in self.ells]
-                self.expands = np.ones(self.nells)
-                self.vol_tot = sum(self.vols)
-                self.expand_tot = 1.
+        self.vols = np.array([ell.vol for ell in self.ells])
+        self.expands = np.ones(self.nells)
+        self.vol_tot = sum(self.vols)
+        self.expand_tot = 1.
 
     def scale_to_vols(self, vols):
         """Scale ellipoids to encompass a corresponding set of
@@ -431,6 +440,24 @@ class MultiEllipsoid(object):
 
         return xs
 
+    def monte_carlo_vol(self, ndraws=10000, rstate=np.random,
+                        return_overlap=False):
+        """Using `ndraws` Monte Carlo draws, evaluate the amount of
+        overlap with the unit cube."""
+
+        samples = [self.sample(rstate=rstate, return_q=True)
+                   for i in range(ndraws)]
+        qsum = sum([q for (x, idx, q) in samples])
+        vol = 1. * ndraws / qsum * self.vol_tot
+
+        if return_overlap:
+            nin = sum([(np.all(x > 0.) and np.all(x < 1.))
+                       for (x, idx, q) in samples])
+            overlap = 1. * nin / ndraws
+            return vol, overlap
+        else:
+            return vol
+
     def update(self, points, pointvol=None, vol_dec=0.5, vol_check=2.,
                rstate=np.random, bootstrap=0, pool=None):
         """
@@ -486,6 +513,9 @@ class MultiEllipsoid(object):
                 vs = self.vols * expand**ndim
                 self.scale_to_vols(vs)
 
+        # Monte Carlo integrate the volume and overlap with the unit cube.
+        self.vol, self.funit = self.monte_carlo_vol(return_overlap=True)
+
 
 class RadFriends(object):
     """
@@ -504,7 +534,7 @@ class RadFriends(object):
     def __init__(self, ndim, radius):
         self.n = ndim
         self.radius = radius
-        self.vol = vol_prefactor(self.n) * self.radius**self.n
+        self.vol_ball = vol_prefactor(self.n) * self.radius**self.n
         self.expand = 1.
 
     def scale_to_vol(self, vol):
@@ -513,7 +543,7 @@ class RadFriends(object):
         f = (vol / self.vol) ** (1.0 / self.n)  # linear factor
         self.expand *= f
         self.radius *= f
-        self.vol = vol
+        self.vol_ball = vol
 
     def within(self, x, ctrs, j=None):
         """Checks which balls `x` falls within, skipping the `j`-th
@@ -606,6 +636,24 @@ class RadFriends(object):
 
         return xs
 
+    def monte_carlo_vol(self, ctrs, ndraws=10000, rstate=np.random,
+                        return_overlap=False):
+        """Using `ndraws` Monte Carlo draws, evaluate the amount of
+        overlap with the unit cube."""
+
+        samples = [self.sample(ctrs, rstate=rstate, return_q=True)
+                   for i in range(ndraws)]
+        qsum = sum([q for (x, q) in samples])
+        vol = 1. * ndraws / qsum * len(ctrs) * self.vol_ball
+
+        if return_overlap:
+            nin = sum([(np.all(x > 0.) and np.all(x < 1.))
+                       for (x, q) in samples])
+            overlap = 1. * nin / ndraws
+            return vol, overlap
+        else:
+            return vol
+
     def update(self, points, pointvol=None, rstate=np.random, bootstrap=0,
                pool=None):
         """
@@ -638,13 +686,17 @@ class RadFriends(object):
         # Conservatively set radius to be maximum of the set.
         rmax = max(radii)
         self.radius = rmax
-        self.vol = vol_prefactor(self.n) * self.radius**self.n
+        self.vol_ball = vol_prefactor(self.n) * self.radius**self.n
 
         # Expand our ball to encompass a minimum volume.
         if pointvol is not None:
             v = pointvol
-            if self.vol < v:
+            if self.vol_ball < v:
                 self.scale_to_vol(v)
+
+        # Monte Carlo integrate the volume and overlap with the unit cube.
+        self.vol, self.funit = self.monte_carlo_vol(points,
+                                                    return_overlap=True)
 
 
 class SupFriends(object):
@@ -664,7 +716,7 @@ class SupFriends(object):
     def __init__(self, ndim, hside):
         self.n = ndim
         self.hside = hside
-        self.vol = (2. * self.hside)**self.n
+        self.vol_cube = (2. * self.hside)**self.n
         self.expand = 1.
 
     def scale_to_vol(self, vol):
@@ -673,7 +725,7 @@ class SupFriends(object):
         f = (vol / self.vol) ** (1.0 / self.n)  # linear factor
         self.expand *= f
         self.hside *= f
-        self.vol = vol
+        self.vol_cube = vol
 
     def within(self, x, ctrs, j=None):
         """Checks which cubes `x` falls within, skipping the `j`-th
@@ -766,6 +818,24 @@ class SupFriends(object):
 
         return xs
 
+    def monte_carlo_vol(self, ctrs, ndraws=10000, rstate=np.random,
+                        return_overlap=False):
+        """Using `ndraws` Monte Carlo draws, evaluate the amount of
+        overlap with the unit cube."""
+
+        samples = [self.sample(ctrs, rstate=rstate, return_q=True)
+                   for i in range(ndraws)]
+        qsum = sum([q for (x, q) in samples])
+        vol = 1. * ndraws / qsum * len(ctrs) * self.vol_cube
+
+        if return_overlap:
+            nin = sum([(np.all(x > 0.) and np.all(x < 1.))
+                       for (x, q) in samples])
+            overlap = 1. * nin / ndraws
+            return vol, overlap
+        else:
+            return vol
+
     def update(self, points, pointvol=None, rstate=np.random, bootstrap=0,
                pool=None):
         """
@@ -798,13 +868,17 @@ class SupFriends(object):
         # Conservatively set radius to be maximum of the set.
         hsmax = max(hsides)
         self.hside = hsmax
-        self.vol = (2. * self.hside)**self.n
+        self.vol_cube = (2. * self.hside)**self.n
 
         # Expand our cube to encompass a minimum volume.
         if pointvol is not None:
             v = pointvol
-            if self.vol < v:
+            if self.vol_cube < v:
                 self.scale_to_vol(v)
+
+        # Monte Carlo integrate the volume and overlap with the unit cube.
+        self.vol, self.funit = self.monte_carlo_vol(points,
+                                                    return_overlap=True)
 
 
 ##################
@@ -995,7 +1069,8 @@ def _bounding_ellipsoids(points, ell, pointvol=None, vol_dec=0.5,
     # Split points into two clusters using k-means clustering with k=2.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        k2_res = kmeans2(points, k=start_ctrs, iter=10, minit='matrix')
+        k2_res = kmeans2(points, k=start_ctrs, iter=10, minit='matrix',
+                         check_finite=False)
     centroids = k2_res[0]  # shape is (k, ndim) = (2, ndim)
     labels = k2_res[1]  # cluster identifier ; shape is (npoints,)
 

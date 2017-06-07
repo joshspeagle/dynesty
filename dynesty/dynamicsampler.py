@@ -902,7 +902,7 @@ class DynamicSampler(object):
                 idx_saved += 1
 
             # Save the number of live points and expected ln(volume).
-            logvol -= 1. / nlive
+            logvol -= math.log((nlive + 1.) / nlive)
             self.saved_n.append(nlive)
             self.saved_logvol.append(logvol)
 
@@ -924,24 +924,31 @@ class DynamicSampler(object):
         # Compute the posterior quantities of interest.
         h = 0.
         logz = -1.e300
-        logvols_pad = np.concatenate(([0.], self.saved_logvol, [-1.e300]))
-        logdvols = misc.logsumexp(a=np.c_[logvols_pad[:-2], logvols_pad[2:]],
+        loglstar = -1.e300
+        logzerr = 0.
+        logvols_pad = np.concatenate(([0.], self.saved_logvol))
+        logdvols = misc.logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
                                   axis=1, b=np.c_[np.ones(ntot),
                                                   -np.ones(ntot)])
         logdvols += math.log(0.5)
-        nlive_max = max(self.saved_n)
+        dlvs = logvols_pad[:-1] - logvols_pad[1:]
         for i in range(ntot):
             nlive = self.saved_n[i]
-            loglstar = self.saved_logl[i]
-            logdvol = logdvols[i]
-            logwt = loglstar + logdvol
+            loglstar_new = self.saved_logl[i]
+            logdvol, dlv = logdvols[i], dlvs[i]
+            logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
             logz_new = np.logaddexp(logz, logwt)
-            h = (math.exp(logwt - logz_new) * loglstar +
-                 math.exp(logz - logz_new) * (h + logz) -
-                 logz_new)
-            h = self._check_h(h)
+            lzterm = (math.exp(loglstar - logz_new) * loglstar +
+                      math.exp(loglstar_new - logz_new) * loglstar_new)
+            h_new = (math.exp(logdvol) * lzterm +
+                     math.exp(logz - logz_new) * (h + logz) -
+                     logz_new)
+            h_new = self._check_h(h_new)
+            dh = h_new - h
+            h = h_new
             logz = logz_new
-            logzerr = math.sqrt(h / nlive_max)
+            logzerr = np.sqrt(logzerr**2 + dh * dlv)
+            loglstar = loglstar_new
             self.saved_logwt.append(logwt)
             self.saved_logz.append(logz)
             self.saved_logzerr.append(logzerr)
@@ -1096,6 +1103,7 @@ class DynamicSampler(object):
                                  "dlogz: {:6.3f} > {:6.3f}    "
                                  .format(0, it, nc, ncall, eff, logz, logzerr,
                                          delta_logz, dlogz_init))
+                sys.stderr.flush()
 
         # Add points in batches.
         for n in range(maxbatch):
@@ -1111,7 +1119,7 @@ class DynamicSampler(object):
                 # Compute our sampling bounds using the provided
                 # weight function.
                 logl_bounds = wt_function(res, wt_kwargs)
-                lnz = res.logz[-1]
+                lnz, lnzerr = res.logz[-1], res.logzerr[-1]
                 for it, results in enumerate(self.sample_batch(
                                              nlive_new=nbatch,
                                              logl_bounds=logl_bounds,
@@ -1126,10 +1134,12 @@ class DynamicSampler(object):
                                          "nc: {:d} | ncall: {:d} | "
                                          "eff(%): {:6.3f} | "
                                          "loglstar: {:6.3f} < {:6.3f} "
-                                         "< {:6.3f} | logz: {:6.3f}    "
+                                         "< {:6.3f} | "
+                                         "logz: {:6.3f} +/- {:6.3f}    "
                                          .format(n+1, niter, nc, ncall, eff,
                                                  logl_bounds[0], loglstar,
-                                                 logl_bounds[1], lnz))
+                                                 logl_bounds[1], lnz, lnzerr))
+                        sys.stderr.flush()
                 self.combine_runs()
 
         if print_progress:
@@ -1194,6 +1204,7 @@ class DynamicSampler(object):
             # Compute our sampling bounds using the provided
             # weight function.
             res = self.results
+            lnz, lnzerr = res.logz[-1], res.logzerr[-1]
             logl_bounds = wt_function(res, wt_kwargs)
             for it, results in enumerate(self.sample_batch(nlive_new=nbatch,
                                          logl_bounds=logl_bounds,
@@ -1209,8 +1220,10 @@ class DynamicSampler(object):
                                      "nc: {:d} | ncall: {:d} | "
                                      "eff(%): {:6.3f} | "
                                      "loglstar: {:6.3f} < {:6.3f} "
-                                     "< {:6.3f}    "
+                                     "< {:6.3f} | "
+                                     "logz: {:6.3f} +/- {:6.3f}    "
                                      .format(n+1, niter, nc, ncall,
                                              eff, logl_bounds[0], loglstar,
-                                             logl_bounds[1]))
+                                             logl_bounds[1], lnz, lnzerr))
+                    sys.stderr.flush()
             self.combine_runs()

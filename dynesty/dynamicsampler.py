@@ -232,7 +232,7 @@ class DynamicSampler(object):
         self.saved_logvol = []  # expected log(volume)
         self.saved_logwt = []  # log(weights)
         self.saved_logz = []  # cumulative log(evidence)
-        self.saved_logzerr = []  # cumulative error on log(evidence)
+        self.saved_logzvar = []  # cumulative error on log(evidence)
         self.saved_h = []  # cumulative information
         self.saved_nc = []  # number of calls at each iteration
         self.saved_propidx = []  # index of proposal dead point was drawn from
@@ -248,7 +248,7 @@ class DynamicSampler(object):
         self.base_logvol = []
         self.base_logwt = []
         self.base_logz = []
-        self.base_logzerr = []
+        self.base_logzvar = []
         self.base_h = []
         self.base_nc = []
         self.base_propidx = []
@@ -290,7 +290,7 @@ class DynamicSampler(object):
         self.saved_logvol = []
         self.saved_logwt = []
         self.saved_logz = []
-        self.saved_logzerr = []
+        self.saved_logzvar = []
         self.saved_h = []
         self.saved_nc = []
         self.saved_propidx = []
@@ -306,7 +306,7 @@ class DynamicSampler(object):
         self.base_logvol = []
         self.base_logwt = []
         self.base_logz = []
-        self.base_logzerr = []
+        self.base_logzvar = []
         self.base_h = []
         self.base_nc = []
         self.base_propidx = []
@@ -342,7 +342,7 @@ class DynamicSampler(object):
                    ('logl', np.array(self.saved_logl)),
                    ('logvol', np.array(self.saved_logvol)),
                    ('logz', np.array(self.saved_logz)),
-                   ('logzerr', np.array(self.saved_logzerr)),
+                   ('logzerr', np.sqrt(np.array(self.saved_logzvar))),
                    ('h', np.array(self.saved_h))]
         results.append(('prop', copy.deepcopy(self.prop)))
         results.append(('prop_iter',
@@ -423,7 +423,7 @@ class DynamicSampler(object):
         logz : double
             Cumulative ln(evidence) up to the sample (inclusive).
 
-        logzerr : double
+        logzvar : double
             Associated error on `logz`.
 
         h : double
@@ -480,7 +480,7 @@ class DynamicSampler(object):
                                          maxcall=maxcall, dlogz=dlogz)):
                 # Grab results.
                 (worst, ustar, vstar, loglstar, logvol, logwt, logz,
-                 logzerr, h, nc, worst_it, propidx, eff, delta_logz) = results
+                 logzvar, h, nc, worst_it, propidx, eff, delta_logz) = results
 
                 # Save our base run (which we will use later).
                 self.base_id.append(worst)
@@ -490,7 +490,7 @@ class DynamicSampler(object):
                 self.base_logvol.append(logvol)
                 self.base_logwt.append(logwt)
                 self.base_logz.append(logz)
-                self.base_logzerr.append(logzerr)
+                self.base_logzvar.append(logzvar)
                 self.base_h.append(h)
                 self.base_nc.append(nc)
                 self.base_it.append(worst_it)
@@ -506,7 +506,7 @@ class DynamicSampler(object):
                 self.saved_logvol.append(logvol)
                 self.saved_logwt.append(logwt)
                 self.saved_logz.append(logz)
-                self.saved_logzerr.append(logzerr)
+                self.saved_logzvar.append(logzvar)
                 self.saved_h.append(h)
                 self.saved_nc.append(nc)
                 self.saved_it.append(worst_it)
@@ -520,12 +520,12 @@ class DynamicSampler(object):
                 self.it += 1
 
                 yield (worst, ustar, vstar, loglstar, logvol, logwt, logz,
-                       logzerr, h, nc, worst_it, propidx, self.eff, delta_logz)
+                       logzvar, h, nc, worst_it, propidx, self.eff, delta_logz)
 
             for it, results in enumerate(self.sampler.add_live_points()):
                 # Grab results.
                 (worst, ustar, vstar, loglstar, logvol, logwt, logz,
-                 logzerr, h, nc, worst_it, propidx, eff, delta_logz) = results
+                 logzvar, h, nc, worst_it, propidx, eff, delta_logz) = results
 
                 # Save our base run (which we will use later).
                 self.base_id.append(worst)
@@ -535,7 +535,7 @@ class DynamicSampler(object):
                 self.base_logvol.append(logvol)
                 self.base_logwt.append(logwt)
                 self.base_logz.append(logz)
-                self.base_logzerr.append(logzerr)
+                self.base_logzvar.append(logzvar)
                 self.base_h.append(h)
                 self.base_nc.append(nc)
                 self.base_it.append(worst_it)
@@ -551,7 +551,7 @@ class DynamicSampler(object):
                 self.saved_logvol.append(logvol)
                 self.saved_logwt.append(logwt)
                 self.saved_logz.append(logz)
-                self.saved_logzerr.append(logzerr)
+                self.saved_logzvar.append(logzvar)
                 self.saved_h.append(h)
                 self.saved_nc.append(nc)
                 self.saved_it.append(worst_it)
@@ -565,7 +565,7 @@ class DynamicSampler(object):
                 self.it += 1
 
                 yield (worst, ustar, vstar, loglstar, logvol, logwt, logz,
-                       logzerr, h, nc, worst_it, propidx, self.eff, delta_logz)
+                       logzvar, h, nc, worst_it, propidx, self.eff, delta_logz)
 
     def sample_batch(self, nlive_new=100, logl_bounds=None, maxiter=None,
                      maxcall=None, save_proposals=True):
@@ -763,7 +763,7 @@ class DynamicSampler(object):
 
                 # Grab results.
                 (worst, ustar, vstar, loglstar, logvol, logwt, logz,
-                 logzerr, h, nc, worst_it, propidx, eff, delta_logz) = results
+                 logzvar, h, nc, worst_it, propidx, eff, delta_logz) = results
 
                 # Save results.
                 self.new_id.append(worst)
@@ -787,7 +787,7 @@ class DynamicSampler(object):
             for it, results in enumerate(self.sampler.add_live_points()):
                 # Grab results.
                 (worst, ustar, vstar, loglstar, logvol, logwt, logz,
-                 logzerr, h, nc, worst_it, propidx, eff, delta_logz) = results
+                 logzvar, h, nc, worst_it, propidx, eff, delta_logz) = results
 
                 # Save results.
                 self.new_id.append(worst)
@@ -843,7 +843,7 @@ class DynamicSampler(object):
         self.saved_logvol = []
         self.saved_logwt = []
         self.saved_logz = []
-        self.saved_logzerr = []
+        self.saved_logzvar = []
         self.saved_h = []
         self.saved_nc = []
         self.saved_propidx = []
@@ -925,7 +925,7 @@ class DynamicSampler(object):
         h = 0.
         logz = -1.e300
         loglstar = -1.e300
-        logzerr = 0.
+        logzvar = 0.
         logvols_pad = np.concatenate(([0.], self.saved_logvol))
         logdvols = misc.logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
                                   axis=1, b=np.c_[np.ones(ntot),
@@ -933,7 +933,6 @@ class DynamicSampler(object):
         logdvols += math.log(0.5)
         dlvs = logvols_pad[:-1] - logvols_pad[1:]
         for i in range(ntot):
-            nlive = self.saved_n[i]
             loglstar_new = self.saved_logl[i]
             logdvol, dlv = logdvols[i], dlvs[i]
             logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
@@ -947,11 +946,11 @@ class DynamicSampler(object):
             dh = h_new - h
             h = h_new
             logz = logz_new
-            logzerr = np.sqrt(logzerr**2 + dh * dlv)
+            logzvar += dh * dlv
             loglstar = loglstar_new
             self.saved_logwt.append(logwt)
             self.saved_logz.append(logz)
-            self.saved_logzerr.append(logzerr)
+            self.saved_logzvar.append(logzvar)
             self.saved_h.append(h)
 
         # Reset results.
@@ -1090,13 +1089,14 @@ class DynamicSampler(object):
                                      dlogz=dlogz_init, maxcall=maxcall_init,
                                      maxiter=maxiter_init)):
             (worst, ustar, vstar, loglstar, logvol,
-             logwt, logz, logzerr, h, nc, worst_it,
+             logwt, logz, logzvar, h, nc, worst_it,
              propidx, eff, delta_logz) = results
             if delta_logz > 1e6:
                 delta_logz = np.inf
             ncall += nc
             niter += 1
             if print_progress:
+                logzerr = math.sqrt(logzvar)
                 sys.stderr.write("\rrun: {:d} | iter: {:d} | nc: {:d} | "
                                  "ncall: {:d} | eff(%): {:6.3f} | "
                                  "logz: {:6.3f} +/- {:6.3f} | "

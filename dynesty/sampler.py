@@ -101,7 +101,7 @@ class Sampler(object):
         self.it = 1  # current iteration
         self.since_update = 0  # number of calls since the last update
         self.ncall = self.nlive  # number of function calls
-        self.dlv = math.log((self.nlive + 1.) / self.nlive) # shrinkage/iter
+        self.dlv = math.log((self.nlive + 1.) / self.nlive)  # shrinkage/iter
         self.prop = [UnitCube(self.npdim)]  # proposals
         self.nprop = 1  # total number of unique proposal distributions
         self.added_live = False  # whether leftover live points were used
@@ -114,7 +114,7 @@ class Sampler(object):
         self.saved_logvol = []  # expected log(volume)
         self.saved_logwt = []  # log(weights)
         self.saved_logz = []  # cumulative log(evidence)
-        self.saved_logzerr = []  # cumulative error on log(evidence)
+        self.saved_logzvar = []  # cumulative error on log(evidence)
         self.saved_h = []  # cumulative information
         self.saved_nc = []  # number of calls at each iteration
         self.saved_propidx = []  # index of proposal dead point was drawn from
@@ -153,7 +153,7 @@ class Sampler(object):
         self.saved_logvol = []
         self.saved_logwt = []
         self.saved_logz = []
-        self.saved_logzerr = []
+        self.saved_logzvar = []
         self.saved_h = []
         self.saved_nc = []
         self.saved_propidx = []
@@ -178,7 +178,7 @@ class Sampler(object):
                        ('logl', np.array(self.saved_logl)),
                        ('logvol', np.array(self.saved_logvol)),
                        ('logz', np.array(self.saved_logz)),
-                       ('logzerr', np.array(self.saved_logzerr)),
+                       ('logzerr', np.sqrt(np.array(self.saved_logzvar))),
                        ('h', np.array(self.saved_h))]
         else:
             raise ValueError("You didn't save any samples!")
@@ -290,14 +290,14 @@ class Sampler(object):
                                                   -np.ones(self.nlive)])
         logdvols += math.log(0.5)
 
-        # Getting changes in logvol to weight new contributions to `logzerr`.
+        # Getting changes in logvol to weight new contributions to `logzvar`.
         dlvs = logvols_pad[:-1] - logvols_pad[1:]
 
         # Add contributions from the remaining live points in order
         # from the lowest to the highest loglikelihoods.
         lsort_idx = np.argsort(self.live_logl)
         logz = self.saved_logz[-1]
-        logzerr = self.saved_logzerr[-1]
+        logzvar = self.saved_logzvar[-1]
         h = self.saved_h[-1]
         loglstar = self.saved_logl[-1]
         loglmax = max(self.live_logl)
@@ -320,7 +320,7 @@ class Sampler(object):
             dh = h_new - h
             h = h_new
             logz = logz_new
-            logzerr = np.sqrt(logzerr**2 + dh * dlv)
+            logzvar += dh * dlv
             loglstar = loglstar_new
             logz_remain = loglmax + logvol
             delta_logz = np.logaddexp(logz, logz_remain) - logz
@@ -332,14 +332,14 @@ class Sampler(object):
                 self.saved_logvol.append(logvol)
                 self.saved_logwt.append(logwt)
                 self.saved_logz.append(logz)
-                self.saved_logzerr.append(logzerr)
+                self.saved_logzvar.append(logzvar)
                 self.saved_h.append(h)
                 self.saved_nc.append(1)
                 self.saved_propidx.append(propidx)
                 self.saved_it.append(point_it)
                 self.saved_piter.append(self.nprop - 1)
             yield (idx, ustar, vstar, loglstar, logvol, logwt,
-                   logz, logzerr, h, 1, point_it, propidx, self.eff,
+                   logz, logzvar, h, 1, point_it, propidx, self.eff,
                    delta_logz)
 
     def _remove_live_points(self):
@@ -356,7 +356,7 @@ class Sampler(object):
                 del self.saved_logvol[-self.nlive:]
                 del self.saved_logwt[-self.nlive:]
                 del self.saved_logz[-self.nlive:]
-                del self.saved_logzerr[-self.nlive:]
+                del self.saved_logzvar[-self.nlive:]
                 del self.saved_h[-self.nlive:]
                 del self.saved_nc[-self.nlive:]
                 del self.saved_propidx[-self.nlive:]
@@ -431,7 +431,7 @@ class Sampler(object):
         logz : double
             Cumulative ln(evidence) up to the sample (inclusive).
 
-        logzerr : double
+        logzvar : double
             Associated error on `logz`.
 
         h : double
@@ -467,9 +467,9 @@ class Sampler(object):
             # Initialize values for nested sampling loop.
             h = 0.0  # Information, initially *0.*
             logz = -1.e300  # ln(evidence), initially *0.*
-            logzerr = 0.  # std[ln(evidence)], initially *0.*
+            logzvar = 0.  # var[ln(evidence)], initially *0.*
             logvol = 0.  # initially contains the whole prior (volume=1.)
-            loglstar = -1.e300 # initial ln(likelihood)
+            loglstar = -1.e300  # initial ln(likelihood)
             delta_logz = 1.e300  # ln(ratio) of total/current evidence
 
             # Initialize proposal distribution.
@@ -487,7 +487,7 @@ class Sampler(object):
             # Get final state from previous run.
             h = self.saved_h[-1]  # Information
             logz = self.saved_logz[-1]  # log(evidence)
-            logzerr = self.saved_logzerr[-1]  # std[ln(evidence)]
+            logzvar = self.saved_logzvar[-1]  # var[ln(evidence)]
             logvol = self.saved_logvol[-1]  # log(volume)
             loglstar = min(self.live_logl)  # log(likelihood)
             delta_logz = np.logaddexp(logz, np.max(self.live_logl) +
@@ -502,7 +502,7 @@ class Sampler(object):
                 # If dumping past states, save only the required quantities.
                 if not self.save_samples:
                     self.saved_logz.append(logz)
-                    self.saved_logzerr.append(logzerr)
+                    self.saved_logzvar.append(logzvar)
                     self.saved_h.append(h)
                     self.saved_logvol.append(logvol)
                     self.saved_logl.append(loglstar)
@@ -513,7 +513,7 @@ class Sampler(object):
             if ncall > maxcall:
                 if not self.save_samples:
                     self.saved_logz.append(logz)
-                    self.saved_logzerr.append(logzerr)
+                    self.saved_logzvar.append(logzvar)
                     self.saved_h.append(h)
                     self.saved_logvol.append(logvol)
                     self.saved_logl.append(loglstar)
@@ -527,7 +527,7 @@ class Sampler(object):
                 if delta_logz < dlogz:
                     if not self.save_samples:
                         self.saved_logz.append(logz)
-                        self.saved_logzerr.append(logzerr)
+                        self.saved_logzvar.append(logzvar)
                         self.saved_h.append(h)
                         self.saved_logvol.append(logvol)
                         self.saved_logl.append(loglstar)
@@ -538,7 +538,7 @@ class Sampler(object):
             if loglstar > logl_max:
                 if not self.save_samples:
                     self.saved_logz.append(logz)
-                    self.saved_logzerr.append(logzerr)
+                    self.saved_logzvar.append(logzvar)
                     self.saved_h.append(h)
                     self.saved_logvol.append(logvol)
                     self.saved_logl.append(loglstar)
@@ -570,7 +570,7 @@ class Sampler(object):
             # Set our new weight using quadratic estimates (trapezoid rule).
             logdvol = misc.logsumexp(a=[logvol + self.dlv, logvol],
                                      b=[0.5, -0.5])  # log(dvol)
-            logwt = np.logaddexp(loglstar_new, loglstar) + logdvol  # log(weight)
+            logwt = np.logaddexp(loglstar_new, loglstar) + logdvol  # log(wt)
 
             # Sample a new live point from within the likelihood constraint
             # `logl > loglstar` using the proposal distribution
@@ -591,7 +591,7 @@ class Sampler(object):
             dh = h_new - h
             h = h_new
             logz = logz_new
-            logzerr = np.sqrt(logzerr**2 + dh * self.dlv)
+            logzvar += dh * self.dlv
             loglstar = loglstar_new
 
             # Save the worst live point. It is now a "dead" point.
@@ -603,7 +603,7 @@ class Sampler(object):
                 self.saved_logvol.append(logvol)
                 self.saved_logwt.append(logwt)
                 self.saved_logz.append(logz)
-                self.saved_logzerr.append(logzerr)
+                self.saved_logzvar.append(logzvar)
                 self.saved_h.append(h)
                 self.saved_nc.append(nc)
                 self.saved_propidx.append(propidx)
@@ -618,14 +618,14 @@ class Sampler(object):
             self.live_it[worst] = self.it
 
             # Compute our sampling efficiency.
-            self.eff = 100. * self.it / (self.ncall - self.nlive)
+            self.eff = 100. * self.it / self.ncall
 
             # Increment total number of iterations.
             self.it += 1
 
             # Return dead point and ancillary quantities.
             yield (worst, ustar, vstar, loglstar, logvol, logwt,
-                   logz, logzerr, h, nc, worst_it, propidx, self.eff,
+                   logz, logzvar, h, nc, worst_it, propidx, self.eff,
                    delta_logz)
 
     def run_nested(self, maxiter=None, maxcall=None, dlogz=None,
@@ -681,7 +681,7 @@ class Sampler(object):
                                      save_proposals=save_proposals,
                                      save_samples=True)):
             (worst, ustar, vstar, loglstar, logvol, logwt,
-             logz, logzerr, h, nc, worst_it, propidx, eff,
+             logz, logzvar, h, nc, worst_it, propidx, eff,
              delta_logz) = results
             ncall += nc
             if delta_logz > 1e6:
@@ -694,7 +694,7 @@ class Sampler(object):
                                  "logz: {:6.3f} +/- {:6.3f} | "
                                  "dlogz: {:6.3f} > {:6.3f}    "
                                  .format(it, nc, ncall, eff,
-                                         logz, logzerr,
+                                         logz, math.sqrt(logzvar),
                                          delta_logz, dlogz))
                 sys.stderr.flush()
 
@@ -702,7 +702,7 @@ class Sampler(object):
             # Add remaining live points to samples.
             for i, results in enumerate(self.add_live_points()):
                 (worst, ustar, vstar, loglstar, logvol, logwt,
-                 logz, logzerr, h, nc, worst_it, propidx, eff,
+                 logz, logzvar, h, nc, worst_it, propidx, eff,
                  delta_logz) = results
                 ncall += nc
                 if print_progress:
@@ -713,7 +713,7 @@ class Sampler(object):
                                      "logz: {:6.3f} +/- {:6.3f} | "
                                      "dlogz: {:6.3f}        "
                                      .format(it, i + 1, nc, ncall, eff,
-                                             logz, logzerr,
+                                             logz, math.sqrt(logzvar),
                                              delta_logz))
                     sys.stderr.flush()
 

@@ -16,7 +16,7 @@ except ImportError:
 setup(
     name="dynesty",
     url="https://github.com/joshspeagle/dynesty",
-    version="0.0.1",
+    version="0.5.0",
     author="Josh Speagle",
     author_email="jspeagle@cfa.harvard.edu",
     packages=["dynesty"],
@@ -25,5 +25,5 @@ setup(
     long_description=open("README.md").read(),
     package_data={"": ["README.md", "LICENSE"]},
     include_package_data=True,
-    install_requires=["numpy"],
+    install_requires=["numpy", "scipy"],
 )

@@ -11,4 +11,4 @@ python setup.py install
 ```
 
 ### Tutorial
-An Jupyter notebook that demonstrates all of the features can be found [here](Demo.ipynb).
+A Jupyter notebook that demonstrates all of the features can be found [here](Demo.ipynb).

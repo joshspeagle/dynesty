@@ -7,7 +7,10 @@ Dynamic nested sampler class for adaptively proposing new live points.
 """
 
 from __future__ import (print_function, division)
-from builtins import range
+try:
+    from builtins import range
+except ImportError:
+    from __builtin__ import range
 
 import sys
 import warnings

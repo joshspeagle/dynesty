@@ -42,9 +42,10 @@ _SAMPLING = {'unif': sample_unif,
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
-def weight_function(results, args):
+def weight_function(results, args, return_weights=False):
     """
-    The default cost function utilized by `DynamicSampler`. Parameters
+    The default cost function utilized by `DynamicSampler` defined
+    based on Higson et al. (2017). Parameters
     are passed to the function via `args`. This simply assigns
     each point a weight based on a weighted average of the
     posterior and evidence information content as::
@@ -55,26 +56,27 @@ def weight_function(results, args):
     volume and the posterior weight is simply the importance weight. The
     ln(likelihood) bounds are then set by the earliest/latest sample
     with `weight > maxfrac * max(weight)` with left/right padding of
-    `pad`. Default values are `pfrac = 0.95`, `maxfrac = 0.8`,
+    `pad`. Default values are `pfrac = 0.8`, `maxfrac = 0.8`,
     and `pad = 1`.
 
     """
 
     # Initialize hyperparameters.
-    pfrac = args.get('pfrac', 0.95)
+    pfrac = args.get('pfrac', 0.8)
     maxfrac = args.get('maxfrac', 0.8)
     lpad = args.get('pad', 1)
 
     # Derive evidence weights.
-    logz = results.logz
-    logz_remain = results.logl + results.logvol
-    logzin = np.logaddexp(results.logz, logz_remain) - logz
-    zweight = np.exp(logzin)
-    zweight /= sum(zweight)
+    logz = results.logz  # final log(evidence)
+    logz_remain = results.logl[-1] + results.logvol[-1]  # remainder
+    logz_tot = np.logaddexp(logz[-1], logz_remain)  # estimated upper bound
+    zin = np.exp(logz_tot) - np.exp(logz)  # remaining evidence
+    zweight = zin / results.samples_n  # evidence weight
+    zweight /= sum(zweight)  # normalize
 
     # Derive posterior weights.
-    pweight = np.exp(results.logwt)
-    pweight /= sum(pweight)
+    pweight = np.exp(results.logwt)  # importance weight
+    pweight /= sum(pweight)  # normalize
 
     # Compute combined weights.
     weight = (1 - pfrac) * zweight + pfrac * pweight
@@ -89,7 +91,10 @@ def weight_function(results, args):
         logl_min = results.logl[bounds[0]]
     logl_max = results.logl[bounds[1]]
 
-    return (logl_min, logl_max)
+    if return_weights:
+        return (logl_min, logl_max), (pweight, zweight, weight)
+    else:
+        return (logl_min, logl_max)
 
 
 class DynamicSampler(object):
@@ -1106,7 +1111,6 @@ class DynamicSampler(object):
                                  "dlogz: {:6.3f} > {:6.3f}    "
                                  .format(0, it, nc, ncall, eff, logz, logzerr,
                                          delta_logz, dlogz_init))
-                sys.stderr.flush()
 
         # Add points in batches.
         for n in range(maxbatch):
@@ -1142,7 +1146,6 @@ class DynamicSampler(object):
                                          .format(n+1, niter, nc, ncall, eff,
                                                  logl_bounds[0], loglstar,
                                                  logl_bounds[1], lnz, lnzerr))
-                        sys.stderr.flush()
                 self.combine_runs()
 
         if print_progress:
@@ -1228,5 +1231,4 @@ class DynamicSampler(object):
                                      .format(n+1, niter, nc, ncall,
                                              eff, logl_bounds[0], loglstar,
                                              logl_bounds[1], lnz, lnzerr))
-                    sys.stderr.flush()
             self.combine_runs()

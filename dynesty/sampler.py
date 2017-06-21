@@ -674,9 +674,9 @@ class Sampler(object):
         # Run the main nested sampling loop.
         if dlogz is None:
             if add_live:
-                dlogz = math.log(self.nlive + 1)
+                dlogz = 0.005 * (self.nlive + 1.)
             else:
-                dlogz = 0.5
+                dlogz = 0.01
 
         ncall = self.nlive
         for it, results in enumerate(self.sample(maxiter=maxiter,
@@ -689,6 +689,10 @@ class Sampler(object):
             ncall += nc
             if delta_logz > 1e6:
                 delta_logz = np.inf
+            if logzvar >= 0.:
+                logzerr = np.sqrt(logzvar)
+            else:
+                logzerr = np.nan
             if print_progress:
                 sys.stderr.write("\riter: {:d} | "
                                  "nc: {:d} | "
@@ -697,17 +701,23 @@ class Sampler(object):
                                  "logz: {:6.3f} +/- {:6.3f} | "
                                  "dlogz: {:6.3f} > {:6.3f}    "
                                  .format(it, nc, ncall, eff,
-                                         logz, math.sqrt(logzvar),
+                                         logz, logzerr,
                                          delta_logz, dlogz))
-                sys.stderr.flush()
 
         if add_live:
+            it = self.saved_it[-1]
             # Add remaining live points to samples.
             for i, results in enumerate(self.add_live_points()):
                 (worst, ustar, vstar, loglstar, logvol, logwt,
                  logz, logzvar, h, nc, worst_it, propidx, eff,
                  delta_logz) = results
                 ncall += nc
+                if delta_logz > 1e6:
+                    delta_logz = np.inf
+                if logzvar >= 0.:
+                    logzerr = np.sqrt(logzvar)
+                else:
+                    logzerr = np.nan
                 if print_progress:
                     sys.stderr.write("\riter: {:d}+{:d} | "
                                      "nc: {:d} | "
@@ -716,9 +726,8 @@ class Sampler(object):
                                      "logz: {:6.3f} +/- {:6.3f} | "
                                      "dlogz: {:6.3f}        "
                                      .format(it, i + 1, nc, ncall, eff,
-                                             logz, math.sqrt(logzvar),
+                                             logz, logzerr,
                                              delta_logz))
-                    sys.stderr.flush()
 
         if print_progress:
             sys.stderr.write("\n")

@@ -228,7 +228,7 @@ def runplot(results, bounds=None, color='blue', plot_kwargs=None,
                            **plot_kwargs)
         # Add truth value(s).
         if i == 3 and lnz_truth is not None:
-            ax.axhline(lnz_truth, color=truth_color, ls="solid",
+            ax.axhline(np.exp(lnz_truth), color=truth_color, ls="solid",
                        **truth_kwargs)
 
     return fig, axes

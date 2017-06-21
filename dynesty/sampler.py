@@ -497,7 +497,8 @@ class Sampler(object):
                                       logvol) - logz  # log-evidence ratio
 
         # The main nested sampling loop.
-        for it in range(sys.maxsize):
+        it = 0
+        while it<sys.maxsize:
 
             # Stopping criterion 1: current number of iterations
             # exceeds `maxiter`.
@@ -630,6 +631,8 @@ class Sampler(object):
             yield (worst, ustar, vstar, loglstar, logvol, logwt,
                    logz, logzvar, h, nc, worst_it, propidx, self.eff,
                    delta_logz)
+            
+            it += 1
 
     def run_nested(self, maxiter=None, maxcall=None, dlogz=None,
                    add_live=True, print_progress=True, save_proposals=True):

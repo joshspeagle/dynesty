@@ -2,10 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import (division, print_function)
-try:
-    from builtins import range
-except ImportError:
-    from __builtin__ import range
+from builtins import range
 
 from .dynesty import *
 from . import bounding

@@ -8,10 +8,7 @@ Base `Sampler` class containing various helpful functions. Also contains a
 """
 
 from __future__ import (print_function, division)
-try:
-    from builtins import range
-except ImportError:
-    from __builtin__ import range
+from builtins import range
 
 import sys
 import warnings

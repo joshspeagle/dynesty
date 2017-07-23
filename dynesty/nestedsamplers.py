@@ -33,8 +33,8 @@ import warnings
 import math
 import numpy as np
 import copy
-from scipy import optimize as opt
 from numpy import linalg
+from scipy import spatial
 
 from .sampler import *
 from .bounding import *
@@ -45,8 +45,7 @@ __all__ = ["UnitCubeSampler", "SingleEllipsoidSampler",
 
 _SAMPLING = {'unif': sample_unif,
              'rwalk': sample_rwalk,
-             'slice': sample_slice,
-             'rtraj': sample_rtraj}
+             'slice': sample_slice}
 
 
 class UnitCubeSampler(Sampler):
@@ -72,7 +71,7 @@ class UnitCubeSampler(Sampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {'unif', 'rwalk', 'slice', 'rtraj'}
+    method : {'unif', 'rwalk', 'slice'}
         A chosen method for sampling conditioned on the proposal.
 
     update_interval : int
@@ -95,8 +94,16 @@ class UnitCubeSampler(Sampler):
     Other Parameters
     ----------------
     walks : int, optional
-        For 'randomwalk', the minimum number of steps to take before
-        proposing a new live point. Default is *25*.
+        For the 'rwalk' sampling option, the minimum number of steps (minimum
+        2) to take before proposing a new live point. Default is *25*.
+
+    facc : float, optional
+        The target acceptance fraction for the 'rwalk' sampling option.
+        Default is *0.5*. Bounded to be between `[1. / walks, 1.]`.
+
+    slices : int, optional
+        For the 'slice' sampling option, the number of times to slice through
+        **all dimensions** before proposing a new live point. Default is *3*.
 
     """
 
@@ -105,17 +112,15 @@ class UnitCubeSampler(Sampler):
                  kwargs={}):
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
-                         'slice': self.propose_live,
-                         'rtraj': self.propose_live}
+                         'slice': self.propose_live}
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
-                        'slice': self.update_slice,
-                        'rtraj': self.update_rtraj}
+                        'slice': self.update_slice}
         self.propose_point = self._PROPOSE[method]
         self.update_proposal = self._UPDATE[method]
         self.evolve_point = _SAMPLING[method]
         self.kwargs = kwargs
-        self.scale = 0.01
+        self.scale = 1.
         self.bootstrap = kwargs.get('bootstrap', 20)
         if self.bootstrap > 0:
             self.enlarge = kwargs.get('enlarge', 1.0)
@@ -130,14 +135,12 @@ class UnitCubeSampler(Sampler):
         self.method = method
 
         # random walk
-        self.walks = self.kwargs.get('walks', 25)
+        self.walks = max(2, self.kwargs.get('walks', 25))
+        self.facc = self.kwargs.get('facc', 0.5)
+        self.facc = min(1., max(1. / self.walks, self.facc))
 
         # slice
         self.slices = self.kwargs.get('slices', 3)
-
-        # random trajectory
-        self.lgrad = self.kwargs.get('lgrad', None)
-        self.steps = self.kwargs.get('steps', 25)
 
     def update(self, pointvol):
         """Update the unit cube proposal."""
@@ -149,16 +152,18 @@ class UnitCubeSampler(Sampler):
         within the unit cube."""
 
         u = self.unitcube.sample(rstate=self.rstate)
+        ax = np.identity(self.npdim)
 
-        return u, np.identity(self.npdim)
+        return u, ax
 
     def propose_live(self):
         """Propose a live point/bound to be used by other sampling methods."""
 
         i = self.rstate.randint(self.nlive)
         u = self.live_u[i, :]
+        ax = np.identity(self.npdim)
 
-        return u, np.identity(self.npdim)
+        return u, ax
 
     def update_unif(self, blob):
         """Update the uniform proposal."""
@@ -171,7 +176,8 @@ class UnitCubeSampler(Sampler):
 
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
-        self.scale *= math.exp(2 * facc - 1)
+        norm = max(self.facc, 1. - self.facc)
+        self.scale *= math.exp((facc - self.facc) / norm)
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
@@ -179,21 +185,6 @@ class UnitCubeSampler(Sampler):
 
         fscale = blob['fscale']
         self.scale *= fscale
-
-    def update_rtraj(self, blob):
-        """Update the random trajectory proposal scale
-         based on the current number of continue/reflect/reverse steps."""
-
-        cont = blob['cont']
-        reflect = blob['reflect']
-        reverse = blob['reverse']
-        tot_steps = cont + reflect + reverse
-        frac_cont = (1. * cont) / tot_steps
-
-        if reverse >= 2:
-            self.scale /= reverse
-        else:
-            self.scale *= math.exp(frac_cont / 0.8 - 1)
 
 
 class SingleEllipsoidSampler(Sampler):
@@ -220,7 +211,7 @@ class SingleEllipsoidSampler(Sampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {'unif', 'rwalk', 'slice', 'rtraj'}
+    method : {'unif', 'rwalk', 'slice'}
         A chosen method for sampling conditioned on the proposal.
 
     update_interval : int
@@ -255,8 +246,16 @@ class SingleEllipsoidSampler(Sampler):
         Default is *20*.
 
     walks : int, optional
-        For 'randomwalk', the minimum number of steps to take before
-        proposing a new live point. Default is *25*.
+        For the 'rwalk' sampling option, the minimum number of steps (minimum
+        2) to take before proposing a new live point. Default is *25*.
+
+    facc : float, optional
+        The target acceptance fraction for the 'rwalk' sampling option.
+        Default is *0.5*. Bounded to be between `[1. / walks, 1.]`.
+
+    slices : int, optional
+        For the 'slice' sampling option, the number of times to slice through
+        **all dimensions** before proposing a new live point. Default is *3*.
 
     """
 
@@ -265,17 +264,15 @@ class SingleEllipsoidSampler(Sampler):
                  kwargs={}):
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
-                         'slice': self.propose_live,
-                         'rtraj': self.propose_live}
+                         'slice': self.propose_live}
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
-                        'slice': self.update_slice,
-                        'rtraj': self.update_rtraj}
+                        'slice': self.update_slice}
         self.propose_point = self._PROPOSE[method]
         self.update_proposal = self._UPDATE[method]
         self.evolve_point = _SAMPLING[method]
         self.kwargs = kwargs
-        self.scale = 0.01
+        self.scale = 1.
         self.bootstrap = kwargs.get('bootstrap', 20)
         if self.bootstrap > 0:
             self.enlarge = kwargs.get('enlarge', 1.0)
@@ -290,7 +287,9 @@ class SingleEllipsoidSampler(Sampler):
         self.method = method
 
         # random walk
-        self.walks = self.kwargs.get('walks', 25)
+        self.walks = max(2, self.kwargs.get('walks', 25))
+        self.facc = self.kwargs.get('facc', 0.5)
+        self.facc = min(1., max(1. / self.walks, self.facc))
 
         # slice
         self.slices = self.kwargs.get('slices', 3)
@@ -336,7 +335,8 @@ class SingleEllipsoidSampler(Sampler):
 
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
-        self.scale *= math.exp(2 * facc - 1)
+        norm = max(self.facc, 1. - self.facc)
+        self.scale *= math.exp((facc - self.facc) / norm)
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
@@ -344,21 +344,6 @@ class SingleEllipsoidSampler(Sampler):
 
         fscale = blob['fscale']
         self.scale *= fscale
-
-    def update_rtraj(self, blob):
-        """Update the random trajectory proposal scale
-         based on the current number of continue/reflect/reverse steps."""
-
-        cont = blob['cont']
-        reflect = blob['reflect']
-        reverse = blob['reverse']
-        tot_steps = cont + reflect + reverse
-        frac_cont = (1. * cont) / tot_steps
-
-        if reverse >= 2:
-            self.scale /= reverse
-        else:
-            self.scale *= math.exp(frac_cont / 0.8 - 1)
 
 
 class MultiEllipsoidSampler(Sampler):
@@ -385,7 +370,7 @@ class MultiEllipsoidSampler(Sampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {'unif', 'rwalk', 'slice', 'rtraj'}
+    method : {'unif', 'rwalk', 'slice'}
         A chosen method for sampling conditioned on the proposal.
 
     update_interval : int
@@ -429,8 +414,16 @@ class MultiEllipsoidSampler(Sampler):
         `ell.vol > vol_check * nlive * pointvol`. Default is *2.0*.
 
     walks : int, optional
-        For 'randomwalk', the minimum number of steps to take before
-        proposing a new live point. Default is *25*.
+        For the 'rwalk' sampling option, the minimum number of steps (minimum
+        2) to take before proposing a new live point. Default is *25*.
+
+    facc : float, optional
+        The target acceptance fraction for the 'rwalk' sampling option.
+        Default is *0.5*. Bounded to be between `[1. / walks, 1.]`.
+
+    slices : int, optional
+        For the 'slice' sampling option, the number of times to slice through
+        **all dimensions** before proposing a new live point. Default is *3*.
 
     """
 
@@ -439,17 +432,15 @@ class MultiEllipsoidSampler(Sampler):
                  kwargs={}):
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
-                         'slice': self.propose_live,
-                         'rtraj': self.propose_live}
+                         'slice': self.propose_live}
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
-                        'slice': self.update_slice,
-                        'rtraj': self.update_rtraj}
+                        'slice': self.update_slice}
         self.propose_point = self._PROPOSE[method]
         self.update_proposal = self._UPDATE[method]
         self.evolve_point = _SAMPLING[method]
         self.kwargs = kwargs
-        self.scale = 0.01
+        self.scale = 1.
         self.bootstrap = kwargs.get('bootstrap', 20)
         if self.bootstrap > 0:
             self.enlarge = kwargs.get('enlarge', 1.0)
@@ -467,7 +458,9 @@ class MultiEllipsoidSampler(Sampler):
         self.method = method
 
         # random walk
-        self.walks = self.kwargs.get('walks', 25)
+        self.walks = max(2, self.kwargs.get('walks', 25))
+        self.facc = self.kwargs.get('facc', 0.5)
+        self.facc = min(1., max(1. / self.walks, self.facc))
 
         # slice
         self.slices = self.kwargs.get('slices', 3)
@@ -515,7 +508,7 @@ class MultiEllipsoidSampler(Sampler):
             prop = self.update(pointvol)
             if self.save_proposals:
                 self.prop.append(prop)
-                self.prop_iter.append(self.it)
+            self.nprop += 1
             self.since_update = 0
             ell_idxs = self.mell.within(u)
             nidx = len(ell_idxs)
@@ -534,7 +527,8 @@ class MultiEllipsoidSampler(Sampler):
 
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
-        self.scale *= math.exp(2 * facc - 1)
+        norm = max(self.facc, 1. - self.facc)
+        self.scale *= math.exp((facc - self.facc) / norm)
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
@@ -542,21 +536,6 @@ class MultiEllipsoidSampler(Sampler):
 
         fscale = blob['fscale']
         self.scale *= fscale
-
-    def update_rtraj(self, blob):
-        """Update the random trajectory proposal scale
-         based on the current number of continue/reflect/reverse steps."""
-
-        cont = blob['cont']
-        reflect = blob['reflect']
-        reverse = blob['reverse']
-        tot_steps = cont + reflect + reverse
-        frac_cont = (1. * cont) / tot_steps
-
-        if reverse >= 2:
-            self.scale /= reverse
-        else:
-            self.scale *= math.exp(frac_cont / 0.8 - 1)
 
 
 class RadFriendsSampler(Sampler):
@@ -583,7 +562,7 @@ class RadFriendsSampler(Sampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {'unif', 'rwalk', 'slice', 'rtraj'}
+    method : {'unif', 'rwalk', 'slice'}
         A chosen method for sampling conditioned on the proposal.
 
     update_interval : int
@@ -619,8 +598,16 @@ class RadFriendsSampler(Sampler):
         of live points!).
 
     walks : int, optional
-        For 'randomwalk', the minimum number of steps to take before
-        proposing a new live point. Default is *25*.
+        For the 'rwalk' sampling option, the minimum number of steps (minimum
+        2) to take before proposing a new live point. Default is *25*.
+
+    facc : float, optional
+        The target acceptance fraction for the 'rwalk' sampling option.
+        Default is *0.5*. Bounded to be between `[1. / walks, 1.]`.
+
+    slices : int, optional
+        For the 'slice' sampling option, the number of times to slice through
+        **all dimensions** before proposing a new live point. Default is *3*.
 
     """
 
@@ -629,17 +616,15 @@ class RadFriendsSampler(Sampler):
                  kwargs={}):
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
-                         'slice': self.propose_live,
-                         'rtraj': self.propose_live}
+                         'slice': self.propose_live}
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
-                        'slice': self.update_slice,
-                        'rtraj': self.update_rtraj}
+                        'slice': self.update_slice}
         self.propose_point = self._PROPOSE[method]
         self.update_proposal = self._UPDATE[method]
         self.evolve_point = _SAMPLING[method]
         self.kwargs = kwargs
-        self.scale = 0.01
+        self.scale = 1.
         self.bootstrap = kwargs.get('bootstrap', 20)
         if self.bootstrap > 0:
             self.enlarge = kwargs.get('enlarge', 1.0)
@@ -654,7 +639,9 @@ class RadFriendsSampler(Sampler):
         self.method = method
 
         # random walk
-        self.walks = self.kwargs.get('walks', 25)
+        self.walks = max(2, self.kwargs.get('walks', 25))
+        self.facc = self.kwargs.get('facc', 0.5)
+        self.facc = min(1., max(1. / self.walks, self.facc))
 
         # slice
         self.slices = self.kwargs.get('slices', 3)
@@ -662,12 +649,15 @@ class RadFriendsSampler(Sampler):
     def update(self, pointvol):
         """Update proposal radius using the current set of live points."""
 
+        kdtree = spatial.KDTree(self.live_u)
+
         self._empty_queue()
         self.radfriends.update(self.live_u, pointvol=pointvol,
                                rstate=self.rstate, bootstrap=self.bootstrap,
-                               pool=self.pool)
+                               pool=self.pool, kdtree=kdtree)
         if self.enlarge != 1.:
-            self.radfriends.scale_to_vol(self.radfriends.vol * self.enlarge)
+            self.radfriends.scale_to_vol(self.radfriends.vol_ball *
+                                         self.enlarge)
 
         return copy.deepcopy(self.radfriends)
 
@@ -675,24 +665,28 @@ class RadFriendsSampler(Sampler):
         """Propose a new live point by sampling *uniformly* within
         the collection of n-spheres defined by our live points."""
 
+        kdtree = spatial.KDTree(self.live_u)
+
         while True:
             u, q = self.radfriends.sample(self.live_u, rstate=self.rstate,
-                                          return_q=True)
+                                          return_q=True, kdtree=kdtree)
             if self._check_unit_cube(u):
                 # Accept the point with probability 1/q to account for
                 # overlapping balls.
                 if q == 1 or self.rstate.rand() < 1.0 / q:
                     break
+        ax = np.identity(self.npdim) * self.radfriends.radius
 
-        return u, self.radfriends.radius * np.identity(self.npdim)
+        return u, ax
 
     def propose_live(self):
         """Propose a live point/bound to be used by other sampling methods."""
 
         i = self.rstate.randint(self.nlive)
         u = self.live_u[i, :]
+        ax = np.identity(self.npdim) * self.radfriends.radius
 
-        return u, self.radfriends.radius * np.identity(self.npdim)
+        return u, ax
 
     def update_unif(self, blob):
         """Update our uniform proposal."""
@@ -705,7 +699,8 @@ class RadFriendsSampler(Sampler):
 
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
-        self.scale *= math.exp(2 * facc - 1)
+        norm = max(self.facc, 1. - self.facc)
+        self.scale *= math.exp((facc - self.facc) / norm)
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
@@ -713,21 +708,6 @@ class RadFriendsSampler(Sampler):
 
         fscale = blob['fscale']
         self.scale *= fscale
-
-    def update_rtraj(self, blob):
-        """Update the random trajectory proposal scale
-         based on the current number of continue/reflect/reverse steps."""
-
-        cont = blob['cont']
-        reflect = blob['reflect']
-        reverse = blob['reverse']
-        tot_steps = cont + reflect + reverse
-        frac_cont = (1. * cont) / tot_steps
-
-        if reverse >= 2:
-            self.scale /= reverse
-        else:
-            self.scale *= math.exp(frac_cont / 0.8 - 1)
 
 
 class SupFriendsSampler(Sampler):
@@ -754,7 +734,7 @@ class SupFriendsSampler(Sampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {'unif', 'rwalk', 'slice', 'rtraj'}
+    method : {'unif', 'rwalk', 'slice'}
         A chosen method for sampling conditioned on the proposal.
 
     update_interval : int
@@ -790,8 +770,16 @@ class SupFriendsSampler(Sampler):
         of live points!).
 
     walks : int, optional
-        For 'randomwalk', the minimum number of steps to take before
-        proposing a new live point. Default is *25*.
+        For the 'rwalk' sampling option, the minimum number of steps (minimum
+        2) to take before proposing a new live point. Default is *25*.
+
+    facc : float, optional
+        The target acceptance fraction for the 'rwalk' sampling option.
+        Default is *0.5*. Bounded to be between `[1. / walks, 1.]`.
+
+    slices : int, optional
+        For the 'slice' sampling option, the number of times to slice through
+        **all dimensions** before proposing a new live point. Default is *3*.
 
     """
 
@@ -800,17 +788,15 @@ class SupFriendsSampler(Sampler):
                  kwargs={}):
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
-                         'slice': self.propose_live,
-                         'rtraj': self.propose_live}
+                         'slice': self.propose_live}
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
-                        'slice': self.update_slice,
-                        'rtraj': self.update_rtraj}
+                        'slice': self.update_slice}
         self.propose_point = self._PROPOSE[method]
         self.update_proposal = self._UPDATE[method]
         self.evolve_point = _SAMPLING[method]
         self.kwargs = kwargs
-        self.scale = 0.01
+        self.scale = 1.
         self.bootstrap = kwargs.get('bootstrap', 20)
         if self.bootstrap > 0:
             self.enlarge = kwargs.get('enlarge', 1.0)
@@ -825,7 +811,9 @@ class SupFriendsSampler(Sampler):
         self.method = method
 
         # random walk
-        self.walks = self.kwargs.get('walks', 25)
+        self.walks = max(2, self.kwargs.get('walks', 25))
+        self.facc = self.kwargs.get('facc', 0.5)
+        self.facc = min(1., max(1. / self.walks, self.facc))
 
         # slice
         self.slices = self.kwargs.get('slices', 3)
@@ -833,12 +821,15 @@ class SupFriendsSampler(Sampler):
     def update(self, pointvol):
         """Update proposal side-length using the current set of live points."""
 
+        kdtree = spatial.KDTree(self.live_u)
+
         self._empty_queue()
         self.supfriends.update(self.live_u, pointvol=pointvol,
                                rstate=self.rstate, bootstrap=self.bootstrap,
-                               pool=self.pool)
+                               pool=self.pool, kdtree=kdtree)
         if self.enlarge != 1.:
-            self.supfriends.scale_to_vol(self.supfriends.vol * self.enlarge)
+            self.supfriends.scale_to_vol(self.supfriends.vol_cube *
+                                         self.enlarge)
 
         return copy.deepcopy(self.supfriends)
 
@@ -846,24 +837,28 @@ class SupFriendsSampler(Sampler):
         """Propose a new live point by sampling *uniformly* within
         the collection of n-cubes defined by our live points."""
 
+        kdtree = spatial.KDTree(self.live_u)
+
         while True:
             u, q = self.supfriends.sample(self.live_u, rstate=self.rstate,
-                                          return_q=True)
+                                          return_q=True, kdtree=kdtree)
             if self._check_unit_cube(u):
                 # Accept the point with probability 1/q to account for
                 # overlapping cubes.
                 if q == 1 or self.rstate.rand() < 1.0 / q:
                     break
+        ax = np.identity(self.npdim) * self.supfriends.hside
 
-        return u, self.supfriends.hside * np.identity(self.npdim)
+        return u, ax
 
     def propose_live(self):
         """Propose a live point/bound to be used by other sampling methods."""
 
         i = self.rstate.randint(self.nlive)
         u = self.live_u[i, :]
+        ax = np.identity(self.npdim) * self.supfriends.hside
 
-        return u, self.supfriends.hside * np.identity(self.npdim)
+        return u, ax
 
     def update_unif(self, blob):
         """Update our uniform proposal."""
@@ -876,7 +871,8 @@ class SupFriendsSampler(Sampler):
 
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
-        self.scale *= math.exp(2 * facc - 1)
+        norm = max(self.facc, 1. - self.facc)
+        self.scale *= math.exp((facc - self.facc) / norm)
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
@@ -884,18 +880,3 @@ class SupFriendsSampler(Sampler):
 
         fscale = blob['fscale']
         self.scale *= fscale
-
-    def update_rtraj(self, blob):
-        """Update the random trajectory proposal scale
-         based on the current number of continue/reflect/reverse steps."""
-
-        cont = blob['cont']
-        reflect = blob['reflect']
-        reverse = blob['reverse']
-        tot_steps = cont + reflect + reverse
-        frac_cont = (1. * cont) / tot_steps
-
-        if reverse >= 2:
-            self.scale /= reverse
-        else:
-            self.scale *= math.exp(frac_cont / 0.8 - 1)

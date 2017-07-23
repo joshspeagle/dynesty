@@ -45,3 +45,6 @@ nosetests.xml
 # docs
 docs/_build
 docs/examples
+
+# old files
+old/*

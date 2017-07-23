@@ -17,7 +17,7 @@ from numpy import linalg
 from scipy import misc
 
 
-__all__ = ["sample_unif", "sample_rwalk", "sample_slice", "sample_rtraj"]
+__all__ = ["sample_unif", "sample_rwalk", "sample_slice"]
 
 EPS = float(np.finfo(np.float64).eps)
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
@@ -98,26 +98,34 @@ def sample_slice(args):
     nc = 0
     fscale = []
 
+    # Modifying axes and computing lengths.
+    axes = scale * axes.T  # scale based on past tuning
+    axlens = [linalg.norm(axis) for axis in axes]
+
     # Slice sampling loop.
     for it in range(slices):
 
-        # Shuffle the order that we update our axes.
+        # Shuffle axis update order.
         idxs = np.arange(n)
         rstate.shuffle(idxs)
 
-        # Slice sample along each axis.
-        for axis in axes[idxs]:
+        # Slice sample along a random direction.
+        for idx in idxs:
+
+            # Select axis.
+            axis = axes[idx]
+            axlen = axlens[idx]
 
             # Define starting "window".
             r = rstate.rand()  # initial scale/offset
-            u_l = u - scale * r * axis  # left bound
+            u_l = u - r * axis  # left bound
             if np.all(u_l > 0.) and np.all(u_l < 1.):
                 v_l = prior_transform(u_l)
                 logl_l = loglikelihood(v_l)
             else:
                 logl_l = -np.inf
             nc += 1
-            u_r = u + scale * (1 - r) * axis  # right bound
+            u_r = u + (1 - r) * axis  # right bound
             if np.all(u_r > 0.) and np.all(u_r < 1.):
                 v_r = prior_transform(u_r)
                 logl_r = loglikelihood(v_r)
@@ -127,7 +135,7 @@ def sample_slice(args):
 
             # "Stepping out" the left and right bounds.
             while logl_l >= loglstar:
-                u_l -= scale * axis
+                u_l -= axis
                 if np.all(u_l > 0.) and np.all(u_l < 1.):
                     v_l = prior_transform(u_l)
                     logl_l = loglikelihood(v_l)
@@ -135,7 +143,7 @@ def sample_slice(args):
                     logl_l = -np.inf
                 nc += 1
             while logl_r >= loglstar:
-                u_r += scale * axis
+                u_r += axis
                 if np.all(u_r > 0.) and np.all(u_r < 1.):
                     v_r = prior_transform(u_r)
                     logl_r = loglikelihood(v_r)
@@ -146,9 +154,8 @@ def sample_slice(args):
             # Sample within limits. If the sample is not valid, shrink
             # the limits until we hit the `loglstar` bound.
             while True:
-                window = np.linalg.norm(u_r - u_l)  # size of window
-                du = rstate.rand() * window  # scale from left
-                u_prop = u_l + du * axis
+                uhat = u_r - u_l
+                u_prop = u_l + rstate.rand() * uhat  # scale from left
                 if np.all(u_prop > 0.) and np.all(u_prop < 1.):
                     v_prop = prior_transform(u_prop)
                     logl_prop = loglikelihood(v_prop)
@@ -157,14 +164,15 @@ def sample_slice(args):
                 nc += 1
                 # If we succeed, move to the new position.
                 if logl_prop >= loglstar:
-                    fscale.append(window / scale)
+                    window = np.linalg.norm(uhat)  # length of window
+                    fscale.append(window / axlen)
                     u = u_prop
                     break
                 # If we fail, check if the new point is to the left/right of
                 # our original point along our proposal axis and update
                 # the bounds accordingly.
                 else:
-                    s = np.dot(u_prop - u, axis)  # check sign (+/-)
+                    s = np.dot(u_prop - u, uhat)  # check sign (+/-)
                     if s < 0:  # left
                         u_l = u_prop
                     elif s > 0:  # right
@@ -174,113 +182,6 @@ def sample_slice(args):
                                            "to the original point! Please "
                                            "report this as a likely bug.")
 
-    blob = {'fscale': np.median(fscale)}
+    blob = {'fscale': np.mean(fscale)}
 
     return u_prop, v_prop, logl_prop, nc, blob
-
-
-def sample_rtraj(args):
-    """Return a new live point proposed via a random trajectory
-    away from an existing live point, where we "bounce" off the
-    iso-likelihood contour based on the gradient."""
-
-    # Unzipping.
-    (u, loglstar, axes, scale, rstate,
-     prior_transform, loglikelihood, kwargs) = args
-
-    n = len(u)
-    v = prior_transform(u)
-    logl = loglikelihood(v)
-    lgrad = kwargs.get('lgrad', None)  # gradient of likelihood
-    steps = kwargs.get('steps', 25)  # number of steps
-
-    # Define a random trajectory.
-    vel = np.dot(axes, rstate.randn(n))  # velocity
-    vel *= scale  # scale based on past tuning
-
-    # Evolve the trajectory.
-    cont = 0
-    reflect = 0
-    reverse = 0
-    nc = 0
-    ngrad = 0
-    while cont + reflect + reverse <= steps:
-        # Update the position.
-        u_prop = u + vel
-        unitcheck = np.all(u_prop + 1e-5 > 0.) and np.all(u_prop + 1e-5 < 1.)
-        if unitcheck:
-            v_prop = prior_transform(u_prop)
-            logl_prop = loglikelihood(v_prop)
-            nc += 1
-        else:
-            logl_prop = -np.inf
-        # If the proposed position is within the likelihood bound, accept.
-        if logl_prop >= loglstar:
-            u = u_prop
-            v = v_prop
-            logl = logl_prop
-            cont += 1
-        # If it's not (but still within the unit cube), attempt to
-        # reflect off the boundary.
-        else:
-            if unitcheck:
-                if lgrad is None:
-                    # Compute numerical approximation to the gradient.
-                    dvs = prior_transform(u_prop + 1e-5) - v_prop
-                    h = np.zeros(n)
-                    for i in range(n):
-                        vprime = v_prop
-                        vprime[i] += dvs[i]
-                        loglprime = loglikelihood(vprime)
-                        with warnings.catch_warnings():
-                            warnings.simplefilter("ignore")
-                            logdl = misc.logsumexp(a=[loglprime, logl_prop],
-                                                   b=[1., -1.])
-                            h[i] = math.exp(logdl - math.log(dvs[i]))
-                    ngrad += 1
-                else:
-                    # Compute provided gradient.
-                    h = self.lgrad(v_prop)
-                    ngrad += 1
-                # If our gradient is unstable, reverse course.
-                nnorm = linalg.norm(h)
-                if nnorm <= EPS or not np.isfinite(nnorm):
-                    vel = -vel
-                    reverse += 1
-                # Otherwise, reflect off of the boundary.
-                else:
-                    nhat = h / linalg.norm(h)  # normal vector
-                    vel_prop = vel - 2 * nhat * np.dot(vel, nhat)
-                    u_prop = u_prop + vel_prop
-                    unitcheck = (np.all(u_prop > 0.) and
-                                 np.all(u_prop < 1.))
-                    if unitcheck:
-                        v_prop = prior_transform(u_prop)
-                        logl_prop = loglikelihood(v_prop)
-                        nc += 1
-                    else:
-                        logl_prop = -np.inf
-                    # Accepted reflected point if within our constraint.
-                    if logl_prop >= loglstar:
-                        u = u_prop
-                        v = v_prop
-                        logl = logl_prop
-                        vel = vel_prop
-                        reflect += 1
-                    # If our reflected point is out of bounds, reverse course.
-                    else:
-                        vel = -vel
-                        reverse += 1
-            # If we proposed outside the unit cube, reverse course.
-            else:
-                vel = -vel
-                reverse += 1
-
-    blob = {'cont': cont, 'reflect': reflect, 'reverse': reverse}
-
-    if lgrad is None:
-        nc += ngrad * n
-    else:
-        nc += ngrad
-
-    return u, v, logl, nc, blob

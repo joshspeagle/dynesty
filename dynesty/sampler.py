@@ -120,6 +120,7 @@ class Sampler(object):
         self.saved_propidx = []  # index of proposal dead point was drawn from
         self.saved_it = []  # iteration the live (now dead) point was proposed
         self.saved_piter = []  # active proposal at a specific iteration
+        self.saved_scale = []  # scale factor at each iteration
 
     def reset(self):
         """Re-initialize the sampler."""
@@ -159,6 +160,7 @@ class Sampler(object):
         self.saved_propidx = []
         self.saved_it = []
         self.saved_piter = []
+        self.saved_scale = []
 
     @property
     def results(self):
@@ -189,6 +191,7 @@ class Sampler(object):
                             np.array(self.saved_piter, dtype='int')))
             results.append(('samples_prop',
                             np.array(self.saved_propidx, dtype='int')))
+            results.append(('scale', np.array(self.saved_scale)))
 
         return Results(results)
 
@@ -236,8 +239,8 @@ class Sampler(object):
         logls = [self.loglikelihood for i in range(self.queue_size)]
         kwargs = [self.kwargs for i in range(self.queue_size)]
 
-        args = zip(point_queue, loglstars, axes_queue, scales, rstates,
-                   ptforms, logls, kwargs)
+        args = zip(point_queue, loglstars, axes_queue,
+                   scales, rstates, ptforms, logls, kwargs)
         self.queue = self.M(self.evolve_point, args)
 
     def _get_point_value(self, loglstar):
@@ -338,6 +341,8 @@ class Sampler(object):
                 self.saved_propidx.append(propidx)
                 self.saved_it.append(point_it)
                 self.saved_piter.append(self.nprop - 1)
+                self.saved_scale.append(self.scale)
+            self.eff = 100. * (self.it + i) / self.ncall
             yield (idx, ustar, vstar, loglstar, logvol, logwt,
                    logz, logzvar, h, 1, point_it, propidx, self.eff,
                    delta_logz)
@@ -362,6 +367,7 @@ class Sampler(object):
                 del self.saved_propidx[-self.nlive:]
                 del self.saved_it[-self.nlive:]
                 del self.saved_piter[-self.nlive:]
+                del self.saved_scale[-self.nlive:]
         else:
             raise ValueError("No live points were added to the "
                              "list of samples!")
@@ -480,7 +486,7 @@ class Sampler(object):
                 self.nprop += 1
             self.since_update = 0
         else:
-            # Remove live points added from previous run.
+            # Remove live points (if added) from previous run.
             if self.added_live:
                 self._remove_live_points()
 
@@ -609,6 +615,7 @@ class Sampler(object):
                 self.saved_propidx.append(propidx)
                 self.saved_it.append(worst_it)
                 self.saved_piter.append(self.nprop - 1)
+                self.saved_scale.append(self.scale)
 
             # Update the live point (previously our "worst" point).
             self.live_u[worst] = u
@@ -691,24 +698,24 @@ class Sampler(object):
             else:
                 logzerr = np.nan
             if print_progress:
+                i = self.it - 1
                 sys.stderr.write("\riter: {:d} | "
                                  "nc: {:d} | "
                                  "ncall: {:d} | "
                                  "eff(%): {:6.3f} | "
                                  "logz: {:6.3f} +/- {:6.3f} | "
                                  "dlogz: {:6.3f} > {:6.3f}    "
-                                 .format(it, nc, ncall, eff,
+                                 .format(i, nc, ncall, eff,
                                          logz, logzerr,
                                          delta_logz, dlogz))
 
         if add_live:
-            it = self.saved_it[-1]
+            it = self.it - 1
             # Add remaining live points to samples.
             for i, results in enumerate(self.add_live_points()):
                 (worst, ustar, vstar, loglstar, logvol, logwt,
                  logz, logzvar, h, nc, worst_it, propidx, eff,
                  delta_logz) = results
-                ncall += nc
                 if delta_logz > 1e6:
                     delta_logz = np.inf
                 if logzvar >= 0.:
@@ -721,10 +728,10 @@ class Sampler(object):
                                      "ncall: {:d} | "
                                      "eff(%): {:6.3f} | "
                                      "logz: {:6.3f} +/- {:6.3f} | "
-                                     "dlogz: {:6.3f}        "
+                                     "dlogz: {:6.3f} < {:6.3f}    "
                                      .format(it, i + 1, nc, ncall, eff,
                                              logz, logzerr,
-                                             delta_logz))
+                                             delta_logz, dlogz))
 
         if print_progress:
             sys.stderr.write("\n")

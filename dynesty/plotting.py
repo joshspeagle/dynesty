@@ -21,6 +21,7 @@ import matplotlib.pyplot as pl
 from matplotlib.ticker import MaxNLocator, NullLocator
 from matplotlib.colors import LinearSegmentedColormap, colorConverter
 from matplotlib.ticker import ScalarFormatter
+from scipy import spatial
 
 try:
     from scipy.ndimage import gaussian_filter as norm_kde
@@ -31,11 +32,11 @@ __all__ = ["runplot", "traceplot", "proposal", "cornerplot",
            "cornerpoints", "cornerprop"]
 
 
-def runplot(results, bounds=None, color='blue', plot_kwargs=None,
-            label_kwargs=None, lnz_error=True, lnz_truth=None,
-            truth_color='red', truth_kwargs=None, max_x_ticks=8,
-            max_y_ticks=3, use_math_text=True, mark_final_live=True,
-            fig=None):
+def runplot(results, bounds=None, logplot=False, color='blue',
+            plot_kwargs=None, label_kwargs=None, lnz_error=True,
+            lnz_truth=None, truth_color='red', truth_kwargs=None,
+            max_x_ticks=8, max_y_ticks=3, use_math_text=True,
+            mark_final_live=True, fig=None):
     """
     Plot effective iteration, ln(likelihood), ln(weight), and ln(evidence)
     as a function of prior volume.
@@ -55,6 +56,9 @@ def runplot(results, bounds=None, color='blue', plot_kwargs=None,
         **Note that these values will be overriden if the 3-sigma
         errors on the evidence exceed the provided/computed bounds unless
         `lnz_err` is set to *False*.**
+
+    logplot : bool, optional
+        Whether to plot the evidence on a log scale.
 
     color : str or iterable with shape (4,), optional
         A `~matplotlib` style color (either a single color or a different
@@ -117,6 +121,12 @@ def runplot(results, bounds=None, color='blue', plot_kwargs=None,
         plot_kwargs = dict()
     if truth_kwargs is None:
         truth_kwargs = dict()
+
+    # Set defaults.
+    plot_kwargs['linewidth'] = plot_kwargs.get('linewidth', 5)
+    plot_kwargs['alpha'] = plot_kwargs.get('alpha', 0.7)
+    truth_kwargs['linestyle'] = truth_kwargs.get('linestyle', 'solid')
+    truth_kwargs['linewidth'] = truth_kwargs.get('linewidth', 3)
 
     # Extract results.
     niter = results['niter']  # number of iterations
@@ -211,30 +221,36 @@ def runplot(results, bounds=None, color='blue', plot_kwargs=None,
         ax.set_xlabel(r"$-\ln X$", **label_kwargs)
         ax.set_ylabel(labels[i], **label_kwargs)
         # Plot run.
-        ax.plot(-logvol, d, color=c, lw=5, alpha=0.7, **plot_kwargs)
+        if logplot and i == 3:
+            ax.semilogy(-logvol, d, color=c, **plot_kwargs)
+            ax.set_ylim([min(np.exp(max(logz) - 1.3*3*logzerr)),
+                         max(np.exp(max(logz) + 1.3*3*logzerr))])
+        else:
+            ax.plot(-logvol, d, color=c, **plot_kwargs)
         if i == 3 and lnz_error:
             [ax.fill_between(-logvol, np.exp(logz + s*logzerr),
                              np.exp(logz - s*logzerr), color=c, alpha=0.2)
              for s in range(1, 4)]
         # Mark addition of final live points.
         if mark_final_live:
-            ax.axvline(-logvol[live_idx], color=c, ls="dashed",
+            ax.axvline(-logvol[live_idx], color=c, ls="dashed", lw=2,
                        **plot_kwargs)
             if i == 0:
-                ax.axhline(live_idx, color=c, ls="dashed",
+                ax.axhline(live_idx, color=c, ls="dashed", lw=2,
                            **plot_kwargs)
         # Add truth value(s).
         if i == 3 and lnz_truth is not None:
-            ax.axhline(np.exp(lnz_truth), color=truth_color, ls="solid",
-                       **truth_kwargs)
+            ax.axhline(np.exp(lnz_truth), color=truth_color, **truth_kwargs)
 
     return fig, axes
 
 
 def traceplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
               post_color='blue', post_kwargs=None, trace_cmap='plasma',
-              trace_color=None, trace_kwargs=None, max_n_ticks=5,
-              use_math_text=False, labels=None, label_kwargs=None,
+              trace_color=None, trace_kwargs=None, connect=False,
+              connect_highlight=10, connect_color='red', connect_kwargs=None,
+              max_n_ticks=5, use_math_text=False,
+              labels=None, label_kwargs=None,
               show_titles=False, title_fmt=".2f", title_kwargs=None,
               truths=None, truth_color='red', truth_kwargs=None,
               verbose=False, fig=None):
@@ -291,6 +307,22 @@ def traceplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
 
     trace_kwargs : dict, optional
         Extra keyword arguments that will be used for plotting the traces.
+
+    connect : bool, optional
+        Whether to draw lines connecting the paths of unique particles.
+        Default is *False*.
+
+    connect_highlight : int or iterable, optional
+        If `connect` is *True*, highlights the paths of a specific set of
+        particles. If an `int` is passed, `connect_highlight` number of
+        particle paths will be highlighted at random. If an iterable is passed,
+        then the particle paths with those specific IDs will be highlighted.
+
+    connect_color : str, optional
+        The color of the highlighted particle paths.
+
+    connect_kwargs : dict, optional
+        Extra keyword arguments that used for plotting particle paths.
 
     max_n_ticks : int, optional
         Maximum number of ticks allowed. Default is *5*.
@@ -356,11 +388,19 @@ def traceplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
         label_kwargs = dict()
     if trace_kwargs is None:
         trace_kwargs = dict()
+    if connect_kwargs is None:
+        connect_kwargs = dict()
     if post_kwargs is None:
         post_kwargs = dict()
-    post_kwargs['alpha'] = post_kwargs.get('alpha', 0.6)
     if truth_kwargs is None:
         truth_kwargs = dict()
+
+    # Set defaults.
+    connect_kwargs['alpha'] = connect_kwargs.get('alpha', 0.7)
+    post_kwargs['alpha'] = post_kwargs.get('alpha', 0.6)
+    trace_kwargs['s'] = trace_kwargs.get('s', 3)
+    truth_kwargs['linestyle'] = truth_kwargs.get('linestyle', 'solid')
+    truth_kwargs['linewidth'] = truth_kwargs.get('linewidth', 2)
 
     # Extract weighted samples.
     samples = results['samples']
@@ -395,6 +435,19 @@ def traceplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
     if nsamps != logvol.shape[0]:
         raise ValueError("The number of ln(volume)'s and samples disagree!")
 
+    # Check sample IDs.
+    if connect:
+        try:
+            samples_id = results['samples_id']
+            uid = np.unique(samples_id)
+        except:
+            raise ValueError("Sample IDs are not defined!")
+        try:
+            ids = connect_highlight[0]
+            ids = connect_highlight
+        except:
+            ids = np.random.choice(uid, size=connect_highlight, replace=False)
+
     # Determine plotting bounds for marginalized 1-D posteriors.
     if bounds is None:
         bounds = [0.999999426697 for i in range(ndim)]
@@ -410,7 +463,7 @@ def traceplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
 
     # Setting up labels.
     if labels is None:
-        labels = [r"$x_{0}$".format(i) for i in range(ndim)]
+        labels = [r"$x_{0}$".format(i+1) for i in range(ndim)]
 
     # Setting up smoothing.
     if (isinstance(smooth, types.IntType) or isinstance(smooth,
@@ -465,16 +518,20 @@ def traceplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
         ax.set_xlabel(r"$-\ln X$", **label_kwargs)
         ax.set_ylabel(labels[i], **label_kwargs)
         # Generate scatter plot.
-        ax.scatter(-logvol, x, c=color, s=5, cmap=cmap,
-                   **trace_kwargs)
+        ax.scatter(-logvol, x, c=color, cmap=cmap, **trace_kwargs)
+        if connect:
+            # Add lines highlighting specific particle paths.
+            for j in ids:
+                sel = (samples_id == j)
+                ax.plot(-logvol[sel], x[sel], color=connect_color,
+                        **connect_kwargs)
         # Add truth value(s).
         if truths is not None and truths[i] is not None:
             try:
-                [ax.axhline(t, color=truth_color, ls="solid",
-                            **truth_kwargs) for t in truths[i]]
+                [ax.axhline(t, color=truth_color, **truth_kwargs)
+                 for t in truths[i]]
             except:
-                ax.axhline(truths[i], color=truth_color, ls="solid",
-                           **truth_kwargs)
+                ax.axhline(truths[i], color=truth_color, **truth_kwargs)
 
         # Plot marginalized 1-D posterior.
 
@@ -499,11 +556,7 @@ def traceplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
         # Label axes.
         sf = ScalarFormatter(useMathText=use_math_text)
         ax.xaxis.set_major_formatter(sf)
-        if labels is not None:
-            label = labels[i]
-        else:
-            label = r"$x_{0}$".format(i)
-        ax.set_xlabel(label, **label_kwargs)
+        ax.set_xlabel(labels[i], **label_kwargs)
         # Generate distribution.
         s = smooth[i]
         if isinstance(s, types.IntType):
@@ -539,11 +592,10 @@ def traceplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
         # Add truth value(s).
         if truths is not None and truths[i] is not None:
             try:
-                [ax.axvline(t, color=truth_color, ls="solid",
-                            **truth_kwargs) for t in truths[i]]
+                [ax.axvline(t, color=truth_color, **truth_kwargs)
+                 for t in truths[i]]
             except:
-                ax.axvline(truths[i], color=truth_color, ls="solid",
-                           **truth_kwargs)
+                ax.axvline(truths[i], color=truth_color, **truth_kwargs)
         # Set titles.
         if show_titles:
             title = None
@@ -553,7 +605,7 @@ def traceplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
                 fmt = "{{0:{0}}}".format(title_fmt).format
                 title = r"${{{0}}}_{{-{1}}}^{{+{2}}}$"
                 title = title.format(fmt(qm), fmt(q_minus), fmt(q_plus))
-                title = "{0} = {1}".format(label, title)
+                title = "{0} = {1}".format(labels[i], title)
                 ax.set_title(title, **title_kwargs)
 
     return fig, axes
@@ -577,8 +629,7 @@ def cornerpoints(results, bounds=None, cmap='plasma', color=None,
         lower and upper bounds or a float in range (0., 1.] giving the
         fraction of (weighted) samples to include. If a fraction is provided,
         the bounds are chosen to be equal-tailed. An example would be
-        [(0., 10.), 0.95, (5., 6.)]. Default is *0.999999426697*
-        (5-sigma credible interval).
+        [(0., 10.), 0.95, (5., 6.)]. Default is *no bound*.
 
     cmap : str, optional
         A `~matplotlib` style colormap used when plotting the points,
@@ -641,6 +692,12 @@ def cornerpoints(results, bounds=None, cmap='plasma', color=None,
     if plot_kwargs is None:
         plot_kwargs = dict()
 
+    # Set defaults.
+    plot_kwargs['s'] = plot_kwargs.get('s', 1)
+    truth_kwargs['linestyle'] = truth_kwargs.get('linestyle', 'solid')
+    truth_kwargs['linewidth'] = truth_kwargs.get('linewidth', 2)
+    truth_kwargs['alpha'] = truth_kwargs.get('alpha', 0.7)
+
     # Extract weighted samples.
     samples = results['samples']
     try:
@@ -668,21 +725,19 @@ def cornerpoints(results, bounds=None, cmap='plasma', color=None,
         raise ValueError("The number of weights and samples disagree!")
 
     # Determine plotting bounds.
-    if bounds is None:
-        bounds = [0.999999426697 for i in range(ndim)]
-    bounds = list(bounds)
-    if len(bounds) != ndim:
-        raise ValueError("Dimension mismatch between samples and bounds.")
-    for i, _ in enumerate(bounds):
-        try:
-            xmin, xmax = bounds[i]
-        except:
-            q = [0.5 - 0.5 * bounds[i], 0.5 + 0.5 * bounds[i]]
-            bounds[i] = _quantile(samples[i], q, weights=weights)
+    if bounds is not None:
+        if len(bounds) != ndim:
+            raise ValueError("Dimension mismatch between samples and bounds.")
+        for i, _ in enumerate(bounds):
+            try:
+                xmin, xmax = bounds[i]
+            except:
+                q = [0.5 - 0.5 * bounds[i], 0.5 + 0.5 * bounds[i]]
+                bounds[i] = _quantile(samples[i], q, weights=weights)
 
     # Set labels
     if labels is None:
-        labels = [r"$x_{0}$".format(i) for i in range(ndim)]
+        labels = [r"$x_{0}$".format(i+1) for i in range(ndim)]
 
     # Set colormap.
     if color is None:
@@ -717,6 +772,9 @@ def cornerpoints(results, bounds=None, cmap='plasma', color=None,
         for j, y in enumerate(samples[:-1]):
             ax = axes[i, j]
             # Setup axes.
+            if bounds is not None:
+                ax.set_xlim(bounds[j])
+                ax.set_ylim(bounds[i])
             if j > i:
                 ax.set_frame_on(False)
                 ax.set_xticks([])
@@ -747,23 +805,22 @@ def cornerpoints(results, bounds=None, cmap='plasma', color=None,
                 ax.set_ylabel(labels[i+1], **label_kwargs)
                 ax.yaxis.set_label_coords(-0.3, 0.5)
             # Plot distribution.
-            ax.scatter(y, x, c=color, s=1, cmap=cmap,
-                       **plot_kwargs)
+            ax.scatter(y, x, c=color, cmap=cmap, **plot_kwargs)
             # Add truth values
             if truths is not None:
                 if truths[j] is not None:
                     try:
-                        [ax.axvline(t, color=truth_color, ls="solid",
-                                    **truth_kwargs) for t in truths[j]]
+                        [ax.axvline(t, color=truth_color,  **truth_kwargs)
+                         for t in truths[j]]
                     except:
-                        ax.axvline(truths[j], color=truth_color, ls="solid",
+                        ax.axvline(truths[j], color=truth_color,
                                    **truth_kwargs)
                 if truths[i+1] is not None:
                     try:
-                        [ax.axhline(t, color=truth_color, ls="solid",
-                                    **truth_kwargs) for t in truths[i+1]]
+                        [ax.axhline(t, color=truth_color, **truth_kwargs)
+                         for t in truths[i+1]]
                     except:
-                        ax.axhline(truths[i+1], color=truth_color, ls="solid",
+                        ax.axhline(truths[i+1], color=truth_color,
                                    **truth_kwargs)
 
     return (fig, axes)
@@ -893,10 +950,15 @@ def cornerplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84],
         title_kwargs = dict()
     if hist_kwargs is None:
         hist_kwargs = dict()
-    hist_kwargs['alpha'] = hist_kwargs.get('alpha', 0.6)
     if hist2d_kwargs is None:
         hist2d_kwargs = dict()
+
+    # Set defaults.
+    hist_kwargs['alpha'] = hist_kwargs.get('alpha', 0.6)
     hist2d_kwargs['alpha'] = hist2d_kwargs.get('alpha', 0.6)
+    truth_kwargs['linestyle'] = truth_kwargs.get('linestyle', 'solid')
+    truth_kwargs['linewidth'] = truth_kwargs.get('linewidth', 2)
+    truth_kwargs['alpha'] = truth_kwargs.get('alpha', 0.7)
 
     # Extract weighted samples.
     samples = results['samples']
@@ -939,7 +1001,7 @@ def cornerplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84],
 
     # Set labels
     if labels is None:
-        labels = [r"$x_{0}$".format(i) for i in range(ndim)]
+        labels = [r"$x_{0}$".format(i+1) for i in range(ndim)]
 
     # Setting up smoothing.
     if (isinstance(smooth, types.IntType) or isinstance(smooth,
@@ -1036,11 +1098,10 @@ def cornerplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84],
         # Add truth value(s).
         if truths is not None and truths[i] is not None:
             try:
-                [ax.axvline(t, color=truth_color, ls="solid",
-                            **truth_kwargs) for t in truths[i]]
+                [ax.axvline(t, color=truth_color, **truth_kwargs)
+                 for t in truths[i]]
             except:
-                ax.axvline(truths[i], color=truth_color, ls="solid",
-                           **truth_kwargs)
+                ax.axvline(truths[i], color=truth_color, **truth_kwargs)
         # Set titles.
         if show_titles:
             title = None
@@ -1103,17 +1164,17 @@ def cornerplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84],
             if truths is not None:
                 if truths[j] is not None:
                     try:
-                        [ax.axvline(t, color=truth_color, ls="solid",
-                                    **truth_kwargs) for t in truths[j]]
+                        [ax.axvline(t, color=truth_color, **truth_kwargs)
+                         for t in truths[j]]
                     except:
-                        ax.axvline(truths[j], color=truth_color, ls="solid",
+                        ax.axvline(truths[j], color=truth_color,
                                    **truth_kwargs)
                 if truths[i] is not None:
                     try:
-                        [ax.axhline(t, color=truth_color, ls="solid",
-                                    **truth_kwargs) for t in truths[i]]
+                        [ax.axhline(t, color=truth_color, **truth_kwargs)
+                         for t in truths[i]]
                     except:
-                        ax.axhline(truths[i], color=truth_color, ls="solid",
+                        ax.axhline(truths[i], color=truth_color,
                                    **truth_kwargs)
 
     return (fig, axes)
@@ -1122,8 +1183,8 @@ def cornerplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84],
 def proposal(results, dims, it=None, idx=None, prior_transform=None,
              ndraws=5000, color='gray', plot_kwargs=None, labels=None,
              label_kwargs=None, max_n_ticks=5, use_math_text=False,
-             show_live=False, live_color='red', live_kwargs=None,
-             fig=None):
+             show_live=False, live_color='darkviolet', live_kwargs=None,
+             bounds=None, fig=None):
     """
     Return the proposal distribution used to propose (1) live points
     at a given iteration or (2) a specific dead point during
@@ -1187,10 +1248,14 @@ def proposal(results, dims, it=None, idx=None, prior_transform=None,
         Default is *False*.
 
     live_color : str, optional
-        The color of the live points. Default is 'red'.
+        The color of the live points. Default is 'darkviolet'.
 
     live_kwargs : dict, optional
         Extra keyword arguments used when plotting the live points.
+
+    bounds : iterable with shape (2,), optional
+        A list where each element is a length 2 tuple containing
+        lower and upper bounds. Default is *no bound*.
 
     fig : `~matplotlib.Figure`, optional
         If provided, overplot the draws onto the provided figure object.
@@ -1213,6 +1278,15 @@ def proposal(results, dims, it=None, idx=None, prior_transform=None,
 
     if (it is None and idx is None) or (it is not None and idx is not None):
         raise ValueError("You must specify either an iteration or an index!")
+
+    # Set defaults.
+    plot_kwargs['marker'] = plot_kwargs.get('marker', 'o')
+    plot_kwargs['linestyle'] = plot_kwargs.get('linestyle', 'None')
+    plot_kwargs['markersize'] = plot_kwargs.get('markersize', 1)
+    plot_kwargs['alpha'] = plot_kwargs.get('alpha', 0.4)
+    live_kwargs['marker'] = live_kwargs.get('marker', 'o')
+    live_kwargs['linestyle'] = live_kwargs.get('linestyle', 'None')
+    live_kwargs['markersize'] = live_kwargs.get('markersize', 1)
 
     # Extract proposals.
     try:
@@ -1309,7 +1383,10 @@ def proposal(results, dims, it=None, idx=None, prior_transform=None,
                 r = -(nlive + i)
                 uidx = samples_id[r]
                 live_u[uidx] = samples[r]
-        psamps = prop.samples(ndraws, live_u)
+        # Construct a KDTree to speed up nearest-neighbor searches.
+        kdtree = spatial.KDTree(live_u)
+        # Draw samples.
+        psamps = prop.samples(ndraws, live_u, kdtree=kdtree)
 
     # Projecting samples to input dimensions and possibly
     # the native model space.
@@ -1339,11 +1416,14 @@ def proposal(results, dims, it=None, idx=None, prior_transform=None,
                              "for plotting samples.")
 
     # Plotting.
-    axes.plot(x1, x2, '.', color=color, markersize=1, **plot_kwargs)
+    axes.plot(x1, x2, color=color, zorder=1, **plot_kwargs)
     if show_live:
-        axes.plot(l1, l2, 'o', color=live_color, markersize=1, **live_kwargs)
+        axes.plot(l1, l2, color=live_color, zorder=2, **live_kwargs)
 
     # Setup axes
+    if bounds is not None:
+        axes.set_xlim(bounds[0])
+        axes.set_ylim(bounds[1])
     if max_n_ticks == 0:
         axes.xaxis.set_major_locator(NullLocator())
         axes.yaxis.set_major_locator(NullLocator())
@@ -1358,8 +1438,8 @@ def proposal(results, dims, it=None, idx=None, prior_transform=None,
         axes.set_xlabel(labels[0], **label_kwargs)
         axes.set_ylabel(label[1], **label_kwargs)
     else:
-        axes.set_xlabel(r"$x_{0}$".format(dims[0]), **label_kwargs)
-        axes.set_ylabel(r"$x_{0}$".format(dims[1]), **label_kwargs)
+        axes.set_xlabel(r"$x_{0}$".format(dims[0]+1), **label_kwargs)
+        axes.set_ylabel(r"$x_{0}$".format(dims[1]+1), **label_kwargs)
 
     return fig, axes
 
@@ -1367,8 +1447,8 @@ def proposal(results, dims, it=None, idx=None, prior_transform=None,
 def cornerprop(results, it=None, idx=None, prior_transform=None,
                ndraws=5000, color='gray', plot_kwargs=None, labels=None,
                label_kwargs=None, max_n_ticks=5, use_math_text=False,
-               show_live=False, live_color='red', live_kwargs=None,
-               fig=None):
+               show_live=False, live_color='darkviolet', live_kwargs=None,
+               bounds=None, fig=None):
     """
     Return the proposal distribution used to propose (1) live points
     at a given iteration or (2) a specific dead point during
@@ -1432,10 +1512,14 @@ def cornerprop(results, it=None, idx=None, prior_transform=None,
         Default is *False*.
 
     live_color : str, optional
-        The color of the live points. Default is 'red'.
+        The color of the live points. Default is 'darkviolet'.
 
     live_kwargs : dict, optional
         Extra keyword arguments used when plotting the live points.
+
+    bounds : iterable with shape (2,), optional
+        A list where each element is a length 2 tuple containing
+        lower and upper bounds. Default is *no bound*.
 
     fig : `~matplotlib.Figure`, optional
         If provided, overplot the draws onto the provided figure object.
@@ -1458,6 +1542,15 @@ def cornerprop(results, it=None, idx=None, prior_transform=None,
 
     if (it is None and idx is None) or (it is not None and idx is not None):
         raise ValueError("You must specify either an iteration or an index!")
+
+    # Set defaults.
+    plot_kwargs['marker'] = plot_kwargs.get('marker', 'o')
+    plot_kwargs['linestyle'] = plot_kwargs.get('linestyle', 'None')
+    plot_kwargs['markersize'] = plot_kwargs.get('markersize', 1)
+    plot_kwargs['alpha'] = plot_kwargs.get('alpha', 0.4)
+    live_kwargs['marker'] = live_kwargs.get('marker', 'o')
+    live_kwargs['linestyle'] = live_kwargs.get('linestyle', 'None')
+    live_kwargs['markersize'] = live_kwargs.get('markersize', 1)
 
     # Extract proposals.
     try:
@@ -1554,7 +1647,10 @@ def cornerprop(results, it=None, idx=None, prior_transform=None,
                 r = -(nlive + i)
                 uidx = samples_id[r]
                 live_u[uidx] = samples[r]
-        psamps = prop.samples(ndraws, live_u)
+        # Construct a KDTree to speed up nearest-neighbor searches.
+        kdtree = spatial.KDTree(live_u)
+        # Draw samples.
+        psamps = prop.samples(ndraws, live_u, kdtree=kdtree)
 
     # Projecting samples to input dimensions and possibly
     # the native model space.
@@ -1574,7 +1670,7 @@ def cornerprop(results, it=None, idx=None, prior_transform=None,
 
     # Set labels
     if labels is None:
-        labels = [r"$x_{0}$".format(i) for i in range(ndim)]
+        labels = [r"$x_{0}$".format(i+1) for i in range(ndim)]
 
     # Setup axis layout (from `corner.py`).
     factor = 2.0  # size of side of one panel
@@ -1605,6 +1701,9 @@ def cornerprop(results, it=None, idx=None, prior_transform=None,
         for j, y in enumerate(psamps[:-1]):
             ax = axes[i, j]
             # Setup axes.
+            if bounds is not None:
+                ax.set_xlim(bounds[j])
+                ax.set_ylim(bounds[i])
             if j > i:
                 ax.set_frame_on(False)
                 ax.set_xticks([])
@@ -1635,11 +1734,10 @@ def cornerprop(results, it=None, idx=None, prior_transform=None,
                 ax.set_ylabel(labels[i+1], **label_kwargs)
                 ax.yaxis.set_label_coords(-0.3, 0.5)
             # Plot distribution.
-            ax.plot(y, x, '.', c=color, ms=1, **plot_kwargs)
+            ax.plot(y, x, c=color, **plot_kwargs)
             # Add live points.
             if show_live:
-                ax.plot(lsamps[j], lsamps[i+1], 'o', c=live_color,
-                        ms=1, **live_kwargs)
+                ax.plot(lsamps[j], lsamps[i+1], c=live_color, **live_kwargs)
 
     return (fig, axes)
 

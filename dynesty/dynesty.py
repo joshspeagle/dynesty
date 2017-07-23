@@ -18,7 +18,6 @@ from .sampler import *
 from .sampling import *
 from .nestedsamplers import *
 from .dynamicsampler import *
-from .fakepool import *
 
 __all__ = ["NestedSampler", "DynamicNestedSampler"]
 
@@ -29,14 +28,13 @@ _SAMPLERS = {'none': UnitCubeSampler,
              'cubes': SupFriendsSampler}
 _SAMPLING = {'unif': sample_unif,
              'rwalk': sample_rwalk,
-             'slice': sample_slice,
-             'rtraj': sample_rtraj}
+             'slice': sample_slice}
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
 def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
-                  bound='multi', sample='unif', update_interval=None,
+                  bound='multi', sample='unif', update_interval=0.6,
                   npdim=None, rstate=None, queue_size=1, pool=None,
                   live_points=None, **kwargs):
     """
@@ -87,9 +85,8 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
         If an integer is passed, only update the proposal distribution every
         `update_interval`-th likelihood call. If a float is passed, update the
         proposal after every `round(update_interval * nlive)`-th likelihood
-        call. Update intervals larger than 1 can be more efficient
-        when the likelihood function is very fast, particularly when
-        using the `multi` bounding method. Default is 0.6.
+        call. Larger update intervals larger can be more efficient
+        when the likelihood function is quick to evaluate. Default is *0.6*.
 
     npdim : int, optional
         Number of parameters accepted by prior. This might differ from `ndim`
@@ -125,17 +122,16 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
     Other Parameters
     ----------------
     enlarge : float, optional
-        For the 'single' and 'multi' bounding options, enlarge the volumes of
-        the ellipsoid(s) by this fraction. The preferred method is to
-        determine this organically using bootstrapping. If `bootstrap > 0`,
-        this defaults to *1.0*. If `bootstrap = 0`, this instead defaults
-        to *1.25*.
+        Enlarge the volumes of the specified bounding object(s) by this
+        fraction. The preferred method is to determine this organically
+        using bootstrapping. If `bootstrap > 0`, this defaults to *1.0*.
+        If `bootstrap = 0`, this instead defaults to *1.25*.
 
     bootstrap : int, optional
-        For the 'single' and 'multi' bounding options, compute this many
-        bootstrap resampled realizations of the bounding ellipsoid(s). Use
-        the maximum distance found to the set of points left out during each
-        iteration to enlarge the resulting ellipsoids. Default is *20*.
+        Compute this many bootstrap-resampled realizations of the bounding
+        objects. Use the maximum distance found to the set of points left
+        out during each iteration to enlarge the resulting volumes.
+        Default is *20*.
 
     vol_dec : float, optional
         For the 'multi' bounding option, the required fractional reduction in
@@ -149,21 +145,16 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
         Default is *2.0*.
 
     walks : int, optional
-        For the 'rwalk' sampling option, the minimum number of steps
-        to take before proposing a new live point. Default is *25*.
+        For the 'rwalk' sampling option, the minimum number of steps (minimum
+        2) to take before proposing a new live point. Default is *25*.
+
+    facc : float, optional
+        The target acceptance fraction for the 'rwalk' sampling option.
+        Default is *0.5*. Bounded to be between `[1. / walks, 1.]`.
 
     slices : int, optional
         For the 'slice' sampling option, the number of times to slice through
         **all dimensions** before proposing a new live point. Default is *3*.
-
-    lgrad : function, optional
-        The gradient of the likelihood. Used to compute reflections off
-        the iso-likelihood contours using the 'rtraj' sampling option. If not
-        provided, gradients are calculated numerically.
-
-    steps : int, optional
-        For the 'rtraj' sampling option, the minimum number of steps to take
-        before proposing a new live point. Default is *25*.
 
     Returns
     -------
@@ -185,8 +176,6 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
     if nlive < 2 * ndim:
         warnings.warn("You really want to make `nlive >= 2 * ndim`!")
 
-    if update_interval is None:
-        update_interval = 0.6
     if isinstance(update_interval, float):
         update_interval = max(1, round(update_interval * nlive))
 
@@ -211,6 +200,18 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
         live_logl = M(loglikelihood, live_v)  # log likelihood
         live_points = [live_u, live_v, live_logl]
 
+    # Convert all `-np.inf` log-likelihoods to finite large numbers.
+    # Necessary to keep estimators in our sampler from breaking.
+    for i, logl in enumerate(live_points[2]):
+        if not np.isfinite(logl):
+            if np.sign(logl) < 0:
+                live_points[2][i] = -1e300
+            else:
+                raise ValueError("The log-likelihood ({0}) of live point {1} "
+                                 "located at u={2} v={3} is invalid."
+                                 .format(logl, i, live_points[0][i],
+                                         live_points[1][i]))
+
     # Initialize our nested sampler.
     sampler = _SAMPLERS[bound](loglikelihood, prior_transform, npdim,
                                live_points, sample, update_interval,
@@ -220,9 +221,9 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
 
 
 def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
-                         bound='multi', sample='unif', update_interval=None,
+                         bound='multi', sample='unif', update_interval=0.6,
                          npdim=None, rstate=None, queue_size=1, pool=None,
-                         live_points=None, **kwargs):
+                         **kwargs):
     """
     Initializes and returns a chosen sampler to evaluate Bayesian evidence
     and posteriors using nested sampling.
@@ -267,9 +268,8 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         `update_interval`-th likelihood call. If a float is passed, update the
         proposal after every `round(update_interval * nlive)`-th likelihood
         call, changing depending on how many live points are currently
-        active. Update intervals larger than 1 can be more efficient
-        when the likelihood function is very fast, particularly when
-        using the `multi` bounding method. Default is 0.6.
+        active. Larger update intervals can be more efficient
+        when the likelihood function is quick to evaluate. Default is *0.6*.
 
     npdim : int, optional
         Number of parameters accepted by prior. This might differ from `ndim`
@@ -292,30 +292,19 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         `queue_size > 1` and `pool` is not specified, a `ValueError` will be
         thrown.
 
-    live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
-        A set of live points used to initialize the nested sampling run.
-        Contains `live_u`, the coordinates on the unit cube, `live_v`, the
-        transformed variables, and `live_logl`, the associated loglikelihoods.
-        By default, if these are not provided the initial set of live points
-        will be drawn uniformly from the unit `npdim`-cube.
-        **WARNING: It is crucial that the initial set of live points have been
-        sampled from the prior. Failure to provide a set of valid live points
-        will result in biased results.**
-
     Other Parameters
     ----------------
     enlarge : float, optional
-        For the 'single' and 'multi' bounding options, enlarge the volumes of
-        the ellipsoid(s) by this fraction. The preferred method is to
-        determine this organically using bootstrapping. If `bootstrap > 0`,
-        this defaults to *1.0*. If `bootstrap = 0`, this instead defaults
-        to *1.25*.
+        Enlarge the volumes of the specified bounding object(s) by this
+        fraction. The preferred method is to determine this organically
+        using bootstrapping. If `bootstrap > 0`, this defaults to *1.0*.
+        If `bootstrap = 0`, this instead defaults to *1.25*.
 
     bootstrap : int, optional
-        For the 'single' and 'multi' bounding options, compute this many
-        bootstrap resampled realizations of the bounding ellipsoid(s). Use
-        the maximum distance found to the set of points left out during each
-        iteration to enlarge the resulting ellipsoids. Default is *20*.
+        Compute this many bootstrap-resampled realizations of the bounding
+        objects. Use the maximum distance found to the set of points left
+        out during each iteration to enlarge the resulting volumes.
+        Default is *20*.
 
     vol_dec : float, optional
         For the 'multi' bounding option, the required fractional reduction in
@@ -329,21 +318,16 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         Default is *2.0*.
 
     walks : int, optional
-        For the 'rwalk' sampling option, the minimum number of steps
-        to take before proposing a new live point. Default is *25*.
+        For the 'rwalk' sampling option, the minimum number of steps (minimum
+        2) to take before proposing a new live point. Default is *25*.
+
+    facc : float, optional
+        The target acceptance fraction for the 'rwalk' sampling option.
+        Default is *0.5*. Bounded to be between `[1. / walks, 1.]`.
 
     slices : int, optional
         For the 'slice' sampling option, the number of times to slice through
         **all dimensions** before proposing a new live point. Default is *3*.
-
-    lgrad : function, optional
-        The gradient of the likelihood. Used to compute reflections off
-        the iso-likelihood contours using the 'rtraj' sampling option. If not
-        provided, gradients are calculated numerically.
-
-    steps : int, optional
-        For the 'rtraj' sampling option, the minimum number of steps to take
-        before proposing a new live point. Default is *25*.
 
     Returns
     -------
@@ -356,8 +340,11 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
     if npdim is None:
         npdim = ndim
 
-    if update_interval is None:
-        update_interval = 0.6
+    if bound not in _SAMPLERS:
+        raise ValueError("Unknown bounding method: '{0}'".format(bound))
+
+    if sample not in _SAMPLING:
+        raise ValueError("Unknown sampling method: '{0}'".format(sample))
 
     if rstate is None:
         rstate = np.random

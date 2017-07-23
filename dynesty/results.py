@@ -41,10 +41,12 @@ class Results(dict):
         """Return a formatted string giving a quick summary
         of the results."""
 
-        return ("nlive: {:d}\n"
-                "niter: {:d}\n"
-                "ncall: {:d}\n"
-                "eff(%): {:6.3f}\n"
-                "logz: {:6.3f} +/- {:6.3f}"
-                .format(self.nlive, self.niter, sum(self.ncall),
-                        self.eff, self.logz[-1], self.logzerr[-1]))
+        res = ("nlive: {:d}\n"
+               "niter: {:d}\n"
+               "ncall: {:d}\n"
+               "eff(%): {:6.3f}\n"
+               "logz: {:6.3f} +/- {:6.3f}"
+               .format(self.nlive, self.niter, sum(self.ncall),
+                       self.eff, self.logz[-1], self.logzerr[-1]))
+
+        print('Summary\n=======\n'+res)

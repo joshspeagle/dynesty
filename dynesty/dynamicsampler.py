@@ -33,8 +33,7 @@ _SAMPLERS = {'none': UnitCubeSampler,
              'cubes': SupFriendsSampler}
 _SAMPLING = {'unif': sample_unif,
              'rwalk': sample_rwalk,
-             'slice': sample_slice,
-             'rtraj': sample_rtraj}
+             'slice': sample_slice}
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
@@ -118,8 +117,8 @@ class DynamicSampler(object):
         associated bounding and sampling method.
 
     update_interval : int
-        Only update a proposal distribution after `update_interval`
-        new live points have been proposed from it.
+        Only update the proposal distribution every
+        `update_interval * nlive`-th likelihood call.
 
     rstate : `~numpy.random.RandomState`
         RandomState instance.
@@ -137,17 +136,16 @@ class DynamicSampler(object):
     Other Parameters
     ----------------
     enlarge : float, optional
-        For the 'single' and 'multi' bounding options, enlarge the volumes of
-        the ellipsoid(s) by this fraction. The preferred method is to
-        determine this organically using bootstrapping. If `bootstrap > 0`,
-        this defaults to *1.0*. If `bootstrap = 0`, this instead defaults
-        to *1.25*.
+        Enlarge the volumes of the specified bounding object(s) by this
+        fraction. The preferred method is to determine this organically
+        using bootstrapping. If `bootstrap > 0`, this defaults to *1.0*.
+        If `bootstrap = 0`, this instead defaults to *1.25*.
 
     bootstrap : int, optional
-        For the 'single' and 'multi' bounding options, compute this many
-        bootstrap resampled realizations of the bounding ellipsoid(s). Use
-        the maximum distance found to the set of points left out during each
-        iteration to enlarge the resulting ellipsoids. Default is *20*.
+        Compute this many bootstrap-resampled realizations of the bounding
+        objects. Use the maximum distance found to the set of points left
+        out during each iteration to enlarge the resulting volumes.
+        Default is *20*.
 
     vol_dec : float, optional
         For the 'multi' bounding option, the required fractional reduction in
@@ -161,21 +159,16 @@ class DynamicSampler(object):
         Default is *2.0*.
 
     walks : int, optional
-        For the 'rwalk' sampling option, the minimum number of steps
-        to take before proposing a new live point. Default is *25*.
+        For the 'rwalk' sampling option, the minimum number of steps (minimum
+        2) to take before proposing a new live point. Default is *25*.
+
+    facc : float, optional
+        The target acceptance fraction for the 'rwalk' sampling option.
+        Default is *0.5*. Bounded to be between `[1. / walks, 1.]`.
 
     slices : int, optional
         For the 'slice' sampling option, the number of times to slice through
         **all dimensions** before proposing a new live point. Default is *3*.
-
-    lgrad : function, optional
-        The gradient of the likelihood. Used to compute reflections off
-        the iso-likelihood contours using the 'rtraj' sampling option. If not
-        provided, gradients are calculated numerically.
-
-    steps : int, optional
-        For the 'rtraj' sampling option, the minimum number of steps to take
-        before proposing a new live point. Default is *25*.
 
     """
 
@@ -204,8 +197,6 @@ class DynamicSampler(object):
         self.vol_check = kwargs.get('vol_check', 2.0)
         self.walks = self.kwargs.get('walks', 25)
         self.slices = self.kwargs.get('slices', 3)
-        self.lgrad = self.kwargs.get('lgrad', None)
-        self.steps = self.kwargs.get('steps', 25)
 
         # random state
         self.rstate = rstate
@@ -228,6 +219,7 @@ class DynamicSampler(object):
         self.ncall = 0  # number of function calls
         self.prop = []  # initial states used to compute proposals
         self.eff = 1.  # sampling efficiency
+        self.base = False  # base run complete
 
         # results
         self.saved_id = []  # live point labels
@@ -244,6 +236,7 @@ class DynamicSampler(object):
         self.saved_it = []  # iteration the live (now dead) point was proposed
         self.saved_n = []  # number of live points interior to dead point
         self.saved_piter = []  # active proposal at a specific iteration
+        self.saved_scale = []  # scale factor at each iteration
 
         # results from our base run
         self.base_id = []
@@ -260,6 +253,7 @@ class DynamicSampler(object):
         self.base_it = []
         self.base_n = []
         self.base_piter = []
+        self.base_scale = []
 
         # results from our most recent addition
         self.new_id = []
@@ -271,6 +265,7 @@ class DynamicSampler(object):
         self.new_n = []
         self.new_propidx = []
         self.new_piter = []
+        self.new_scale = []
 
     def reset(self):
         """Re-initialize the sampler."""
@@ -286,6 +281,8 @@ class DynamicSampler(object):
         self.batch = 0
         self.ncall = 0
         self.prop = []
+        self.eff = 1.
+        self.base = False
 
         # results
         self.saved_id = []
@@ -302,6 +299,7 @@ class DynamicSampler(object):
         self.saved_it = []
         self.saved_n = []
         self.saved_piter = []
+        self.saved_scale = []
 
         # results from our base run
         self.base_id = []
@@ -318,6 +316,7 @@ class DynamicSampler(object):
         self.base_it = []
         self.base_n = []
         self.base_piter = []
+        self.base_scale = []
 
         # results from our most recent addition
         self.new_id = []
@@ -329,6 +328,7 @@ class DynamicSampler(object):
         self.new_n = []
         self.new_propidx = []
         self.new_piter = []
+        self.new_scale = []
 
     @property
     def results(self):
@@ -354,6 +354,7 @@ class DynamicSampler(object):
                         np.array(self.saved_piter, dtype='int')))
         results.append(('samples_prop',
                         np.array(self.saved_propidx, dtype='int')))
+        results.append(('scale', np.array(self.saved_scale)))
 
         return Results(results)
 
@@ -371,8 +372,8 @@ class DynamicSampler(object):
 
         return h
 
-    def sample_initial(self, nlive=100, maxiter=None,
-                       maxcall=None, dlogz=0.01):
+    def sample_initial(self, nlive=100, update_interval=None, maxiter=None,
+                       maxcall=None, dlogz=0.01, live_points=None):
         """
         Generate a series of initial samples from a nested sampling
         run using a fixed number of live points. Instantiates a
@@ -383,6 +384,14 @@ class DynamicSampler(object):
         nlive : int, optional
             The number of live points to use for the baseline nested
             sampling run. Default is *100*.
+
+        update_interval : int or float, optional
+            If an integer is passed, only update the proposal distribution
+            every `update_interval`-th likelihood call. If a float is passed,
+            update the proposal after every `round(update_interval * nlive)`-th
+            likelihood call. Larger update intervals can be more efficient
+            when the likelihood function is quick to evaluate. If no value is
+            provided, defaults to the value passed during initialization.
 
         maxiter : int, optional
             Maximum number of iterations. Iteration may stop earlier if the
@@ -403,6 +412,15 @@ class DynamicSampler(object):
             contribution from the remaining volume. The default is
             *0.01*.
 
+        live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
+            A set of live points used to initialize the nested sampling run.
+            Contains `live_u`, the coordinates on the unit cube, `live_v`, the
+            transformed variables, and `live_logl`, the associated
+            loglikelihoods. By default, if these are not provided the initial
+            set of live points will be drawn from the unit `npdim`-cube.
+            **WARNING: It is crucial that the initial set of live points have
+            been sampled from the prior. Failure to provide a set of valid
+            live points will result in biased results.**
 
         Returns
         -------
@@ -453,11 +471,27 @@ class DynamicSampler(object):
 
         self.reset()
 
-        # initialize the first set of live points
-        self.nlive_init = nlive
-        self.live_u = self.rstate.rand(self.nlive_init, self.npdim)
-        self.live_v = self.M(self.prior_transform, self.live_u)
-        self.live_logl = self.M(self.loglikelihood, self.live_v)
+        # Initialize the first set of live points.
+        if live_points is None:
+            self.nlive_init = nlive
+            self.live_u = self.rstate.rand(self.nlive_init, self.npdim)
+            self.live_v = self.M(self.prior_transform, self.live_u)
+            self.live_logl = self.M(self.loglikelihood, self.live_v)
+        else:
+            self.nlive_init = len(live_points[0])
+
+        # Convert all `-np.inf` log-likelihoods to finite large numbers.
+        # Necessary to keep estimators in our sampler from breaking.
+        for i, logl in enumerate(self.live_logl):
+            if not np.isfinite(logl):
+                if np.sign(logl) < 0:
+                    self.live_logl[i] = -1e300
+                else:
+                    raise ValueError("The log-likelihood ({0}) of live point "
+                                     "{1} located at u={2} v={3} is invalid."
+                                     .format(logl, i, self.live_u[i],
+                                             self.live_v[i]))
+
         live_points = [self.live_u, self.live_v, self.live_logl]
         self.live_init = [np.array(l) for l in live_points]
         self.ncall += self.nlive_init
@@ -465,10 +499,11 @@ class DynamicSampler(object):
         self.live_it = np.zeros(self.nlive_init, dtype='int')
 
         # Initialize the sampler.
-        if isinstance(self.update_interval, float):
-            update_interval = int(round(self.update_interval * nlive))
-        else:
+        if update_interval is None:
             update_interval = self.update_interval
+        if isinstance(update_interval, float):
+            update_interval = int(round(self.update_interval * nlive))
+
         bound = self.bound
         self.sampler = _SAMPLERS[bound](self.loglikelihood,
                                         self.prior_transform,
@@ -502,6 +537,7 @@ class DynamicSampler(object):
                 self.base_n.append(self.nlive_init)
                 self.base_propidx.append(propidx)
                 self.base_piter.append(self.sampler.nprop - 1)
+                self.base_scale.append(self.sampler.scale)
 
                 # Save a copy of the results.
                 self.saved_id.append(worst)
@@ -518,10 +554,11 @@ class DynamicSampler(object):
                 self.saved_n.append(self.nlive_init)
                 self.saved_propidx.append(propidx)
                 self.saved_piter.append(self.sampler.nprop - 1)
+                self.saved_scale.append(self.sampler.scale)
 
                 # Increment relevant counters.
                 self.ncall += nc
-                self.eff = 100. * self.it / (self.ncall - self.nlive_init)
+                self.eff = 100. * self.it / self.ncall
                 self.it += 1
 
                 yield (worst, ustar, vstar, loglstar, logvol, logwt, logz,
@@ -547,6 +584,7 @@ class DynamicSampler(object):
                 self.base_n.append(self.nlive_init - it)
                 self.base_propidx.append(propidx)
                 self.base_piter.append(self.sampler.nprop - 1)
+                self.base_scale.append(self.sampler.scale)
 
                 # Save a copy of the results.
                 self.saved_id.append(worst)
@@ -563,17 +601,20 @@ class DynamicSampler(object):
                 self.saved_n.append(self.nlive_init - it)
                 self.saved_propidx.append(propidx)
                 self.saved_piter.append(self.sampler.nprop - 1)
+                self.saved_scale.append(self.sampler.scale)
 
                 # Increment relevant counters.
-                self.ncall += nc
-                self.eff = 100. * self.it / (self.ncall - self.nlive_init)
+                self.eff = 100. * self.it / self.ncall
                 self.it += 1
 
                 yield (worst, ustar, vstar, loglstar, logvol, logwt, logz,
                        logzvar, h, nc, worst_it, propidx, self.eff, delta_logz)
 
-    def sample_batch(self, nlive_new=100, logl_bounds=None, maxiter=None,
-                     maxcall=None, save_proposals=True):
+        self.base = True  # baseline run complete
+
+    def sample_batch(self, nlive_new=100, update_interval=None,
+                     logl_bounds=None, maxiter=None, maxcall=None,
+                     save_proposals=True):
         """
         Generate an additional series of nested samples to be added to
         the previous set of dead points. Instantiates a generator object
@@ -583,6 +624,14 @@ class DynamicSampler(object):
         ----------
         nlive_new : int
             Number of new live points to be added.
+
+        update_interval : int or float, optional
+            If an integer is passed, only update the proposal distribution
+            every `update_interval`-th likelihood call. If a float is passed,
+            update the proposal after every `round(update_interval * nlive)`-th
+            likelihood call. Larger update intervals can be more efficient
+            when the likelihood function is quick to evaluate. If no value is
+            provided, defaults to the value passed during initialization.
 
         logl_bounds : tuple of 2 floats, optional
             The ln(likelihood) bounds used to bracket the run. If *None*,
@@ -650,6 +699,7 @@ class DynamicSampler(object):
         base_it = np.array(self.base_it)
         base_n = np.array(self.base_n)
         base_piter = np.array(self.base_piter)
+        base_scale = np.array(self.base_scale)
         nbase = len(base_n)
         nblive = self.nlive_init
 
@@ -672,9 +722,10 @@ class DynamicSampler(object):
             live_prop = np.zeros(nlive_new, dtype='int')  # unit cube
             live_it = np.zeros(nlive_new, dtype='int') + self.it
             live_nc = np.ones(nlive_new, dtype='int')
+            self.ncall += nlive_new
         else:
             # Rewind our previous run until we arrive at the relevant
-            # set of live points.
+            # set of live points (and scale).
             live_u = np.empty((nblive, self.npdim))
             live_v = np.empty((nblive, self.npdim))
             live_logl = np.empty(nblive)
@@ -689,12 +740,14 @@ class DynamicSampler(object):
                 live_logl[uidx] = base_logl[r]
                 if live_logl[uidx] <= logl_min:
                     break
+            live_scale = base_scale[r]
 
-            # Overwrite the live points of our previous sampler
-            # and trigger an update.
+            # Overwrite the live points and scale factor of our internal
+            # sampler and trigger an update of our bound.
             self.sampler.live_u = np.array(live_u)
             self.sampler.live_v = np.array(live_v)
             self.sampler.live_logl = np.array(live_logl)
+            self.sampler.scale = live_scale
             vol = math.exp(- 1. * (nbase + r) / nblive)
             prop = self.sampler.update(vol / nblive)
             if save_proposals:
@@ -712,8 +765,6 @@ class DynamicSampler(object):
             live_it = np.empty(nlive_new, dtype='int')
             live_nc = np.empty(nlive_new, dtype='int')
             for i in range(nlive_new):
-                self.it += 1
-                self.sampler.it += 1
                 (live_u[i], live_v[i], live_logl[i],
                  live_nc[i]) = self.sampler._new_point(logl_min)
                 live_it[i] = self.it
@@ -733,13 +784,14 @@ class DynamicSampler(object):
         self.sampler.nprop += 1
         self.sampler.since_update = 0
 
+        # Copy over proposal reference.
         self.prop = self.sampler.prop
 
-        # Update `update_interval`
-        if isinstance(self.update_interval, float):
-            update_interval = int(round(self.update_interval * nlive_new))
-        else:
+        # Update `update_interval`.
+        if update_interval is None:
             update_interval = self.update_interval
+        if isinstance(update_interval, float):
+            update_interval = int(round(self.update_interval * nlive_new))
         self.sampler.update_interval = update_interval
 
         # Reset results.
@@ -752,17 +804,21 @@ class DynamicSampler(object):
         self.new_n = []
         self.new_propidx = []
         self.new_piter = []
+        self.new_scale = []
 
         # Tell the sampler *not* to try and remove the previous addition of
         # live points (the internal results are garbage anyways).
         self.sampler.added_live = False
 
         # Run the sampler internally as a generator until we hit
-        # the lower likelihood threshold. Then we add our points as if we
-        # had terminated the run.
+        # the lower likelihood threshold. Afterwards, we add in our remaining
+        # live points as if we had terminated the run. This allows us to
+        # sample past the original bounds "for free".
         for i in range(1):
             for it, results in enumerate(self.sampler.sample(dlogz=0.,
                                          logl_max=logl_max,
+                                         maxiter=maxiter-nlive_new-1,
+                                         maxcall=maxcall-sum(live_nc),
                                          save_samples=False,
                                          save_proposals=save_proposals)):
 
@@ -780,6 +836,7 @@ class DynamicSampler(object):
                 self.new_n.append(nlive_new)
                 self.new_propidx.append(propidx)
                 self.new_piter.append(self.sampler.nprop - 1)
+                self.new_scale.append(self.sampler.scale)
 
                 # Increment relevant counters.
                 self.ncall += nc
@@ -804,6 +861,11 @@ class DynamicSampler(object):
                 self.new_n.append(nlive_new - it)
                 self.new_propidx.append(propidx)
                 self.new_piter.append(self.sampler.nprop - 1)
+                self.new_scale.append(self.sampler.scale)
+
+                # Increment relevant counters.
+                self.eff = 100. * self.it / self.ncall
+                self.it += 1
 
                 yield (worst, ustar, vstar, loglstar, live_nc[worst],
                        worst_it, propidx, self.eff)
@@ -826,6 +888,7 @@ class DynamicSampler(object):
         saved_it = np.array(self.saved_it)
         saved_n = np.array(self.saved_n)
         saved_piter = np.array(self.saved_piter)
+        saved_scale = np.array(self.saved_scale)
         nsaved = len(saved_n)
 
         # Grab results from new run.
@@ -838,6 +901,7 @@ class DynamicSampler(object):
         new_it = np.array(self.new_it)
         new_n = np.array(self.new_n)
         new_piter = np.array(self.new_piter)
+        new_scale = np.array(self.new_scale)
         nnew = len(new_n)
 
         # Reset saved results.
@@ -855,6 +919,7 @@ class DynamicSampler(object):
         self.saved_it = []
         self.saved_n = []
         self.saved_piter = []
+        self.saved_scale = []
 
         # Start our counters at the beginning of each set of dead points.
         idx_saved, idx_new = 0, 0  # start of our dead points
@@ -881,6 +946,7 @@ class DynamicSampler(object):
                     self.saved_propidx.append(saved_propidx[idx_saved])
                     self.saved_it.append(saved_it[idx_saved])
                     self.saved_piter.append(saved_piter[idx_saved])
+                    self.saved_scale.append(saved_scale[idx_saved])
                     idx_saved += 1
                 else:
                     self.saved_id.append(new_id[idx_new])
@@ -891,6 +957,7 @@ class DynamicSampler(object):
                     self.saved_propidx.append(new_propidx[idx_new])
                     self.saved_it.append(new_it[idx_new])
                     self.saved_piter.append(new_piter[idx_new])
+                    self.saved_scale.append(new_scale[idx_new])
                     idx_new += 1
             else:
                 # If instead our collection of dead points are below
@@ -904,6 +971,7 @@ class DynamicSampler(object):
                 self.saved_propidx.append(saved_propidx[idx_saved])
                 self.saved_it.append(saved_it[idx_saved])
                 self.saved_piter.append(saved_piter[idx_saved])
+                self.saved_scale.append(saved_scale[idx_saved])
                 idx_saved += 1
 
             # Save the number of live points and expected ln(volume).
@@ -968,26 +1036,27 @@ class DynamicSampler(object):
         self.new_n = []
         self.new_propidx = []
         self.new_piter = []
+        self.new_scale = []
 
         # Increment batch counter.
         self.batch += 1
 
-    def run_nested(self, ninit=100, maxiter_init=None,
+    def run_nested(self, nlive_init=100, maxiter_init=None,
                    maxcall_init=None, dlogz_init=0.01,
-                   nbatch=100, wt_function=None, wt_kwargs=None,
+                   nlive_batch=100, wt_function=None, wt_kwargs=None,
                    maxiter_batch=None, maxcall_batch=None,
                    maxiter=None, maxcall=None,
-                   maxbatch=None, stop_function=None, stop_val=None,
-                   save_proposals=True, print_progress=True):
+                   maxbatch=None, stop_function=None, stop_kwargs=None,
+                   save_proposals=True, print_progress=True, live_points=None):
         """
         Dynamically allocate (nested) samples to optimize a target
         weight function until a specified stopping criterion is reached.
 
         Parameters
         ----------
-        nbatch : int, optional
-            The number of live points used when adding additional samples
-            from a nested sampling run within each batch. Default is *100*.
+        nlive_init : int, optional
+            The number of live points used during the initial ("baseline")
+            nested sampling run. Default is *100*.
 
         maxiter_init : int, optional
             Maximum number of iterations for the initial baseline nested
@@ -1008,7 +1077,7 @@ class DynamicSampler(object):
             contribution from the remaining volume. The default is
             *0.01*.
 
-        nbatch : int, optional
+        nlive_batch : int, optional
             The number of live points used when adding additional samples
             from a nested sampling run within each batch. Default is *100*.
 
@@ -1049,8 +1118,8 @@ class DynamicSampler(object):
             returns a boolean indicating that we should terminate the run
             because we've collected enough samples.
 
-        stop_val : float, optional
-            The value when we finally stop. ADD MORE.
+        stop_kwargs : float, optional
+            Extra arguments to be passed to the stopping function.
 
         save_proposals : bool, optional
             Whether or not to save past proposal distributions used to bound
@@ -1060,6 +1129,16 @@ class DynamicSampler(object):
         print_progress : bool, optional
             If *True*, outputs a simple summary of the current run that
             updates each iteration. Default is *True*.
+
+        live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
+            A set of live points used to initialize the nested sampling run.
+            Contains `live_u`, the coordinates on the unit cube, `live_v`, the
+            transformed variables, and `live_logl`, the associated
+            loglikelihoods. By default, if these are not provided the initial
+            set of live points will be drawn from the unit `npdim`-cube.
+            **WARNING: It is crucial that the initial set of live points have
+            been sampled from the prior. Failure to provide a set of valid
+            live points will result in biased results.**
 
         """
 
@@ -1082,35 +1161,39 @@ class DynamicSampler(object):
             wt_function = weight_function
         if wt_kwargs is None:
             wt_kwargs = dict()
+        saveprop = save_proposals
 
         # Run the main dynamic nested sampling loop.
-        ncall = 0
-        niter = 0
+        ncall = self.ncall
+        niter = self.it - 1
         maxcall_init = min(maxcall_init, maxcall)  # set max calls
         maxiter_init = min(maxiter_init, maxiter)  # set max iterations
 
         # Baseline run.
-        for it, results in enumerate(self.sample_initial(nlive=ninit,
-                                     dlogz=dlogz_init, maxcall=maxcall_init,
-                                     maxiter=maxiter_init)):
-            (worst, ustar, vstar, loglstar, logvol,
-             logwt, logz, logzvar, h, nc, worst_it,
-             propidx, eff, delta_logz) = results
-            if delta_logz > 1e6:
-                delta_logz = np.inf
-            ncall += nc
-            niter += 1
-            if print_progress:
-                logzerr = math.sqrt(logzvar)
-                sys.stderr.write("\rrun: {:d} | iter: {:d} | nc: {:d} | "
-                                 "ncall: {:d} | eff(%): {:6.3f} | "
-                                 "logz: {:6.3f} +/- {:6.3f} | "
-                                 "dlogz: {:6.3f} > {:6.3f}    "
-                                 .format(0, it, nc, ncall, eff, logz, logzerr,
-                                         delta_logz, dlogz_init))
+        if not self.base:
+            for results in self.sample_initial(nlive=nlive_init,
+                                               dlogz=dlogz_init,
+                                               maxcall=maxcall_init,
+                                               maxiter=maxiter_init,
+                                               live_points=live_points):
+                (worst, ustar, vstar, loglstar, logvol,
+                 logwt, logz, logzvar, h, nc, worst_it,
+                 propidx, eff, delta_logz) = results
+                if delta_logz > 1e6:
+                    delta_logz = np.inf
+                ncall += nc
+                niter += 1
+                if print_progress:
+                    logzerr = np.sqrt(logzvar)
+                    sys.stderr.write("\rrun: {:d} | iter: {:d} | nc: {:d} | "
+                                     "ncall: {:d} | eff(%): {:6.3f} | "
+                                     "logz: {:6.3f} +/- {:6.3f} | "
+                                     "dlogz: {:6.3f} > {:6.3f}    "
+                                     .format(0, niter, nc, ncall, eff, logz,
+                                             logzerr, delta_logz, dlogz_init))
 
         # Add points in batches.
-        for n in range(maxbatch):
+        for n in range(self.batch, maxbatch):
             # Update stopping criteria.
             res = self.results
             mcall = min(maxcall - ncall, maxcall_batch)
@@ -1124,11 +1207,11 @@ class DynamicSampler(object):
                 # weight function.
                 logl_bounds = wt_function(res, wt_kwargs)
                 lnz, lnzerr = res.logz[-1], res.logzerr[-1]
-                for it, results in enumerate(self.sample_batch(
-                                             nlive_new=nbatch,
-                                             logl_bounds=logl_bounds,
-                                             maxiter=miter, maxcall=mcall,
-                                             save_proposals=save_proposals)):
+                for results in self.sample_batch(nlive_new=nlive_batch,
+                                                 logl_bounds=logl_bounds,
+                                                 maxiter=miter,
+                                                 maxcall=mcall,
+                                                 save_proposals=saveprop):
                     (worst, ustar, vstar, loglstar, nc,
                      worst_it, propidx, eff) = results
                     ncall += nc
@@ -1144,11 +1227,14 @@ class DynamicSampler(object):
                                                  logl_bounds[0], loglstar,
                                                  logl_bounds[1], lnz, lnzerr))
                 self.combine_runs()
+            else:
+                # We're done!
+                break
 
         if print_progress:
             sys.stderr.write("\n")
 
-    def add_batch(self, nbatch=100, wt_function=None, wt_kwargs=None,
+    def add_batch(self, nlive_batch=100, wt_function=None, wt_kwargs=None,
                   maxiter=None, maxcall=None, save_proposals=True,
                   print_progress=True):
         """
@@ -1202,18 +1288,18 @@ class DynamicSampler(object):
 
         # If we have either likelihood calls or iterations remaining,
         # add our new batch of live points.
-        ncall, niter, n = self.ncall, self.it, self.batch
+        ncall, niter, n = self.ncall, self.it - 1, self.batch
         if maxcall > 0 and maxiter > 0:
             # Compute our sampling bounds using the provided
             # weight function.
             res = self.results
             lnz, lnzerr = res.logz[-1], res.logzerr[-1]
             logl_bounds = wt_function(res, wt_kwargs)
-            for it, results in enumerate(self.sample_batch(nlive_new=nbatch,
-                                         logl_bounds=logl_bounds,
-                                         maxiter=maxiter,
-                                         maxcall=maxcall,
-                                         save_proposals=save_proposals)):
+            for results in self.sample_batch(nlive_new=nlive_batch,
+                                             logl_bounds=logl_bounds,
+                                             maxiter=maxiter,
+                                             maxcall=maxcall,
+                                             save_proposals=save_proposals):
                 (worst, ustar, vstar, loglstar, nc,
                  worst_it, propidx, eff) = results
                 ncall += nc

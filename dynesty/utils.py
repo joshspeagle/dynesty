@@ -14,6 +14,7 @@ import warnings
 import math
 import scipy.misc as misc
 import numpy as np
+import copy
 
 from .results import *
 
@@ -273,7 +274,6 @@ def simulate_run(res, rstate=np.random):
         h_new = (math.exp(logdvol) * lzterm +
                  math.exp(logz - logz_new) * (h + logz) -
                  logz_new)
-        h_new = _check_h(h_new)
         dh = h_new - h
         h = h_new
         logz = logz_new
@@ -319,12 +319,16 @@ def resample_run(res, rstate=np.random):
 
     # Check whether the final set of live points were added to the
     # run.
-    nlive = res.nlive
-    niter = res.niter
     nsamps = len(res.ncall)
     try:
-        samples_n = res.samples_n  # check for dynamic run
+        # check for dynamic run
+        samples_n = res.samples_n
+        samples_batch = res.samples_batch
+        batch_nlive = res.batch_nlive
+        batch_bounds = res.batch_bounds
     except:
+        nlive = res.nlive
+        niter = res.niter
         if nsamps == niter:
             samples_n = np.ones(niter, dtype='int') * nlive
         elif nsamps == (niter + nlive):
@@ -333,15 +337,45 @@ def resample_run(res, rstate=np.random):
         else:
             raise ValueError("Final number of samples differs from number of "
                              "iterations and number of live points.")
+        samples_batch = np.zeros(len(samples_n), dtype='int')
+        batch_bounds = np.array([(-np.inf, np.inf)])
+    batch_llmin = batch_bounds[:, 0]
 
-    # Resample strands.
+    # Identify unique particles that make up each strand.
     ids = np.unique(res.samples_id)
     nunique = len(ids)
-    live_idx = rstate.randint(0, nunique, size=nunique)
+
+    # Split the set of strands into two groups: a "baseline" group that
+    # contains points initially sampled from the prior, which gives information
+    # on the evidence, and an "add-on" group, which gives additional
+    # information conditioned on our baseline strands.
+    base_ids = []
+    addon_ids = []
+    for i in ids:
+        sbatch = samples_batch[res.samples_id == i]
+        if np.any(batch_llmin[sbatch] == -np.inf):
+            base_ids.append(i)
+        else:
+            addon_ids.append(i)
+    nbase, nadd = len(base_ids), len(addon_ids)
+    base_ids, addon_ids = np.array(base_ids), np.array(addon_ids)
+
+    # Resample strands.
+    if nbase > 0 and nadd > 0:
+        live_idx = np.append(base_ids[rstate.randint(0, nbase, size=nbase)],
+                             addon_ids[rstate.randint(0, nadd, size=nadd)])
+    elif nbase > 0:
+        live_idx = base_ids[rstate.randint(0, nbase, size=nbase)]
+    elif nadd > 0:
+        raise ValueError("The provided `Results` does not include any points "
+                         "initially sampled from the prior!")
+    else:
+        raise ValueError("The provided `Results` does not appear to have "
+                         "any particles!")
 
     # Find corresponding indices within the original run.
     samp_idx = np.arange(len(res.ncall))
-    samp_idx = np.concatenate([samp_idx[res.samples_id == ids[idx]]
+    samp_idx = np.concatenate([samp_idx[res.samples_id == idx]
                                for idx in live_idx])
 
     # Derive new sample size.
@@ -351,10 +385,16 @@ def resample_run(res, rstate=np.random):
     logls = res.logl[samp_idx]
     idx_sort = np.argsort(logls)
     samp_idx = samp_idx[idx_sort]
-
-    # Construct the new run.
-    samp_n = samples_n[samp_idx]
     logl = res.logl[samp_idx]
+
+    # Compute the effective number of live points for each sample.
+    samp_n = np.zeros(nsamps, dtype='int')
+    for idx in live_idx:
+        sel = (res.samples_id == idx)  # selection flag
+        sbatch = samples_batch[sel][0]  # corresponding batch ID
+        lower = batch_llmin[sbatch]  # lower bound
+        upper = max(res.logl[sel])  # upper bound
+        samp_n[(logl > lower) & (logl <= upper)] += 1
 
     # Assign log(volume) to samples.
     logvol = np.cumsum(np.log(samp_n / (samp_n + 1.)))
@@ -381,7 +421,6 @@ def resample_run(res, rstate=np.random):
         h_new = (math.exp(logdvol) * lzterm +
                  math.exp(logz - logz_new) * (h + logz) -
                  logz_new)
-        h_new = _check_h(h_new)
         dh = h_new - h
         h = h_new
         logz = logz_new
@@ -393,24 +432,24 @@ def resample_run(res, rstate=np.random):
         saved_h.append(h)
 
     # Compute sampling efficiency.
-    eff = 100. * niter / sum(res.ncall[samp_idx])
+    eff = 100. * len(res.ncall[samp_idx]) / sum(res.ncall[samp_idx])
 
     # Save results.
-    new_res = Results([('nlive', nlive),
-                       ('niter', niter),
-                       ('ncall', res.ncall[samp_idx]),
-                       ('eff', eff),
-                       ('samples', res.samples[samp_idx]),
-                       ('samples_id', res.samples_id[samp_idx]),
-                       ('samples_it', res.samples_it[samp_idx]),
-                       ('samples_u', res.samples_u[samp_idx]),
-                       ('samples_n', samp_n),
-                       ('logwt', np.array(saved_logwt)),
-                       ('logl', logl),
-                       ('logvol', logvol),
-                       ('logz', np.array(saved_logz)),
-                       ('logzerr', np.sqrt(np.array(saved_logzvar))),
-                       ('h', np.array(saved_h))])
+    new_res = Results([item for item in res.items()])
+    new_res.niter = len(res.ncall[samp_idx])
+    new_res.ncall = res.ncall[samp_idx]
+    new_res.eff = eff
+    new_res.samples = res.samples[samp_idx]
+    new_res.samples_id = res.samples_id[samp_idx]
+    new_res.samples_it = res.samples_it[samp_idx]
+    new_res.samples_u = res.samples_u[samp_idx]
+    new_res.samples_n = samp_n
+    new_res.logwt = np.array(saved_logwt)
+    new_res.logl = logl
+    new_res.logvol = logvol
+    new_res.logz = np.array(saved_logz)
+    new_res.logzerr = np.sqrt(np.array(saved_logzvar))
+    new_res.h = np.array(saved_h)
 
     return new_res
 
@@ -447,12 +486,12 @@ def sample_run(res, rstate=np.random):
     return new_res
 
 
-def unravel_run(res):
+def unravel_run(res, save_proposals=True, print_progress=True):
     """
     Unravels a run with `K` live points into `K` "strands" (a nested sampling
     run with only 1 live point). **Note that the anciliary quantities provided
-    with the "unraveling" are only valid if the baseline nested sampling run
-    used a with constant number of live points.**
+    with each unraveled "strand" are only valid if the point was initialized
+    from the prior.**
 
 
     Parameters
@@ -470,15 +509,18 @@ def unravel_run(res):
 
     idxs = res.samples_id  # label for each live/dead point
 
-    # Check if we added in the set of dead points.
-    if len(idxs) == (res.niter + res.nlive):
-        added_live = True
-    else:
-        added_live = False
+    # Check if we added in the last set of dead points.
+    added_live = True
+    try:
+        if len(idxs) != (res.niter + res.nlive):
+            added_live = False
+    except:
+        pass
 
     # Recreate the nested sampling run for each strand.
     new_res = []
-    for idx in np.unique(idxs):
+    nstrands = len(np.unique(idxs))
+    for counter, idx in enumerate(np.unique(idxs)):
         # Select strand `idx`.
         strand = (idxs == idx)
         nsamps = sum(strand)
@@ -524,7 +566,6 @@ def unravel_run(res):
             h_new = (math.exp(logdvol) * lzterm +
                      math.exp(logz - logz_new) * (h + logz) -
                      logz_new)
-            h_new = _check_h(h_new)
             dh = h_new - h
             h = h_new
             logz = logz_new
@@ -539,32 +580,51 @@ def unravel_run(res):
         eff = 100. * nsamps / sum(res.ncall[strand])
 
         # Save results.
-        new_res.append(Results([('nlive', 1),
-                                ('niter', niter),
-                                ('ncall', res.ncall[strand]),
-                                ('eff', eff),
-                                ('samples', res.samples[strand]),
-                                ('samples_id', res.samples_id[strand]),
-                                ('samples_it', res.samples_it[strand]),
-                                ('samples_u', res.samples_u[strand]),
-                                ('logwt', logwt),
-                                ('logl', logl),
-                                ('logvol', logvol),
-                                ('logz', np.array(saved_logz)),
-                                ('logzerr', np.sqrt(np.array(saved_logzvar))),
-                                ('h', np.array(saved_h))]))
+        r = [('nlive', 1),
+             ('niter', niter),
+             ('ncall', res.ncall[strand]),
+             ('eff', eff),
+             ('samples', res.samples[strand]),
+             ('samples_id', res.samples_id[strand]),
+             ('samples_it', res.samples_it[strand]),
+             ('samples_u', res.samples_u[strand]),
+             ('logwt', np.array(saved_logwt)),
+             ('logl', logl),
+             ('logvol', logvol),
+             ('logz', np.array(saved_logz)),
+             ('logzerr', np.sqrt(np.array(saved_logzvar))),
+             ('h', np.array(saved_h))]
+        # Add proposal information (if available).
+        if save_proposals:
+            try:
+                r.append(('prop', res.prop))
+                r.append(('prop_iter', res.prop_iter[strand]))
+                r.append(('samples_prop', res.samples_prop[strand]))
+                r.append(('scale', res.scale[strand]))
+            except:
+                pass
+        # Add on batch information (if available).
+        try:
+            r.append(('samples_batch', res.samples_batch[strand]))
+            r.append(('batch_bounds', res.batch_bounds))
+        except:
+            pass
+
+        # Append to list of strands.
+        new_res.append(Results(r))
+
+        # Print progress.
+        if print_progress:
+            sys.stderr.write('\rStrand: {0}/{1}     '
+                             .format(counter + 1, nstrands))
 
     return new_res
 
 
-def merge_runs(res_list):
+def merge_runs(res_list, print_progress=True):
     """
-    Merges a set of runs with `K_1`, `K_2`, ... live points into one run with
-    `K_1 + K_2 + ...` live points. **Note that the anciliary quantities
-    provided with the "merging" are only valid if the baseline nested
-    sampling runs (1) used a with constant number of live points, (2) had the
-    same stopping criteria and (3) consistently did/did not add the
-    final set of live points.**
+    Merges a set of runs with differing (possibly variable) numbers of
+    live points into one run.
 
 
     Parameters
@@ -580,102 +640,353 @@ def merge_runs(res_list):
 
     """
 
-    # Compute combined properties.
-    nlive = sum([res.nlive for res in res_list])
-    nsamps = sum([len(res.ncall) for res in res_list])
+    ntot = len(res_list)
+    counter = 0
 
-    # Check if we added in the final set of live points.
-    if res_list[0].niter + res_list[0].nlive == len(res_list[0].ncall):
-        added_live = True
-        niter = nsamps - nlive
+    # Establish our set of baseline runs and "add-on" runs.
+    rlist_base = []
+    rlist_add = []
+    for r in res_list:
+        try:
+            if np.any(r.samples_batch == 0):
+                rlist_base.append(r)
+            else:
+                rlist_add.append(r)
+        except:
+            rlist_base.append(r)
+    nbase, nadd = len(rlist_base), len(rlist_add)
+    if nbase == 1 and nadd == 1:
+        rlist_base = res_list
+        rlist_add = []
+
+    # Merge baseline runs while there are > 2 remaining results.
+    while len(rlist_base) > 2:
+        rlist_new = []
+        nruns = len(rlist_base)
+        i = 0
+        while i < nruns:
+            try:
+                # Ignore posterior quantities while merging the runs.
+                r1, r2 = rlist_base[i], rlist_base[i+1]
+                res = _merge_two(r1, r2, compute_aux=False)
+                rlist_new.append(res)
+            except:
+                # Append the odd run to the new list.
+                rlist_new.append(rlist_base[i])
+            i += 2
+            counter += 1
+            # Print progress.
+            if print_progress:
+                sys.stderr.write('\rMerge: {0}/{1}     '.format(counter, ntot))
+        # Overwrite baseline set of results with merged results.
+        rlist_base = copy.copy(rlist_new)
+
+    # Compute posterior quantities after merging the final two baseline runs.
+    res = _merge_two(rlist_base[0], rlist_base[1], compute_aux=True)
+
+    # Iteratively merge any remaining "add-on" results.
+    nruns = len(rlist_add)
+    for i, r in enumerate(rlist_add):
+        if i < nruns - 1:
+            res = _merge_two(res, r, compute_aux=False)
+        else:
+            res = _merge_two(res, r, compute_aux=True)
+        counter += 1
+        # Print progress.
+        if print_progress:
+            sys.stderr.write('\rMerge: {0}/{1}     '.format(counter, ntot))
+
+    samples_n = res.samples_n
+    niter = res.niter
+    nlive = max(samples_n)
+    standard_run = False
+
+    # Check if we have a constant number of live points.
+    try:
+        nlive_test = np.ones(niter, dtype='int') * nlive
+        if np.all(samples_n == nlive_test):
+            standard_run = True
+    except:
+        pass
+
+    # Check if we have a constant number of live points where we have
+    # recycled the final set of live points.
+    try:
+        nlive_test = np.append(np.ones(niter - nlive, dtype='int') * nlive,
+                               np.arange(1, nlive + 1)[::-1])
+        if np.all(samples_n == nlive_test):
+            standard_run = True
+    except:
+        pass
+
+    # If the number of live points is consistent with a standard nested
+    # sampling run, slightly modify the format to keep with previous usage.
+    if standard_run:
+        res.__delitem__('samples_n')
+        res.nlive = nlive
+        res.niter = niter - nlive
+
+    return res
+
+
+def _merge_two(res1, res2, compute_aux=False):
+    """
+    Merges two runs with differing (possibly variable) numbers of live points
+    into one run. If `compute_aux=True`, computes anciliary quantities. **Note
+    that the anciliary quantities are only valid if `res1` or `res2` was
+    initialized from the prior.**
+    """
+
+    # Initialize the first ("base") run.
+    base_id = res1.samples_id
+    base_u = res1.samples_u
+    base_v = res1.samples
+    base_logl = res1.logl
+    base_nc = res1.ncall
+    base_it = res1.samples_it
+    nbase = len(base_id)
+    # Number of live points throughout the run.
+    try:
+        base_n = res1.samples_n
+    except:
+        niter, nlive = res1.niter, res1.nlive
+        if nbase == niter:
+            base_n = np.ones(niter, dtype='int') * nlive
+        elif nbase == (niter + nlive):
+            base_n = np.append(np.ones(niter, dtype='int') * nlive,
+                               np.arange(1, nlive + 1)[::-1])
+        else:
+            raise ValueError("Final number of samples differs from number of "
+                             "iterations and number of live points in `res1`.")
+    # Proposal information (if available).
+    try:
+        base_prop = res1.prop
+        base_propidx = res1.samples_prop
+        base_piter = res1.prop_iter
+        base_scale = res1.scale
+        base_proposals = True
+    except:
+        base_proposals = False
+    # Batch information (if available).
+    try:
+        base_batch = res1.samples_batch
+        base_bounds = res1.batch_bounds
+    except:
+        base_batch = np.zeros(nbase, dtype='int')
+        base_bounds = np.array([(-np.inf, np.inf)])
+
+    # Initialize the second ("new") run.
+    new_id = res2.samples_id
+    new_u = res2.samples_u
+    new_v = res2.samples
+    new_logl = res2.logl
+    new_nc = res2.ncall
+    new_it = res2.samples_it
+    nnew = len(new_id)
+    # Number of live points throughout the run.
+    try:
+        new_n = res2.samples_n
+    except:
+        niter, nlive = res2.niter, res2.nlive
+        if nnew == niter:
+            new_n = np.ones(niter, dtype='int') * nlive
+        elif nnew == (niter + nlive):
+            new_n = np.append(np.ones(niter, dtype='int') * nlive,
+                              np.arange(1, nlive + 1)[::-1])
+        else:
+            raise ValueError("Final number of samples differs from number of "
+                             "iterations and number of live points in `res2`.")
+    # Proposal information (if available).
+    try:
+        new_prop = res2.prop
+        new_propidx = res2.samples_prop
+        new_piter = res2.prop_iter
+        new_scale = res2.scale
+        new_proposals = True
+    except:
+        new_proposals = False
+    # Batch information (if available).
+    try:
+        new_batch = res2.samples_batch
+        new_bounds = res2.batch_bounds
+    except:
+        new_batch = np.zeros(nnew, dtype='int')
+        new_bounds = np.array([(-np.inf, np.inf)])
+
+    # Initialize our new combind run.
+    combined_id = []
+    combined_u = []
+    combined_v = []
+    combined_logl = []
+    combined_logvol = []
+    combined_logwt = []
+    combined_logz = []
+    combined_logzvar = []
+    combined_h = []
+    combined_nc = []
+    combined_propidx = []
+    combined_it = []
+    combined_n = []
+    combined_piter = []
+    combined_scale = []
+    combined_batch = []
+    # Check if proposal info is the same and modify counters accordingly.
+    if base_proposals and new_proposals:
+        if base_prop == new_prop:
+            prop = base_prop
+            poffset = 0
+        else:
+            prop = np.concatenate((base_prop, new_prop))
+            poffset = len(base_prop)
+    # Check if batch info is the same and modify counters accordingly.
+    if np.all(base_bounds == new_bounds):
+        bounds = base_bounds
+        boffset = 0
     else:
-        added_live = False
-        niter = nsamps
+        bounds = np.concatenate((base_bounds, new_bounds))
+        boffset = len(base_bounds)
 
-    # Sort the loglikelihoods.
-    logls = np.concatenate([res.logl for res in res_list], axis=0)
-    idx_sort = np.argsort(logls)
-    logl = logls[idx_sort]
+    # Start our counters at the beginning of each set of dead points.
+    idx_base, idx_new = 0, 0
+    logl_b, logl_n = base_logl[idx_base], new_logl[idx_new]
+    nlive_b, nlive_n = base_n[idx_base], new_n[idx_new]
 
-    # Assign log(volume) to samples.
-    logvol = math.log(nlive / (1. + nlive)) * (1. + np.arange(niter))
-    if added_live:
-        logvol_live = logvol[-1]
-        logvol_live += np.log(1. - (1. + np.arange(nlive)) / (nlive + 1.))
-        logvol = np.append(logvol, logvol_live)
+    # Iteratively walk through both set of samples to simulate
+    # a combined run.
+    ntot = nbase + nnew
+    llmin_b = np.min(base_bounds[base_batch])
+    llmin_n = np.min(new_bounds[new_batch])
+    logvol = 0.
+    for i in range(ntot):
+        if logl_b > llmin_n and logl_n > llmin_b:
+            # If our samples from the both runs are past the each others'
+            # lower log-likelihood bound, both runs are now "active".
+            nlive = nlive_b + nlive_n
+        elif logl_b <= llmin_n:
+            # If instead our collection of dead points from the "base" run
+            # are below the bound, just use those.
+            nlive = nlive_b
+        else:
+            # Our collection of dead points from the "new" run
+            # are below the bound, so just use those.
+            nlive = nlive_n
+        # Increment our position along depending on
+        # which dead point (saved or new) is worse.
+        if logl_b <= logl_n:
+            combined_id.append(base_id[idx_base])
+            combined_u.append(base_u[idx_base])
+            combined_v.append(base_v[idx_base])
+            combined_logl.append(base_logl[idx_base])
+            combined_nc.append(base_nc[idx_base])
+            combined_it.append(base_it[idx_base])
+            combined_batch.append(base_batch[idx_base])
+            if base_proposals and new_proposals:
+                combined_propidx.append(base_propidx[idx_base])
+                combined_piter.append(base_piter[idx_base])
+                combined_scale.append(base_scale[idx_base])
+            idx_base += 1
+        else:
+            combined_id.append(new_id[idx_new])
+            combined_u.append(new_u[idx_new])
+            combined_v.append(new_v[idx_new])
+            combined_logl.append(new_logl[idx_new])
+            combined_nc.append(new_nc[idx_new])
+            combined_it.append(new_it[idx_new])
+            combined_batch.append(new_batch[idx_new] + boffset)
+            if base_proposals and new_proposals:
+                combined_propidx.append(new_propidx[idx_new] + poffset)
+                combined_piter.append(new_piter[idx_new] + poffset)
+                combined_scale.append(new_scale[idx_new])
+            idx_new += 1
 
-    # Compute weights using quadratic estimator.
-    h = 0.
-    logz = -1.e300
-    loglstar = -1.e300
-    logzvar = 0.
-    logvols_pad = np.concatenate(([0.], logvol))
-    logdvols = misc.logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
-                              axis=1, b=np.c_[np.ones(nsamps),
-                                              -np.ones(nsamps)])
-    logdvols += math.log(0.5)
-    dlvs = logvols_pad[:-1] - logvols_pad[1:]
-    saved_logwt, saved_logz, saved_logzvar, saved_h = [], [], [], []
-    for i in range(nsamps):
-        loglstar_new = logl[i]
-        logdvol, dlv = logdvols[i], dlvs[i]
-        logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
-        logz_new = np.logaddexp(logz, logwt)
-        lzterm = (math.exp(loglstar - logz_new) * loglstar +
-                  math.exp(loglstar_new - logz_new) * loglstar_new)
-        h_new = (math.exp(logdvol) * lzterm +
-                 math.exp(logz - logz_new) * (h + logz) -
-                 logz_new)
-        h_new = _check_h(h_new)
-        dh = h_new - h
-        h = h_new
-        logz = logz_new
-        logzvar += dh * dlv
-        loglstar = loglstar_new
-        saved_logwt.append(logwt)
-        saved_logz.append(logz)
-        saved_logzvar.append(logzvar)
-        saved_h.append(h)
+        # Save the number of live points and expected ln(volume).
+        logvol -= math.log((nlive + 1.) / nlive)
+        combined_n.append(nlive)
+        combined_logvol.append(logvol)
 
-    # Concatenating quantities.
-    ncall = np.concatenate([res.ncall for res in res_list], axis=0)
-    samples = np.concatenate([res.samples for res in res_list], axis=0)
-    samples_id = np.concatenate([res.samples_id for res in res_list], axis=0)
-    samples_it = np.concatenate([res.samples_it for res in res_list], axis=0)
-    samples_u = np.concatenate([res.samples_u for res in res_list], axis=0)
+        # Attempt to step along our samples. If we're out of samples,
+        # set values to defaults.
+        try:
+            logl_b = base_logl[idx_base]
+            nlive_b = base_n[idx_base]
+        except:
+            logl_b = np.inf
+            nlive_b = 0
+        try:
+            logl_n = new_logl[idx_new]
+            nlive_n = new_n[idx_new]
+        except:
+            logl_n = np.inf
+            nlive_n = 0
 
     # Compute sampling efficiency.
-    eff = 100. * nsamps / sum(ncall)
+    eff = 100. * ntot / sum(combined_nc)
 
     # Save results.
-    combined_res = Results([('nlive', nlive),
-                            ('niter', niter),
-                            ('ncall', ncall[idx_sort]),
-                            ('eff', eff),
-                            ('samples', samples[idx_sort]),
-                            ('samples_id', samples_id[idx_sort]),
-                            ('samples_it', samples_it[idx_sort]),
-                            ('samples_u', samples_u[idx_sort]),
-                            ('logwt', logwt),
-                            ('logl', logl),
-                            ('logvol', logvol),
-                            ('logz', np.array(saved_logz)),
-                            ('logzerr', np.sqrt(np.array(saved_logzvar))),
-                            ('h', np.array(saved_h))])
+    r = [('niter', ntot),
+         ('ncall', np.array(combined_nc)),
+         ('eff', eff),
+         ('samples', np.array(combined_v)),
+         ('samples_id', np.array(combined_id)),
+         ('samples_it', np.array(combined_it)),
+         ('samples_n', np.array(combined_n)),
+         ('samples_u', np.array(combined_u)),
+         ('samples_batch', np.array(combined_batch)),
+         ('logl', np.array(combined_logl)),
+         ('logvol', np.array(combined_logvol)),
+         ('batch_bounds', np.array(bounds))]
 
-    return combined_res
+    # Add proposal information (if available).
+    if base_proposals and new_proposals:
+        r.append(('prop', prop))
+        r.append(('prop_iter', np.array(combined_piter)))
+        r.append(('samples_prop', np.array(combined_propidx)))
+        r.append(('scale', np.array(combined_scale)))
 
+    # Compute the posterior quantities of interest if desired.
+    if compute_aux:
+        h = 0.
+        logz = -1.e300
+        loglstar = -1.e300
+        logzvar = 0.
+        logvols_pad = np.concatenate(([0.], combined_logvol))
+        logdvols = misc.logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
+                                  axis=1, b=np.c_[np.ones(ntot),
+                                                  -np.ones(ntot)])
+        logdvols += math.log(0.5)
+        dlvs = logvols_pad[:-1] - logvols_pad[1:]
+        for i in range(ntot):
+            loglstar_new = combined_logl[i]
+            logdvol, dlv = logdvols[i], dlvs[i]
+            logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
+            logz_new = np.logaddexp(logz, logwt)
+            lzterm = (math.exp(loglstar - logz_new) * loglstar +
+                      math.exp(loglstar_new - logz_new) * loglstar_new)
+            h_new = (math.exp(logdvol) * lzterm +
+                     math.exp(logz - logz_new) * (h + logz) -
+                     logz_new)
+            dh = h_new - h
+            h = h_new
+            logz = logz_new
+            logzvar += dh * dlv
+            loglstar = loglstar_new
+            combined_logwt.append(logwt)
+            combined_logz.append(logz)
+            combined_logzvar.append(logzvar)
+            combined_h.append(h)
 
-def _check_h(h):
-    """Check whether information is non-negative
-    to numerical precision. Numerical error can make it negative in
-    pathological corner cases."""
+        # Compute batch information.
+        combined_id = np.array(combined_id)
+        batch_nlive = [len(np.unique(combined_id[combined_batch == i]))
+                       for i in np.unique(combined_batch)]
 
-    if h < 0.0:
-        if h > -SQRTEPS:
-            h = 0.0
-        else:
-            raise RuntimeError("Negative h encountered (h={}). Please "
-                               "report this as a likely bug.".format(h))
+        # Add to our results.
+        r.append(('logwt', np.array(combined_logwt)))
+        r.append(('logz', np.array(combined_logz)))
+        r.append(('logzerr', np.sqrt(np.array(combined_logzvar))))
+        r.append(('h', np.array(combined_h)))
+        r.append(('batch_nlive', np.array(batch_nlive, dtype='int')))
 
-    return h
+    # Combine to form final results object.
+    res = Results(r)
+    return res

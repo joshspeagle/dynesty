@@ -237,6 +237,9 @@ class DynamicSampler(object):
         self.saved_n = []  # number of live points interior to dead point
         self.saved_piter = []  # active proposal at a specific iteration
         self.saved_scale = []  # scale factor at each iteration
+        self.saved_batch = []  # live point batch ID
+        self.saved_batch_nlive = []  # number of live points added in batch
+        self.saved_batch_bounds = []  # loglikelihood bounds used in batch
 
         # results from our base run
         self.base_id = []
@@ -266,6 +269,7 @@ class DynamicSampler(object):
         self.new_propidx = []
         self.new_piter = []
         self.new_scale = []
+        self.new_logl_min, self.new_logl_max = -np.inf, np.inf
 
     def reset(self):
         """Re-initialize the sampler."""
@@ -300,6 +304,9 @@ class DynamicSampler(object):
         self.saved_n = []
         self.saved_piter = []
         self.saved_scale = []
+        self.saved_batch = []
+        self.saved_batch_nlive = []
+        self.saved_batch_bounds = []
 
         # results from our base run
         self.base_id = []
@@ -329,17 +336,18 @@ class DynamicSampler(object):
         self.new_propidx = []
         self.new_piter = []
         self.new_scale = []
+        self.new_logl_min, self.new_logl_max = -np.inf, np.inf
 
     @property
     def results(self):
         """The full results from the dynamic nested sampling run."""
 
-        results = [('nlive', self.nlive_init),
-                   ('niter', self.it - 1),
+        results = [('niter', self.it - 1),
                    ('ncall', np.array(self.saved_nc)),
                    ('eff', self.eff),
                    ('samples', np.array(self.saved_v)),
                    ('samples_id', np.array(self.saved_id)),
+                   ('samples_batch', np.array(self.saved_batch, dtype='int')),
                    ('samples_it', np.array(self.saved_it)),
                    ('samples_u', np.array(self.saved_u)),
                    ('samples_n', np.array(self.saved_n)),
@@ -348,29 +356,16 @@ class DynamicSampler(object):
                    ('logvol', np.array(self.saved_logvol)),
                    ('logz', np.array(self.saved_logz)),
                    ('logzerr', np.sqrt(np.array(self.saved_logzvar))),
-                   ('h', np.array(self.saved_h))]
-        results.append(('prop', copy.deepcopy(self.prop)))
-        results.append(('prop_iter',
-                        np.array(self.saved_piter, dtype='int')))
-        results.append(('samples_prop',
-                        np.array(self.saved_propidx, dtype='int')))
-        results.append(('scale', np.array(self.saved_scale)))
+                   ('scale', np.array(self.saved_scale)),
+                   ('h', np.array(self.saved_h)),
+                   ('prop', copy.deepcopy(self.prop)),
+                   ('prop_iter', np.array(self.saved_piter, dtype='int')),
+                   ('samples_prop', np.array(self.saved_propidx, dtype='int')),
+                   ('batch_nlive', np.array(self.saved_batch_nlive,
+                                            dtype='int')),
+                   ('batch_bounds', np.array(self.saved_batch_bounds))]
 
         return Results(results)
-
-    def _check_h(self, h):
-        """Check whether the information is non-negative
-        to numerical precision. Numerical error can make it negative in
-        pathological corner cases."""
-
-        if h < 0.0:
-            if h > -SQRTEPS:
-                h = 0.0
-            else:
-                raise RuntimeError("Negative h encountered (h={}). Please "
-                                   "report this as a likely bug.".format(h))
-
-        return h
 
     def sample_initial(self, nlive=100, update_interval=None, maxiter=None,
                        maxcall=None, dlogz=0.01, live_points=None):
@@ -611,6 +606,9 @@ class DynamicSampler(object):
                        logzvar, h, nc, worst_it, propidx, self.eff, delta_logz)
 
         self.base = True  # baseline run complete
+        self.saved_batch = np.zeros(len(self.saved_id), dtype='int')  # batch
+        self.saved_batch_nlive.append(self.nlive_init)  # initial nlive
+        self.saved_batch_bounds.append((-np.inf, np.inf))  # initial bounds
 
     def sample_batch(self, nlive_new=100, update_interval=None,
                      logl_bounds=None, maxiter=None, maxcall=None,
@@ -703,12 +701,24 @@ class DynamicSampler(object):
         nbase = len(base_n)
         nblive = self.nlive_init
 
+        # Reset "new" results.
+        self.new_id = []
+        self.new_u = []
+        self.new_v = []
+        self.new_logl = []
+        self.new_nc = []
+        self.new_it = []
+        self.new_n = []
+        self.new_propidx = []
+        self.new_piter = []
+        self.new_scale = []
+        self.new_logl_min, self.new_logl_max = -np.inf, np.inf
+
         # Initialize ln(likelihood) bounds.
         if logl_bounds is None:
             logl_min, logl_max = -np.inf, max(base_logl[:-nblive])
         else:
             logl_min, logl_max = logl_bounds
-
         self.new_logl_min, self.new_logl_max = logl_min, logl_max
 
         psel = np.all(logl_min <= base_logl)
@@ -794,18 +804,6 @@ class DynamicSampler(object):
             update_interval = int(round(self.update_interval * nlive_new))
         self.sampler.update_interval = update_interval
 
-        # Reset results.
-        self.new_id = []
-        self.new_u = []
-        self.new_v = []
-        self.new_logl = []
-        self.new_nc = []
-        self.new_it = []
-        self.new_n = []
-        self.new_propidx = []
-        self.new_piter = []
-        self.new_scale = []
-
         # Tell the sampler *not* to try and remove the previous addition of
         # live points (the internal results are garbage anyways).
         self.sampler.added_live = False
@@ -889,6 +887,7 @@ class DynamicSampler(object):
         saved_n = np.array(self.saved_n)
         saved_piter = np.array(self.saved_piter)
         saved_scale = np.array(self.saved_scale)
+        saved_batch = np.array(self.saved_batch)
         nsaved = len(saved_n)
 
         # Grab results from new run.
@@ -903,6 +902,7 @@ class DynamicSampler(object):
         new_piter = np.array(self.new_piter)
         new_scale = np.array(self.new_scale)
         nnew = len(new_n)
+        llmin, llmax = self.new_logl_min, self.new_logl_max
 
         # Reset saved results.
         self.saved_id = []
@@ -920,6 +920,7 @@ class DynamicSampler(object):
         self.saved_n = []
         self.saved_piter = []
         self.saved_scale = []
+        self.saved_batch = []
 
         # Start our counters at the beginning of each set of dead points.
         idx_saved, idx_new = 0, 0  # start of our dead points
@@ -931,38 +932,17 @@ class DynamicSampler(object):
         ntot = nsaved + nnew
         logvol = 0.
         for i in range(ntot):
-            # If our saved samples are past the lower log-likelihood
-            # bound, both runs are now "active" and should be used.
             if logl_s > self.new_logl_min:
+                # If our saved samples are past the lower log-likelihood
+                # bound, both runs are now "active" and should be used.
                 nlive = nlive_s + nlive_n
-                # Increment our position along depending on
-                # which dead point (saved or new) is worse.
-                if logl_s <= logl_n:
-                    self.saved_id.append(saved_id[idx_saved])
-                    self.saved_u.append(saved_u[idx_saved])
-                    self.saved_v.append(saved_v[idx_saved])
-                    self.saved_logl.append(saved_logl[idx_saved])
-                    self.saved_nc.append(saved_nc[idx_saved])
-                    self.saved_propidx.append(saved_propidx[idx_saved])
-                    self.saved_it.append(saved_it[idx_saved])
-                    self.saved_piter.append(saved_piter[idx_saved])
-                    self.saved_scale.append(saved_scale[idx_saved])
-                    idx_saved += 1
-                else:
-                    self.saved_id.append(new_id[idx_new])
-                    self.saved_u.append(new_u[idx_new])
-                    self.saved_v.append(new_v[idx_new])
-                    self.saved_logl.append(new_logl[idx_new])
-                    self.saved_nc.append(new_nc[idx_new])
-                    self.saved_propidx.append(new_propidx[idx_new])
-                    self.saved_it.append(new_it[idx_new])
-                    self.saved_piter.append(new_piter[idx_new])
-                    self.saved_scale.append(new_scale[idx_new])
-                    idx_new += 1
             else:
                 # If instead our collection of dead points are below
                 # the bound, just use our collection of saved samples.
                 nlive = nlive_s
+            # Increment our position along depending on
+            # which dead point (saved or new) is worse.
+            if logl_s <= logl_n:
                 self.saved_id.append(saved_id[idx_saved])
                 self.saved_u.append(saved_u[idx_saved])
                 self.saved_v.append(saved_v[idx_saved])
@@ -972,7 +952,20 @@ class DynamicSampler(object):
                 self.saved_it.append(saved_it[idx_saved])
                 self.saved_piter.append(saved_piter[idx_saved])
                 self.saved_scale.append(saved_scale[idx_saved])
+                self.saved_batch.append(saved_batch[idx_saved])
                 idx_saved += 1
+            else:
+                self.saved_id.append(new_id[idx_new])
+                self.saved_u.append(new_u[idx_new])
+                self.saved_v.append(new_v[idx_new])
+                self.saved_logl.append(new_logl[idx_new])
+                self.saved_nc.append(new_nc[idx_new])
+                self.saved_propidx.append(new_propidx[idx_new])
+                self.saved_it.append(new_it[idx_new])
+                self.saved_piter.append(new_piter[idx_new])
+                self.saved_scale.append(new_scale[idx_new])
+                self.saved_batch.append(self.batch + 1)
+                idx_new += 1
 
             # Save the number of live points and expected ln(volume).
             logvol -= math.log((nlive + 1.) / nlive)
@@ -1015,7 +1008,6 @@ class DynamicSampler(object):
             h_new = (math.exp(logdvol) * lzterm +
                      math.exp(logz - logz_new) * (h + logz) -
                      logz_new)
-            h_new = self._check_h(h_new)
             dh = h_new - h
             h = h_new
             logz = logz_new
@@ -1037,9 +1029,14 @@ class DynamicSampler(object):
         self.new_propidx = []
         self.new_piter = []
         self.new_scale = []
+        self.new_logl_min, self.new_logl_max = -np.inf, np.inf
 
         # Increment batch counter.
         self.batch += 1
+
+        # Saved batch quantities.
+        self.saved_batch_nlive.append(max(new_n))
+        self.saved_batch_bounds.append((llmin, llmax))
 
     def run_nested(self, nlive_init=100, maxiter_init=None,
                    maxcall_init=None, dlogz_init=0.01,
@@ -1185,11 +1182,11 @@ class DynamicSampler(object):
                 niter += 1
                 if print_progress:
                     logzerr = np.sqrt(logzvar)
-                    sys.stderr.write("\rrun: {:d} | iter: {:d} | nc: {:d} | "
+                    sys.stderr.write("\riter: {:d} | batch: {:d} | nc: {:d} | "
                                      "ncall: {:d} | eff(%): {:6.3f} | "
                                      "logz: {:6.3f} +/- {:6.3f} | "
                                      "dlogz: {:6.3f} > {:6.3f}    "
-                                     .format(0, niter, nc, ncall, eff, logz,
+                                     .format(niter, 0, nc, ncall, eff, logz,
                                              logzerr, delta_logz, dlogz_init))
 
         # Add points in batches.
@@ -1217,14 +1214,14 @@ class DynamicSampler(object):
                     ncall += nc
                     niter += 1
                     if print_progress:
-                        sys.stderr.write("\rrun: {:d} | iter: {:d} | "
+                        sys.stderr.write("\riter: {:d} | batch: {:d} | "
                                          "nc: {:d} | ncall: {:d} | "
                                          "eff(%): {:6.3f} | "
                                          "loglstar: {:6.3f} < {:6.3f} "
                                          "< {:6.3f} | "
                                          "logz: {:6.3f} +/- {:6.3f}    "
-                                         .format(n+1, niter, nc, ncall, eff,
-                                                 logl_bounds[0], loglstar,
+                                         .format(niter, n+1, nc, ncall,
+                                                 eff, logl_bounds[0], loglstar,
                                                  logl_bounds[1], lnz, lnzerr))
                 self.combine_runs()
             else:
@@ -1305,13 +1302,13 @@ class DynamicSampler(object):
                 ncall += nc
                 niter += 1
                 if print_progress:
-                    sys.stderr.write("\rrun: {:d} | iter: {:d} | "
+                    sys.stderr.write("\riter: {:d} | batch: {:d} | "
                                      "nc: {:d} | ncall: {:d} | "
                                      "eff(%): {:6.3f} | "
                                      "loglstar: {:6.3f} < {:6.3f} "
                                      "< {:6.3f} | "
                                      "logz: {:6.3f} +/- {:6.3f}    "
-                                     .format(n+1, niter, nc, ncall,
+                                     .format(niter, n+1, nc, ncall,
                                              eff, logl_bounds[0], loglstar,
                                              logl_bounds[1], lnz, lnzerr))
             self.combine_runs()

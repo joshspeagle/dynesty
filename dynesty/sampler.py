@@ -200,20 +200,6 @@ class Sampler(object):
 
         return np.all(point > 0.) and np.all(point < 1.)
 
-    def _check_h(self, h):
-        """Check whether the information is non-negative
-        to numerical precision. Numerical error can make it negative in
-        pathological corner cases."""
-
-        if h < 0.0:
-            if h > -SQRTEPS:
-                h = 0.0
-            else:
-                raise RuntimeError("Negative h encountered (h={}). Please "
-                                   "report this as a likely bug.".format(h))
-
-        return h
-
     def _empty_queue(self):
         """Dump all live point proposals currently on the queue."""
 
@@ -319,7 +305,6 @@ class Sampler(object):
             h_new = (math.exp(logdvol) * lzterm +
                      math.exp(logz - logz_new) * (h + logz) -
                      logz_new)
-            h_new = self._check_h(h_new)
             dh = h_new - h
             h = h_new
             logz = logz_new
@@ -372,7 +357,7 @@ class Sampler(object):
             raise ValueError("No live points were added to the "
                              "list of samples!")
 
-    def sample(self, maxiter=None, maxcall=None, dlogz=0.5,
+    def sample(self, maxiter=None, maxcall=None, dlogz=0.01,
                logl_max=np.inf, save_proposals=True, save_samples=True):
         """
         The main nested sampling loop. Iteratively replace the worst live
@@ -398,7 +383,7 @@ class Sampler(object):
             this threshold. Explicitly, the stopping criterion is
             `log(z + z_est) - log(z) < dlogz`, where `z` is the current
             evidence from all saved samples and `z_est` is the estimated
-            contribution from the remaining volume. Default is *0.5*.
+            contribution from the remaining volume. Default is *0.01*.
 
         logl_max : float, optional
             Iteration will stop when the sampled ln(likelihood) exceeds the
@@ -593,7 +578,6 @@ class Sampler(object):
             h_new = (math.exp(logdvol) * lzterm +
                      math.exp(logz - logz_new) * (h + logz) -
                      logz_new)
-            h_new = self._check_h(h_new)
             dh = h_new - h
             h = h_new
             logz = logz_new
@@ -659,7 +643,8 @@ class Sampler(object):
             `log(z + z_est) - log(z) < dlogz`, where `z` is the current
             evidence from all saved samples and `z_est` is the estimated
             contribution from the remaining volume. If `add_live` is *True*,
-            the default is `ln(nlive + 1)`. Otherwise, the default is *0.5*.
+            the default is `0.005*(nlive + 1)`. Otherwise, the
+            default is *0.01*.
 
         add_live : bool, optional
             If *True*, adds the remaining set of live points to the list of

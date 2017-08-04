@@ -22,6 +22,7 @@ from matplotlib.ticker import MaxNLocator, NullLocator
 from matplotlib.colors import LinearSegmentedColormap, colorConverter
 from matplotlib.ticker import ScalarFormatter
 from scipy import spatial
+import warnings
 
 try:
     from scipy.ndimage import gaussian_filter as norm_kde
@@ -130,7 +131,6 @@ def runplot(results, bounds=None, logplot=False, color='blue',
 
     # Extract results.
     niter = results['niter']  # number of iterations
-    nlive = results['nlive']  # number of live points
     logvol = results['logvol']  # ln(prior volume)
     logl = results['logl']  # ln(likelihood)
     logwt = results['logwt']  # ln(importance weight)
@@ -147,6 +147,7 @@ def runplot(results, bounds=None, logplot=False, color='blue',
     # Check if the final set of live points were added to the results.
     it = np.arange(nsamps)
     if mark_final_live:
+        nlive = results['nlive']
         if nsamps - niter == nlive:
             live_idx = niter
         else:
@@ -186,13 +187,17 @@ def runplot(results, bounds=None, logplot=False, color='blue',
         # If figure is provided, keep previous bounds if they were larger.
         xbounds = [ax.get_xlim() for ax in axes]
         ybounds = [ax.get_ylim() for ax in axes]
+        # One exception: if the bounds are the plotting default `(0., 1.)`,
+        # overwrite them.
+        xbounds = [t if t != (0., 1.) else (None, None) for t in xbounds]
+        ybounds = [t if t != (0., 1.) else (None, None) for t in ybounds]
 
     # Set up bounds for plotting.
-    [ax.set_xlim([min(0., xbounds[i][0]),
-                  max(-min(logvol), xbounds[i][1])])
+    [axes[i].set_xlim([min(0., xbounds[i][0]),
+                       max(-min(logvol), xbounds[i][1])])
      for i in range(4)]
-    [ax.set_ylim([min(bounds[i][0], ybounds[i][0]),
-                  max(bounds[i][1], ybounds[i][1])])
+    [axes[i].set_ylim([min(bounds[i][0], ybounds[i][0]),
+                       max(bounds[i][1], ybounds[i][1])])
      for i in range(4)]
 
     # Plotting.
@@ -1294,12 +1299,10 @@ def proposal(results, dims, it=None, idx=None, prior_transform=None,
     except:
         raise ValueError("No proposals were saved in the results!")
     nprop = len(proposals)
-    niter = results['niter']
     nsamps = len(results['samples'])
-    nlive = results['nlive']
 
     if it is not None:
-        if it >= niter:
+        if it >= nsamps:
             raise ValueError("The iteration requested goes beyond the "
                              "number of iterations in the run.")
         # Extract proposal iterations.
@@ -1336,26 +1339,35 @@ def proposal(results, dims, it=None, idx=None, prior_transform=None,
     # If so, we need to rewind our proposal to check.
     # (We could also go forward; this is an arbitrary choice.)
     if show_live:
-        # We can only reconstruct the run if the final set of
-        # live points were added to the results.
-        if nsamps - niter != nlive:
-            raise ValueError("Cannot reconstruct proposal because the "
-                             "final set of live points are not included in "
-                             "the results.")
-        # Grab our final set of live points (with proper IDs).
-        samples = results['samples_u']
-        samples_id = results['samples_id']
-        ndim = samples.shape[1]
-        live_u = np.empty((nlive, ndim))
-        live_u[samples_id[-nlive:]] = samples[-nlive:]
-        # Run our sampling backwards.
-        if it is None:
-            it = results['samples_it'][idx]
-        # Run until we hit the target iteration.
-        for i in range(1, niter - it + 1):
-            r = -(nlive + i)
-            uidx = samples_id[r]
-            live_u[uidx] = samples[r]
+        try:
+            # We can only reconstruct the run if the final set of live points
+            # were added to the results. This is true by default for dynamic
+            # nested sampling runs but not guaranteeed for standard runs.
+            nlive = results['nlive']
+            niter = results['niter']
+            if nsamps - niter != nlive:
+                raise ValueError("Cannot reconstruct proposal because the "
+                                 "final set of live points are not included "
+                                 "in the results.")
+            # Grab our final set of live points (with proper IDs).
+            samples = results['samples_u']
+            samples_id = results['samples_id']
+            ndim = samples.shape[1]
+            live_u = np.empty((nlive, ndim))
+            live_u[samples_id[-nlive:]] = samples[-nlive:]
+            # Find generating proposal ID if necessary.
+            if it is None:
+                it = results['samples_it'][idx]
+            # Run our sampling backwards.
+            for i in range(1, niter - it + 1):
+                r = -(nlive + i)
+                uidx = samples_id[r]
+                live_u[uidx] = samples[r]
+        except:
+            # In the dynamic sampling case, this is currently not implemented.
+            show_live = False
+            warnings.warn("`show_live` currently not implemented for dynamic "
+                          "sampling results.")
 
     # Draw samples from the proposal.
     try:
@@ -1558,12 +1570,10 @@ def cornerprop(results, it=None, idx=None, prior_transform=None,
     except:
         raise ValueError("No proposals were saved in the results!")
     nprop = len(proposals)
-    niter = results['niter']
     nsamps = len(results['samples'])
-    nlive = results['nlive']
 
     if it is not None:
-        if it >= niter:
+        if it >= nsamps:
             raise ValueError("The iteration requested goes beyond the "
                              "number of iterations in the run.")
         # Extract proposal iterations.
@@ -1600,26 +1610,35 @@ def cornerprop(results, it=None, idx=None, prior_transform=None,
     # If so, we need to rewind our proposal to check.
     # (We could also go forward; this is an arbitrary choice.)
     if show_live:
-        # We can only reconstruct the run if the final set of
-        # live points were added to the results.
-        if nsamps - niter != nlive:
-            raise ValueError("Cannot reconstruct proposal because the "
-                             "final set of live points are not included in "
-                             "the results.")
-        # Grab our final set of live points (with proper IDs).
-        samples = results['samples_u']
-        samples_id = results['samples_id']
-        ndim = samples.shape[1]
-        live_u = np.empty((nlive, ndim))
-        live_u[samples_id[-nlive:]] = samples[-nlive:]
-        # Run our sampling backwards.
-        if it is None:
-            it = results['samples_it'][idx]
-        # Run until we hit the target iteration.
-        for i in range(1, niter - it + 1):
-            r = -(nlive + i)
-            uidx = samples_id[r]
-            live_u[uidx] = samples[r]
+        try:
+            # We can only reconstruct the run if the final set of live points
+            # were added to the results. This is true by default for dynamic
+            # nested sampling runs but not guaranteeed for standard runs.
+            nlive = results['nlive']
+            niter = results['niter']
+            if nsamps - niter != nlive:
+                raise ValueError("Cannot reconstruct proposal because the "
+                                 "final set of live points are not included "
+                                 "in the results.")
+            # Grab our final set of live points (with proper IDs).
+            samples = results['samples_u']
+            samples_id = results['samples_id']
+            ndim = samples.shape[1]
+            live_u = np.empty((nlive, ndim))
+            live_u[samples_id[-nlive:]] = samples[-nlive:]
+            # Find generating proposal ID if necessary.
+            if it is None:
+                it = results['samples_it'][idx]
+            # Run our sampling backwards.
+            for i in range(1, niter - it + 1):
+                r = -(nlive + i)
+                uidx = samples_id[r]
+                live_u[uidx] = samples[r]
+        except:
+            # In the dynamic sampling case, this is currently not implemented.
+            show_live = False
+            warnings.warn("`show_live` currently not implemented for dynamic "
+                          "sampling results.")
 
     # Draw samples from the proposal.
     try:
@@ -1669,6 +1688,7 @@ def cornerprop(results, it=None, idx=None, prior_transform=None,
             lsamps = lsamps.T
 
     # Set labels
+    ndim = psamps.shape[0]
     if labels is None:
         labels = [r"$x_{0}$".format(i+1) for i in range(ndim)]
 

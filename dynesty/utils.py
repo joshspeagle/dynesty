@@ -224,7 +224,7 @@ def simulate_run(res, rstate=np.random):
 
     # The maximum out of a set of `K_i` uniformly distributed random variables
     # has a marginal distribution of `Beta(K_i, 1)`.
-    t_arr = np.empty(nsamps)
+    t_arr = np.zeros(nsamps)
     t_arr[nlive_flag] = rstate.beta(a=samples_n[nlive_flag], b=1)
 
     # If we instead are sampling the set of uniform order statistics,
@@ -245,7 +245,7 @@ def simulate_run(res, rstate=np.random):
         ycsum = y_arr.cumsum()
         ycsum /= ycsum[-1]
         uorder = ycsum[np.append(nstart, sn-1)]
-        rorder = uorder[1:]/uorder[:-1]
+        rorder = uorder[1:] / uorder[:-1]
         t_arr[bound[0]:bound[1]] = rorder
 
     # These are the "compression factors" at each iteration. Now let's turn
@@ -326,14 +326,17 @@ def resample_run(res, rstate=np.random):
         samples_batch = res.samples_batch
         batch_nlive = res.batch_nlive
         batch_bounds = res.batch_bounds
+        added_final_live = True
     except:
         nlive = res.nlive
         niter = res.niter
         if nsamps == niter:
             samples_n = np.ones(niter, dtype='int') * nlive
+            added_final_live = False
         elif nsamps == (niter + nlive):
             samples_n = np.append(np.ones(niter, dtype='int') * nlive,
                                   np.arange(1, nlive + 1)[::-1])
+            added_final_live = True
         else:
             raise ValueError("Final number of samples differs from number of "
                              "iterations and number of live points.")
@@ -387,14 +390,30 @@ def resample_run(res, rstate=np.random):
     samp_idx = samp_idx[idx_sort]
     logl = res.logl[samp_idx]
 
-    # Compute the effective number of live points for each sample.
-    samp_n = np.zeros(nsamps, dtype='int')
-    for idx in live_idx:
-        sel = (res.samples_id == idx)  # selection flag
-        sbatch = samples_batch[sel][0]  # corresponding batch ID
-        lower = batch_llmin[sbatch]  # lower bound
-        upper = max(res.logl[sel])  # upper bound
-        samp_n[(logl > lower) & (logl <= upper)] += 1
+    if added_final_live:
+        # Compute the effective number of live points for each sample.
+        samp_n = np.zeros(nsamps, dtype='int')
+        uidxs, uidxs_n = np.unique(live_idx, return_counts=True)
+        for uidx, uidx_n in zip(uidxs, uidxs_n):
+            sel = (res.samples_id == uidx)  # selection flag
+            sbatch = samples_batch[sel][0]  # corresponding batch ID
+            lower = batch_llmin[sbatch]  # lower bound
+            upper = max(res.logl[sel])  # upper bound
+            # Add number of live points between endpoints equal to number of
+            # times the strand has been resampled.
+            samp_n[(logl > lower) & (logl < upper)] += uidx_n
+            # At the endpoint, divide up the final set of points into `uidx_n`
+            # (roughly) equal chunks and have live points decrease across them.
+            endsel = (logl == upper)
+            endsel_n = np.count_nonzero(endsel)
+            chunk = endsel_n / uidx_n  # define our chunk
+            counters = np.array(np.arange(endsel_n) / chunk, dtype='int')
+            nlive_end = counters[::-1] + 1  # decreasing number of live points
+            samp_n[endsel] += nlive_end  # add live point sequence
+    else:
+        # If we didn't add the final set of live points, the run has a constant
+        # number of live points and can simply be re-ordered.
+        samp_n = samples_n[samp_idx]
 
     # Assign log(volume) to samples.
     logvol = np.cumsum(np.log(samp_n / (samp_n + 1.)))

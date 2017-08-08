@@ -19,8 +19,9 @@ import copy
 from .results import *
 
 __all__ = ["resample_equal", "mean_and_cov", "random_choice",
-           "simulate_run", "resample_run", "sample_run",
-           "unravel_run", "merge_runs"]
+           "jitter_run", "resample_run", "simulate_run",
+           "unravel_run", "merge_runs",
+           "kl_divergence", "kld_error"]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
@@ -45,7 +46,6 @@ def mean_and_cov(samples, weights):
     """
     Compute weighted sample mean and covariance.
 
-
     Parameters
     ----------
     samples : `~numpy.ndarray` with shape (nsamples, ndim)
@@ -55,7 +55,6 @@ def mean_and_cov(samples, weights):
     weights : `~numpy.ndarray` with shape (nsamples,)
         1-D array of sample weights.
 
-
     Returns
     -------
     mean : `~numpy.ndarray` with shape (ndim,)
@@ -63,7 +62,6 @@ def mean_and_cov(samples, weights):
 
     cov : `~numpy.ndarray` with shape (ndim, ndim)
         Weighted sample covariances.
-
 
     Notes
     -----
@@ -91,7 +89,6 @@ def resample_equal(samples, weights, rstate=np.random):
     `floor(weights[i] * nsamples)` or `ceil(weights[i] * nsamples)` times, with
     `floor` or `ceil` randomly selected (weighted by proximity).
 
-
     Parameters
     ----------
     samples : `~numpy.ndarray` with shape (nsamples,)
@@ -100,23 +97,20 @@ def resample_equal(samples, weights, rstate=np.random):
     weights : `~numpy.ndarray` with shape (nsamples,)
         Corresponding weight of each sample.
 
-
     Returns
     -------
     equal_weight_samples : `~numpy.ndarray` with shape (nsamples,)
         New samples with equal weights.
 
-
     Examples
     --------
     >>> x = np.array([[1., 1.], [2., 2.], [3., 3.], [4., 4.]])
     >>> w = np.array([0.6, 0.2, 0.15, 0.05])
-    >>> nestle.resample_equal(x, w)
+    >>> utils.resample_equal(x, w)
     array([[ 1.,  1.],
            [ 1.,  1.],
            [ 1.,  1.],
            [ 3.,  3.]])
-
 
     Notes
     -----
@@ -148,7 +142,7 @@ def resample_equal(samples, weights, rstate=np.random):
     return samples[idx]
 
 
-def simulate_run(res, rstate=np.random):
+def jitter_run(res, rstate=np.random):
     """
     Probes uncertainties on a run with `K` live points by drawing
     a sample from the statistical distribution of prior volumes associated
@@ -157,7 +151,6 @@ def simulate_run(res, rstate=np.random):
 
     This probes errors due to intrinsic *statistical* uncertainties.
 
-
     Parameters
     ----------
     res : `Results` instance
@@ -165,7 +158,6 @@ def simulate_run(res, rstate=np.random):
 
     rstate: `~numpy.random` instance
         Random state.
-
 
     Returns
     -------
@@ -295,7 +287,7 @@ def simulate_run(res, rstate=np.random):
     return new_res
 
 
-def resample_run(res, rstate=np.random):
+def resample_run(res, rstate=np.random, return_idx=True):
     """
     Probes uncertainties on a run with `K` live points by splitting the
     run into `K` strands, sampling from them with replacement, and combining
@@ -303,12 +295,15 @@ def resample_run(res, rstate=np.random):
 
     This probes errors due to intrinsic *sampling* uncertainties.
 
-
     Parameters
     ----------
     res : `Results` instance
         The `Results` instance returned from a previous run.
 
+    rstate: `~numpy.random` instance, optional
+        Random state.
+
+    return_idx : bool, optional
 
     Returns
     -------
@@ -470,10 +465,13 @@ def resample_run(res, rstate=np.random):
     new_res.logzerr = np.sqrt(np.array(saved_logzvar))
     new_res.h = np.array(saved_h)
 
-    return new_res
+    if return_idx:
+        return new_res, samp_idx
+    else:
+        return new_res
 
 
-def sample_run(res, rstate=np.random):
+def simulate_run(res, rstate=np.random):
     """
     Probes uncertainties on a run with `K` live points by (1) splitting the
     run into `K` strands, sampling from them with replacement, and combining
@@ -482,12 +480,13 @@ def sample_run(res, rstate=np.random):
 
     This probes errors due to both statistical *and* sampling uncertainties.
 
-
     Parameters
     ----------
     res : `Results` instance
         The `Results` instance returned from a previous run.
 
+    rstate: `~numpy.random` instance, optional
+        Random state.
 
     Returns
     -------
@@ -500,7 +499,7 @@ def sample_run(res, rstate=np.random):
     new_res = resample_run(res, rstate=np.random)
 
     # Simulate weights.
-    new_res = simulate_run(new_res, rstate=np.random)
+    new_res = jitter_run(new_res, rstate=np.random)
 
     return new_res
 
@@ -512,12 +511,17 @@ def unravel_run(res, save_proposals=True, print_progress=True):
     with each unraveled "strand" are only valid if the point was initialized
     from the prior.**
 
-
     Parameters
     ----------
     res : `Results` instance
         The `Results` instance returned from a previous run.
 
+    save_proposals : bool, optional
+        Whether to save a reference to the proposal distributions from the
+        original run in each unraveled strand. Default is *True*.
+
+    print_progress : bool, optional
+        Whether to output the current progress to `stderr`. Default is *True*.
 
     Returns
     -------
@@ -645,12 +649,13 @@ def merge_runs(res_list, print_progress=True):
     Merges a set of runs with differing (possibly variable) numbers of
     live points into one run.
 
-
     Parameters
     ----------
     res_list : list of `Results` instances
         A list of `Results` instances returned from a previous runs.
 
+    print_progress : bool, optional
+        Whether to output the current progress to `stderr`. Default is *True*.
 
     Returns
     -------
@@ -748,12 +753,229 @@ def merge_runs(res_list, print_progress=True):
     return res
 
 
+def kl_divergence(res1, res2):
+    """
+    Computes the Kullback-Leibler (KL) divergence
+    <https://en.wikipedia.org/wiki/Kullback-Leibler_divergence> *from* the
+    discrete probability distribution defined by `res2` *to* the discrete
+    probability distribution defined by `res1`.
+
+    Parameters
+    ----------
+    res1 : `Results` instance
+        `Results` instance for the distribution we are computing the KL
+        divergence *to*. **Note that, by construction, the samples in `res1`
+        must be a subset of the samples in `res2`.**
+
+    res2 : `Results` instance
+        `Results` instance for the distribution we are computing the KL
+        divergence *from*.
+
+    Returns
+    -------
+    kld : `~numpy.ndarray` with shape (nsamps,)
+        The cumulative KL divergence defined over `res1`.
+
+    """
+
+    # Define our importance weights.
+    logp1, logp2 = res1.logwt - res1.logz[-1], res2.logwt - res2.logz[-1]
+
+    # Define the positions where the discrete probability distributions exists.
+    samples1, samples2 = res1.samples, res2.samples
+    samples1_id, samples2_id = res1.samples_id, res2.samples_id
+    nsamps1, nsamps2 = len(samples1), len(samples2)
+
+    # Compute the KL divergence.
+    if nsamps1 == nsamps2 and np.all(samples1_id == samples2_id):
+        # If our runs have the same particles in the same order, compute
+        # the KL divergence in one go.
+        kld = np.exp(logp1) * (logp1 - logp2)
+    else:
+        # Otherwise, compute the components of the KL divergence one at a time.
+        uidxs = np.unique(samples1_id)  # unique particle IDs
+        count1, count2 = np.arange(nsamps1), np.arange(nsamps2)
+        kld = np.zeros(nsamps1)
+        for uidx in uidxs:
+            # Select matching particles.
+            sel1 = count1[samples1_id == uidx]
+            sel2 = count2[samples2_id == uidx]
+            # Select corresponding positions.
+            pos1, pos2 = samples1[sel1], samples2[sel2]
+            for s, p in zip(sel1, pos1):
+                # Search for a matching position.
+                pos_sel = sel2[np.all(np.isclose(pos2, p), axis=1)]
+                npos = len(pos_sel)
+                if npos > 1:
+                    # If there are several possible matches, pick the
+                    # one with the closet importance weight.
+                    diff = logp1[s] - logp2[pos_sel]
+                    # Compute the `s`-th term.
+                    kld[s] = np.exp(logp1[s]) * diff[np.argmin(abs(diff))]
+                elif npos == 1:
+                    # If there is only one match, compute the result directly.
+                    kld[s] = np.exp(logp1[s]) * (logp1[s] - logp2[pos_sel])
+                else:
+                    raise ValueError("Distribution from `res2` undefined at "
+                                     "position {0}.".format(p))
+
+    return np.cumsum(kld)
+
+
+def kl_divergence(res1, res2):
+    """
+    Computes the Kullback-Leibler (KL) divergence
+    <https://en.wikipedia.org/wiki/Kullback-Leibler_divergence> *from* the
+    discrete probability distribution defined by `res2` *to* the discrete
+    probability distribution defined by `res1`.
+
+    Parameters
+    ----------
+    res1 : `Results` instance
+        `Results` instance for the distribution we are computing the KL
+        divergence *to*. **Note that, by construction, the samples in `res1`
+        must be a subset of the samples in `res2`.**
+
+    res2 : `Results` instance
+        `Results` instance for the distribution we are computing the KL
+        divergence *from*.
+
+    Returns
+    -------
+    kld : `~numpy.ndarray` with shape (nsamps,)
+        The cumulative KL divergence defined over `res1`.
+
+    """
+
+    # Define our importance weights.
+    logp1, logp2 = res1.logwt - res1.logz[-1], res2.logwt - res2.logz[-1]
+
+    # Define the positions where the discrete probability distributions exists.
+    samples1, samples2 = res1.samples, res2.samples
+    samples1_id, samples2_id = res1.samples_id, res2.samples_id
+    nsamps1, nsamps2 = len(samples1), len(samples2)
+
+    # Compute the KL divergence.
+    if nsamps1 == nsamps2 and np.all(samples1_id == samples2_id):
+        # If our runs have the same particles in the same order, compute
+        # the KL divergence in one go.
+        kld = np.exp(logp1) * (logp1 - logp2)
+    else:
+        # Otherwise, compute the components of the KL divergence one at a time.
+        uidxs = np.unique(samples1_id)  # unique particle IDs
+        count1, count2 = np.arange(nsamps1), np.arange(nsamps2)
+        kld = np.zeros(nsamps1)
+        for uidx in uidxs:
+            # Select matching particles.
+            sel1 = count1[samples1_id == uidx]
+            sel2 = count2[samples2_id == uidx]
+            # Select corresponding positions.
+            pos1, pos2 = samples1[sel1], samples2[sel2]
+            for s, p in zip(sel1, pos1):
+                # Search for a matching position.
+                pos_sel = sel2[np.all(np.isclose(pos2, p), axis=1)]
+                npos = len(pos_sel)
+                if npos > 1:
+                    # If there are several possible matches, pick the
+                    # one with the closet importance weight.
+                    diff = logp1[s] - logp2[pos_sel]
+                    # Compute the `s`-th term.
+                    kld[s] = np.exp(logp1[s]) * diff[np.argmin(abs(diff))]
+                elif npos == 1:
+                    # If there is only one match, compute the result directly.
+                    kld[s] = np.exp(logp1[s]) * (logp1[s] - logp2[pos_sel])
+                else:
+                    raise ValueError("Distribution from `res2` undefined at "
+                                     "position {0}.".format(p))
+
+    return np.cumsum(kld)
+
+
+def kld_error(res, error='simulate', return_new=False):
+    """
+    Computes the Kullback-Leibler (KL) divergence
+    <https://en.wikipedia.org/wiki/Kullback-Leibler_divergence> *from* the
+    discrete probability distribution defined by `res` *to* the discrete
+    probability distribution defined by a *realization* of `res`.
+
+    Parameters
+    ----------
+    res : `Results` instance
+        `Results` instance for the distribution we are computing the KL
+        divergence from.
+
+    error : {'jitter', 'resample', 'simulate'}, optional
+        The error method employed. Default is `'simulate'`.
+
+    return_new : bool, optional
+        Whether to return the new realization of the run. Default is *False*.
+
+    Returns
+    -------
+    kld : `~numpy.ndarray` with shape (nsamps,)
+        The cumulative KL divergence defined from `res` to a
+        random realization of `res`.
+
+    new_res : `Results` instance, optional
+        The new results object.
+
+    """
+
+    # Define our original importance weights.
+    logp2 = res.logwt - res.logz[-1]
+
+    # Compute a random realization of our run.
+    if error == 'jitter':
+        new_res = jitter_run(res)
+    elif error == 'resample':
+        new_res, samp_idx = resample_run(res, return_idx=True)
+        logp2 = logp2[samp_idx]  # re-order our original results to match
+    elif error == 'simulate':
+        new_res, samp_idx = resample_run(res, return_idx=True)
+        new_res = jitter_run(new_res)
+        logp2 = logp2[samp_idx]  # re-order our original results to match
+    else:
+        raise ValueError("Input `'error'` option '{0}' is not valid."
+                         .format(error))
+
+    # Define our new importance weights.
+    logp1 = new_res.logwt - new_res.logz[-1]
+
+    # Define the positions where the discrete probability distributions exists.
+    samples1, samples2 = new_res.samples, res.samples
+    samples1_id, samples2_id = new_res.samples_id, res.samples_id
+    nsamps1, nsamps2 = len(samples1), len(samples2)
+
+    # Compute the KL divergence.
+    kld = np.cumsum(np.exp(logp1) * (logp1 - logp2))
+
+    if return_new:
+        return kld, new_res
+    else:
+        return kld
+
+
 def _merge_two(res1, res2, compute_aux=False):
     """
     Merges two runs with differing (possibly variable) numbers of live points
-    into one run. If `compute_aux=True`, computes anciliary quantities. **Note
-    that the anciliary quantities are only valid if `res1` or `res2` was
-    initialized from the prior.**
+    into one run.
+
+    Parameters
+    ----------
+    res1, res2 : `Results` instances
+        `Results` instances for two runs that will be merged.
+
+    compute_aux : bool, optional
+        Whether to compute auxiliary quantities (evidences, etc.) associated
+        with a given run. **Note that these are only valid if `res1` or `res2`
+        was initialized from the prior and their sampling bounds overlap.**
+        Default is *False*.
+
+    Returns
+    -------
+    res : `Results` instances
+        A single combined `Results` instance.
+
     """
 
     # Initialize the first ("base") run.

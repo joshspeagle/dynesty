@@ -151,9 +151,10 @@ def runplot(results, bounds=None, logplot=False, color='blue',
         if nsamps - niter == nlive:
             live_idx = niter
         else:
-            raise ValueError("The number of iterations and samples differ "
-                             "by an amount that isn't the number of final "
-                             "live points.")
+            warnings.warn("The number of iterations and samples differ "
+                          "by an amount that isn't the number of final "
+                          "live points. `mark_final_live` has been disabled.")
+            mark_final_live = False
 
     # Determine plotting bounds for each subplot.
     data = [it, np.exp(logl), np.exp(logwt), np.exp(logz)]
@@ -168,8 +169,12 @@ def runplot(results, bounds=None, logplot=False, color='blue',
         except:
             bounds[i] = (max(data[i]) * bounds[i], max(data[i]))
     if lnz_error:
-        zbounds = (min(max(np.exp(logz - 3.*logzerr)), bounds[3][0]),
-                   max(1.05 * max(np.exp(logz + 3.*logzerr)), bounds[3][1]))
+        if logplot:
+            zbounds = (min(np.exp(max(logz) - 1.3*3*logzerr)),
+                       max(np.exp(max(logz) + 1.3*3*logzerr)))
+        else:
+            zbounds = (min(max(np.exp(logz - 3.*logzerr)), bounds[3][0]),
+                       max(1.05*max(np.exp(logz + 3.*logzerr)), bounds[3][1]))
         bounds[3] = zbounds
 
     # Setting up default plot layout.
@@ -228,8 +233,7 @@ def runplot(results, bounds=None, logplot=False, color='blue',
         # Plot run.
         if logplot and i == 3:
             ax.semilogy(-logvol, d, color=c, **plot_kwargs)
-            ax.set_ylim([min(np.exp(max(logz) - 1.3*3*logzerr)),
-                         max(np.exp(max(logz) + 1.3*3*logzerr))])
+            ybounds = [ax.get_ylim() for ax in axes]
         else:
             ax.plot(-logvol, d, color=c, **plot_kwargs)
         if i == 3 and lnz_error:
@@ -1377,24 +1381,30 @@ def proposal(results, dims, it=None, idx=None, prior_transform=None,
         # If proposal is based on the distribution of live points at a
         # specific iteration, we need to reconstruct what those were.
         if not show_live:
-            # Only reconstruct the run if we haven't done it already.
-            if nsamps - niter != nlive:
-                raise ValueError("Cannot reconstruct proposal because the "
-                                 "final set of live points are not included "
-                                 "in the results.")
-            # Grab our final set of live points (with proper IDs).
-            samples = results['samples_u']
-            samples_id = results['samples_id']
-            ndim = samples.shape[1]
-            live_u = np.empty((nlive, ndim))
-            live_u[samples_id[-nlive:]] = samples[-nlive:]
-            # Run our sampling backwards.
-            if it is None:
-                it = results['samples_it'][idx]
-            for i in range(1, niter - it + 1):
-                r = -(nlive + i)
-                uidx = samples_id[r]
-                live_u[uidx] = samples[r]
+            try:
+                # Only reconstruct the run if we haven't done it already.
+                nlive = results['nlive']
+                niter = results['niter']
+                if nsamps - niter != nlive:
+                    raise ValueError("Cannot reconstruct proposal because the "
+                                     "final set of live points are not "
+                                     "included in the results.")
+                # Grab our final set of live points (with proper IDs).
+                samples = results['samples_u']
+                samples_id = results['samples_id']
+                ndim = samples.shape[1]
+                live_u = np.empty((nlive, ndim))
+                live_u[samples_id[-nlive:]] = samples[-nlive:]
+                # Run our sampling backwards.
+                if it is None:
+                    it = results['samples_it'][idx]
+                for i in range(1, niter - it + 1):
+                    r = -(nlive + i)
+                    uidx = samples_id[r]
+                    live_u[uidx] = samples[r]
+            except:
+                raise ValueError("Live point tracking currently not "
+                                 "implemented for dynamic sampling results.")
         # Construct a KDTree to speed up nearest-neighbor searches.
         kdtree = spatial.KDTree(live_u)
         # Draw samples.
@@ -1649,6 +1659,8 @@ def cornerprop(results, it=None, idx=None, prior_transform=None,
         # specific iteration, we need to reconstruct what those were.
         if not show_live:
             # Only reconstruct the run if we haven't done it already.
+            nlive = results['nlive']
+            niter = results['niter']
             if nsamps - niter != nlive:
                 raise ValueError("Cannot reconstruct proposal because the "
                                  "final set of live points are not included "

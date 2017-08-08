@@ -17,14 +17,16 @@ import copy
 from scipy import optimize as opt
 from numpy import linalg
 from scipy import misc
+import warnings
 
 from .nestedsamplers import *
 from .sampler import *
 from .bounding import *
 from .sampling import *
 from .results import *
+from .utils import *
 
-__all__ = ["DynamicSampler", "weight_function"]
+__all__ = ["DynamicSampler", "weight_function", "stopping_function"]
 
 _SAMPLERS = {'none': UnitCubeSampler,
              'single': SingleEllipsoidSampler,
@@ -40,27 +42,57 @@ SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 def weight_function(results, args, return_weights=False):
     """
-    The default cost function utilized by `DynamicSampler` defined
+    The default weight function utilized by `DynamicSampler` defined
     based on Higson et al. (2017). Parameters
     are passed to the function via `args`. This simply assigns
     each point a weight based on a weighted average of the
     posterior and evidence information content as::
 
-        weight = (1-pfrac) * w_evid + pweight * w_post
+        weight = pfrac * pweight + (1-pfrac) * zweight
 
     where the evidence weight is based on the estimated remaining prior
     volume and the posterior weight is simply the importance weight. The
-    ln(likelihood) bounds are then set by the earliest/latest sample
-    with `weight > maxfrac * max(weight)` with left/right padding of
-    `pad`. Default values are `pfrac = 0.8`, `maxfrac = 0.8`,
-    and `pad = 1`.
+    function returns a set of log-likelihood bounds set by the earliest/latest
+    samples where `weight > maxfrac * max(weight)`, with left/right padding of
+    `pad`.
+
+    Parameters
+    ----------
+    results : `Results` instances
+        `Results` instance.
+
+    args : dictionary of keyword arguments, optional
+        Arguments used to set the log-likelihood bounds used for sampling,
+        as described above. Default values are `pfrac = 0.8`, `maxfrac = 0.8`,
+        and `pad = 1`.
+
+    return_weights : bool, optional
+        Whether to return the individual weights (and their components) used
+        to compute the log-likelihood bounds. Default is *False*.
+
+    Returns
+    -------
+    logl_bounds : length-2 tuple
+        Log-likelihood bounds `(logl_min, logl_max)` determined by the weights.
+
+    weights : length-3 tuple, optional
+        The individual weights `(pweight, zweight, weight)` used to determine
+        `logl_bounds`.
 
     """
 
     # Initialize hyperparameters.
     pfrac = args.get('pfrac', 0.8)
+    if not 0. <= pfrac <= 1.:
+        raise ValueError("The provided `pfrac` {0} is not between 0. and 1."
+                         .format(pfrac))
     maxfrac = args.get('maxfrac', 0.8)
+    if not 0. <= maxfrac <= 1.:
+        raise ValueError("The provided `maxfrac` {0} is not between 0. and 1."
+                         .format(maxfrac))
     lpad = args.get('pad', 1)
+    if lpad < 0:
+        raise ValueError("`lpad` {0} is less than zero.".format(lpad))
 
     # Derive evidence weights.
     logz = results.logz  # final log(evidence)
@@ -71,7 +103,7 @@ def weight_function(results, args, return_weights=False):
     zweight /= sum(zweight)  # normalize
 
     # Derive posterior weights.
-    pweight = np.exp(results.logwt)  # importance weight
+    pweight = np.exp(results.logwt - results.logz[-1])  # importance weight
     pweight /= sum(pweight)  # normalize
 
     # Compute combined weights.
@@ -91,6 +123,108 @@ def weight_function(results, args, return_weights=False):
         return (logl_min, logl_max), (pweight, zweight, weight)
     else:
         return (logl_min, logl_max)
+
+
+def stopping_function(results, args, M=map, return_vals=False):
+    """
+    The default stopping function utilized by `DynamicSampler`. Parameters
+    are passed to the function via `args`. This assigns the run a stopping
+    value based on `n_mc` realizations of the input run that represents
+    a weighted average of the stopping values for the posterior and evidence::
+
+        stop = pfrac * stop_post + (1-pfrac) * stop_evid
+
+    The evidence stopping value is based on the estimated evidence error
+    relative to a given threshold::
+
+        stop_evid = evid_std / evid_thresh
+
+    The posterior stopping value is based on the fractional variation
+    in the Kullback-Leibler (KL) divergence relative to a given threshold::
+
+        stop_post = (kld_std / kld_mean) / post_thresh
+
+    The function returns the boolean `stop <= 1` used to decide when to stop
+    the run.
+
+    Parameters
+    ----------
+    results : `Results` instances
+        `Results` instance.
+
+    args : dictionary of keyword arguments, optional
+        Arguments used to set the stopping values. In addition to the values
+        outlined above, users can also choose the *type* of realizations used
+        to compute quantities via the `'error'` keyword (choices are 'jitter'
+        and 'simulate'). Default values are `pfrac = 1.0`, `evid_thresh = 0.1`,
+        `post_thresh = 0.025`, `n_mc = 32`, and `error = 'simulate'`.
+
+    return_vals : bool, optional
+        Whether to return the stopping value (and its components). Default
+        is *False*.
+
+    Returns
+    -------
+    stop_flag : bool
+        Boolean flag indicating whether we have passed the desired stopping
+        criteria.
+
+    stop_vals : length-3 tuple, optional
+        The individual stopping values `(stop_post, stop_evid, weight)` used
+        to determine the stopping criteria.
+
+    """
+
+    # Initialize hyperparameters.
+    pfrac = args.get('pfrac', 1.0)
+    if not 0. <= pfrac <= 1.:
+        raise ValueError("The provided `pfrac` {0} is not between 0. and 1."
+                         .format(pfrac))
+    evid_thresh = args.get('evid_thresh', 0.1)
+    if pfrac < 1. and evid_thresh < 0.:
+        raise ValueError("The provided `evid_thresh` {0} is not non-negative "
+                         "even though `1 - pfrac` is {1}."
+                         .format(evid_thresh, 1. - pfrac))
+    post_thresh = args.get('post_thresh', 0.025)
+    if pfrac > 0. and post_thresh < 0.:
+        raise ValueError("The provided `post_thresh` {0} is not non-negative "
+                         "even though `pfrac` is {1}."
+                         .format(post_thresh, pfrac))
+    n_mc = args.get('n_mc', 32)
+    if n_mc <= 1:
+        raise ValueError("The number of realizations {0} must be greater "
+                         "than 1.".format(n_mc))
+    elif n_mc < 20:
+        warnings.warn("Using a small number of realizations might result in "
+                      "noisy stopping value estimates.")
+    error = args.get('error', 'simulate')
+    if error not in {'jitter', 'simulate'}:
+        raise ValueError("The chosen `'error'` option {0} is not valid."
+                         .format(noise))
+
+    # Compute realizations of ln(evidence) and the KL divergence.
+    rlist = [results for i in range(n_mc)]
+    error_list = [error for i in range(n_mc)]
+    return_options = [True for i in range(n_mc)]
+    outputs = M(kld_error, rlist, error_list, return_options)
+    kld_arr, lnz_arr = np.array([(kld[-1], res.logz[-1])
+                                 for kld, res in outputs]).T
+
+    # Evidence stopping value.
+    lnz_std = np.std(lnz_arr)
+    stop_evid = lnz_std / evid_thresh
+
+    # Posterior stopping value.
+    kld_mean, kld_std = np.mean(kld_arr), np.std(kld_arr)
+    stop_post = (kld_std / kld_mean) / post_thresh
+
+    # Effective stopping value.
+    stop = pfrac * stop_post + (1. - pfrac) * stop_evid
+
+    if return_vals:
+        return stop <= 1., (stop_post, stop_evid, stop)
+    else:
+        return stop <= 1.
 
 
 class DynamicSampler(object):
@@ -754,6 +888,7 @@ class DynamicSampler(object):
 
             # Overwrite the live points and scale factor of our internal
             # sampler and trigger an update of our bound.
+            self.sampler.nlive = nblive
             self.sampler.live_u = np.array(live_u)
             self.sampler.live_v = np.array(live_v)
             self.sampler.live_logl = np.array(live_logl)
@@ -1042,8 +1177,8 @@ class DynamicSampler(object):
                    maxcall_init=None, dlogz_init=0.01,
                    nlive_batch=100, wt_function=None, wt_kwargs=None,
                    maxiter_batch=None, maxcall_batch=None,
-                   maxiter=None, maxcall=None,
-                   maxbatch=None, stop_function=None, stop_kwargs=None,
+                   maxiter=None, maxcall=None, maxbatch=None,
+                   stop_function=None, stop_kwargs=None, use_stop=True,
                    save_proposals=True, print_progress=True, live_points=None):
         """
         Dynamically allocate (nested) samples to optimize a target
@@ -1085,7 +1220,7 @@ class DynamicSampler(object):
             computes a weighted average of the posterior and evidence
             information content as::
 
-                weight = (1-pweight) * w_evid + pweight * w_post
+                weight = (1 - pfrac) * zweight + pfrac * pweight
 
         wt_kwargs : dict, optional
             Extra arguments to be passed to the weight function.
@@ -1117,6 +1252,11 @@ class DynamicSampler(object):
 
         stop_kwargs : float, optional
             Extra arguments to be passed to the stopping function.
+
+        use_stop : bool, optional
+            Whether to evaluate our stopping function after each batch.
+            Disabling this can improve performance if other stopping criteria
+            are already specified. Default is *True*.
 
         save_proposals : bool, optional
             Whether or not to save past proposal distributions used to bound
@@ -1158,6 +1298,10 @@ class DynamicSampler(object):
             wt_function = weight_function
         if wt_kwargs is None:
             wt_kwargs = dict()
+        if stop_function is None:
+            stop_function = stopping_function
+        if stop_kwargs is None:
+            stop_kwargs = dict()
         saveprop = save_proposals
 
         # Run the main dynamic nested sampling loop.
@@ -1195,11 +1339,17 @@ class DynamicSampler(object):
             res = self.results
             mcall = min(maxcall - ncall, maxcall_batch)
             miter = min(maxiter - niter, maxiter_batch)
-            # STOPPING CRITERION SHOULD GO HERE.
+            if use_stop:
+                stop, stop_vals = stop_function(res, stop_kwargs, M=self.M,
+                                                return_vals=True)
+                stop_post, stop_evid, stop_val = stop_vals
+            else:
+                stop = False
+                stop_val = np.NaN
 
             # If we have either likelihood calls or iterations remaining,
             # run our batch.
-            if mcall > 0 and miter > 0:
+            if mcall > 0 and miter > 0 and not stop:
                 # Compute our sampling bounds using the provided
                 # weight function.
                 logl_bounds = wt_function(res, wt_kwargs)
@@ -1219,10 +1369,12 @@ class DynamicSampler(object):
                                          "eff(%): {:6.3f} | "
                                          "loglstar: {:6.3f} < {:6.3f} "
                                          "< {:6.3f} | "
-                                         "logz: {:6.3f} +/- {:6.3f}    "
+                                         "logz: {:6.3f} +/- {:6.3f} | "
+                                         "stop: {:6.3f}    "
                                          .format(niter, n+1, nc, ncall,
                                                  eff, logl_bounds[0], loglstar,
-                                                 logl_bounds[1], lnz, lnzerr))
+                                                 logl_bounds[1], lnz, lnzerr,
+                                                 stop_val))
                 self.combine_runs()
             else:
                 # We're done!

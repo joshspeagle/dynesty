@@ -287,7 +287,7 @@ def jitter_run(res, rstate=np.random):
     return new_res
 
 
-def resample_run(res, rstate=np.random, return_idx=True):
+def resample_run(res, rstate=np.random, return_idx=False):
     """
     Probes uncertainties on a run with `K` live points by splitting the
     run into `K` strands, sampling from them with replacement, and combining

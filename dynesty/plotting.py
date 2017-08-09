@@ -136,6 +136,7 @@ def runplot(results, bounds=None, logplot=False, color='blue',
     logwt = results['logwt']  # ln(importance weight)
     logz = results['logz']  # ln(evidence)
     logzerr = results['logzerr']  # error in ln(evidence)
+    logzerr[~np.isfinite(logzerr)] = 0.
     nsamps = len(logwt)  # number of samples
 
     try:

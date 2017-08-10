@@ -822,7 +822,7 @@ def kl_divergence(res1, res2):
     return np.cumsum(kld)
 
 
-def kld_error(res, error='simulate', return_new=False):
+def kld_error(res, error='simulate', rstate=np.random, return_new=False):
     """
     Computes the Kullback-Leibler (KL) divergence
     <https://en.wikipedia.org/wiki/Kullback-Leibler_divergence> *from* the
@@ -859,10 +859,10 @@ def kld_error(res, error='simulate', return_new=False):
     if error == 'jitter':
         new_res = jitter_run(res)
     elif error == 'resample':
-        new_res, samp_idx = resample_run(res, return_idx=True)
+        new_res, samp_idx = resample_run(res, rstate=rstate, return_idx=True)
         logp2 = logp2[samp_idx]  # re-order our original results to match
     elif error == 'simulate':
-        new_res, samp_idx = resample_run(res, return_idx=True)
+        new_res, samp_idx = resample_run(res, rstate=rstate, return_idx=True)
         new_res = jitter_run(new_res)
         logp2 = logp2[samp_idx]  # re-order our original results to match
     else:

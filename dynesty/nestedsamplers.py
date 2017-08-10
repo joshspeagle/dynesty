@@ -52,7 +52,6 @@ class UnitCubeSampler(Sampler):
     """
     Samples with no bounds (i.e. within the entire unit N-cube).
 
-
     Parameters
     ----------
     loglikelihood : function
@@ -87,9 +86,12 @@ class UnitCubeSampler(Sampler):
         independently proposes new live points until the proposal distribution
         is updated.
 
-    pool: ThreadPoolExecutor
-        Use this pool of workers to propose live points in parallel.
+    pool: pool
+        Use this pool of workers to execute operations in parallel.
 
+    use_pool : dict, optional
+        A dictionary containing flags for where a pool should be used to
+        execute operations in parallel.
 
     Other Parameters
     ----------------
@@ -109,7 +111,7 @@ class UnitCubeSampler(Sampler):
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
                  method, update_interval, rstate, queue_size, pool,
-                 kwargs={}):
+                 use_pool, kwargs={}):
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
                          'slice': self.propose_live}
@@ -129,7 +131,7 @@ class UnitCubeSampler(Sampler):
         super(UnitCubeSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, rstate,
-                             queue_size, pool)
+                             queue_size, pool, use_pool)
         self.unitcube = UnitCube(self.npdim)
         self.bound = 'none'
         self.method = method
@@ -192,7 +194,6 @@ class SingleEllipsoidSampler(Sampler):
     Bounds live points in a single ellipsoid and samples conditioned
     on the ellipsoid.
 
-
     Parameters
     ----------
     loglikelihood : function
@@ -227,9 +228,13 @@ class SingleEllipsoidSampler(Sampler):
         independently proposes new live points until the proposal distribution
         is updated.
 
-    pool: ThreadPoolExecutor
-        Use this pool of workers to propose live points in parallel.
+    pool: pool
+        Use this pool of workers to execute operations in parallel.
 
+
+    use_pool : dict, optional
+        A dictionary containing flags for where a pool should be used to
+        execute operations in parallel.
 
     Other Parameters
     ----------------
@@ -261,7 +266,7 @@ class SingleEllipsoidSampler(Sampler):
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
                  method, update_interval, rstate, queue_size, pool,
-                 kwargs={}):
+                 use_pool, kwargs={}):
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
                          'slice': self.propose_live}
@@ -281,7 +286,7 @@ class SingleEllipsoidSampler(Sampler):
         super(SingleEllipsoidSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, rstate,
-                             queue_size, pool)
+                             queue_size, pool, use_pool)
         self.ell = Ellipsoid(np.zeros(self.npdim), np.identity(self.npdim))
         self.bound = 'single'
         self.method = method
@@ -298,8 +303,12 @@ class SingleEllipsoidSampler(Sampler):
         """Update bounding ellipsoid using the current set of live points."""
 
         self._empty_queue()
+        if self.use_pool_update:
+            pool = self.pool
+        else:
+            pool = None
         self.ell.update(self.live_u, pointvol=pointvol, rstate=self.rstate,
-                        bootstrap=self.bootstrap, pool=self.pool)
+                        bootstrap=self.bootstrap, pool=pool)
         if self.enlarge != 1.:
             self.ell.scale_to_vol(self.ell.vol * self.enlarge)
 
@@ -351,7 +360,6 @@ class MultiEllipsoidSampler(Sampler):
     Bounds live points in multiple ellipsoids and samples conditioned
     on their union.
 
-
     Parameters
     ----------
     loglikelihood : function
@@ -386,9 +394,13 @@ class MultiEllipsoidSampler(Sampler):
         independently proposes new live points until the proposal distribution
         is updated.
 
-    pool: ThreadPoolExecutor
-        Use this pool of workers to propose live points in parallel.
+    pool: pool
+        Use this pool of workers to execute operations in parallel.
 
+
+    use_pool : dict, optional
+        A dictionary containing flags for where a pool should be used to
+        execute operations in parallel.
 
     Other Parameters
     ----------------
@@ -429,7 +441,7 @@ class MultiEllipsoidSampler(Sampler):
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
                  method, update_interval, rstate, queue_size, pool,
-                 kwargs={}):
+                 use_pool, kwargs={}):
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
                          'slice': self.propose_live}
@@ -451,7 +463,7 @@ class MultiEllipsoidSampler(Sampler):
         super(MultiEllipsoidSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, rstate,
-                             queue_size, pool)
+                             queue_size, pool, use_pool)
         self.mell = MultiEllipsoid(ctrs=[np.zeros(self.npdim)],
                                    ams=[np.identity(self.npdim)])
         self.bound = 'multi'
@@ -469,10 +481,14 @@ class MultiEllipsoidSampler(Sampler):
         """Update bounding ellipsoids using the current set of live points."""
 
         self._empty_queue()
+        if self.use_pool_update:
+            pool = self.pool
+        else:
+            pool = None
         self.mell.update(self.live_u, pointvol=pointvol,
                          vol_dec=self.vol_dec, vol_check=self.vol_check,
                          rstate=self.rstate, bootstrap=self.bootstrap,
-                         pool=self.pool)
+                         pool=pool)
         if self.enlarge != 1.:
             self.mell.scale_to_vols(self.mell.vols * self.enlarge)
 
@@ -543,7 +559,6 @@ class RadFriendsSampler(Sampler):
     Bounds new live point proposals using n-spheres centered on the
     current set of live points.
 
-
     Parameters
     ----------
     loglikelihood : function
@@ -578,9 +593,12 @@ class RadFriendsSampler(Sampler):
         independently proposes new live points until the proposal distribution
         is updated.
 
-    pool: ThreadPoolExecutor
-        Use this pool of workers to propose live points in parallel.
+    pool: pool
+        Use this pool of workers to execute operations in parallel.
 
+    use_pool : dict, optional
+        A dictionary containing flags for where a pool should be used to
+        execute operations in parallel.
 
     Other Parameters
     ----------------
@@ -613,7 +631,7 @@ class RadFriendsSampler(Sampler):
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
                  method, update_interval, rstate, queue_size, pool,
-                 kwargs={}):
+                 use_pool, kwargs={}):
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
                          'slice': self.propose_live}
@@ -633,7 +651,7 @@ class RadFriendsSampler(Sampler):
         super(RadFriendsSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, rstate,
-                             queue_size, pool)
+                             queue_size, pool, use_pool)
         self.radfriends = RadFriends(self.npdim, 0.)
         self.bound = 'balls'
         self.method = method
@@ -652,9 +670,13 @@ class RadFriendsSampler(Sampler):
         kdtree = spatial.KDTree(self.live_u)
 
         self._empty_queue()
+        if self.use_pool_update:
+            pool = self.pool
+        else:
+            pool = None
         self.radfriends.update(self.live_u, pointvol=pointvol,
                                rstate=self.rstate, bootstrap=self.bootstrap,
-                               pool=self.pool, kdtree=kdtree)
+                               pool=pool, kdtree=kdtree)
         if self.enlarge != 1.:
             self.radfriends.scale_to_vol(self.radfriends.vol_ball *
                                          self.enlarge)
@@ -750,9 +772,12 @@ class SupFriendsSampler(Sampler):
         independently proposes new live points until the proposal distribution
         is updated.
 
-    pool: ThreadPoolExecutor
-        Use this pool of workers to propose live points in parallel.
+    pool: pool
+        Use this pool of workers to execute operations in parallel.
 
+    use_pool : dict, optional
+        A dictionary containing flags for where a pool should be used to
+        execute operations in parallel.
 
     Other Parameters
     ----------------
@@ -785,7 +810,7 @@ class SupFriendsSampler(Sampler):
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
                  method, update_interval, rstate, queue_size, pool,
-                 kwargs={}):
+                 use_pool, kwargs={}):
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
                          'slice': self.propose_live}
@@ -805,7 +830,7 @@ class SupFriendsSampler(Sampler):
         super(SupFriendsSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, rstate,
-                             queue_size, pool)
+                             queue_size, pool, use_pool)
         self.supfriends = SupFriends(self.npdim, 0.)
         self.bound = 'cubes'
         self.method = method
@@ -824,9 +849,13 @@ class SupFriendsSampler(Sampler):
         kdtree = spatial.KDTree(self.live_u)
 
         self._empty_queue()
+        if self.use_pool_update:
+            pool = self.pool
+        else:
+            pool = None
         self.supfriends.update(self.live_u, pointvol=pointvol,
                                rstate=self.rstate, bootstrap=self.bootstrap,
-                               pool=self.pool, kdtree=kdtree)
+                               pool=pool, kdtree=kdtree)
         if self.enlarge != 1.:
             self.supfriends.scale_to_vol(self.supfriends.vol_cube *
                                          self.enlarge)

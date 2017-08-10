@@ -49,6 +49,7 @@ __all__ = ["UnitCube", "Ellipsoid", "MultiEllipsoid", "RadFriends",
            "SupFriends"]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
+MAXINT = 2**32 - 1
 
 
 class UnitCube(object):
@@ -265,9 +266,11 @@ class Ellipsoid(object):
                 M = pool.map
             ps = [points for it in range(bootstrap)]
             pvs = [pointvol for it in range(bootstrap)]
-            rstates = [rstate for it in range(bootstrap)]
-            args = zip(ps, pvs, rstates)
+            rseeds = rstate.randint(MAXINT, size=bootstrap)
+            save_state = rstate.get_state()  # save current state
+            args = zip(ps, pvs, rseeds)
             expands = M(_ellipsoid_bootstrap_expand, args)
+            rstate.set_state(save_state)  # reset to last saved state
 
             # Conservatively set the expansion factor to be the maximum
             # factor derived from our set of bootstraps.
@@ -502,9 +505,11 @@ class MultiEllipsoid(object):
             pvs = [pointvol for it in range(bootstrap)]
             vds = [vol_dec for it in range(bootstrap)]
             vcs = [vol_check for it in range(bootstrap)]
-            rstates = [rstate for it in range(bootstrap)]
-            args = zip(ps, pvs, vds, vcs, rstates)
+            rseeds = rstate.randint(MAXINT, size=bootstrap)
+            save_state = rstate.get_state()  # save current state
+            args = zip(ps, pvs, vds, vcs, rseeds)
             expands = M(_ellipsoids_bootstrap_expand, args)
+            rstate.set_state(save_state)  # reset to last saved state
 
             # Conservatively set the expansion factor to be the maximum
             # factor derived from our set of bootstraps.
@@ -685,9 +690,11 @@ class RadFriends(object):
             # Bootstrap radius using the set of live points.
             ps = [points for it in range(bootstrap)]
             ftypes = ['balls' for it in range(bootstrap)]
-            rstates = [rstate for it in range(bootstrap)]
-            args = zip(ps, ftypes, rstates)
+            rseeds = rstate.randint(MAXINT, size=bootstrap)
+            save_state = rstate.get_state()  # save current state
+            args = zip(ps, ftypes, rseeds)
             radii = M(_friends_bootstrap_radius, args)
+            rstate.set_state(save_state)  # reset to last saved state
 
         # Conservatively set radius to be maximum of the set.
         rmax = max(radii)
@@ -870,9 +877,11 @@ class SupFriends(object):
             # Bootstrap radius using the set of live points.
             ps = [points for it in range(bootstrap)]
             ftypes = ['cubes' for it in range(bootstrap)]
-            rstates = [rstate for it in range(bootstrap)]
-            args = zip(ps, ftypes, rstates)
+            rseeds = rstate.randint(MAXINT, size=bootstrap)
+            save_state = rstate.get_state()  # save current state
+            args = zip(ps, ftypes, rseeds)
             hsides = M(_friends_bootstrap_radius, args)
+            rstate.set_state(save_state)  # reset to last saved state
 
         # Conservatively set radius to be maximum of the set.
         hsmax = max(hsides)
@@ -1175,7 +1184,11 @@ def _ellipsoid_bootstrap_expand(args):
     resampling."""
 
     # Unzipping.
-    points, pointvol, rstate = args
+    points, pointvol, rseed = args
+
+    # Seed random number generator.
+    rstate = np.random
+    rstate.seed(rseed)
 
     # Resampling.
     npoints, ndim = points.shape
@@ -1206,7 +1219,11 @@ def _ellipsoids_bootstrap_expand(args):
     bootstrap resampling."""
 
     # Unzipping.
-    points, pointvol, vol_dec, vol_check, rstate = args
+    points, pointvol, vol_dec, vol_check, rseed = args
+
+    # Seed random number generator.
+    rstate = np.random
+    rstate.seed(rseed)
 
     # Resampling.
     npoints, ndim = points.shape
@@ -1239,7 +1256,11 @@ def _friends_bootstrap_radius(args):
     live points using bootstrap resampling."""
 
     # Unzipping.
-    points, ftype, rstate = args
+    points, ftype, rseed = args
+
+    # Seed random number generator.
+    rstate = np.random
+    rstate.seed(rseed)
 
     # Resampling.
     npoints, ndim = points.shape

@@ -17,4 +17,3 @@ python setup.py install
 ### Tutorial
 Several Jupyter notebook that demonstrate most of the available features
 can be found under the "Demo" labels.
-**Note that some features have still not been completely implemented.**

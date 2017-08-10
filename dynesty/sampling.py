@@ -28,7 +28,7 @@ def sample_unif(args):
     distribution."""
 
     # Unzipping.
-    (u, loglstar, axes, scale, rstate,
+    (u, loglstar, axes, scale, rseed,
      prior_transform, loglikelihood, kwargs) = args
 
     v = prior_transform(u)
@@ -44,8 +44,12 @@ def sample_rwalk(args):
     existing live point."""
 
     # Unzipping.
-    (u, loglstar, axes, scale, rstate,
+    (u, loglstar, axes, scale, rseed,
      prior_transform, loglikelihood, kwargs) = args
+
+    # Seed random number generator.
+    rstate = np.random
+    rstate.seed(rseed)
 
     n = len(u)
     walks = kwargs.get('walks', 25)  # number of steps
@@ -90,8 +94,12 @@ def sample_slice(args):
     away from an existing live point."""
 
     # Unzipping.
-    (u, loglstar, axes, scale, rstate,
+    (u, loglstar, axes, scale, rseed,
      prior_transform, loglikelihood, kwargs) = args
+
+    # Seed random number generator.
+    rstate = np.random
+    rstate.seed(rseed)
 
     n = len(u)
     slices = kwargs.get('slices', 3)  # number of slices

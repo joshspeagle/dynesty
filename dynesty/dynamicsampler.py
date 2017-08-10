@@ -38,6 +38,23 @@ _SAMPLING = {'unif': sample_unif,
              'slice': sample_slice}
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
+MAXINT = 2**32 - 1
+
+
+def _kld_error(args):
+    """
+    Internal `pool.map`-friendly wrapper for the `kld_error` function to ensure
+    appropriate parallel behavior.
+    """
+
+    # Extract arguments.
+    results, error, rseed = args
+
+    # Seed random number generator.
+    rstate = np.random
+    rstate.seed(rseed)
+
+    return kld_error(results, error, rstate=rstate, return_new=True)
 
 
 def weight_function(results, args, return_weights=False):
@@ -125,7 +142,8 @@ def weight_function(results, args, return_weights=False):
         return (logl_min, logl_max)
 
 
-def stopping_function(results, args, M=map, return_vals=False):
+def stopping_function(results, args, rstate=np.random, M=map,
+                      return_vals=False):
     """
     The default stopping function utilized by `DynamicSampler`. Parameters
     are passed to the function via `args`. This assigns the run a stopping
@@ -157,7 +175,15 @@ def stopping_function(results, args, M=map, return_vals=False):
         outlined above, users can also choose the *type* of realizations used
         to compute quantities via the `'error'` keyword (choices are 'jitter'
         and 'simulate'). Default values are `pfrac = 1.0`, `evid_thresh = 0.1`,
-        `post_thresh = 0.025`, `n_mc = 32`, and `error = 'simulate'`.
+        `post_thresh = 0.02`, `n_mc = 32`, and `error = 'simulate'`.
+
+    rstate : `~numpy.random.RandomState`
+        RandomState instance.
+
+    M : map, optional
+        An alias to an equivalent `map` function. This allows users to pass
+        functions from pools (e.g., `pool.map`) to compute realizations in
+        parallel. By default the standard `map` function is used.
 
     return_vals : bool, optional
         Whether to return the stopping value (and its components). Default
@@ -185,7 +211,7 @@ def stopping_function(results, args, M=map, return_vals=False):
         raise ValueError("The provided `evid_thresh` {0} is not non-negative "
                          "even though `1 - pfrac` is {1}."
                          .format(evid_thresh, 1. - pfrac))
-    post_thresh = args.get('post_thresh', 0.025)
+    post_thresh = args.get('post_thresh', 0.02)
     if pfrac > 0. and post_thresh < 0.:
         raise ValueError("The provided `post_thresh` {0} is not non-negative "
                          "even though `pfrac` is {1}."
@@ -205,10 +231,13 @@ def stopping_function(results, args, M=map, return_vals=False):
     # Compute realizations of ln(evidence) and the KL divergence.
     rlist = [results for i in range(n_mc)]
     error_list = [error for i in range(n_mc)]
-    return_options = [True for i in range(n_mc)]
-    outputs = M(kld_error, rlist, error_list, return_options)
+    rseeds = rstate.randint(MAXINT, size=n_mc)
+    save_state = rstate.get_state()  # save current state
+    args = zip(rlist, error_list, rseeds)
+    outputs = M(_kld_error, args)
     kld_arr, lnz_arr = np.array([(kld[-1], res.logz[-1])
                                  for kld, res in outputs]).T
+    rstate.set_state(save_state)  # reset to last saved state
 
     # Evidence stopping value.
     lnz_std = np.std(lnz_arr)
@@ -231,7 +260,6 @@ class DynamicSampler(object):
     """
     A dynamic nested sampler that allocates live points adaptively during
     a single run until a specified stopping criteria is reached.
-
 
     Parameters
     ----------
@@ -264,8 +292,11 @@ class DynamicSampler(object):
         is updated.
 
     pool: pool
-        Use this pool of workers to propose live points in parallel.
+        Use this pool of workers to execute operations in parallel.
 
+    use_pool : dict, optional
+        A dictionary containing flags for where a pool should be used to
+        execute operations in parallel.
 
     Other Parameters
     ----------------
@@ -308,7 +339,7 @@ class DynamicSampler(object):
 
     def __init__(self, loglikelihood, prior_transform, npdim,
                  bound, method, update_interval, rstate, queue_size,
-                 pool, kwargs):
+                 pool, use_pool, kwargs):
         # distributions
         self.loglikelihood = loglikelihood
         self.prior_transform = prior_transform
@@ -342,6 +373,12 @@ class DynamicSampler(object):
             self.M = map
         else:
             self.M = pool.map
+        self.use_pool = use_pool  # provided flags for when to use the pool
+        self.use_pool_ptform = use_pool.get('prior_transform', True)
+        self.use_pool_logl = use_pool.get('loglikelihood', True)
+        self.use_pool_evolve = use_pool.get('propose_point', True)
+        self.use_pool_update = use_pool.get('update_bound', True)
+        self.use_pool_stopfn = use_pool.get('stop_function', True)
         self.queue = []  # proposed live point queue
         self.nqueue = 0  # current size of the queue
         self.unused = 0  # total number of proposals unused
@@ -604,10 +641,19 @@ class DynamicSampler(object):
         if live_points is None:
             self.nlive_init = nlive
             self.live_u = self.rstate.rand(self.nlive_init, self.npdim)
-            self.live_v = self.M(self.prior_transform, self.live_u)
-            self.live_logl = self.M(self.loglikelihood, self.live_v)
+            if self.use_pool_ptform:
+                self.live_v = np.array(self.M(self.prior_transform,
+                                              self.live_u))
+            else:
+                self.live_v = np.array(map(self.prior_transform, self.live_u))
+            if self.use_pool_logl:
+                self.live_logl = np.array(self.M(self.loglikelihood,
+                                                 self.live_v))
+            else:
+                self.live_logl = np.array(map(self.loglikelihood, self.live_v))
         else:
-            self.nlive_init = len(live_points[0])
+            self.live_u, self.live_v, self.live_logl = live_points
+            self.nlive_init = len(self.live_u)
 
         # Convert all `-np.inf` log-likelihoods to finite large numbers.
         # Necessary to keep estimators in our sampler from breaking.
@@ -621,6 +667,7 @@ class DynamicSampler(object):
                                      .format(logl, i, self.live_u[i],
                                              self.live_v[i]))
 
+        # (Re-)bundle live points.
         live_points = [self.live_u, self.live_v, self.live_logl]
         self.live_init = [np.array(l) for l in live_points]
         self.ncall += self.nlive_init
@@ -632,14 +679,14 @@ class DynamicSampler(object):
             update_interval = self.update_interval
         if isinstance(update_interval, float):
             update_interval = int(round(self.update_interval * nlive))
-
         bound = self.bound
         self.sampler = _SAMPLERS[bound](self.loglikelihood,
                                         self.prior_transform,
                                         self.npdim, self.live_init,
                                         self.method, update_interval,
                                         self.rstate, self.queue_size,
-                                        self.pool, self.kwargs)
+                                        self.pool, self.use_pool,
+                                        self.kwargs)
         self.prop = self.sampler.prop
 
         # Run the sampler internally as a generator.
@@ -812,8 +859,6 @@ class DynamicSampler(object):
             maxcall = sys.maxsize
         if maxiter is None:
             maxiter = sys.maxsize
-
-        # Internal sampler should always dump them to avoid wasting memory.
         self.sampler.save_proposals = save_proposals
 
         # Initialize values.
@@ -860,10 +905,16 @@ class DynamicSampler(object):
         if psel:
             # If the lower bound encompasses all live points, we want
             # to propose a new set of points from the unit cube.
-            live_u = self.rstate.rand(nlive_new, self.npdim)  # unit cube
-            live_v = self.M(self.prior_transform, live_u)  # real parameters
-            live_logl = self.M(self.loglikelihood, live_v)  # log likelihood
-            live_prop = np.zeros(nlive_new, dtype='int')  # unit cube
+            live_u = self.rstate.rand(nlive_new, self.npdim)
+            if self.use_pool_ptform:
+                live_v = np.array(self.M(self.prior_transform, live_u))
+            else:
+                live_v = np.array(map(self.prior_transform, live_u))
+            if self.use_pool_logl:
+                live_logl = np.array(self.M(self.loglikelihood, live_v))
+            else:
+                live_logl = np.array(map(self.loglikelihood, live_v))
+            live_prop = np.zeros(nlive_new, dtype='int')
             live_it = np.zeros(nlive_new, dtype='int') + self.it
             live_nc = np.ones(nlive_new, dtype='int')
             self.ncall += nlive_new
@@ -1332,6 +1383,7 @@ class DynamicSampler(object):
                                      "dlogz: {:6.3f} > {:6.3f}    "
                                      .format(niter, 0, nc, ncall, eff, logz,
                                              logzerr, delta_logz, dlogz_init))
+                    sys.stderr.flush()
 
         # Add points in batches.
         for n in range(self.batch, maxbatch):
@@ -1340,7 +1392,12 @@ class DynamicSampler(object):
             mcall = min(maxcall - ncall, maxcall_batch)
             miter = min(maxiter - niter, maxiter_batch)
             if use_stop:
-                stop, stop_vals = stop_function(res, stop_kwargs, M=self.M,
+                if self.use_pool_stopfn:
+                    M = self.M
+                else:
+                    M = map
+                stop, stop_vals = stop_function(res, stop_kwargs,
+                                                rstate=self.rstate, M=M,
                                                 return_vals=True)
                 stop_post, stop_evid, stop_val = stop_vals
             else:
@@ -1375,6 +1432,7 @@ class DynamicSampler(object):
                                                  eff, logl_bounds[0], loglstar,
                                                  logl_bounds[1], lnz, lnzerr,
                                                  stop_val))
+                        sys.stderr.flush()
                 self.combine_runs()
             else:
                 # We're done!
@@ -1463,4 +1521,5 @@ class DynamicSampler(object):
                                      .format(niter, n+1, nc, ncall,
                                              eff, logl_bounds[0], loglstar,
                                              logl_bounds[1], lnz, lnzerr))
+                    sys.stderr.flush()
             self.combine_runs()

@@ -36,7 +36,7 @@ SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
                   bound='multi', sample='unif', update_interval=0.6,
                   npdim=None, rstate=None, queue_size=1, pool=None,
-                  live_points=None, **kwargs):
+                  use_pool=None, live_points=None, **kwargs):
     """
     Initializes and returns a chosen sampler to evaluate Bayesian evidence
     and posteriors using nested sampling.
@@ -104,10 +104,21 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
         independently proposes new live points until the proposal distribution
         is updated. Default is *1* (no parallelism).
 
-    pool : ThreadPoolExecutor, optional
-        Use this pool of workers to propose live points in parallel. If
+    pool : user-provided pool, optional
+        Use this pool of workers to execute operations in parallel. If
         `queue_size > 1` and `pool` is not specified, a `ValueError` will be
         thrown.
+
+    use_pool : dict, optional
+        A dictionary containing flags for where a pool should be used to
+        execute operations in parallel. These govern whether `prior_transform`
+        is executed in parallel during initialization (`'prior_transform'`),
+        `loglikelihood` is executed in parallel during initialization
+        (`'loglikelihood'`), live points are proposed in parallel during a run
+        (`'propose_point'`), and bounding distributions are updated in
+        parallel during a run (`'update_bound'`). Default is *True* for all
+        options.
+        
 
     live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
         A set of live points used to initialize the nested sampling run.
@@ -192,12 +203,20 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
             M = pool.map
         else:
             raise ValueError("Missing `pool`. Please provide a Pool.")
+    if use_pool is None:
+        use_pool = dict()
 
     # Initialize live points and calculate likelihoods.
     if live_points is None:
         live_u = rstate.rand(nlive, npdim)  # positions in unit cube
-        live_v = M(prior_transform, live_u)  # real parameters
-        live_logl = M(loglikelihood, live_v)  # log likelihood
+        if use_pool.get('prior_transform', True):
+            live_v = np.array(M(prior_transform, live_u))  # real parameters
+        else:
+            live_v = np.array(map(prior_transform, live_u))
+        if use_pool.get('loglikelihood', True):
+            live_logl = np.array(M(loglikelihood, live_v))  # log likelihood
+        else:
+            live_logl = np.array(map(loglikelihood, live_v))
         live_points = [live_u, live_v, live_logl]
 
     # Convert all `-np.inf` log-likelihoods to finite large numbers.
@@ -215,7 +234,7 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
     # Initialize our nested sampler.
     sampler = _SAMPLERS[bound](loglikelihood, prior_transform, npdim,
                                live_points, sample, update_interval,
-                               rstate, queue_size, pool, kwargs)
+                               rstate, queue_size, pool, use_pool, kwargs)
 
     return sampler
 
@@ -223,7 +242,7 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
 def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
                          bound='multi', sample='unif', update_interval=0.6,
                          npdim=None, rstate=None, queue_size=1, pool=None,
-                         **kwargs):
+                         use_pool=None, **kwargs):
     """
     Initializes and returns a chosen sampler to evaluate Bayesian evidence
     and posteriors using nested sampling.
@@ -287,10 +306,21 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         independently proposes new live points until the proposal distribution
         is updated. Default is *1* (no parallelism).
 
-    pool : ThreadPoolExecutor, optional
+    pool : user-provided pool, optional
         Use this pool of workers to propose live points in parallel. If
         `queue_size > 1` and `pool` is not specified, a `ValueError` will be
         thrown.
+
+    use_pool : dict, optional
+        A dictionary containing flags for where a pool should be used to
+        execute operations in parallel. These govern whether `prior_transform`
+        is executed in parallel during initialization (`'prior_transform'`),
+        `loglikelihood` is executed in parallel during initialization
+        (`'loglikelihood'`), live points are proposed in parallel during a run
+        (`'propose_point'`), bounding distributions are updated in parallel
+        during a run (`'update_bound'`), and stopping criteria are updated
+        in parallel during a run (`'stop_function'`). Default is *True* for all
+        options.
 
     Other Parameters
     ----------------
@@ -359,10 +389,12 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
             M = pool.map
         else:
             raise ValueError("Missing `pool`. Please provide a Pool.")
+    if use_pool is None:
+        use_pool = dict()
 
     # Initialize our nested sampler.
     sampler = DynamicSampler(loglikelihood, prior_transform, npdim,
                              bound, sample, update_interval,
-                             rstate, queue_size, pool, kwargs)
+                             rstate, queue_size, pool, use_pool, kwargs)
 
     return sampler

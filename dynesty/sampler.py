@@ -23,12 +23,12 @@ from .bounding import *
 __all__ = ["Sampler"]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
+MAXINT = 2**32 - 1
 
 
 class Sampler(object):
     """
     The basic sampler object that performs dynamic nested sampling.
-
 
     Parameters
     ----------
@@ -62,12 +62,16 @@ class Sampler(object):
         is updated.
 
     pool: pool
-        Use this pool of workers to propose live points in parallel.
+        Use this pool of workers to execute operations in parallel.
+
+    use_pool : dict, optional
+        A dictionary containing flags for where a pool should be used to
+        execute operations in parallel.
 
     """
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
-                 update_interval, rstate, queue_size, pool):
+                 update_interval, rstate, queue_size, pool, use_pool):
         # distributions
         self.loglikelihood = loglikelihood
         self.prior_transform = prior_transform
@@ -86,12 +90,17 @@ class Sampler(object):
         self.rstate = rstate
 
         # parallelism
-        self.queue_size = queue_size
-        self.pool = pool
+        self.queue_size = queue_size  # size of the queue
+        self.pool = pool  # provided pool
         if self.pool is None:
             self.M = map
         else:
             self.M = pool.map
+        self.use_pool = use_pool  # provided flags for when to use the pool
+        self.use_pool_ptform = use_pool.get('prior_transform', True)
+        self.use_pool_logl = use_pool.get('loglikelihood', True)
+        self.use_pool_evolve = use_pool.get('propose_point', True)
+        self.use_pool_update = use_pool.get('update_bound', True)
         self.queue = []  # proposed live point queue
         self.nqueue = 0  # current size of the queue
         self.unused = 0  # total number of proposals unused
@@ -127,8 +136,14 @@ class Sampler(object):
 
         # live points
         self.live_u = self.rstate.rand(self.nlive, self.npdim)
-        self.live_v = self.M(self.prior_transform, self.live_u)
-        self.live_logl = self.M(self.loglikelihood, self.live_v)
+        if self.use_pool_ptform:
+            self.live_v = np.array(self.M(self.prior_transform, self.live_u))
+        else:
+            self.live_v = np.array(map(self.prior_transform, self.live_u))
+        if self.use_pool_logl:
+            self.live_logl = np.array(self.M(self.loglikelihood, self.live_v))
+        else:
+            self.live_logl = np.array(map(self.loglikelihood, self.live_v))
         self.live_prop = np.zeros(self.nlive, dtype='int')
         self.live_it = np.zeros(self.nlive, dtype='int')
 
@@ -220,14 +235,18 @@ class Sampler(object):
             self.nqueue += 1
         loglstars = [loglstar for i in range(self.queue_size)]
         scales = [self.scale for i in range(self.queue_size)]
-        rstates = [self.rstate for i in range(self.queue_size)]
+        rseeds = self.rstate.randint(MAXINT, size=self.queue_size)
         ptforms = [self.prior_transform for i in range(self.queue_size)]
         logls = [self.loglikelihood for i in range(self.queue_size)]
         kwargs = [self.kwargs for i in range(self.queue_size)]
-
+        save_state = self.rstate.get_state()  # save current state
         args = zip(point_queue, loglstars, axes_queue,
-                   scales, rstates, ptforms, logls, kwargs)
-        self.queue = self.M(self.evolve_point, args)
+                   scales, rseeds, ptforms, logls, kwargs)
+        if self.use_pool_evolve:
+            self.queue = self.M(self.evolve_point, args)
+        else:
+            self.queue = map(self.evolve_point, args)
+        self.rstate.set_state(save_state)  # reset to last saved state
 
     def _get_point_value(self, loglstar):
         """Get a live point proposal sequentially from the filled queue."""
@@ -667,7 +686,7 @@ class Sampler(object):
             else:
                 dlogz = 0.01
 
-        ncall = self.nlive
+        ncall = self.ncall
         for it, results in enumerate(self.sample(maxiter=maxiter,
                                      maxcall=maxcall, dlogz=dlogz,
                                      save_proposals=save_proposals,
@@ -693,6 +712,7 @@ class Sampler(object):
                                  .format(i, nc, ncall, eff,
                                          logz, logzerr,
                                          delta_logz, dlogz))
+                sys.stderr.flush()
 
         if add_live:
             it = self.it - 1
@@ -717,6 +737,7 @@ class Sampler(object):
                                      .format(it, i + 1, nc, ncall, eff,
                                              logz, logzerr,
                                              delta_logz, dlogz))
+                    sys.stderr.flush()
 
         if print_progress:
             sys.stderr.write("\n")

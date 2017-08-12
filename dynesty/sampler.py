@@ -218,10 +218,14 @@ class Sampler(object):
     def _empty_queue(self):
         """Dump all live point proposals currently on the queue."""
 
-        while self.nqueue > 0:
-            f = self.queue.pop()
-            self.unused += 1
-            self.nqueue -= 1
+        while True:
+            try:
+                f = self.queue.pop()
+                self.unused += 1
+                self.nqueue -= 1
+            except:
+                self.nqueue = 0
+                break
 
     def _fill_queue(self, loglstar):
         """Sequentially add new live point proposals to the queue."""
@@ -251,7 +255,7 @@ class Sampler(object):
     def _get_point_value(self, loglstar):
         """Get a live point proposal sequentially from the filled queue."""
 
-        if self.nqueue == 0:
+        if self.nqueue <= 0:
             self._fill_queue(loglstar)
         u, v, logl, nc, blob = self.queue.pop(0)
         self.nqueue -= 1

@@ -350,6 +350,9 @@ class DynamicSampler(object):
         self.method = method
         self.update_interval = update_interval
 
+        # internal sampler object
+        self.sampler = None
+
         # extra arguments
         self.kwargs = kwargs
         self.scale = 1.
@@ -379,10 +382,6 @@ class DynamicSampler(object):
         self.use_pool_evolve = use_pool.get('propose_point', True)
         self.use_pool_update = use_pool.get('update_bound', True)
         self.use_pool_stopfn = use_pool.get('stop_function', True)
-        self.queue = []  # proposed live point queue
-        self.nqueue = 0  # current size of the queue
-        self.unused = 0  # total number of proposals unused
-        self.used = 0  # total number of proposals used
 
         # sampling details
         self.it = 1  # number of iterations
@@ -444,12 +443,6 @@ class DynamicSampler(object):
 
     def reset(self):
         """Re-initialize the sampler."""
-
-        # parallelism
-        self.queue = []
-        self.nqueue = 0
-        self.unused = 0
-        self.used = 0
 
         # sampling
         self.it = 1
@@ -635,6 +628,7 @@ class DynamicSampler(object):
         if maxiter is None:
             maxiter = sys.maxsize
 
+        # Reset results to avoid any possible conflicts.
         self.reset()
 
         # Initialize the first set of live points.
@@ -645,12 +639,14 @@ class DynamicSampler(object):
                 self.live_v = np.array(self.M(self.prior_transform,
                                               self.live_u))
             else:
-                self.live_v = np.array(map(self.prior_transform, self.live_u))
+                self.live_v = np.array(map(self.prior_transform,
+                                           self.live_u))
             if self.use_pool_logl:
                 self.live_logl = np.array(self.M(self.loglikelihood,
                                                  self.live_v))
             else:
-                self.live_logl = np.array(map(self.loglikelihood, self.live_v))
+                self.live_logl = np.array(map(self.loglikelihood,
+                                              self.live_v))
         else:
             self.live_u, self.live_v, self.live_logl = live_points
             self.nlive_init = len(self.live_u)
@@ -662,8 +658,9 @@ class DynamicSampler(object):
                 if np.sign(logl) < 0:
                     self.live_logl[i] = -1e300
                 else:
-                    raise ValueError("The log-likelihood ({0}) of live point "
-                                     "{1} located at u={2} v={3} is invalid."
+                    raise ValueError("The log-likelihood ({0}) of live "
+                                     "point {1} located at u={2} v={3} "
+                                     " is invalid."
                                      .format(logl, i, self.live_u[i],
                                              self.live_v[i]))
 

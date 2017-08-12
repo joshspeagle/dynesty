@@ -123,7 +123,12 @@ class UnitCubeSampler(Sampler):
         self.evolve_point = _SAMPLING[method]
         self.kwargs = kwargs
         self.scale = 1.
-        self.bootstrap = kwargs.get('bootstrap', 20)
+        self.bootstrap = kwargs.get('bootstrap')
+        if self.bootstrap is None:
+            if method == 'slice' or method == 'rwalk':
+                self.bootstrap = 0
+            else:
+                self.bootstrap = 20
         if self.bootstrap > 0:
             self.enlarge = kwargs.get('enlarge', 1.0)
         else:
@@ -278,7 +283,12 @@ class SingleEllipsoidSampler(Sampler):
         self.evolve_point = _SAMPLING[method]
         self.kwargs = kwargs
         self.scale = 1.
-        self.bootstrap = kwargs.get('bootstrap', 20)
+        self.bootstrap = kwargs.get('bootstrap')
+        if self.bootstrap is None:
+            if method == 'slice' or method == 'rwalk':
+                self.bootstrap = 0
+            else:
+                self.bootstrap = 20
         if self.bootstrap > 0:
             self.enlarge = kwargs.get('enlarge', 1.0)
         else:
@@ -453,7 +463,12 @@ class MultiEllipsoidSampler(Sampler):
         self.evolve_point = _SAMPLING[method]
         self.kwargs = kwargs
         self.scale = 1.
-        self.bootstrap = kwargs.get('bootstrap', 20)
+        self.bootstrap = kwargs.get('bootstrap')
+        if self.bootstrap is None:
+            if method == 'slice' or method == 'rwalk':
+                self.bootstrap = 0
+            else:
+                self.bootstrap = 20
         if self.bootstrap > 0:
             self.enlarge = kwargs.get('enlarge', 1.0)
         else:
@@ -643,7 +658,12 @@ class RadFriendsSampler(Sampler):
         self.evolve_point = _SAMPLING[method]
         self.kwargs = kwargs
         self.scale = 1.
-        self.bootstrap = kwargs.get('bootstrap', 20)
+        self.bootstrap = kwargs.get('bootstrap')
+        if self.bootstrap is None:
+            if method == 'slice' or method == 'rwalk':
+                self.bootstrap = 0
+            else:
+                self.bootstrap = 20
         if self.bootstrap > 0:
             self.enlarge = kwargs.get('enlarge', 1.0)
         else:
@@ -822,7 +842,12 @@ class SupFriendsSampler(Sampler):
         self.evolve_point = _SAMPLING[method]
         self.kwargs = kwargs
         self.scale = 1.
-        self.bootstrap = kwargs.get('bootstrap', 20)
+        self.bootstrap = kwargs.get('bootstrap')
+        if self.bootstrap is None:
+            if method == 'slice' or method == 'rwalk':
+                self.bootstrap = 0
+            else:
+                self.bootstrap = 20
         if self.bootstrap > 0:
             self.enlarge = kwargs.get('enlarge', 1.0)
         else:

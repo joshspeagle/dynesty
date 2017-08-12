@@ -75,11 +75,11 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
         ('multi'), balls centered on each live point ('balls'), and
         cubes centered on each live point ('cubes'). Default is 'multi'.
 
-    sample : {'unif', 'rwalk', 'slice', 'rtraj'}, optional
+    sample : {'unif', 'rwalk', 'slice'}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds. Choices are uniform
-        ('unif'), random walks ('rwalk'), slices ('slice'), and random
-        trajectories ('rtraj'). Default is 'uniform'.
+        ('unif'), random walks ('rwalk'), and slices ('slice').
+        Default is 'unif'.
 
     update_interval : int or float, optional
         If an integer is passed, only update the proposal distribution every
@@ -142,7 +142,8 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
         Compute this many bootstrap-resampled realizations of the bounding
         objects. Use the maximum distance found to the set of points left
         out during each iteration to enlarge the resulting volumes.
-        Default is *20*.
+        Default is *20* for uniform sampling ('unif') and *0* for random walks
+        ('rwalk') and slice sampling ('slice').
 
     vol_dec : float, optional
         For the 'multi' bounding option, the required fractional reduction in
@@ -276,11 +277,11 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         ('multi'), balls centered on each live point ('balls'), and
         cubes centered on each live point ('cubes'). Default is 'multi'.
 
-    sample : {'unif', 'rwalk', 'slice', 'rtraj'}, optional
+    sample : {'unif', 'rwalk', 'slice'}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds. Choices are uniform
-        ('unif'), random walks ('rwalk'), slices ('slice'), and random
-        trajectories ('rtraj'). Default is 'uniform'.
+        ('unif'), random walks ('rwalk'), and slices ('slice').
+        Default is 'unif'.
 
     update_interval : int or float, optional
         If an integer is passed, only update the proposal distribution every
@@ -334,7 +335,8 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         Compute this many bootstrap-resampled realizations of the bounding
         objects. Use the maximum distance found to the set of points left
         out during each iteration to enlarge the resulting volumes.
-        Default is *20*.
+        Default is *20* for uniform sampling ('unif') and *0* for random walks
+        ('rwalk') and slice sampling ('slice').
 
     vol_dec : float, optional
         For the 'multi' bounding option, the required fractional reduction in

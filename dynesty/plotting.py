@@ -133,7 +133,7 @@ def runplot(results, bounds=None, logplot=False, color='blue',
     niter = results['niter']  # number of iterations
     logvol = results['logvol']  # ln(prior volume)
     logl = results['logl']  # ln(likelihood)
-    logwt = results['logwt']  # ln(importance weight)
+    logwt = results['logwt'] - results['logz'][-1]  # ln(importance weight)
     logz = results['logz']  # ln(evidence)
     logzerr = results['logzerr']  # error in ln(evidence)
     logzerr[~np.isfinite(logzerr)] = 0.
@@ -416,7 +416,7 @@ def traceplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
     samples = results['samples']
     logvol = results['logvol']
     try:
-        weights = np.exp(results['logwt'])
+        weights = np.exp(results['logwt'] - results['logz'][-1])
     except:
         weights = results['weights']
 
@@ -711,7 +711,7 @@ def cornerpoints(results, bounds=None, cmap='plasma', color=None,
     # Extract weighted samples.
     samples = results['samples']
     try:
-        weights = np.exp(results['logwt'])
+        weights = np.exp(results['logwt'] - results['logz'][-1])
     except:
         weights = results['weights']
 
@@ -973,7 +973,7 @@ def cornerplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84],
     # Extract weighted samples.
     samples = results['samples']
     try:
-        weights = np.exp(results['logwt'])
+        weights = np.exp(results['logwt'] - results['logz'][-1])
     except:
         weights = results['weights']
 
@@ -1075,7 +1075,7 @@ def cornerplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84],
             ax.xaxis.set_label_coords(0.5, -0.3)
         # Generate distribution.
         sx = smooth[i]
-        if isinstance(smooth, types.IntType):
+        if isinstance(sx, types.IntType):
             # If `sx` is an integer, plot a weighted histogram with
             # `sx` bins within the provided bounds.
             n, b, _ = ax.hist(x, bins=sx, weights=weights, color=color,

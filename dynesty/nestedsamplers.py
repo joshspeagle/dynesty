@@ -110,8 +110,8 @@ class UnitCubeSampler(Sampler):
     """
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
-                 method, update_interval, rstate, queue_size, pool,
-                 use_pool, kwargs={}):
+                 method, update_interval, first_update, rstate,
+                 queue_size, pool, use_pool, kwargs={}):
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
                          'slice': self.propose_live}
@@ -120,7 +120,7 @@ class UnitCubeSampler(Sampler):
                         'slice': self.update_slice}
         self.propose_point = self._PROPOSE[method]
         self.update_proposal = self._UPDATE[method]
-        self.evolve_point = _SAMPLING[method]
+        self.sampling, self.evolve_point = method, _SAMPLING[method]
         self.kwargs = kwargs
         self.scale = 1.
         self.bootstrap = kwargs.get('bootstrap')
@@ -135,8 +135,8 @@ class UnitCubeSampler(Sampler):
             self.enlarge = kwargs.get('enlarge', 1.25)
         super(UnitCubeSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
-                             live_points, update_interval, rstate,
-                             queue_size, pool, use_pool)
+                             live_points, update_interval, first_update,
+                             rstate, queue_size, pool, use_pool)
         self.unitcube = UnitCube(self.npdim)
         self.bound = 'none'
         self.method = method
@@ -270,8 +270,8 @@ class SingleEllipsoidSampler(Sampler):
     """
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
-                 method, update_interval, rstate, queue_size, pool,
-                 use_pool, kwargs={}):
+                 method, update_interval, first_update, rstate,
+                 queue_size, pool, use_pool, kwargs={}):
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
                          'slice': self.propose_live}
@@ -280,7 +280,7 @@ class SingleEllipsoidSampler(Sampler):
                         'slice': self.update_slice}
         self.propose_point = self._PROPOSE[method]
         self.update_proposal = self._UPDATE[method]
-        self.evolve_point = _SAMPLING[method]
+        self.sampling, self.evolve_point = method, _SAMPLING[method]
         self.kwargs = kwargs
         self.scale = 1.
         self.bootstrap = kwargs.get('bootstrap')
@@ -295,8 +295,8 @@ class SingleEllipsoidSampler(Sampler):
             self.enlarge = kwargs.get('enlarge', 1.25)
         super(SingleEllipsoidSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
-                             live_points, update_interval, rstate,
-                             queue_size, pool, use_pool)
+                             live_points, update_interval, first_update,
+                             rstate, queue_size, pool, use_pool)
         self.ell = Ellipsoid(np.zeros(self.npdim), np.identity(self.npdim))
         self.bound = 'single'
         self.method = method
@@ -450,8 +450,8 @@ class MultiEllipsoidSampler(Sampler):
     """
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
-                 method, update_interval, rstate, queue_size, pool,
-                 use_pool, kwargs={}):
+                 method, update_interval, first_update, rstate,
+                 queue_size, pool, use_pool, kwargs={}):
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
                          'slice': self.propose_live}
@@ -460,7 +460,7 @@ class MultiEllipsoidSampler(Sampler):
                         'slice': self.update_slice}
         self.propose_point = self._PROPOSE[method]
         self.update_proposal = self._UPDATE[method]
-        self.evolve_point = _SAMPLING[method]
+        self.sampling, self.evolve_point = method, _SAMPLING[method]
         self.kwargs = kwargs
         self.scale = 1.
         self.bootstrap = kwargs.get('bootstrap')
@@ -477,8 +477,8 @@ class MultiEllipsoidSampler(Sampler):
         self.vol_check = kwargs.get('vol_check', 2.0)
         super(MultiEllipsoidSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
-                             live_points, update_interval, rstate,
-                             queue_size, pool, use_pool)
+                             live_points, update_interval, first_update,
+                             rstate, queue_size, pool, use_pool)
         self.mell = MultiEllipsoid(ctrs=[np.zeros(self.npdim)],
                                    ams=[np.identity(self.npdim)])
         self.bound = 'multi'
@@ -645,8 +645,8 @@ class RadFriendsSampler(Sampler):
     """
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
-                 method, update_interval, rstate, queue_size, pool,
-                 use_pool, kwargs={}):
+                 method, update_interval, first_update, rstate,
+                 queue_size, pool, use_pool, kwargs={}):
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
                          'slice': self.propose_live}
@@ -655,7 +655,7 @@ class RadFriendsSampler(Sampler):
                         'slice': self.update_slice}
         self.propose_point = self._PROPOSE[method]
         self.update_proposal = self._UPDATE[method]
-        self.evolve_point = _SAMPLING[method]
+        self.sampling, self.evolve_point = method, _SAMPLING[method]
         self.kwargs = kwargs
         self.scale = 1.
         self.bootstrap = kwargs.get('bootstrap')
@@ -670,8 +670,8 @@ class RadFriendsSampler(Sampler):
             self.enlarge = kwargs.get('enlarge', 1.25)
         super(RadFriendsSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
-                             live_points, update_interval, rstate,
-                             queue_size, pool, use_pool)
+                             live_points, update_interval, first_update,
+                             rstate, queue_size, pool, use_pool)
         self.radfriends = RadFriends(self.npdim, 0.)
         self.bound = 'balls'
         self.method = method
@@ -829,8 +829,8 @@ class SupFriendsSampler(Sampler):
     """
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
-                 method, update_interval, rstate, queue_size, pool,
-                 use_pool, kwargs={}):
+                 method, update_interval, first_update, rstate,
+                 queue_size, pool, use_pool, kwargs={}):
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
                          'slice': self.propose_live}
@@ -839,7 +839,7 @@ class SupFriendsSampler(Sampler):
                         'slice': self.update_slice}
         self.propose_point = self._PROPOSE[method]
         self.update_proposal = self._UPDATE[method]
-        self.evolve_point = _SAMPLING[method]
+        self.sampling, self.evolve_point = method, _SAMPLING[method]
         self.kwargs = kwargs
         self.scale = 1.
         self.bootstrap = kwargs.get('bootstrap')
@@ -854,8 +854,8 @@ class SupFriendsSampler(Sampler):
             self.enlarge = kwargs.get('enlarge', 1.25)
         super(SupFriendsSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
-                             live_points, update_interval, rstate,
-                             queue_size, pool, use_pool)
+                             live_points, update_interval, first_update,
+                             rstate, queue_size, pool, use_pool)
         self.supfriends = SupFriends(self.npdim, 0.)
         self.bound = 'cubes'
         self.method = method

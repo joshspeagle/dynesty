@@ -52,6 +52,11 @@ class Sampler(object):
         Only update the proposal distribution every `update_interval`-th
         likelihood call.
 
+    first_update : dict
+        A dictionary containing parameters governing when the sampler should
+        first update the bounding distribution from the unit cube ('none')
+        to the one specified by `sample`.
+
     rstate : `~numpy.random.RandomState`
         RandomState instance.
 
@@ -71,7 +76,8 @@ class Sampler(object):
     """
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
-                 update_interval, rstate, queue_size, pool, use_pool):
+                 update_interval, first_update, rstate,
+                 queue_size, pool, use_pool):
         # distributions
         self.loglikelihood = loglikelihood
         self.prior_transform = prior_transform
@@ -85,12 +91,16 @@ class Sampler(object):
 
         # proposal updates
         self.update_interval = update_interval
+        self.uprop_ncall = first_update.get('min_ncall', 2 * self.nlive)
+        self.uprop_eff = first_update.get('min_eff', 10.)
+        if self.sampling == 'rwalk' or self.sampling == 'slice':
+            self.uprop_ncall, self.uprop_eff = -np.inf, np.inf
+        self.logl_first_update = None
 
         # random state
         self.rstate = rstate
 
         # parallelism
-        self.queue_size = queue_size  # size of the queue
         self.pool = pool  # provided pool
         if self.pool is None:
             self.M = map
@@ -101,6 +111,10 @@ class Sampler(object):
         self.use_pool_logl = use_pool.get('loglikelihood', True)
         self.use_pool_evolve = use_pool.get('propose_point', True)
         self.use_pool_update = use_pool.get('update_bound', True)
+        if self.use_pool_evolve:
+            self.queue_size = queue_size  # size of the queue
+        else:
+            self.queue_size = 1
         self.queue = []  # proposed live point queue
         self.nqueue = 0  # current size of the queue
         self.unused = 0  # total number of proposals unused
@@ -114,6 +128,7 @@ class Sampler(object):
         self.prop = [UnitCube(self.npdim)]  # proposals
         self.nprop = 1  # total number of unique proposal distributions
         self.added_live = False  # whether leftover live points were used
+        self.eff = 0.  # overall sampling efficiency
 
         # results
         self.saved_id = []  # live point labels
@@ -215,6 +230,18 @@ class Sampler(object):
 
         return np.all(point > 0.) and np.all(point < 1.)
 
+    def _beyond_unit_prop(self, loglstar):
+        """Check whether we should update our proposal beyond the initial
+        unit cube."""
+
+        if self.logl_first_update is None:
+            check = self.ncall > self.uprop_ncall and self.eff < self.uprop_eff
+            if check:
+                self.logl_first_update = loglstar
+            return check
+        else:
+            return loglstar >= self.logl_first_update
+
     def _empty_queue(self):
         """Dump all live point proposals currently on the queue."""
 
@@ -233,24 +260,27 @@ class Sampler(object):
         point_queue = []
         axes_queue = []
         while self.nqueue < self.queue_size:
-            point, axes = self.propose_point()
+            if self._beyond_unit_prop(loglstar):
+                # Propose using bounding distribution if beyond unit sampling.
+                point, axes = self.propose_point()
+            else:
+                # Sample points from the unit cube.
+                point = self.rstate.rand(self.npdim)
+                axes = np.identity(self.npdim)
             point_queue.append(point)
             axes_queue.append(axes)
             self.nqueue += 1
         loglstars = [loglstar for i in range(self.queue_size)]
         scales = [self.scale for i in range(self.queue_size)]
-        rseeds = self.rstate.randint(MAXINT, size=self.queue_size)
         ptforms = [self.prior_transform for i in range(self.queue_size)]
         logls = [self.loglikelihood for i in range(self.queue_size)]
         kwargs = [self.kwargs for i in range(self.queue_size)]
-        save_state = self.rstate.get_state()  # save current state
         args = zip(point_queue, loglstars, axes_queue,
-                   scales, rseeds, ptforms, logls, kwargs)
+                   scales, ptforms, logls, kwargs)
         if self.use_pool_evolve:
             self.queue = self.M(self.evolve_point, args)
         else:
             self.queue = map(self.evolve_point, args)
-        self.rstate.set_state(save_state)  # reset to last saved state
 
     def _get_point_value(self, loglstar):
         """Get a live point proposal sequentially from the filled queue."""
@@ -305,6 +335,8 @@ class Sampler(object):
         # Getting changes in logvol to weight new contributions to `logzvar`.
         dlvs = logvols_pad[:-1] - logvols_pad[1:]
 
+
+
         # Add contributions from the remaining live points in order
         # from the lowest to the highest loglikelihoods.
         lsort_idx = np.argsort(self.live_logl)
@@ -312,6 +344,10 @@ class Sampler(object):
         logzvar = self.saved_logzvar[-1]
         h = self.saved_h[-1]
         loglstar = self.saved_logl[-1]
+        if self._beyond_unit_prop(loglstar):
+            propiter = self.nprop - 1
+        else:
+            propiter = 0
         loglmax = max(self.live_logl)
         for i in range(self.nlive):
             idx = lsort_idx[i]
@@ -348,12 +384,12 @@ class Sampler(object):
                 self.saved_nc.append(1)
                 self.saved_propidx.append(propidx)
                 self.saved_it.append(point_it)
-                self.saved_piter.append(self.nprop - 1)
+                self.saved_piter.append(propiter)
                 self.saved_scale.append(self.scale)
             self.eff = 100. * (self.it + i) / self.ncall
             yield (idx, ustar, vstar, loglstar, logvol, logwt,
-                   logz, logzvar, h, 1, point_it, propidx, self.eff,
-                   delta_logz)
+                   logz, logzvar, h, 1, point_it, propidx, propiter,
+                   self.eff, delta_logz)
 
     def _remove_live_points(self):
         """Remove the remaining set of live points previously added to the
@@ -486,13 +522,15 @@ class Sampler(object):
             loglstar = -1.e300  # initial ln(likelihood)
             delta_logz = 1.e300  # ln(ratio) of total/current evidence
 
-            # Initialize proposal distribution.
+            # Check if we should initialize a different proposal distribution
+            # instead of using the unit cube.
             pointvol = 1. / self.nlive
-            prop = self.update(pointvol)
-            if self.save_proposals:
-                self.prop.append(prop)
-                self.nprop += 1
-            self.since_update = 0
+            if self._beyond_unit_prop(loglstar):
+                prop = self.update(pointvol)
+                if self.save_proposals:
+                    self.prop.append(prop)
+                    self.nprop += 1
+                self.since_update = 0
         else:
             # Remove live points (if added) from previous run.
             if self.added_live:
@@ -561,9 +599,11 @@ class Sampler(object):
             # Expected log(volume) shrinkage.
             logvol -= self.dlv
 
-            # After `update_interval` interations have passed,
+            # After `update_interval` interations have passed *and* we meet
+            # the criteria for moving beyond sampling from the unit cube,
             # update the sampler using the current set of live points.
-            if self.since_update >= self.update_interval:
+            if (self.since_update >= self.update_interval and
+                self._beyond_unit_prop(loglstar)):
                 pointvol = math.exp(logvol) / self.nlive
                 prop = self.update(pointvol)
                 if self.save_proposals:
@@ -575,6 +615,10 @@ class Sampler(object):
             worst = np.argmin(self.live_logl)  # index
             worst_it = self.live_it[worst]  # when point was proposed
             propidx = self.live_prop[worst]  # associated proposal index
+            if self._beyond_unit_prop(loglstar):
+                propiter = self.nprop - 1  # proposal at current iteration
+            else:
+                propiter = 0
 
             # Set our new worst likelihood constraint.
             ustar = np.array(self.live_u[worst])  # unit cube position
@@ -621,14 +665,14 @@ class Sampler(object):
                 self.saved_nc.append(nc)
                 self.saved_propidx.append(propidx)
                 self.saved_it.append(worst_it)
-                self.saved_piter.append(self.nprop - 1)
+                self.saved_piter.append(propiter)
                 self.saved_scale.append(self.scale)
 
             # Update the live point (previously our "worst" point).
             self.live_u[worst] = u
             self.live_v[worst] = v
             self.live_logl[worst] = logl
-            self.live_prop[worst] = self.nprop - 1
+            self.live_prop[worst] = propiter
             self.live_it[worst] = self.it
 
             # Compute our sampling efficiency.
@@ -639,8 +683,8 @@ class Sampler(object):
 
             # Return dead point and ancillary quantities.
             yield (worst, ustar, vstar, loglstar, logvol, logwt,
-                   logz, logzvar, h, nc, worst_it, propidx, self.eff,
-                   delta_logz)
+                   logz, logzvar, h, nc, worst_it, propidx, propiter,
+                   self.eff, delta_logz)
 
     def run_nested(self, maxiter=None, maxcall=None, dlogz=None,
                    add_live=True, print_progress=True, save_proposals=True):
@@ -696,8 +740,8 @@ class Sampler(object):
                                      save_proposals=save_proposals,
                                      save_samples=True)):
             (worst, ustar, vstar, loglstar, logvol, logwt,
-             logz, logzvar, h, nc, worst_it, propidx, eff,
-             delta_logz) = results
+             logz, logzvar, h, nc, worst_it, propidx, propiter,
+             eff, delta_logz) = results
             ncall += nc
             if delta_logz > 1e6:
                 delta_logz = np.inf
@@ -723,8 +767,8 @@ class Sampler(object):
             # Add remaining live points to samples.
             for i, results in enumerate(self.add_live_points()):
                 (worst, ustar, vstar, loglstar, logvol, logwt,
-                 logz, logzvar, h, nc, worst_it, propidx, eff,
-                 delta_logz) = results
+                 logz, logzvar, h, nc, worst_it, propidx, propiter,
+                 eff, delta_logz) = results
                 if delta_logz > 1e6:
                     delta_logz = np.inf
                 if logzvar >= 0.:

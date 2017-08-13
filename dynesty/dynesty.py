@@ -34,7 +34,8 @@ SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
 def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
-                  bound='multi', sample='unif', update_interval=0.6,
+                  bound='multi', sample='unif',
+                  update_interval=0.6, first_update=None,
                   npdim=None, rstate=None, queue_size=1, pool=None,
                   use_pool=None, live_points=None, **kwargs):
     """
@@ -87,6 +88,15 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
         proposal after every `round(update_interval * nlive)`-th likelihood
         call. Larger update intervals larger can be more efficient
         when the likelihood function is quick to evaluate. Default is *0.6*.
+
+    first_update : dict, optional
+        A dictionary containing parameters governing when the sampler should
+        first update the bounding distribution from the unit cube ('none')
+        to the one specified by `sample`. Options are the minimum number of
+        likelihood calls (`'min_ncall'`) and the minimum allowed overall
+        efficiency in percent (`'min_eff'`). Defaults are `2 * nlive` and *10.*,
+        respectively, when sampling uniformly and *-np.inf* and *np.inf*
+        otherwise.
 
     npdim : int, optional
         Number of parameters accepted by prior. This might differ from `ndim`
@@ -190,6 +200,11 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
 
     if isinstance(update_interval, float):
         update_interval = max(1, round(update_interval * nlive))
+    if bound == 'none':
+        update_interval = np.inf  # no need to update when there are no bounds
+
+    if first_update is None:
+        first_update = dict()
 
     if rstate is None:
         rstate = np.random
@@ -235,13 +250,15 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
     # Initialize our nested sampler.
     sampler = _SAMPLERS[bound](loglikelihood, prior_transform, npdim,
                                live_points, sample, update_interval,
-                               rstate, queue_size, pool, use_pool, kwargs)
+                               first_update, rstate, queue_size, pool,
+                               use_pool, kwargs)
 
     return sampler
 
 
 def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
-                         bound='multi', sample='unif', update_interval=0.6,
+                         bound='multi', sample='unif',
+                         update_interval=0.6, first_update=None,
                          npdim=None, rstate=None, queue_size=1, pool=None,
                          use_pool=None, **kwargs):
     """
@@ -290,6 +307,17 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         call, changing depending on how many live points are currently
         active. Larger update intervals can be more efficient
         when the likelihood function is quick to evaluate. Default is *0.6*.
+
+    first_update : dict, optional
+        A dictionary containing parameters governing when the sampler should
+        first update the bounding distribution from the unit cube ('none')
+        to the one specified by `sample`. Options are the minimum number of
+        likelihood calls (`'min_ncall'`) and the minimum allowed overall
+        efficiency in percent (`'min_eff'`). Defaults are `2 * nlive_init` and
+        *10.*, respectively, when sampling uniformly and *-np.inf* and *np.inf*
+        otherwise. The corresponding loglikelihood where the first
+        update takes place is saved so that any live points added after the
+        initial baseline run will use the same criteria.
 
     npdim : int, optional
         Number of parameters accepted by prior. This might differ from `ndim`
@@ -378,6 +406,9 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
     if sample not in _SAMPLING:
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
 
+    if first_update is None:
+        first_update = dict()
+
     if rstate is None:
         rstate = np.random
 
@@ -396,7 +427,7 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
 
     # Initialize our nested sampler.
     sampler = DynamicSampler(loglikelihood, prior_transform, npdim,
-                             bound, sample, update_interval,
+                             bound, sample, update_interval, first_update,
                              rstate, queue_size, pool, use_pool, kwargs)
 
     return sampler

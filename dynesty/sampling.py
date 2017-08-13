@@ -28,7 +28,7 @@ def sample_unif(args):
     distribution."""
 
     # Unzipping.
-    (u, loglstar, axes, scale, rseed,
+    (u, loglstar, axes, scale,
      prior_transform, loglikelihood, kwargs) = args
 
     v = prior_transform(u)
@@ -44,12 +44,9 @@ def sample_rwalk(args):
     existing live point."""
 
     # Unzipping.
-    (u, loglstar, axes, scale, rseed,
+    (u, loglstar, axes, scale,
      prior_transform, loglikelihood, kwargs) = args
-
-    # Seed random number generator.
     rstate = np.random
-    rstate.seed(rseed)
 
     n = len(u)
     walks = kwargs.get('walks', 25)  # number of steps
@@ -94,12 +91,9 @@ def sample_slice(args):
     away from an existing live point."""
 
     # Unzipping.
-    (u, loglstar, axes, scale, rseed,
+    (u, loglstar, axes, scale,
      prior_transform, loglikelihood, kwargs) = args
-
-    # Seed random number generator.
     rstate = np.random
-    rstate.seed(rseed)
 
     n = len(u)
     slices = kwargs.get('slices', 3)  # number of slices
@@ -186,9 +180,19 @@ def sample_slice(args):
                     elif s > 0:  # right
                         u_r = u_prop
                     else:
-                        raise RuntimeError("Slice sampler somehow shrank "
-                                           "to the original point! Please "
-                                           "report this as a likely bug.")
+                        raise RuntimeError("Slice sampler has failed to find a "
+                                           "valid point. Some useful "
+                                           "output quantities:\n"
+                                           "u: {0}\n"
+                                           "u_left: {1}\n"
+                                           "u_right: {2}\n"
+                                           "u_hat: {3}\n"
+                                           "u_prop: {4}\n"
+                                           "loglstar: {5}\n"
+                                           "logl_prop: {6}\n"
+                                           "s: {7}."
+                                           .format(u, u_l, u_r, u_hat, u_prop,
+                                                   loglstar, logl_prop, s))
 
     blob = {'fscale': np.mean(fscale)}
 

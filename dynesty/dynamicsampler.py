@@ -38,7 +38,6 @@ _SAMPLING = {'unif': sample_unif,
              'slice': sample_slice}
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
-MAXINT = 2**32 - 1
 
 
 def _kld_error(args):
@@ -48,13 +47,9 @@ def _kld_error(args):
     """
 
     # Extract arguments.
-    results, error, rseed = args
+    results, error = args
 
-    # Seed random number generator.
-    rstate = np.random
-    rstate.seed(rseed)
-
-    return kld_error(results, error, rstate=rstate, return_new=True)
+    return kld_error(results, error, rstate=np.random, return_new=True)
 
 
 def weight_function(results, args, return_weights=False):
@@ -231,13 +226,10 @@ def stopping_function(results, args, rstate=np.random, M=map,
     # Compute realizations of ln(evidence) and the KL divergence.
     rlist = [results for i in range(n_mc)]
     error_list = [error for i in range(n_mc)]
-    rseeds = rstate.randint(MAXINT, size=n_mc)
-    save_state = rstate.get_state()  # save current state
-    args = zip(rlist, error_list, rseeds)
+    args = zip(rlist, error_list)
     outputs = M(_kld_error, args)
     kld_arr, lnz_arr = np.array([(kld[-1], res.logz[-1])
                                  for kld, res in outputs]).T
-    rstate.set_state(save_state)  # reset to last saved state
 
     # Evidence stopping value.
     lnz_std = np.std(lnz_arr)
@@ -281,6 +273,11 @@ class DynamicSampler(object):
     update_interval : int
         Only update the proposal distribution every
         `update_interval * nlive`-th likelihood call.
+
+    first_update : dict
+        A dictionary containing parameters governing when the sampler should
+        first update the bounding distribution from the unit cube ('none')
+        to the one specified by `sample`.
 
     rstate : `~numpy.random.RandomState`
         RandomState instance.
@@ -338,8 +335,8 @@ class DynamicSampler(object):
     """
 
     def __init__(self, loglikelihood, prior_transform, npdim,
-                 bound, method, update_interval, rstate, queue_size,
-                 pool, use_pool, kwargs):
+                 bound, method, update_interval, first_update, rstate,
+                 queue_size, pool, use_pool, kwargs):
         # distributions
         self.loglikelihood = loglikelihood
         self.prior_transform = prior_transform
@@ -349,6 +346,7 @@ class DynamicSampler(object):
         self.bound = bound
         self.method = method
         self.update_interval = update_interval
+        self.first_update = first_update
 
         # internal sampler object
         self.sampler = None
@@ -531,8 +529,9 @@ class DynamicSampler(object):
 
         return Results(results)
 
-    def sample_initial(self, nlive=100, update_interval=None, maxiter=None,
-                       maxcall=None, dlogz=0.01, live_points=None):
+    def sample_initial(self, nlive=100, update_interval=None,
+                       first_update=None, maxiter=None, maxcall=None,
+                       dlogz=0.01, live_points=None):
         """
         Generate a series of initial samples from a nested sampling
         run using a fixed number of live points. Instantiates a
@@ -551,6 +550,11 @@ class DynamicSampler(object):
             likelihood call. Larger update intervals can be more efficient
             when the likelihood function is quick to evaluate. If no value is
             provided, defaults to the value passed during initialization.
+
+        first_update : dict
+            A dictionary containing parameters governing when the sampler will
+            first update the bounding distribution from the unit cube ('none')
+            to the one specified by `sample`.
 
         maxiter : int, optional
             Maximum number of iterations. Iteration may stop earlier if the
@@ -677,10 +681,15 @@ class DynamicSampler(object):
         if isinstance(update_interval, float):
             update_interval = int(round(self.update_interval * nlive))
         bound = self.bound
+        if bound == 'none':
+            update_interval = np.inf  # no need to update with no bounds
+        if first_update is None:
+            first_update = self.first_update
         self.sampler = _SAMPLERS[bound](self.loglikelihood,
                                         self.prior_transform,
                                         self.npdim, self.live_init,
                                         self.method, update_interval,
+                                        first_update,
                                         self.rstate, self.queue_size,
                                         self.pool, self.use_pool,
                                         self.kwargs)
@@ -692,8 +701,9 @@ class DynamicSampler(object):
                                          save_samples=False,
                                          maxcall=maxcall, dlogz=dlogz)):
                 # Grab results.
-                (worst, ustar, vstar, loglstar, logvol, logwt, logz,
-                 logzvar, h, nc, worst_it, propidx, eff, delta_logz) = results
+                (worst, ustar, vstar, loglstar, logvol, logwt,
+                 logz, logzvar, h, nc, worst_it, propidx, propiter,
+                 eff, delta_logz) = results
 
                 # Save our base run (which we will use later).
                 self.base_id.append(worst)
@@ -709,7 +719,7 @@ class DynamicSampler(object):
                 self.base_it.append(worst_it)
                 self.base_n.append(self.nlive_init)
                 self.base_propidx.append(propidx)
-                self.base_piter.append(self.sampler.nprop - 1)
+                self.base_piter.append(propiter)
                 self.base_scale.append(self.sampler.scale)
 
                 # Save a copy of the results.
@@ -726,7 +736,7 @@ class DynamicSampler(object):
                 self.saved_it.append(worst_it)
                 self.saved_n.append(self.nlive_init)
                 self.saved_propidx.append(propidx)
-                self.saved_piter.append(self.sampler.nprop - 1)
+                self.saved_piter.append(propiter)
                 self.saved_scale.append(self.sampler.scale)
 
                 # Increment relevant counters.
@@ -734,13 +744,15 @@ class DynamicSampler(object):
                 self.eff = 100. * self.it / self.ncall
                 self.it += 1
 
-                yield (worst, ustar, vstar, loglstar, logvol, logwt, logz,
-                       logzvar, h, nc, worst_it, propidx, self.eff, delta_logz)
+                yield (worst, ustar, vstar, loglstar, logvol, logwt,
+                       logz, logzvar, h, nc, worst_it, propidx, propiter,
+                       self.eff, delta_logz)
 
             for it, results in enumerate(self.sampler.add_live_points()):
                 # Grab results.
-                (worst, ustar, vstar, loglstar, logvol, logwt, logz,
-                 logzvar, h, nc, worst_it, propidx, eff, delta_logz) = results
+                (worst, ustar, vstar, loglstar, logvol, logwt,
+                 logz, logzvar, h, nc, worst_it, propidx, propiter,
+                 eff, delta_logz) = results
 
                 # Save our base run (which we will use later).
                 self.base_id.append(worst)
@@ -756,7 +768,7 @@ class DynamicSampler(object):
                 self.base_it.append(worst_it)
                 self.base_n.append(self.nlive_init - it)
                 self.base_propidx.append(propidx)
-                self.base_piter.append(self.sampler.nprop - 1)
+                self.base_piter.append(propiter)
                 self.base_scale.append(self.sampler.scale)
 
                 # Save a copy of the results.
@@ -773,15 +785,16 @@ class DynamicSampler(object):
                 self.saved_it.append(worst_it)
                 self.saved_n.append(self.nlive_init - it)
                 self.saved_propidx.append(propidx)
-                self.saved_piter.append(self.sampler.nprop - 1)
+                self.saved_piter.append(propiter)
                 self.saved_scale.append(self.sampler.scale)
 
                 # Increment relevant counters.
                 self.eff = 100. * self.it / self.ncall
                 self.it += 1
 
-                yield (worst, ustar, vstar, loglstar, logvol, logwt, logz,
-                       logzvar, h, nc, worst_it, propidx, self.eff, delta_logz)
+                yield (worst, ustar, vstar, loglstar, logvol, logwt,
+                       logz, logzvar, h, nc, worst_it, propidx, propiter,
+                       self.eff, delta_logz)
 
         self.base = True  # baseline run complete
         self.saved_batch = np.zeros(len(self.saved_id), dtype='int')  # batch
@@ -942,11 +955,13 @@ class DynamicSampler(object):
             self.sampler.live_logl = np.array(live_logl)
             self.sampler.scale = live_scale
             vol = math.exp(- 1. * (nbase + r) / nblive)
-            prop = self.sampler.update(vol / nblive)
-            if save_proposals:
-                self.sampler.prop.append(copy.deepcopy(prop))
-            self.sampler.nprop += 1
-            self.sampler.since_update = 0
+            loglmin = min(live_logl)
+            if self.sampler._beyond_unit_prop(loglmin):
+                prop = self.sampler.update(vol / nblive)
+                if save_proposals:
+                    self.sampler.prop.append(copy.deepcopy(prop))
+                self.sampler.nprop += 1
+                self.sampler.since_update = 0
 
             # Sample a new batch of `nlive_new` live points given our
             # `logl_min` constraint.
@@ -954,7 +969,8 @@ class DynamicSampler(object):
             live_v = np.empty((nlive_new, self.npdim))
             live_logl = np.empty(nlive_new)
             live_prop = np.zeros(nlive_new, dtype='int')
-            live_prop += self.sampler.nprop - 1
+            if self.sampler._beyond_unit_prop(loglmin):
+                live_prop += self.sampler.nprop - 1
             live_it = np.empty(nlive_new, dtype='int')
             live_nc = np.empty(nlive_new, dtype='int')
             for i in range(nlive_new):
@@ -971,11 +987,13 @@ class DynamicSampler(object):
         self.sampler.live_logl = np.array(live_logl)
         self.sampler.live_prop = np.array(live_prop)
         self.sampler.live_it = np.array(live_it)
-        prop = self.sampler.update(vol / nlive_new)
-        if save_proposals:
-                self.sampler.prop.append(copy.deepcopy(prop))
-        self.sampler.nprop += 1
-        self.sampler.since_update = 0
+        loglmin = min(live_logl)
+        if self.sampler._beyond_unit_prop(loglmin):
+            prop = self.sampler.update(vol / nlive_new)
+            if save_proposals:
+                    self.sampler.prop.append(copy.deepcopy(prop))
+            self.sampler.nprop += 1
+            self.sampler.since_update = 0
 
         # Copy over proposal reference.
         self.prop = self.sampler.prop
@@ -985,6 +1003,8 @@ class DynamicSampler(object):
             update_interval = self.update_interval
         if isinstance(update_interval, float):
             update_interval = int(round(self.update_interval * nlive_new))
+        if self.bound == 'none':
+            update_interval = np.inf  # no need to update with no bounds
         self.sampler.update_interval = update_interval
 
         # Tell the sampler *not* to try and remove the previous addition of
@@ -1004,8 +1024,9 @@ class DynamicSampler(object):
                                          save_proposals=save_proposals)):
 
                 # Grab results.
-                (worst, ustar, vstar, loglstar, logvol, logwt, logz,
-                 logzvar, h, nc, worst_it, propidx, eff, delta_logz) = results
+                (worst, ustar, vstar, loglstar, logvol, logwt,
+                 logz, logzvar, h, nc, worst_it, propidx, propiter,
+                 eff, delta_logz) = results
 
                 # Save results.
                 self.new_id.append(worst)
@@ -1016,7 +1037,7 @@ class DynamicSampler(object):
                 self.new_it.append(worst_it)
                 self.new_n.append(nlive_new)
                 self.new_propidx.append(propidx)
-                self.new_piter.append(self.sampler.nprop - 1)
+                self.new_piter.append(propiter)
                 self.new_scale.append(self.sampler.scale)
 
                 # Increment relevant counters.
@@ -1025,12 +1046,13 @@ class DynamicSampler(object):
                 self.it += 1
 
                 yield (worst, ustar, vstar, loglstar, nc,
-                       worst_it, propidx, self.eff)
+                       worst_it, propidx, propiter, self.eff)
 
             for it, results in enumerate(self.sampler.add_live_points()):
                 # Grab results.
-                (worst, ustar, vstar, loglstar, logvol, logwt, logz,
-                 logzvar, h, nc, worst_it, propidx, eff, delta_logz) = results
+                (worst, ustar, vstar, loglstar, logvol, logwt,
+                 logz, logzvar, h, nc, worst_it, propidx, propiter,
+                 eff, delta_logz) = results
 
                 # Save results.
                 self.new_id.append(worst)
@@ -1041,7 +1063,7 @@ class DynamicSampler(object):
                 self.new_it.append(worst_it)
                 self.new_n.append(nlive_new - it)
                 self.new_propidx.append(propidx)
-                self.new_piter.append(self.sampler.nprop - 1)
+                self.new_piter.append(propiter)
                 self.new_scale.append(self.sampler.scale)
 
                 # Increment relevant counters.
@@ -1049,7 +1071,7 @@ class DynamicSampler(object):
                 self.it += 1
 
                 yield (worst, ustar, vstar, loglstar, live_nc[worst],
-                       worst_it, propidx, self.eff)
+                       worst_it, propidx, propiter, self.eff)
 
     def combine_runs(self):
         """ Merge the most recent run into the previous (combined) run by
@@ -1367,7 +1389,7 @@ class DynamicSampler(object):
                                                live_points=live_points):
                 (worst, ustar, vstar, loglstar, logvol,
                  logwt, logz, logzvar, h, nc, worst_it,
-                 propidx, eff, delta_logz) = results
+                 propidx, propiter, eff, delta_logz) = results
                 if delta_logz > 1e6:
                     delta_logz = np.inf
                 ncall += nc
@@ -1414,7 +1436,7 @@ class DynamicSampler(object):
                                                  maxcall=mcall,
                                                  save_proposals=saveprop):
                     (worst, ustar, vstar, loglstar, nc,
-                     worst_it, propidx, eff) = results
+                     worst_it, propidx, propiter, eff) = results
                     ncall += nc
                     niter += 1
                     if print_progress:
@@ -1505,7 +1527,7 @@ class DynamicSampler(object):
                                              maxcall=maxcall,
                                              save_proposals=save_proposals):
                 (worst, ustar, vstar, loglstar, nc,
-                 worst_it, propidx, eff) = results
+                 worst_it, propidx, propiter, eff) = results
                 ncall += nc
                 niter += 1
                 if print_progress:

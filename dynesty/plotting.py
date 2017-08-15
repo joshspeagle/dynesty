@@ -54,9 +54,6 @@ def runplot(results, bounds=None, logplot=False, color='blue',
         fraction below the maximum. If a fraction is provided,
         the bounds are chosen to be equal-tailed. An example would be
         [(0., 10.), 0.001, 0.2, (5., 6.)]. Default is `(0., 1.05*max(data))`.
-        **Note that these values will be overriden if the 3-sigma
-        errors on the evidence exceed the provided/computed bounds unless
-        `lnz_err` is set to *False*.**
 
     logplot : bool, optional
         Whether to plot the evidence on a log scale.
@@ -161,6 +158,9 @@ def runplot(results, bounds=None, logplot=False, color='blue',
     data = [it, np.exp(logl), np.exp(logwt), np.exp(logz)]
     if bounds is None:
         bounds = [(0., 1.05 * max(d)) for d in data]
+        no_bounds = True
+    else:
+        no_bounds = False
     bounds = list(bounds)
     if len(bounds) != 4:
         raise ValueError("More bounds than subplots!")
@@ -169,13 +169,12 @@ def runplot(results, bounds=None, logplot=False, color='blue',
             ymin, ymax = bounds[i]
         except:
             bounds[i] = (max(data[i]) * bounds[i], max(data[i]))
-    if lnz_error:
+    if lnz_error and no_bounds:
         if logplot:
-            zbounds = (min(np.exp(max(logz) - 1.3*3*logzerr)),
-                       max(np.exp(max(logz) + 1.3*3*logzerr)))
+            zbounds = (np.exp(logz[-1] - 1.3 * 3. * logzerr[-1]),
+                       np.exp(logz[-1] + 1.3 * 3. * logzerr[-1]))
         else:
-            zbounds = (min(max(np.exp(logz - 3.*logzerr)), bounds[3][0]),
-                       max(1.05*max(np.exp(logz + 3.*logzerr)), bounds[3][1]))
+            zbounds = (0., 1.05 * np.exp(logz[-1] + 3. * logzerr[-1]))
         bounds[3] = zbounds
 
     # Setting up default plot layout.
@@ -581,12 +580,12 @@ def traceplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
                 raise ImportError("Please install scipy if you would like "
                                   "to use Gaussian smoothing.")
             # If `s` is a float, oversample the data relative to the
-            # smoothing filter by a factor of 5, then use a Gaussian
+            # smoothing filter by a factor of 10, then use a Gaussian
             # filter to smooth the results.
-            bins = int(round(5. / s))
+            bins = int(round(10. / s))
             n, b = np.histogram(x, bins=bins, weights=weights,
                                 range=np.sort(bounds[i]))
-            n = norm_kde(n, 5.)
+            n = norm_kde(n, 10.)
             x0 = 0.5 * (b[1:] + b[:-1])
             y0 = n
             ax.fill_between(x0, y0, color=color, **post_kwargs)
@@ -1086,12 +1085,12 @@ def cornerplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84],
                                   "to use Gaussian smoothing.")
             else:
                 # If `sx` is a float, oversample the data relative to the
-                # smoothing filter by a factor of 5, then use a Gaussian
+                # smoothing filter by a factor of 10, then use a Gaussian
                 # filter to smooth the results.
-                bins = int(round(5. / sx))
+                bins = int(round(10. / sx))
                 n, b = np.histogram(x, bins=bins, weights=weights,
                                     range=np.sort(bounds[i]))
-                n = norm_kde(n, 5.)
+                n = norm_kde(n, 10.)
                 b0 = 0.5 * (b[1:] + b[:-1])
                 n, b, _ = ax.hist(b0, bins=b, weights=n,
                                   range=np.sort(bounds[i]), color=color,
@@ -1167,6 +1166,17 @@ def cornerplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84],
                 ax.yaxis.set_label_coords(-0.3, 0.5)
             # Generate distribution.
             sy = smooth[j]
+            if (isinstance(sx, types.IntType) and
+                isinstance(sy, types.IntType)):
+                fill_contours = False
+                plot_contours = False
+            else:
+                fill_contours = True
+                plot_contours = True
+            hist2d_kwargs['fill_contours'] = hist2d_kwargs.get('fill_contours',
+                                                               fill_contours)
+            hist2d_kwargs['plot_contours'] = hist2d_kwargs.get('plot_contours',
+                                                               plot_contours)
             _hist2d(y, x, ax=ax, bounds=[bounds[j], bounds[i]],
                     weights=weights, color=color, smooth=[sy, sx],
                     **hist2d_kwargs)
@@ -1776,8 +1786,8 @@ def cornerprop(results, it=None, idx=None, prior_transform=None,
 
 
 def _hist2d(x, y, smooth=0.02, bounds=None, weights=None, levels=None,
-            ax=None, color='gray', plot_datapoints=True, plot_density=True,
-            plot_contours=True, no_fill_contours=False, fill_contours=False,
+            ax=None, color='gray', plot_datapoints=False, plot_density=True,
+            plot_contours=True, no_fill_contours=False, fill_contours=True,
             contour_kwargs=None, contourf_kwargs=None, data_kwargs=None,
             **kwargs):
     """
@@ -1815,7 +1825,7 @@ def _hist2d(x, y, smooth=0.02, bounds=None, weights=None, levels=None,
         distribution. Default is 'gray'.
 
     plot_datapoints : bool, optional
-        Whether to plot the individual data points. Default is *True*.
+        Whether to plot the individual data points. Default is *False*.
 
     plot_density : bool, optional
         Whether to draw the density colormap. Default is *True*.
@@ -1829,7 +1839,7 @@ def _hist2d(x, y, smooth=0.02, bounds=None, weights=None, levels=None,
         densest points. Default is *False*.
 
     fill_contours : bool, optional
-        Whether to fill the contours. Default is *False*.
+        Whether to fill the contours. Default is *True*.
 
     contour_kwargs : dict
         Any additional keyword arguments to pass to the `contour` method.
@@ -1897,10 +1907,10 @@ def _hist2d(x, y, smooth=0.02, bounds=None, weights=None, levels=None,
                 raise ImportError("Please install scipy if you would "
                                   "like to use Gaussian smoothing.")
             # If `s` is a float, oversample the data relative to the
-            # smoothing filter by a factor of 5, then use a Gaussian
+            # smoothing filter by a factor of 2, then use a Gaussian
             # filter to smooth the results.
-            bins.append(int(round(5. / s)))
-            svalues.append(5.)
+            bins.append(int(round(2. / s)))
+            svalues.append(2.)
 
     # We'll make the 2D histogram to directly estimate the density.
     try:
@@ -1929,7 +1939,7 @@ def _hist2d(x, y, smooth=0.02, bounds=None, weights=None, levels=None,
             V[i] = Hflat[0]
     V.sort()
     m = (np.diff(V) == 0)
-    if np.any(m):
+    if np.any(m) and plot_contours:
         logging.warning("Too few points to create valid contours.")
     while np.any(m):
         V[np.where(m)[0][0]] *= 1.0 - 1e-4

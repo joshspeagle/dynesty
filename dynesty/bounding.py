@@ -1074,46 +1074,55 @@ def _bounding_ellipsoids(points, ell, pointvol=0., vol_dec=0.5,
     start_ctrs = np.vstack((p1, p2))  # shape is (k, ndim) = (2, ndim)
 
     # Split points into two clusters using k-means clustering with k=2.
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        k2_res = kmeans2(points, k=start_ctrs, iter=10, minit='matrix',
-                         check_finite=False)
-    centroids = k2_res[0]  # shape is (k, ndim) = (2, ndim)
-    labels = k2_res[1]  # cluster identifier ; shape is (npoints,)
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            k2_res = kmeans2(points, k=start_ctrs, iter=10, minit='matrix',
+                             check_finite=False)
+        centroids = k2_res[0]  # shape is (k, ndim) = (2, ndim)
+        labels = k2_res[1]  # cluster identifier ; shape is (npoints,)
 
-    # Get points in each cluster.
-    points_k = [points[labels == k, :] for k in (0, 1)]
+        # Get points in each cluster.
+        points_k = [points[labels == k, :] for k in (0, 1)]
 
-    # If either cluster has less than ndim+1 points, the bounding ellipsoid
-    # will be ill-constrained. Reject the split and simply return the
-    # original ellipsoid bounding all the points.
-    if points_k[0].shape[0] < 2 * ndim or points_k[1].shape[0] < 2 * ndim:
-        return [ell]
+        # If either cluster has less than ndim+1 points, the bounding ellipsoid
+        # will be ill-constrained. Reject the split and simply return the
+        # original ellipsoid bounding all the points.
+        if points_k[0].shape[0] < 2 * ndim or points_k[1].shape[0] < 2 * ndim:
+            return [ell]
 
-    # Bounding ellipsoid for each cluster, possibly enlarged to minimum volume.
-    ells = [bounding_ellipsoid(points_j, pointvol=pointvol)
-            for points_j in points_k]
+        # Bounding ellipsoid for each cluster, possibly enlarged
+        # to a minimum volume.
+        ells = [bounding_ellipsoid(points_j, pointvol=pointvol)
+                for points_j in points_k]
 
-    # If the total volume decreased by a factor of `vol_dec`, we accept
-    # the split into subsets. We then recursively split each subset.
-    if ells[0].vol + ells[1].vol < vol_dec * ell.vol:
-        return (_bounding_ellipsoids(points_k[0], ells[0], pointvol=pointvol,
-                                     vol_dec=vol_dec, vol_check=vol_check) +
-                _bounding_ellipsoids(points_k[1], ells[1], pointvol=pointvol,
-                                     vol_dec=vol_dec, vol_check=vol_check))
+        # If the total volume decreased by a factor of `vol_dec`, we accept
+        # the split into subsets. We then recursively split each subset.
+        if ells[0].vol + ells[1].vol < vol_dec * ell.vol:
+            return (_bounding_ellipsoids(points_k[0], ells[0],
+                                         pointvol=pointvol, vol_dec=vol_dec,
+                                         vol_check=vol_check) +
+                    _bounding_ellipsoids(points_k[1], ells[1],
+                                         pointvol=pointvol, vol_dec=vol_dec,
+                                         vol_check=vol_check))
 
-    # Otherwise, see if the total ellipsoid volume is larger than the minimum
-    # volume by a factor of `vol_check`. If it is, this indicates that there
-    # may be more than 2 clusters and we should try to subdivide further.
-    if ell.vol > vol_check * npoints * pointvol:
-        out = (_bounding_ellipsoids(points_k[0], ells[0], pointvol=pointvol,
-                                    vol_dec=vol_dec, vol_check=vol_check) +
-               _bounding_ellipsoids(points_k[1], ells[1], pointvol=pointvol,
-                                    vol_dec=vol_dec, vol_check=vol_check))
+        # Otherwise, see if the total ellipsoid volume is larger than the
+        # minimum volume by a factor of `vol_check`. If it is, this indicates
+        # that there may be more than 2 clusters and we should try to
+        # subdivide further.
+        if ell.vol > vol_check * npoints * pointvol:
+            out = (_bounding_ellipsoids(points_k[0], ells[0],
+                                        pointvol=pointvol, vol_dec=vol_dec,
+                                        vol_check=vol_check) +
+                   _bounding_ellipsoids(points_k[1], ells[1],
+                                        pointvol=pointvol, vol_dec=vol_dec,
+                                        vol_check=vol_check))
 
-        # only accept split if volume decreased significantly
-        if sum(e.vol for e in out) < vol_dec * ell.vol:
-            return out
+            # only accept split if volume decreased significantly
+            if sum(e.vol for e in out) < vol_dec * ell.vol:
+                return out
+    except:
+        pass
 
     # Otherwise, we are happy with the single bounding ellipsoid.
     return [ell]

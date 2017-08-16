@@ -472,7 +472,7 @@ def traceplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
 
     # Setting up labels.
     if labels is None:
-        labels = [r"$x_{0}$".format(i+1) for i in range(ndim)]
+        labels = [r"$x_{{0}}$".format(i+1) for i in range(ndim)]
 
     # Setting up smoothing.
     if (isinstance(smooth, types.IntType) or isinstance(smooth,
@@ -746,7 +746,7 @@ def cornerpoints(results, bounds=None, cmap='plasma', color=None,
 
     # Set labels
     if labels is None:
-        labels = [r"$x_{0}$".format(i+1) for i in range(ndim)]
+        labels = [r"$x_{{0}}$".format(i+1) for i in range(ndim)]
 
     # Set colormap.
     if color is None:
@@ -1010,7 +1010,7 @@ def cornerplot(results, bounds=None, quantiles=[0.16, 0.5, 0.84],
 
     # Set labels
     if labels is None:
-        labels = [r"$x_{0}$".format(i+1) for i in range(ndim)]
+        labels = [r"$x_{{0}}$".format(i+1) for i in range(ndim)]
 
     # Setting up smoothing.
     if (isinstance(smooth, types.IntType) or isinstance(smooth,
@@ -1471,8 +1471,8 @@ def proposal(results, dims, it=None, idx=None, prior_transform=None,
         axes.set_xlabel(labels[0], **label_kwargs)
         axes.set_ylabel(label[1], **label_kwargs)
     else:
-        axes.set_xlabel(r"$x_{0}$".format(dims[0]+1), **label_kwargs)
-        axes.set_ylabel(r"$x_{0}$".format(dims[1]+1), **label_kwargs)
+        axes.set_xlabel(r"$x_{{0}}$".format(dims[0]+1), **label_kwargs)
+        axes.set_ylabel(r"$x_{{0}}$".format(dims[1]+1), **label_kwargs)
 
     return fig, axes
 
@@ -1713,7 +1713,7 @@ def cornerprop(results, it=None, idx=None, prior_transform=None,
     # Set labels
     ndim = psamps.shape[0]
     if labels is None:
-        labels = [r"$x_{0}$".format(i+1) for i in range(ndim)]
+        labels = [r"$x_{{0}}$".format(i+1) for i in range(ndim)]
 
     # Setup axis layout (from `corner.py`).
     factor = 2.0  # size of side of one panel

@@ -71,6 +71,24 @@ def sample_rwalk(args):
                 break
             else:
                 reject += 1
+
+            # Check if we're stuck generating bad numbers.
+            if reject > 1000 * walks:
+                raise RuntimeError("The random walk sampling appears to "
+                                   "be stuck! Some useful output quantities:\n"
+                                   "u: {0}\n"
+                                   "drhat: {1}\n"
+                                   "dr: {2}\n"
+                                   "du: {3}\n"
+                                   "u_prop: {4}\n"
+                                   "loglstar: {5}\n"
+                                   "logl_prop: {6}\n"
+                                   "axes: {7}\n"
+                                   "scale: {8}."
+                                   .format(u, drhat, dr, du, u_prop,
+                                           loglstar, logl_prop, axes, scale))
+
+        # Check proposed point.
         v_prop = prior_transform(u_prop)
         logl_prop = loglikelihood(v_prop)
         if logl_prop >= loglstar:
@@ -82,8 +100,8 @@ def sample_rwalk(args):
             reject += 1
         nc += 1
 
-        # Check if we're stuck.
-        if nc > 10 * walks:
+        # Check if we're stuck generating bad points.
+        if nc > 50 * walks:
             raise RuntimeError("The random walk sampling appears to be stuck! "
                                "Some useful output quantities:\n"
                                "u: {0}\n"
@@ -97,6 +115,7 @@ def sample_rwalk(args):
                                "scale: {8}."
                                .format(u, drhat, dr, du, u_prop,
                                        loglstar, logl_prop, axes, scale))
+
     blob = {'accept': accept, 'reject': reject}
 
     return u, v, logl, nc, blob

@@ -930,7 +930,8 @@ def make_eigvals_positive(am, targetprod):
     if np.any(mask):
         nzprod = np.product(w[~mask])  # product of nonzero eigenvalues
         nzeros = mask.sum()  # number of zero eigenvalues
-        w[mask] = (targetprod / nzprod) ** (1./nzeros)  # adjust zero eigvals
+        new_val = max(1.e-10, (targetprod / nzprod) ** (1. / nzeros))
+        w[mask] = new_val # adjust zero eigvals
         am = np.dot(np.dot(v, np.diag(w)), linalg.inv(v))  # re-form cov
 
     return am
@@ -991,41 +992,53 @@ def bounding_ellipsoid(points, pointvol=0.):
     # our sample covariance `cov` to compensate for this.
     cov *= (ndim + 2)
 
-    # Ensure that `cov` is nonsingular to deal with pathological cases
-    # where the ellipsoid has zero volume. This can occur when
-    # `npoints <= ndim` or when enough points are linear combinations
-    # of other points. When this happens, we expand the ellipsoid
-    # in the zero dimensions to fulfill the volume expected from
-    # `pointvol`.
-    if pointvol > 0.:
-        targetprod = (npoints * pointvol / vol_prefactor(ndim))**2
-        cov = make_eigvals_positive(cov, targetprod)
-    elif linalg.cond(cov) >= 1./sys.float_info.epsilon:
-        raise ValueError("Cannot modify `a` to be non-singular to give "
-                         "our ellipsoid non-zero volume if `pointvol` "
-                         "is not specified.")
+    try:
+        # The matrix defining the ellipsoid.
+        am = linalg.inv(cov)
 
-    # The matrix defining the ellipsoid.
-    am = linalg.inv(cov)
+        # Calculate expansion factor necessary to bound each point.
+        # Points should obey `(x-v)^T A (x-v) <= 1`, so we calculate this for
+        # each point and then scale A up or down to make the
+        # "outermost" point obey `(x-v)^T A (x-v) = 1`. This can be done
+        # quickly using `einsum` and `tensordot` to iterate over all points.
+        delta = points - ctr
+        f = np.einsum('...i, ...i', np.tensordot(delta, am, axes=1), delta)
+        fmax = np.max(f)
 
-    # Calculate expansion factor necessary to bound each point.
-    # Points should obey `(x-v)^T A (x-v) <= 1`, so we calculate this for
-    # each point and then scale A up or down to make the
-    # "outermost" point obey `(x-v)^T A (x-v) = 1`. This can be done
-    # quickly using `einsum` and `tensordot` to iterate over all points.
-    delta = points - ctr
-    f = np.einsum('...i, ...i', np.tensordot(delta, am, axes=1), delta)
-    fmax = np.max(f)
+        # Due to round-off errors, we actually scale the ellipsoid so the
+        # outermost point obeys `(x-v)^T A (x-v) < 1 - (a bit) < 1`.
+        one_minus_a_bit = 1. - SQRTEPS
 
-    # Due to round-off errors, we actually scale the ellipsoid so the outermost
-    # point obeys `(x-v)^T A (x-v) < 1 - (a bit) < 1`.
-    one_minus_a_bit = 1. - SQRTEPS
+        if fmax > one_minus_a_bit:
+            am *= one_minus_a_bit / fmax
 
-    if fmax > one_minus_a_bit:
-        am *= one_minus_a_bit / fmax
+        # Initialize our ellipsoid.
+        ell = Ellipsoid(ctr, am)
+    except:
+        # If our initial attempt at constructing a bounding ellipsoid fails,
+        # ensure that `cov` is nonsingular to deal with pathological cases
+        # where the ellipsoid has "zero" volume. This can occur when
+        # `npoints <= ndim` or when enough points are linear combinations
+        # of other points. When this happens, we expand the ellipsoid
+        # in the "zero" dimensions to try and fulfill the volume
+        # expected from `pointvol`.
+        if pointvol > 0.:
+            targetprod = (npoints * pointvol / vol_prefactor(ndim))**2
+            cov = make_eigvals_positive(cov, targetprod)
+        elif linalg.cond(cov) >= 1./sys.float_info.epsilon:
+            raise ValueError("Cannot modify `a` to be non-singular to give "
+                             "our ellipsoid non-zero volume if `pointvol` "
+                             "is not specified.")
 
-    # Initialize our ellipsoid.
-    ell = Ellipsoid(ctr, am)
+        # Construct the ellipsoid.
+        am = linalg.inv(cov)
+        delta = points - ctr
+        f = np.einsum('...i, ...i', np.tensordot(delta, am, axes=1), delta)
+        fmax = np.max(f)
+        one_minus_a_bit = 1. - SQRTEPS
+        if fmax > one_minus_a_bit:
+            am *= one_minus_a_bit / fmax
+        ell = Ellipsoid(ctr, am)
 
     # Expand our ellipsoid to encompass a minimum volume.
     if pointvol > 0.:

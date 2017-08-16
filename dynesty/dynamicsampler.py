@@ -353,7 +353,6 @@ class DynamicSampler(object):
 
         # extra arguments
         self.kwargs = kwargs
-        self.scale = 1.
         self.bootstrap = kwargs.get('bootstrap', 20)
         if self.bootstrap > 0:
             self.enlarge = kwargs.get('enlarge', 1.0)

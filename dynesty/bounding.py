@@ -153,7 +153,12 @@ class Ellipsoid(object):
         # (a, b, ...) are the lengths of principle axes.
         # The eigenvectors (v) are the normalized principle axes.
         l, v = linalg.eigh(self.am)
-        self.axlens = 1. / np.sqrt(l)
+        if np.all((l > 0.) & (np.isfinite(l))):
+            self.axlens = 1. / np.sqrt(l)
+        else:
+            raise ValueError("The input precision matrix defining the "
+                             "ellipsoid {0} is apparently singular with "
+                             "l={1} and v={2}.".format(self.am, l, v))
 
         # Scaled eigenvectors are the axes, where `axes[:,i]` is the
         # i-th axis.  Multiplying this matrix by a vector will transform a
@@ -353,8 +358,8 @@ class MultiEllipsoid(object):
         """Checks which ellipsoids `x` falls within, skipping the `j`-th
         ellipsoid."""
 
-        within = [self.ells[i].contains(x) if i != j else True
-                  for i in range(self.nells)]
+        within = np.array([self.ells[i].contains(x) if i != j else True
+                           for i in range(self.nells)], dtype='bool')
         idxs = np.arange(self.nells)[within]
 
         return idxs
@@ -554,8 +559,8 @@ class RadFriends(object):
             # If no KDTree is provided, execute a brute-force search over all
             # balls.
             nctrs = len(ctrs)
-            within = [linalg.norm(ctrs[i] - x) <= self.radius
-                      for i in range(nctrs)]
+            within = np.array([linalg.norm(ctrs[i] - x) <= self.radius
+                               for i in range(nctrs)], dtype='bool')
             idxs = np.arange(nctrs)[within]
         else:
             # If a KDTree is provided, find all points within r.
@@ -739,8 +744,8 @@ class SupFriends(object):
             # If no KDTree is provided, execute a brute-force search
             # over all cubes.
             nctrs = len(ctrs)
-            within = [max(abs(ctrs[i] - x)) <= self.hside
-                      for i in range(nctrs)]
+            within = np.array([max(abs(ctrs[i] - x)) <= self.hside
+                               for i in range(nctrs)], dtype='bool')
             idxs = np.arange(nctrs)[within]
         else:
             # If a KDTree is provided, find all points within r (`hside`).

@@ -81,6 +81,22 @@ def sample_rwalk(args):
         else:
             reject += 1
         nc += 1
+
+        # Check if we're stuck.
+        if nc > 10 * walks:
+            raise RuntimeError("The random walk sampling appears to be stuck! "
+                               "Some useful output quantities:\n"
+                               "u: {0}\n"
+                               "drhat: {1}\n"
+                               "dr: {2}\n"
+                               "du: {3}\n"
+                               "u_prop: {4}\n"
+                               "loglstar: {5}\n"
+                               "logl_prop: {6}\n"
+                               "axes: {7}\n"
+                               "scale: {8}."
+                               .format(u, drhat, dr, du, u_prop,
+                                       loglstar, logl_prop, axes, scale))
     blob = {'accept': accept, 'reject': reject}
 
     return u, v, logl, nc, blob
@@ -190,9 +206,12 @@ def sample_slice(args):
                                            "u_prop: {4}\n"
                                            "loglstar: {5}\n"
                                            "logl_prop: {6}\n"
-                                           "s: {7}."
+                                           "axes: {7}\n"
+                                           "axlens: {8}\n"
+                                           "s: {9}."
                                            .format(u, u_l, u_r, u_hat, u_prop,
-                                                   loglstar, logl_prop, s))
+                                                   loglstar, logl_prop,
+                                                   axes, axlens, s))
 
     blob = {'fscale': np.mean(fscale)}
 

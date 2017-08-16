@@ -534,7 +534,7 @@ class MultiEllipsoidSampler(Sampler):
 
         # Automatically trigger an update if we're not in any ellipsoid.
         if nidx == 0:
-            expected_vol = math.exp(-self.it / self.nlive)
+            expected_vol = math.exp(self.saved_logvol[-1] - self.dlv)
             pointvol = expected_vol / self.nlive
             prop = self.update(pointvol)
             if self.save_proposals:

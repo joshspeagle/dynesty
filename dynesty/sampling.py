@@ -7,7 +7,7 @@ Sampling functions for proposing new live points.
 """
 
 from __future__ import (print_function, division)
-from builtins import range
+from six.moves import range
 
 import sys
 import warnings

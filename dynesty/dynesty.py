@@ -37,7 +37,9 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
                   bound='multi', sample='unif',
                   update_interval=0.6, first_update=None,
                   npdim=None, rstate=None, queue_size=1, pool=None,
-                  use_pool=None, live_points=None, **kwargs):
+                  use_pool=None, live_points=None,
+                  enlarge=None, bootstrap=None, vol_dec=0.5, vol_check=2.0,
+                  walks=25, facc=0.5, slices=3, **kwargs):
     """
     Initializes and returns a chosen sampler to evaluate Bayesian evidence
     and posteriors using nested sampling.
@@ -188,26 +190,36 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
     # Initialize variables.
     if npdim is None:
         npdim = ndim
-
     if bound not in _SAMPLERS:
         raise ValueError("Unknown bounding method: '{0}'".format(bound))
-
     if sample not in _SAMPLING:
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
-
     if nlive < 2 * ndim:
         warnings.warn("You really want to make `nlive >= 2 * ndim`!")
-
     if isinstance(update_interval, float):
         update_interval = max(1, round(update_interval * nlive))
     if bound == 'none':
         update_interval = np.inf  # no need to update when there are no bounds
-
     if first_update is None:
         first_update = dict()
-
     if rstate is None:
         rstate = np.random
+
+    # Initialize kwargs ("other parameters").
+    if enlarge is not None:
+        kwargs['enlarge'] = enlarge
+    if bootstrap is not None:
+        kwargs['bootstrap'] = bootstrap
+    if vol_dec is not None:
+        kwargs['vol_dec'] = vol_dec
+    if vol_check is not None:
+        kwargs['vol_check'] = vol_check
+    if walks is not None:
+        kwargs['walks'] = walks
+    if facc is not None:
+        kwargs['facc'] = facc
+    if slices is not None:
+        kwargs['slices'] = slices
 
     # Set up parallel (or serial) evaluation.
     if queue_size < 1:
@@ -260,7 +272,9 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
                          bound='multi', sample='unif',
                          update_interval=0.6, first_update=None,
                          npdim=None, rstate=None, queue_size=1, pool=None,
-                         use_pool=None, **kwargs):
+                         use_pool=None, enlarge=None, bootstrap=None,
+                         vol_dec=0.5, vol_check=2.0,
+                         walks=25, facc=0.5, slices=3, **kwargs):
     """
     Initializes and returns a chosen sampler to evaluate Bayesian evidence
     and posteriors using nested sampling.
@@ -399,18 +413,30 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
     # Initialize variables.
     if npdim is None:
         npdim = ndim
-
     if bound not in _SAMPLERS:
         raise ValueError("Unknown bounding method: '{0}'".format(bound))
-
     if sample not in _SAMPLING:
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
-
     if first_update is None:
         first_update = dict()
-
     if rstate is None:
         rstate = np.random
+
+    # Initialize kwargs ("other parameters").
+    if enlarge is not None:
+        kwargs['enlarge'] = enlarge
+    if bootstrap is not None:
+        kwargs['bootstrap'] = bootstrap
+    if vol_dec is not None:
+        kwargs['vol_dec'] = vol_dec
+    if vol_check is not None:
+        kwargs['vol_check'] = vol_check
+    if walks is not None:
+        kwargs['walks'] = walks
+    if facc is not None:
+        kwargs['facc'] = facc
+    if slices is not None:
+        kwargs['slices'] = slices
 
     # Set up parallel (or serial) evaluation.
     if queue_size < 1:

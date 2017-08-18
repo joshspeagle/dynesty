@@ -12,7 +12,7 @@ outright copy of) Daniel Foreman-Mackey's `corner.py`
 """
 
 from __future__ import (print_function, division)
-from builtins import range
+from six.moves import range
 
 import logging
 import types

@@ -2,11 +2,10 @@ dynesty
 ======
 
 A dynamic nested sampling package for computing Bayesian evidences and
-posteriors. Pure Python. MIT license. 
+posteriors. Pure Python. MIT license. **Beta release.**
 
 ### Documentation
 Documentation can be found [here](https://dynesty.readthedocs.io).
-**In progress.**
 
 ### Installation
 `dynesty` is installed by:
@@ -14,6 +13,6 @@ Documentation can be found [here](https://dynesty.readthedocs.io).
 python setup.py install
 ```
 
-### Tutorial
-Several Jupyter notebook that demonstrate most of the available features
-can be found under the "Demo" labels.
+### Demos
+Several Jupyter notebooks that demonstrate most of the available features
+discussed/demonstrated in the documentation can be found under "demos/".

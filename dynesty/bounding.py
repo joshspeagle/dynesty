@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Bounding classes used when proposing new live points, along with relevant
-helper functions. Includes:
+Bounding classes used when proposing new live points, along with a number of
+useful helper functions. Bounding objects include:
 
     UnitCube:
         The unit N-cube (unconstrained draws from the prior).
@@ -19,10 +19,6 @@ helper functions. Includes:
 
     SupFriends:
         A set of (possibly overlapping) cubes centered on each live point.
-
-The ellipsoid methods are based on results from Feroz et al. (2009)
-<https://arxiv.org/abs/0809.3437>. The RadFriends and SupFriends methods are
-based on results from Buchner (2014) <https://arxiv.org/abs/1407.5459>.
 
 """
 
@@ -45,15 +41,20 @@ except ImportError:  # pragma: no cover
 
 from .utils import random_choice
 
-__all__ = ["UnitCube", "Ellipsoid", "MultiEllipsoid", "RadFriends",
-           "SupFriends"]
+__all__ = ["UnitCube", "Ellipsoid", "MultiEllipsoid",
+           "RadFriends", "SupFriends",
+           "vol_prefactor", "randsphere", "make_eigvals_positive",
+           "bounding_ellipsoid", "bounding_ellipsoids",
+           "_bounding_ellipsoids", "_ellipsoid_bootstrap_expand",
+           "_ellipsoids_bootstrap_expand", "_friends_bootstrap_radius",
+           "_friends_leaveoneout_radius"]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
 class UnitCube(object):
     """
-    A N-dimensional unit cube.
+    An N-dimensional unit cube.
 
     Parameters
     ----------
@@ -68,17 +69,19 @@ class UnitCube(object):
         self.funit = 1.  # overlap with the unit cube
 
     def contains(self, x):
-        """Checks if ellipsoid contains `x`."""
+        """Checks if ellipsoid contains the point `x`."""
 
         return np.all(point > 0.) and np.all(point < 1.)
 
-    def randoffset(self, rstate=np.random):
-        """Draw a sample randomly offset from the center of the
-        unit cube."""
+    def randoffset(self, rstate=None):
+        """Draw a random offset from the center of the unit cube."""
+
+        if rstate is None:
+            rstate = np.random
 
         return self.sample(rstate=rstate) - 0.5
 
-    def sample(self, rstate=np.random):
+    def sample(self, rstate=None):
         """
         Draw a sample uniformly distributed within the unit cube.
 
@@ -89,9 +92,12 @@ class UnitCube(object):
 
         """
 
+        if rstate is None:
+            rstate = np.random
+
         return rstate.rand(self.n)
 
-    def samples(self, nsamples, rstate=np.random):
+    def samples(self, nsamples, rstate=None):
         """
         Draw `nsamples` samples randomly distributed within the unit cube.
 
@@ -102,47 +108,43 @@ class UnitCube(object):
 
         """
 
+        if rstate is None:
+            rstate = np.random
+
         xs = np.array([self.sample(rstate=rstate) for i in range(nsamples)])
 
         return xs
 
-    def update(self, points, pointvol=0., rstate=np.random, bootstrap=0,
+    def update(self, points, pointvol=0., rstate=None, bootstrap=0,
                pool=None):
-        """
-        Filler function since the unit cube does not change.
-
-        """
+        """Filler function."""
 
         pass
 
 
 class Ellipsoid(object):
     """
-    An N-ellipsoid.
-
-    Defined by::
+    An N-dimensional ellipsoid defined by::
 
         (x - v)^T A (x - v) = 1
 
-    where the vector `v` is the center of the ellipsoid and `A` is an `N x N`
-    matrix. Assumes that `A` is symmetric positive definite.
+    where the vector `v` is the center of the ellipsoid and `A` is a
+    symmetric, positive-definite `N x N` matrix.
 
     Parameters
     ----------
     ctr : `~numpy.ndarray` with shape (N,)
-        Coordinates of ellipsoid center. Note that the array is *not* copied.
-        This array is never modified internally.
+        Coordinates of ellipsoid center.
 
     am : `~numpy.ndarray` with shape (N, N)
-        Matrix describing the axes. Watch out! This array is *not* copied
-        and may be modified internally!
+        Matrix describing the axes.
 
     """
 
     def __init__(self, ctr, am):
         self.n = len(ctr)  # dimension
-        self.ctr = ctr  # center coordinates
-        self.am = am  # precision matrix (inverse of covariance)
+        self.ctr = np.array(ctr)  # center coordinates
+        self.am = np.array(am)  # precision matrix (inverse of covariance)
 
         # Volume of ellipsoid is the volume of an n-sphere divided
         # by the (determinant of the) Jacobian associated with the
@@ -165,12 +167,12 @@ class Ellipsoid(object):
         # point in the unit n-sphere to a point in the ellipsoid.
         self.axes = np.dot(v, np.diag(self.axlens))
 
-        # Amount by which volume was expanded after initialization (i.e.
+        # Amount by which volume was increased after initialization (i.e.
         # cumulative factor from `scale_to_vol`).
         self.expand = 1.
 
     def scale_to_vol(self, vol):
-        """Scale ellipoid to encompass a target volume."""
+        """Scale ellipoid to a target volume."""
 
         f = (vol / self.vol) ** (1.0 / self.n)  # linear factor
         self.expand *= f
@@ -200,13 +202,15 @@ class Ellipsoid(object):
 
         return self.distance(x) <= 1.0
 
-    def randoffset(self, rstate=np.random):
-        """Return an offset from ellipsoid center that is randomly
-        distributed within the ellipsoid."""
+    def randoffset(self, rstate=None):
+        """Return a random offset from the center of the ellipsoid."""
+
+        if rstate is None:
+            rstate = np.random
 
         return np.dot(self.axes, randsphere(self.n, rstate=rstate))
 
-    def sample(self, rstate=np.random):
+    def sample(self, rstate=None):
         """
         Draw a sample uniformly distributed within the ellipsoid.
 
@@ -217,11 +221,14 @@ class Ellipsoid(object):
 
         """
 
+        if rstate is None:
+            rstate = np.random
+
         return self.ctr + self.randoffset(rstate=rstate)
 
-    def samples(self, nsamples, rstate=np.random):
+    def samples(self, nsamples, rstate=None):
         """
-        Draw `nsamples` samples randomly distributed within the ellipsoid.
+        Draw `nsamples` samples uniformly distributed within the ellipsoid.
 
         Returns
         -------
@@ -230,25 +237,59 @@ class Ellipsoid(object):
 
         """
 
+        if rstate is None:
+            rstate = np.random
+
         xs = np.array([self.sample(rstate=rstate) for i in range(nsamples)])
 
         return xs
 
-    def unitcube_overlap(self, ndraws=10000, rstate=np.random):
-        """Using `ndraws` Monte Carlo draws, evaluate the amount of
-        overlap with the unit cube."""
+    def unitcube_overlap(self, ndraws=10000, rstate=None):
+        """Using `ndraws` Monte Carlo draws, estimate the fraction of
+        overlap between the ellipsoid and the unit cube."""
+
+        if rstate is None:
+            rstate = np.random
 
         samples = [self.sample(rstate=rstate) for i in range(ndraws)]
         nin = sum([np.all(x > 0.) and np.all(x < 1.) for x in samples])
 
         return 1. * nin / ndraws
 
-    def update(self, points, pointvol=0., rstate=np.random, bootstrap=0,
+    def update(self, points, pointvol=0., rstate=None, bootstrap=0,
                pool=None, mc_integrate=False):
         """
         Update the ellipsoid to bound the collection of points.
 
+        Parameters
+        ----------
+        points : `~numpy.ndarray` with shape (npoints, ndim)
+            The set of points to bound.
+
+        pointvol : float, optional
+            The minimum volume associated with each point. Default is `0.`.
+
+        rstate : `~numpy.random.RandomState`, optional
+            `~numpy.random.RandomState` instance.
+
+        bootstrap : int, optional
+            The number of bootstrapped realizations of the ellipsoid. The
+            maximum distance to the set of points "left out" during each
+            iteration is used to enlarge the resulting volumes.
+            Default is `0`.
+
+        pool : user-provided pool, optional
+            Use this pool of workers to execute operations in parallel.
+
+        mc_integrate : bool, optional
+            Whether to use Monte Carlo methods to compute the effective
+            overlap of the final ellipsoid with the unit cube.
+            Default is `False`.
+
         """
+
+        if rstate is None:
+            rstate = np.random
 
         # Compute new bounding ellipsoid.
         ell = bounding_ellipsoid(points, pointvol=pointvol)
@@ -260,10 +301,10 @@ class Ellipsoid(object):
         self.axes = ell.axes
         self.expand = ell.expand
 
-        # Use bootstrapping to determine volume expansion factor.
+        # Use bootstrapping to determine the volume expansion factor.
         if bootstrap > 0:
 
-            # If possible, compute bootstraps in parallel using a pool.
+            # If provided, compute bootstraps in parallel using a pool.
             if pool is None:
                 M = map
             else:
@@ -282,35 +323,35 @@ class Ellipsoid(object):
                 v = self.vol * expand**self.n
                 self.scale_to_vol(v)
 
-        # Compute overlap with the unit cube.
+        # Estimate the fractional overlap with the unit cube using
+        # Monte Carlo integration.
         if mc_integrate:
             self.funit = self.unitcube_overlap()
 
 
 class MultiEllipsoid(object):
     """
-    A collection of M N-ellipsoids.
+    A collection of M N-dimensional ellipsoids.
 
     Parameters
     ----------
-    ells : list of `Ellipsoid` objects with length `M`, optional
+    ells : list of `Ellipsoid` objects with length M, optional
         A set of `Ellipsoid` objects that make up the collection of
-        N-ellipsoids. Will be used to initialize ellipsoids if provided.
+        N-ellipsoids. Used to initialize :class:`MultiEllipsoid` if provided.
 
     ctrs : `~numpy.ndarray` with shape (M, N), optional
-        Collection of coordinates of ellipsoid centers. Note that the array
-        is *not* copied. This array is never modified internally. Will be
-        used to initialize ellipsoids if `ams` is also provided.
+        Collection of coordinates of ellipsoid centers. Used to initialize
+        :class:`MultiEllipsoid` if :data:`ams` is also provided.
 
     ams : `~numpy.ndarray` with shape (M, N, N), optional
-        Collection of matrices describing the axes of the ellipsoids. Watch
-        out! This array is *not* copied and may be modified internally! Will
-        be used to initialize ellipsoids if `ctrs` also provided.
+        Collection of matrices describing the axes of the ellipsoids. Used to
+        initialize :class:`MultiEllipsoid` if :data:`ctrs` also provided.
 
     """
 
     def __init__(self, ells=None, ctrs=None, ams=None):
         if ells is not None:
+            # Try to initialize quantities using provided `Ellipsoid` objects.
             if (ctrs is None) and (ams is None):
                 self.nells = len(ells)
                 self.ells = ells
@@ -320,23 +361,26 @@ class MultiEllipsoid(object):
                 raise ValueError("You cannot specific both `ells` and "
                                  "(`ctrs`, `ams`)!")
         else:
+            # Try to initialize quantities using provided `ctrs` and `ams`.
             if (ctrs is None) and (ams is None):
                 raise ValueError("You must specify either `ells` or "
                                  "(`ctrs`, `ams`).")
             else:
                 self.nells = len(ctrs)
-                self.ctrs = ctrs
-                self.ams = ams
+                self.ctrs = np.array(ctrs)
+                self.ams = np.array(ams)
                 self.ells = [Ellipsoid(ctrs[i], ams[i])
                              for i in range(self.nells)]
+
+        # Compute quantities.
         self.vols = np.array([ell.vol for ell in self.ells])
         self.expands = np.ones(self.nells)
         self.vol_tot = sum(self.vols)
         self.expand_tot = 1.
 
     def scale_to_vols(self, vols):
-        """Scale ellipoids to encompass a corresponding set of
-        target volume."""
+        """Scale ellipoids to a corresponding set of
+        target volumes."""
 
         _ = [self.ells[i].scale_to_vol(vols[i]) for i in range(self.nells)]
         self.vols = np.array(vols)
@@ -355,7 +399,7 @@ class MultiEllipsoid(object):
         return np.array([ell.major_axis_endpoints() for ell in self.ells])
 
     def within(self, x, j=None):
-        """Checks which ellipsoids `x` falls within, skipping the `j`-th
+        """Checks which ellipsoid(s) `x` falls within, skipping the `j`-th
         ellipsoid."""
 
         within = np.array([self.ells[i].contains(x) if i != j else True
@@ -365,7 +409,7 @@ class MultiEllipsoid(object):
         return idxs
 
     def overlap(self, x, j=None):
-        """Checks how many ellipsoids `x` falls within, skipping the `j`-th
+        """Checks how many ellipsoid(s) `x` falls within, skipping the `j`-th
         ellipsoid."""
 
         q = len(self.within(x, j=j))
@@ -377,20 +421,25 @@ class MultiEllipsoid(object):
 
         return self.overlap(x) > 0
 
-    def sample(self, rstate=np.random, return_q=False):
+    def sample(self, rstate=None, return_q=False):
         """
-        Sample a point uniformly distributed within the union of ellipsoids.
+        Sample a point uniformly distributed within the *union* of ellipsoids.
 
         Returns
         -------
         x : `~numpy.ndarray` with shape (ndim,)
             A coordinate within the set of ellipsoids.
+
         idx : int
             The index of the ellipsoid `x` was sampled from.
+
         q : int, optional
             The number of ellipsoids `x` falls within.
 
         """
+
+        if rstate is None:
+            rstate = np.random
 
         # If there is only one ellipsoid, sample from it.
         if self.nells == 1:
@@ -429,9 +478,9 @@ class MultiEllipsoid(object):
 
             return x, idx
 
-    def samples(self, nsamples, rstate=np.random):
+    def samples(self, nsamples, rstate=None):
         """
-        Draw `nsamples` samples uniformly distributed within the union of
+        Draw `nsamples` samples uniformly distributed within the *union* of
         ellipsoids.
 
         Returns
@@ -441,22 +490,32 @@ class MultiEllipsoid(object):
 
         """
 
+        if rstate is None:
+            rstate = np.random
+
         xs = np.array([self.sample(rstate=rstate)[0]
                        for i in range(nsamples)])
 
         return xs
 
-    def monte_carlo_vol(self, ndraws=10000, rstate=np.random,
-                        return_overlap=False):
-        """Using `ndraws` Monte Carlo draws, evaluate the amount of
-        overlap with the unit cube."""
+    def monte_carlo_vol(self, ndraws=10000, rstate=None,
+                        return_overlap=True):
+        """Using `ndraws` Monte Carlo draws, estimate the volume of the
+        *union* of ellipsoids. If `return_overlap=True`, also returns the
+        estimated fractional overlap with the unit cube."""
 
+        if rstate is None:
+            rstate = np.random
+
+        # Estimate volume using Monte Carlo integration.
         samples = [self.sample(rstate=rstate, return_q=True)
                    for i in range(ndraws)]
         qsum = sum([q for (x, idx, q) in samples])
         vol = 1. * ndraws / qsum * self.vol_tot
 
         if return_overlap:
+            # Estimate the fractional amount of overlap with the
+            # unit cube using the same set of samples.
             qin = sum([q * (np.all(x > 0.) and np.all(x < 1.))
                        for (x, idx, q) in samples])
             overlap = 1. * qin / qsum
@@ -465,24 +524,64 @@ class MultiEllipsoid(object):
             return vol
 
     def update(self, points, pointvol=0., vol_dec=0.5, vol_check=2.,
-               rstate=np.random, bootstrap=0, pool=None, mc_integrate=False):
+               rstate=None, bootstrap=0, pool=None, mc_integrate=False):
         """
         Update the set of ellipsoids to bound the collection of points.
 
+        Parameters
+        ----------
+        points : `~numpy.ndarray` with shape (npoints, ndim)
+            The set of points to bound.
+
+        pointvol : float, optional
+            The minimum volume associated with each point. Default is `0.`.
+
+        vol_dec : float, optional
+            The required fractional reduction in volume after splitting
+            an ellipsoid in order to to accept the split.
+            Default is `0.5`.
+
+        vol_check : float, optional
+            The factor used when checking if the volume of the original
+            bounding ellipsoid is large enough to warrant `> 2` splits
+            via `ell.vol > vol_check * nlive * pointvol`.
+            Default is `2.0`.
+
+        rstate : `~numpy.random.RandomState`, optional
+            `~numpy.random.RandomState` instance.
+
+        bootstrap : int, optional
+            The number of bootstrapped realizations of the ellipsoids. The
+            maximum distance to the set of points "left out" during each
+            iteration is used to enlarge the resulting volumes.
+            Default is `0`.
+
+        pool : user-provided pool, optional
+            Use this pool of workers to execute operations in parallel.
+
+        mc_integrate : bool, optional
+            Whether to use Monte Carlo methods to compute the effective
+            volume and fractional overlap of the final union of ellipsoids
+            with the unit cube. Default is `False`.
+
         """
 
+        if rstate is None:
+            rstate = np.random
+
         if not HAVE_KMEANS:
-            raise ValueError("scipy.cluster.vq.kmeans2 is required to compute "
-                             "ellipsoid decompositions.")  # pragma: no cover
+            raise ValueError("scipy.cluster.vq.kmeans2 is required "
+                             "to compute ellipsoid decompositions.")
 
         npoints, ndim = points.shape
 
-        # Calculate the bounding ellipsoid for the points possibly
+        # Calculate the bounding ellipsoid for the points, possibly
         # enlarged to a minimum volume.
         ell = bounding_ellipsoid(points, pointvol=pointvol)
 
-        # Recursively split the bounding ellipsoid until the volume of each
-        # split no longer decreases by a factor of `vol_dec`.
+        # Recursively split the bounding ellipsoid using `vol_check`
+        # until the volume of each split no longer decreases by a
+        # factor of `vol_dec`.
         ells = _bounding_ellipsoids(points, ell, pointvol=pointvol,
                                     vol_dec=vol_dec, vol_check=vol_check)
 
@@ -494,10 +593,16 @@ class MultiEllipsoid(object):
         self.vols = np.array([ell.vol for ell in self.ells])
         self.vol_tot = sum(self.vols)
 
-        # Use bootstrapping to determine volume expansion factor.
+        # Compute expansion factor.
+        expands = np.array([ell.expand for ell in self.ells])
+        vols_orig = self.vols / expands
+        vol_tot_orig = sum(vols_orig)
+        self.expand_tot = self.vol_tot / vol_tot_orig
+
+        # Use bootstrapping to determine the volume expansion factor.
         if bootstrap > 0:
 
-            # If possible, compute bootstraps in parallel using a pool.
+            # If provided, compute bootstraps in parallel using a pool.
             if pool is None:
                 M = map
             else:
@@ -518,22 +623,23 @@ class MultiEllipsoid(object):
                 vs = self.vols * expand**ndim
                 self.scale_to_vols(vs)
 
-        # Monte Carlo integrate the volume and overlap with the unit cube.
+        # Estimate the volume and fractional overlap with the unit cube
+        # using Monte Carlo integration.
         if mc_integrate:
             self.vol, self.funit = self.monte_carlo_vol(return_overlap=True)
 
 
 class RadFriends(object):
     """
-    A collection of N-balls of fixed size centered on each live point.
+    A collection of N-balls of identical size centered on each live point.
 
     Parameters
     ----------
     ndim : int
-        The number of dimensions of the ball.
+        The number of dimensions of each ball.
 
     radius : float
-        Radius of the ball.
+        Radius of each ball.
 
     """
 
@@ -552,24 +658,24 @@ class RadFriends(object):
         self.vol_ball = vol
 
     def within(self, x, ctrs, kdtree=None):
-        """Checks which balls `x` falls within. Uses a KDTree to
+        """Check which balls `x` falls within. Uses a K-D Tree to
         accelerate the search if provided."""
 
         if kdtree is None:
-            # If no KDTree is provided, execute a brute-force search over all
-            # balls.
+            # If no K-D Tree is provided, execute a brute-force
+            # search over all balls.
             nctrs = len(ctrs)
             within = np.array([linalg.norm(ctrs[i] - x) <= self.radius
                                for i in range(nctrs)], dtype='bool')
             idxs = np.arange(nctrs)[within]
         else:
-            # If a KDTree is provided, find all points within r.
+            # If a K-D Tree is provided, find all points within `self.radius`.
             idxs = kdtree.query_ball_point(x, self.radius, p=2.0, eps=0)
 
         return idxs
 
     def overlap(self, x, ctrs, kdtree=None):
-        """Checks how many balls `x` falls within. Uses a KDTree to
+        """Check how many balls `x` falls within. Uses a K-D Tree to
         accelerate the search if provided."""
 
         q = len(self.within(x, ctrs, kdtree=kdtree))
@@ -577,23 +683,28 @@ class RadFriends(object):
         return q
 
     def contains(self, x, ctrs, kdtree=None):
-        """Checks if the set of balls contains `x`. Uses a KDTree to
+        """Check if the set of balls contains `x`. Uses a K-D Tree to
         accelerate the search if provided."""
 
         return self.overlap(x, ctrs, kdtree=kdtree) > 0
 
-    def sample(self, ctrs, rstate=np.random, return_q=False, kdtree=None):
+    def sample(self, ctrs, rstate=None, return_q=False, kdtree=None):
         """
-        Sample a point uniformly distributed within the union of balls.
+        Sample a point uniformly distributed within the *union* of balls.
+        Uses a K-D Tree to accelerate the search if provided.
 
         Returns
         -------
         x : `~numpy.ndarray` with shape (ndim,)
             A coordinate within the set of balls.
+
         q : int, optional
             The number of balls `x` falls within.
 
         """
+
+        if rstate is None:
+            rstate = np.random
 
         nctrs = len(ctrs)  # number of balls
 
@@ -632,10 +743,10 @@ class RadFriends(object):
                 q = self.overlap(x, ctrs, kdtree=kdtree)
             return x
 
-    def samples(self, nsamples, ctrs, rstate=np.random, kdtree=None):
+    def samples(self, nsamples, ctrs, rstate=None, kdtree=None):
         """
-        Draw `nsamples` samples uniformly distributed within the union of
-        balls.
+        Draw `nsamples` samples uniformly distributed within the *union* of
+        balls. Uses a K-D Tree to accelerate the search if provided.
 
         Returns
         -------
@@ -644,16 +755,25 @@ class RadFriends(object):
 
         """
 
+        if rstate is None:
+            rstate = np.random
+
         xs = np.array([self.sample(ctrs, rstate=rstate, kdtree=kdtree)
                        for i in range(nsamples)])
 
         return xs
 
-    def monte_carlo_vol(self, ctrs, ndraws=10000, rstate=np.random,
-                        return_overlap=False, kdtree=None):
-        """Using `ndraws` Monte Carlo draws, evaluate the amount of
-        overlap with the unit cube."""
+    def monte_carlo_vol(self, ctrs, ndraws=10000, rstate=None,
+                        return_overlap=True, kdtree=None):
+        """Using `ndraws` Monte Carlo draws, estimate the volume of the
+        *union* of balls. If `return_overlap=True`, also returns the
+        estimated fractional overlap with the unit cube. Uses a K-D Tree
+        to accelerate the search if provided."""
 
+        if rstate is None:
+            rstate = np.random
+
+        # Estimate volume using Monte Carlo integration.
         samples = [self.sample(ctrs, rstate=rstate, return_q=True,
                                kdtree=kdtree)
                    for i in range(ndraws)]
@@ -661,6 +781,8 @@ class RadFriends(object):
         vol = 1. * ndraws / qsum * len(ctrs) * self.vol_ball
 
         if return_overlap:
+            # Estimate the fractional amount of overlap with the
+            # unit cube using the same set of samples.
             nin = sum([q * (np.all(x > 0.) and np.all(x < 1.))
                        for (x, q) in samples])
             overlap = 1. * qin / qsum
@@ -668,10 +790,38 @@ class RadFriends(object):
         else:
             return vol
 
-    def update(self, points, pointvol=0., rstate=np.random, bootstrap=0,
+    def update(self, points, pointvol=0., rstate=None, bootstrap=0,
                pool=None, kdtree=None, mc_integrate=False):
         """
-        Update the radius/volume of our balls.
+        Update the radii of our balls.
+
+        Parameters
+        ----------
+        points : `~numpy.ndarray` with shape (npoints, ndim)
+            The set of points to bound.
+
+        pointvol : float, optional
+            The minimum volume associated with each point. Default is `0.`.
+
+        rstate : `~numpy.random.RandomState`, optional
+            `~numpy.random.RandomState` instance.
+
+        bootstrap : int, optional
+            The number of bootstrapped realizations of the ellipsoids. The
+            maximum distance to the set of points "left out" during each
+            iteration is used to enlarge the resulting volumes.
+            Default is `0`.
+
+        pool : user-provided pool, optional
+            Use this pool of workers to execute operations in parallel.
+
+        kdtree : `~scipy.spatial.KDTree`, optional
+            K-D Tree used to accelerate nearest neighbor searches.
+
+        mc_integrate : bool, optional
+            Whether to use Monte Carlo methods to compute the effective
+            volume and fractional overlap of the final union of balls
+            with the unit cube. Default is `False`.
 
         """
 
@@ -695,6 +845,7 @@ class RadFriends(object):
         rmax = max(radii)
         self.radius = rmax
         self.vol_ball = vol_prefactor(self.n) * self.radius**self.n
+        self.expand = 1.
 
         # Expand our ball to encompass a minimum volume.
         if pointvol > 0.:
@@ -702,7 +853,8 @@ class RadFriends(object):
             if self.vol_ball < v:
                 self.scale_to_vol(v)
 
-        # Monte Carlo integrate the volume and overlap with the unit cube.
+        # Estimate the volume and fractional overlap with the unit cube
+        # using Monte Carlo integration.
         if mc_integrate:
             self.vol, self.funit = self.monte_carlo_vol(points, kdtree=kdtree,
                                                         return_overlap=True)
@@ -710,7 +862,7 @@ class RadFriends(object):
 
 class SupFriends(object):
     """
-    A collection of N-cubes of fixed size centered on each live point.
+    A collection of N-cubes of identical size centered on each live point.
 
     Parameters
     ----------
@@ -718,7 +870,7 @@ class SupFriends(object):
         The number of dimensions of the cube.
 
     hside : float
-        Half the side-length of the cube.
+        Half the length of each side of the cube.
 
     """
 
@@ -729,7 +881,7 @@ class SupFriends(object):
         self.expand = 1.
 
     def scale_to_vol(self, vol):
-        """Scale ball to encompass a target volume."""
+        """Scale cube to encompass a target volume."""
 
         f = (vol / self.vol_cube) ** (1.0 / self.n)  # linear factor
         self.expand *= f
@@ -737,7 +889,7 @@ class SupFriends(object):
         self.vol_cube = vol
 
     def within(self, x, ctrs, kdtree=None):
-        """Checks which cubes `x` falls within. Uses a KDTree to
+        """Checks which cubes `x` falls within. Uses a K-D Tree to
         accelerate the search if provided."""
 
         if kdtree is None:
@@ -755,29 +907,35 @@ class SupFriends(object):
 
     def overlap(self, x, ctrs, kdtree=None):
         """Checks how many cubes `x` falls within, skipping the `j`-th
-        cube."""
+        cube. Uses a K-D Tree to accelerate the search if provided."""
 
         q = len(self.within(x, ctrs, kdtree=kdtree))
 
         return q
 
     def contains(self, x, ctrs, kdtree=None):
-        """Checks if the set of cubes contains `x`."""
+        """Checks if the set of cubes contains `x`. Uses a K-D Tree to
+        accelerate the search if provided."""
 
         return self.overlap(x, ctrs, kdtree=kdtree) > 0
 
-    def sample(self, ctrs, rstate=np.random, return_q=False, kdtree=None):
+    def sample(self, ctrs, rstate=None, return_q=False, kdtree=None):
         """
-        Sample a point uniformly distributed within the union of cubes.
+        Sample a point uniformly distributed within the *union* of cubes.
+        Uses a K-D Tree to accelerate the search if provided.
 
         Returns
         -------
         x : `~numpy.ndarray` with shape (ndim,)
             A coordinate within the set of cubes.
+
         q : int, optional
             The number of cubes `x` falls within.
 
         """
+
+        if rstate is None:
+            rstate = np.random
 
         nctrs = len(ctrs)  # number of cubes
 
@@ -816,10 +974,10 @@ class SupFriends(object):
                 q = self.overlap(x, ctrs, kdtree=kdtree)
             return x
 
-    def samples(self, nsamples, ctrs, rstate=np.random, kdtree=None):
+    def samples(self, nsamples, ctrs, rstate=None, kdtree=None):
         """
-        Draw `nsamples` samples uniformly distributed within the union of
-        cubes.
+        Draw `nsamples` samples uniformly distributed within the *union* of
+        cubes. Uses a K-D Tree to accelerate the search if provided.
 
         Returns
         -------
@@ -828,16 +986,25 @@ class SupFriends(object):
 
         """
 
+        if rstate is None:
+            rstate = np.random
+
         xs = np.array([self.sample(ctrs, rstate=rstate, kdtree=kdtree)
                        for i in range(nsamples)])
 
         return xs
 
-    def monte_carlo_vol(self, ctrs, ndraws=10000, rstate=np.random,
+    def monte_carlo_vol(self, ctrs, ndraws=10000, rstate=None,
                         return_overlap=False, kdtree=None):
-        """Using `ndraws` Monte Carlo draws, evaluate the amount of
-        overlap with the unit cube."""
+        """Using `ndraws` Monte Carlo draws, estimate the volume of the
+        *union* of cubes. If `return_overlap=True`, also returns the
+        estimated fractional overlap with the unit cube. Uses a K-D Tree
+        to accelerate the search if provided."""
 
+        if rstate is None:
+            rstate = np.random
+
+        # Estimate the volume using Monte Carlo integration.
         samples = [self.sample(ctrs, rstate=rstate, return_q=True,
                                kdtree=kdtree)
                    for i in range(ndraws)]
@@ -845,6 +1012,8 @@ class SupFriends(object):
         vol = 1. * ndraws / qsum * len(ctrs) * self.vol_cube
 
         if return_overlap:
+            # Estimate the fractional overlap with the unit cube using
+            # the same set of samples.
             qin = sum([q * (np.all(x > 0.) and np.all(x < 1.))
                        for (x, q) in samples])
             overlap = 1. * qin / qsum
@@ -852,12 +1021,43 @@ class SupFriends(object):
         else:
             return vol
 
-    def update(self, points, pointvol=0., rstate=np.random, bootstrap=0,
+    def update(self, points, pointvol=0., rstate=None, bootstrap=0,
                pool=None, kdtree=None, mc_integrate=False):
         """
-        Update the half-side-lengths/volumes of our cubes.
+        Update the half-side-lengths of our cubes.
+
+        Parameters
+        ----------
+        points : `~numpy.ndarray` with shape (npoints, ndim)
+            The set of points to bound.
+
+        pointvol : float, optional
+            The minimum volume associated with each point. Default is `0.`.
+
+        rstate : `~numpy.random.RandomState`, optional
+            `~numpy.random.RandomState` instance.
+
+        bootstrap : int, optional
+            The number of bootstrapped realizations of the ellipsoids. The
+            maximum distance to the set of points "left out" during each
+            iteration is used to enlarge the resulting volumes.
+            Default is `0`.
+
+        pool : user-provided pool, optional
+            Use this pool of workers to execute operations in parallel.
+
+        kdtree : `~scipy.spatial.KDTree`, optional
+            K-D Tree used to accelerate nearest neighbor searches.
+
+        mc_integrate : bool, optional
+            Whether to use Monte Carlo methods to compute the effective
+            volume and fractional overlap of the final union of balls
+            with the unit cube. Default is `False`.
 
         """
+
+        if rstate is None:
+            rstate = np.random
 
         # If possible, compute bootstraps in parallel using a pool.
         if pool is None:
@@ -879,6 +1079,7 @@ class SupFriends(object):
         hsmax = max(hsides)
         self.hside = hsmax
         self.vol_cube = (2. * self.hside)**self.n
+        self.expand = 1.
 
         # Expand our cube to encompass a minimum volume.
         if pointvol > 0.:
@@ -886,7 +1087,8 @@ class SupFriends(object):
             if self.vol_cube < v:
                 self.scale_to_vol(v)
 
-        # Monte Carlo integrate the volume and overlap with the unit cube.
+        # Estimate the volume and fractional overlap with the unit cube
+        # using Monte Carlo integration.
         if mc_integrate:
             self.vol, self.funit = self.monte_carlo_vol(points, kdtree=kdtree,
                                                         return_overlap=True)
@@ -898,32 +1100,38 @@ class SupFriends(object):
 
 def vol_prefactor(n, p=2.):
     """
-    Volume constant for an n-dimensional sphere with an L^p norm::
+    Returns the volume constant for an `n`-dimensional sphere with an
+    :math:`L^p` norm. The constant is defined as::
 
-    f = (2 * Gamma(1/p + 1))**n / Gamma(n/p + 1)
+        f = (2. * Gamma(1./p + 1))**n / Gamma(n/p + 1.)
 
-    By default the norm is p=2 (the standard Euclidean norm).
+    By default the `p=2.` norm is used (i.e. the standard Euclidean norm).
 
     """
 
-    p *= 1.  # convert to float in case user inputs int
+    p *= 1.  # convert to float in case user inputs an integer
     f = (2 * special.gamma(1./p + 1.))**n / special.gamma(n/p + 1)
 
     return f
 
 
-def randsphere(n, rstate=np.random):
-    """Draw a random point within an n-dimensional unit sphere."""
+def randsphere(n, rstate=None):
+    """Draw a point uniformly within an `n`-dimensional unit sphere."""
+
+    if rstate is None:
+        rstate = np.random
 
     z = rstate.randn(n)  # initial n-dim vector
+    zhat = z / linalg.norm(z)  # normalize
+    xhat = zhat * rstate.rand()**(1./n)  # scale
 
-    return z / linalg.norm(z) * rstate.rand()**(1./n)
+    return xhat
 
 
 def make_eigvals_positive(am, targetprod):
     """For the symmetric square matrix `am`, increase any zero eigenvalues
-    to fulfill the given target product of eigenvalues. Returns a
-    (possibly) new matrix."""
+    such that the total product of eigenvalues is greater or equal to
+    `targetprod`. Returns a (possibly) new, non-singular matrix."""
 
     w, v = linalg.eigh(am)  # use eigh since a is symmetric
     mask = w < 1.e-10
@@ -931,15 +1139,15 @@ def make_eigvals_positive(am, targetprod):
         nzprod = np.product(w[~mask])  # product of nonzero eigenvalues
         nzeros = mask.sum()  # number of zero eigenvalues
         new_val = max(1.e-10, (targetprod / nzprod) ** (1. / nzeros))
-        w[mask] = new_val # adjust zero eigvals
-        am = np.dot(np.dot(v, np.diag(w)), linalg.inv(v))  # re-form cov
+        w[mask] = new_val  # adjust zero eigvals
+        am_new = np.dot(np.dot(v, np.diag(w)), linalg.inv(v))  # re-form cov
 
-    return am
+    return am_new
 
 
 def bounding_ellipsoid(points, pointvol=0.):
     """
-    Calculate bounding ellipsoid containing a collection of points.
+    Calculate the bounding ellipsoid containing a collection of points.
 
     Parameters
     ----------
@@ -949,11 +1157,12 @@ def bounding_ellipsoid(points, pointvol=0.):
     pointvol : float, optional
         The minimum volume occupied by a single point. When provided,
         used to set a minimum bound on the ellipsoid volume
-        as `npoints * pointvol`. Default is *None*.
+        as `npoints * pointvol`. Default is `0.`.
 
     Returns
     -------
-    ellipsoid : Ellipsoid
+    ellipsoid : :class:`Ellipsoid`
+        The bounding :class:`Ellipsoid` object.
 
     """
 
@@ -980,7 +1189,7 @@ def bounding_ellipsoid(points, pointvol=0.):
     ctr = np.mean(points, axis=0)
     cov = np.cov(points, rowvar=False)
 
-    # When ndim = 1, np.cov returns a 0-d array. Make it a 1x1 2-d array.
+    # When ndim = 1, `np.cov` returns a 0-d array. Make it a 1x1 2-d array.
     if ndim == 1:
         cov = np.atleast_2d(cov)
 
@@ -1052,35 +1261,38 @@ def bounding_ellipsoid(points, pointvol=0.):
 def _bounding_ellipsoids(points, ell, pointvol=0., vol_dec=0.5,
                          vol_check=2.):
     """
-    Internal bounding ellipsoids method used when a bounding ellipsoid for
-    the entire set has already been calculated.
+    Internal method used to compute a set of bounding ellipsoids when a
+    bounding ellipsoid for the entire set has already been calculated.
 
     Parameters
     ----------
     points : `~numpy.ndarray` with shape (npoints, ndim)
-        Coordinates of points.
+        A set of coordinates.
 
     ell : Ellipsoid
-        The bounding ellipsoid of the set of points.
+        The bounding ellipsoid containing :data:`points`.
 
     pointvol : float, optional
         Volume represented by a single point. When provided,
         used to set a minimum bound on the ellipsoid volume
-        as `npoints * pointvol`. Default is *None*.
+        as `npoints * pointvol`. Default is `0.`.
 
     vol_dec : float, optional
         The required fractional reduction in volume after splitting an
-        ellipsoid in order to to accept the split. Default is *0.5*.
+        ellipsoid in order to to accept the split. Default is `0.5`.
 
     vol_check : float, optional
         The factor used to when checking whether the volume of the
         original bounding ellipsoid is large enough to warrant more
         trial splits via `ell.vol > vol_check * npoints * pointvol`.
-        Default is *2.0*.
+        Default is `2.0`.
 
     Returns
     -------
-    ells : list of Ellipsoids
+    ells : list of :class:`Ellipsoid` objects
+        List of :class:`Ellipsoid` objects used to bound the
+        collection of points. Used to initialize the :class:`MultiEllipsoid`
+        object returned in :meth:`bounding_ellipsoids`.
 
     """
 
@@ -1136,7 +1348,7 @@ def _bounding_ellipsoids(points, ell, pointvol=0., vol_dec=0.5,
                                         pointvol=pointvol, vol_dec=vol_dec,
                                         vol_check=vol_check))
 
-            # only accept split if volume decreased significantly
+            # Only accept the split if the volume decreased significantly.
             if sum(e.vol for e in out) < vol_dec * ell.vol:
                 return out
     except:
@@ -1148,31 +1360,33 @@ def _bounding_ellipsoids(points, ell, pointvol=0., vol_dec=0.5,
 
 def bounding_ellipsoids(points, pointvol=0., vol_dec=0.5, vol_check=2.):
     """
-    Calculate a set of ellipsoids that bound the points.
+    Calculate a set of ellipsoids that bound the collection of points.
 
     Parameters
     ----------
     points : `~numpy.ndarray` with shape (npoints, ndim)
-        Coordinates of points.
+        A set of coordinates.
 
     pointvol : float, optional
         Volume represented by a single point. When provided,
         used to set a minimum bound on the ellipsoid volume
-        as `npoints * pointvol`. Default is *None*.
+        as `npoints * pointvol`. Default is `0.`.
 
     vol_dec : float, optional
         The required fractional reduction in volume after splitting an
-        ellipsoid in order to to accept the split. Default is *0.5*.
+        ellipsoid in order to to accept the split. Default is `0.5`.
 
     vol_check : float, optional
         The factor used to when checking whether the volume of the
         original bounding ellipsoid is large enough to warrant more
         trial splits via `ell.vol > vol_check * npoints * pointvol`.
-        Default is *2.0*.
+        Default is `2.0`.
 
     Returns
     -------
-    ells : list of Ellipsoids
+    mell : :class:`MultiEllipsoid` object
+        The :class:`MultiEllipsoid` object used to bound the
+        collection of points.
 
     """
 
@@ -1193,9 +1407,8 @@ def bounding_ellipsoids(points, pointvol=0., vol_dec=0.5, vol_check=2.):
 
 
 def _ellipsoid_bootstrap_expand(args):
-    """Internal method used when trying to compute the appropriate
-    radius expansion factor for a bounding ellipsoid using bootstrap
-    resampling."""
+    """Internal method used to compute the expansion factor for a bounding
+    ellipsoid based on bootstrapping."""
 
     # Unzipping.
     points, pointvol = args
@@ -1225,9 +1438,8 @@ def _ellipsoid_bootstrap_expand(args):
 
 
 def _ellipsoids_bootstrap_expand(args):
-    """Internal method used when trying to compute the appropriate
-    radius expansion factor for a set of bounding ellipsoids using
-    bootstrap resampling."""
+    """Internal method used to compute the expansion factor(s) for a collection
+    of bounding ellipsoids using bootstrapping."""
 
     # Unzipping.
     points, pointvol, vol_dec, vol_check = args
@@ -1259,9 +1471,9 @@ def _ellipsoids_bootstrap_expand(args):
 
 
 def _friends_bootstrap_radius(args):
-    """Internal method used when trying to compute the appropriate
-    radius for a set of balls/cubes centered on the collection of
-    live points using bootstrap resampling."""
+    """Internal method used to compute the radius (half-side-length) for each
+    ball (cube) used in :class:`RadFriends` (:class:`SupFriends`) using
+    bootstrapping."""
 
     # Unzipping.
     points, ftype = args
@@ -1300,9 +1512,9 @@ def _friends_bootstrap_radius(args):
 
 
 def _friends_leaveoneout_radius(points, ftype):
-    """Internal method used when trying to compute the appropriate
-    radius for a set of balls/cubes centered on the collection of
-    live points using leave-one-out (LOO) cross-validation."""
+    """Internal method used to compute the radius (half-side-length) for each
+    ball (cube) used in :class:`RadFriends` (:class:`SupFriends`) using
+    leave-one-out (LOO) cross-validation."""
 
     # Construct KDTree to enable quick nearest-neighbor lookup for
     # our resampled objects.

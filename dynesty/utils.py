@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Useful utilities.
+A collection of useful functions.
 
 """
 
@@ -18,20 +18,24 @@ import copy
 
 from .results import *
 
-__all__ = ["resample_equal", "mean_and_cov", "random_choice",
+__all__ = ["random_choice", "resample_equal", "mean_and_cov",
            "jitter_run", "resample_run", "simulate_run",
-           "unravel_run", "merge_runs",
-           "kl_divergence", "kld_error"]
+           "unravel_run", "merge_runs", "kl_divergence", "kld_error",
+           "_merge_two"]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
-def random_choice(a, p, rstate=np.random):
-    """Replacement for numpy.random.choice (only in numpy 1.7+)."""
+def random_choice(a, p, rstate=None):
+    """Built-in replacement for `~numpy.random.choice`."""
+
+    if rstate is None:
+        rstate = np.random
 
     if abs(np.sum(p) - 1.) > SQRTEPS:  # same tol as in np.random.choice.
         raise ValueError("probabilities do not sum to 1")
 
+    # Randomly sample an index.
     r = rstate.rand()
     i = 0
     t = p[i]
@@ -44,13 +48,13 @@ def random_choice(a, p, rstate=np.random):
 
 def mean_and_cov(samples, weights):
     """
-    Compute weighted sample mean and covariance.
+    Compute the weighted mean and covariance of the samples.
 
     Parameters
     ----------
     samples : `~numpy.ndarray` with shape (nsamples, ndim)
         2-D array containing data samples. This ordering is equivalent to
-        using `rowvar=False` in `numpy.cov`.
+        using `rowvar=False` in `~numpy.cov`.
 
     weights : `~numpy.ndarray` with shape (nsamples,)
         1-D array of sample weights.
@@ -58,49 +62,53 @@ def mean_and_cov(samples, weights):
     Returns
     -------
     mean : `~numpy.ndarray` with shape (ndim,)
-        Weighted sample means.
+        Weighted sample mean vector.
 
     cov : `~numpy.ndarray` with shape (ndim, ndim)
-        Weighted sample covariances.
+        Weighted sample covariance matrix.
 
     Notes
     -----
-    Implements the formulae in the "weighted samples" section on
-    <https://en.wikipedia.org/wiki/Sample_mean_and_sample_covariance>.
+    Implements the formulae found `here <https://goo.gl/emWFLR>`_.
 
     """
 
+    # Compute the weighted mean.
     mean = np.average(samples, weights=weights, axis=0)
 
+    # Compute the weighted covariance.
     dx = samples - mean
     wsum = np.sum(weights)
     w2sum = np.sum(weights**2)
-
     cov = wsum / (wsum**2 - w2sum) * np.einsum('i,ij,ik', weights, dx, dx)
 
     return mean, cov
 
 
-def resample_equal(samples, weights, rstate=np.random):
+def resample_equal(samples, weights, rstate=None):
     """
-    Resample the samples so that the final samples all have equal weight.
+    Resample a new set of points from the weighted set of inputs
+    such that they all have equal weight.
 
     Each input sample appears in the output array either
-    `floor(weights[i] * nsamples)` or `ceil(weights[i] * nsamples)` times, with
-    `floor` or `ceil` randomly selected (weighted by proximity).
+    `floor(weights[i] * nsamples)` or `ceil(weights[i] * nsamples)` times,
+    with `floor` or `ceil` randomly selected (weighted by proximity).
 
     Parameters
     ----------
     samples : `~numpy.ndarray` with shape (nsamples,)
-        Unequally weighted samples returned by the nested sampling algorithm.
+        Set of unequally weighted samples.
 
     weights : `~numpy.ndarray` with shape (nsamples,)
         Corresponding weight of each sample.
 
+    rstate : `~numpy.random.RandomState`, optional
+        `~numpy.random.RandomState` instance.
+
     Returns
     -------
     equal_weight_samples : `~numpy.ndarray` with shape (nsamples,)
-        New samples with equal weights.
+        New set of samples with equal weights.
 
     Examples
     --------
@@ -114,21 +122,22 @@ def resample_equal(samples, weights, rstate=np.random):
 
     Notes
     -----
-    Implements the systematic resampling method described in Hol, Schon, and
-    Gustafsson (2006), which can be found at <doi:10.1109/NSSPW.2006.4378824>.
-    This gives less "noisy" samples as compared to standard multinomial
-    resampling techniques.
+    Implements the systematic resampling method described in `Hol, Schon, and
+    Gustafsson (2006) <doi:10.1109/NSSPW.2006.4378824>`_.
 
     """
+
+    if rstate is None:
+        rstate = np.random
 
     if abs(np.sum(weights) - 1.) > SQRTEPS:  # same tol as in np.random.choice.
         raise ValueError("Weights do not sum to 1.")
 
-    nsamples = len(weights)
-
     # Make N subdivisions and choose positions with a consistent random offset.
+    nsamples = len(weights)
     positions = (rstate.random() + np.arange(nsamples)) / nsamples
 
+    # Resample the data.
     idx = np.zeros(nsamples, dtype=np.int)
     cumulative_sum = np.cumsum(weights)
     i, j = 0, 0
@@ -142,36 +151,41 @@ def resample_equal(samples, weights, rstate=np.random):
     return samples[idx]
 
 
-def jitter_run(res, rstate=np.random):
+def jitter_run(res, rstate=None):
     """
-    Probes uncertainties on a run with `K` live points by drawing
-    a sample from the statistical distribution of prior volumes associated
-    with the parameter samples collected over the course of a run. Uses the
-    results to compute new realizations of the evidence and weights.
-
-    This probes errors due to intrinsic *statistical* uncertainties.
+    Probes **statistical uncertainties** on a nested sampling run by
+    explicitly generating a *realization* of the prior volume associated
+    with each sample (dead point). Companion function to :meth:`resample_run`
+    and :meth:`simulate_run`.
 
     Parameters
     ----------
-    res : `Results` instance
-        The `Results` instance returned from a previous run.
+    res : :class:`~dynesty.results.Results` instance
+        The :class:`~dynesty.results.Results` instance taken from a previous
+        nested sampling run.
 
-    rstate: `~numpy.random` instance
-        Random state.
+    rstate : `~numpy.random.RandomState`, optional
+        `~numpy.random.RandomState` instance.
 
     Returns
     -------
-    new_res : `Results` instance
-        A new `Results` instance based on our "simulated" weights.
+    new_res : :class:`~dynesty.results.Results` instance
+        A new :class:`~dynesty.results.Results` instance with corresponding
+        weights based on our "jittered" prior volume realizations.
 
     """
+
+    if rstate is None:
+        rstate = np.random
 
     # Initialize evolution of live points over the course of the run.
     logl = res.logl
     try:
+        # Check if the number of live points explicitly changes.
         samples_n = res.samples_n
         nsamps = len(samples_n)
     except:
+        # If the number of live points is constant, compute `samples_n`.
         niter = res.niter
         nlive = res.nlive
         nsamps = len(res.logvol)
@@ -187,9 +201,10 @@ def jitter_run(res, rstate=np.random):
     # Simulate the prior volume shrinkage associated with our set of "dead"
     # points. At each iteration, if the number of live points is constant or
     # increasing, our prior volume compresses by the maximum value of a set
-    # of `K_i` uniformly distributed random numbers. If instead the number
-    # of live points is decreasing, that means we're instead sampling down
-    # a set of uniform random variables (i.e. uniform order statistics).
+    # of `K_i` uniformly distributed random numbers (i.e. as `Beta(K_i, 1)`).
+    # If instead the number of live points is decreasing, that means we're
+    # instead  sampling down a set of uniform random variables
+    # (i.e. uniform order statistics).
     nlive_flag = np.ones(nsamps, dtype='bool')
 
     # Find all instances where the number of live points is either constant
@@ -223,11 +238,11 @@ def jitter_run(res, rstate=np.random):
     # we note that the jth largest value is marginally distributed as
     # `Beta(j, K_i-j+1)`. The full joint distribution is::
     #
-    # X_(j) / X_N = (Y_1 + ... + Y_j) / (Y_1 + ... + Y_{K+1})
+    #     X_(j) / X_N = (Y_1 + ... + Y_j) / (Y_1 + ... + Y_{K+1})
     #
     # where X_(j) is the prior volume of the live point with the `j`-th
-    # *lowest* likelihood and the `Y_i`'s are i.i.d. exponentially
-    # distributed random variables.
+    # *best* likelihood (i.e. prior volume shrinks as likelihood increases)
+    # and the `Y_i`'s are i.i.d. exponentially distributed random variables.
     nunif = len(nlive_start)
     for i in range(nunif):
         nstart = nlive_start[i]
@@ -240,7 +255,7 @@ def jitter_run(res, rstate=np.random):
         rorder = uorder[1:] / uorder[:-1]
         t_arr[bound[0]:bound[1]] = rorder
 
-    # These are the "compression factors" at each iteration. Now let's turn
+    # These are the "compression factors" at each iteration. Let's turn
     # these into associated ln(volumes).
     logvol = np.log(t_arr).cumsum()
 
@@ -276,8 +291,10 @@ def jitter_run(res, rstate=np.random):
         saved_logzvar.append(logzvar)
         saved_h.append(h)
 
-    # Save results.
+    # Copy results.
     new_res = Results([item for item in res.items()])
+
+    # Overwrite items with our new estimates.
     new_res.logvol = np.array(logvol)
     new_res.logwt = np.array(saved_logwt)
     new_res.logz = np.array(saved_logz)
@@ -287,42 +304,54 @@ def jitter_run(res, rstate=np.random):
     return new_res
 
 
-def resample_run(res, rstate=np.random, return_idx=False):
+def resample_run(res, rstate=None, return_idx=False):
     """
-    Probes uncertainties on a run with `K` live points by splitting the
-    run into `K` strands, sampling from them with replacement, and combining
-    the `K` resampled strands into a new run.
-
-    This probes errors due to intrinsic *sampling* uncertainties.
+    Probes **sampling uncertainties** on a nested sampling run using bootstrap
+    resampling techniques to generate a *realization* of the (expected) prior
+    volume(s) associated with each sample (dead point). This effectively
+    splits a nested sampling run with `K` particles (live points) into a
+    series of `K` "strands" (i.e. runs with a single live point) which are then
+    bootstrapped to construct a new "resampled" run. Companion function to
+    :meth:`jitter_run` and :meth:`simulate_run`.
 
     Parameters
     ----------
-    res : `Results` instance
-        The `Results` instance returned from a previous run.
+    res : :class:`~dynesty.results.Results` instance
+        The :class:`~dynesty.results.Results` instance taken from a previous
+        nested sampling run.
 
-    rstate: `~numpy.random` instance, optional
-        Random state.
+    rstate : `~numpy.random.RandomState`, optional
+        `~numpy.random.RandomState` instance.
 
     return_idx : bool, optional
+        Whether to return the list of resampled indices used to construct
+        the new run. Default is `False`.
 
     Returns
     -------
-    new_res : `Results` instance
-        A new `Results` instance based on our "resampled" weights.
+    new_res : :class:`~dynesty.results.Results` instance
+        A new :class:`~dynesty.results.Results` instance with corresponding
+        samples and weights based on our "bootstrapped" samples and
+        (expected) prior volumes.
 
     """
+
+    if rstate is None:
+        rstate = np.random
 
     # Check whether the final set of live points were added to the
     # run.
     nsamps = len(res.ncall)
     try:
-        # check for dynamic run
+        # Check if the number of live points explicitly changes.
         samples_n = res.samples_n
         samples_batch = res.samples_batch
         batch_nlive = res.batch_nlive
         batch_bounds = res.batch_bounds
         added_final_live = True
     except:
+        # If the number of live points is constant, compute `samples_n` and
+        # set up the `added_final_live` flag.
         nlive = res.nlive
         niter = res.niter
         if nsamps == niter:
@@ -394,9 +423,11 @@ def resample_run(res, rstate=np.random, return_idx=False):
             sbatch = samples_batch[sel][0]  # corresponding batch ID
             lower = batch_llmin[sbatch]  # lower bound
             upper = max(res.logl[sel])  # upper bound
+
             # Add number of live points between endpoints equal to number of
             # times the strand has been resampled.
             samp_n[(logl > lower) & (logl < upper)] += uidx_n
+
             # At the endpoint, divide up the final set of points into `uidx_n`
             # (roughly) equal chunks and have live points decrease across them.
             endsel = (logl == upper)
@@ -448,8 +479,10 @@ def resample_run(res, rstate=np.random, return_idx=False):
     # Compute sampling efficiency.
     eff = 100. * len(res.ncall[samp_idx]) / sum(res.ncall[samp_idx])
 
-    # Save results.
+    # Copy results.
     new_res = Results([item for item in res.items()])
+
+    # Overwrite items with our new estimates.
     new_res.niter = len(res.ncall[samp_idx])
     new_res.ncall = res.ncall[samp_idx]
     new_res.eff = eff
@@ -471,62 +504,74 @@ def resample_run(res, rstate=np.random, return_idx=False):
         return new_res
 
 
-def simulate_run(res, rstate=np.random):
+def simulate_run(res, rstate=None, return_idx=False):
     """
-    Probes uncertainties on a run with `K` live points by (1) splitting the
-    run into `K` strands, sampling from them with replacement, and combining
-    the `K` resampled strands into a new run and then (2) sampling from the
-    joint distribution of possible prior volumes.
-
-    This probes errors due to both statistical *and* sampling uncertainties.
+    Probes **combined uncertainties** (statistical and sampling) on a nested
+    sampling run by wrapping :meth:`jitter_run` and :meth:`resample_run`.
 
     Parameters
     ----------
-    res : `Results` instance
-        The `Results` instance returned from a previous run.
+    res : :class:`~dynesty.results.Results` instance
+        The :class:`~dynesty.results.Results` instance taken from a previous
+        nested sampling run.
 
-    rstate: `~numpy.random` instance, optional
-        Random state.
+    rstate : `~numpy.random.RandomState`, optional
+        `~numpy.random.RandomState` instance.
+
+    return_idx : bool, optional
+        Whether to return the list of resampled indices used to construct
+        the new run. Default is `False`.
 
     Returns
     -------
-    new_res : `Results` instance
-        A new `Results` instance based on our "resampled" weights.
+    new_res : :class:`~dynesty.results.Results` instance
+        A new :class:`~dynesty.results.Results` instance with corresponding
+        samples and weights based on our "simulated" samples and
+        prior volumes.
 
     """
 
+    if rstate is None:
+        rstate = np.random
+
     # Resample run.
-    new_res = resample_run(res, rstate=np.random)
+    new_res, samp_idx = resample_run(res, rstate=rstate, return_idx=True)
 
-    # Simulate weights.
-    new_res = jitter_run(new_res, rstate=np.random)
+    # Jitter run.
+    new_res = jitter_run(new_res, rstate=rstate)
 
-    return new_res
+    if return_idx:
+        return new_res, samp_idx
+    else:
+        return new_res
 
 
 def unravel_run(res, save_proposals=True, print_progress=True):
     """
     Unravels a run with `K` live points into `K` "strands" (a nested sampling
-    run with only 1 live point). **Note that the anciliary quantities provided
+    run with only 1 live point). **WARNING: the anciliary quantities provided
     with each unraveled "strand" are only valid if the point was initialized
     from the prior.**
 
     Parameters
     ----------
-    res : `Results` instance
-        The `Results` instance returned from a previous run.
+    res : :class:`~dynesty.results.Results` instance
+        The :class:`~dynesty.results.Results` instance taken from a previous
+        nested sampling run.
 
     save_proposals : bool, optional
         Whether to save a reference to the proposal distributions from the
-        original run in each unraveled strand. Default is *True*.
+        original run in each unraveled strand. Default is `True`.
 
     print_progress : bool, optional
-        Whether to output the current progress to `stderr`. Default is *True*.
+        Whether to output the current progress to `~sys.stderr`.
+        Default is `True`.
 
     Returns
     -------
-    new_res : list of `K` `Results` instances
-        A list of `K` new `Results` instances for each individual strand.
+    new_res : list of :class:`~dynesty.results.Results` instances
+        A list of new :class:`~dynesty.results.Results` instances
+        for each individual strand.
 
     """
 
@@ -617,6 +662,7 @@ def unravel_run(res, save_proposals=True, print_progress=True):
              ('logz', np.array(saved_logz)),
              ('logzerr', np.sqrt(np.array(saved_logzvar))),
              ('h', np.array(saved_h))]
+
         # Add proposal information (if available).
         if save_proposals:
             try:
@@ -626,6 +672,7 @@ def unravel_run(res, save_proposals=True, print_progress=True):
                 r.append(('scale', res.scale[strand]))
             except:
                 pass
+
         # Add on batch information (if available).
         try:
             r.append(('samples_batch', res.samples_batch[strand]))
@@ -651,16 +698,18 @@ def merge_runs(res_list, print_progress=True):
 
     Parameters
     ----------
-    res_list : list of `Results` instances
-        A list of `Results` instances returned from a previous runs.
+    res_list : list of :class:`~dynesty.results.Results` instances
+        A list of :class:`~dynesty.results.Results` instances returned from
+        previous runs.
 
     print_progress : bool, optional
-        Whether to output the current progress to `stderr`. Default is *True*.
+        Whether to output the current progress to `~sys.stderr`.
+        Default is `True`.
 
     Returns
     -------
-    combined_res : `Results` instances
-        A single `Results` instance.
+    combined_res : :class:`~dynesty.results.Results` instance
+        The :class:`~dynesty.results.Results` instance for the combined run.
 
     """
 
@@ -755,21 +804,22 @@ def merge_runs(res_list, print_progress=True):
 
 def kl_divergence(res1, res2):
     """
-    Computes the Kullback-Leibler (KL) divergence
-    <https://en.wikipedia.org/wiki/Kullback-Leibler_divergence> *from* the
+    Computes the `Kullback-Leibler (KL) divergence
+    <https://en.wikipedia.org/wiki/Kullback-Leibler_divergence>`_ *from* the
     discrete probability distribution defined by `res2` *to* the discrete
     probability distribution defined by `res1`.
 
     Parameters
     ----------
-    res1 : `Results` instance
-        `Results` instance for the distribution we are computing the KL
-        divergence *to*. **Note that, by construction, the samples in `res1`
-        must be a subset of the samples in `res2`.**
+    res1 : :class:`~dynesty.results.Results` instance
+        :class:`~dynesty.results.Results` instance for the distribution we are
+        computing the KL divergence *to*. **Note that, by construction,
+        the samples in `res1` *must* be a subset of the samples in `res2`.**
 
-    res2 : `Results` instance
-        `Results` instance for the distribution we are computing the KL
-        divergence *from*.
+    res2 : :class:`~dynesty.results.Results` instance
+        :class:`~dynesty.results.Results` instance for the distribution we
+        are computing the KL divergence *from*. **Note that, by construction,
+        the samples in `res2` *must* be a superset of the samples in `res1`.**
 
     Returns
     -------
@@ -797,9 +847,11 @@ def kl_divergence(res1, res2):
         count1, count2 = np.arange(nsamps1), np.arange(nsamps2)
         kld = np.zeros(nsamps1)
         for uidx in uidxs:
+
             # Select matching particles.
             sel1 = count1[samples1_id == uidx]
             sel2 = count2[samples2_id == uidx]
+
             # Select corresponding positions.
             pos1, pos2 = samples1[sel1], samples2[sel2]
             for s, p in zip(sel1, pos1):
@@ -822,33 +874,40 @@ def kl_divergence(res1, res2):
     return np.cumsum(kld)
 
 
-def kld_error(res, error='simulate', rstate=np.random, return_new=False):
+def kld_error(res, error='simulate', rstate=None, return_new=False):
     """
-    Computes the Kullback-Leibler (KL) divergence
-    <https://en.wikipedia.org/wiki/Kullback-Leibler_divergence> *from* the
+    Computes the `Kullback-Leibler (KL) divergence
+    <https://en.wikipedia.org/wiki/Kullback-Leibler_divergence>`_ *from* the
     discrete probability distribution defined by `res` *to* the discrete
-    probability distribution defined by a *realization* of `res`.
+    probability distribution defined by a **realization** of `res`.
 
     Parameters
     ----------
-    res : `Results` instance
-        `Results` instance for the distribution we are computing the KL
-        divergence from.
+    res : :class:`~dynesty.results.Results` instance
+        :class:`~dynesty.results.Results` instance for the distribution we
+        are computing the KL divergence *from*.
 
-    error : {'jitter', 'resample', 'simulate'}, optional
-        The error method employed. Default is `'simulate'`.
+    error : {`'jitter'`, `'resample'`, `'simulate'`}, optional
+        The error method employed, corresponding to :meth:`jitter_run`,
+        :meth:`resample_run`, and :meth:`simulate_run`, respectively.
+        Default is `'simulate'`.
+
+    rstate : `~numpy.random.RandomState`, optional
+        `~numpy.random.RandomState` instance.
 
     return_new : bool, optional
-        Whether to return the new realization of the run. Default is *False*.
+        Whether to return the realization of the run used to compute the
+        KL divergence. Default is `False`.
 
     Returns
     -------
     kld : `~numpy.ndarray` with shape (nsamps,)
-        The cumulative KL divergence defined from `res` to a
+        The cumulative KL divergence defined *from* `res` *to* a
         random realization of `res`.
 
-    new_res : `Results` instance, optional
-        The new results object.
+    new_res : :class:`~dynesty.results.Results` instance, optional
+        The :class:`~dynesty.results.Results` instance corresponding to
+        the random realization we computed the KL divergence *to*.
 
     """
 
@@ -888,24 +947,28 @@ def kld_error(res, error='simulate', rstate=np.random, return_new=False):
 
 def _merge_two(res1, res2, compute_aux=False):
     """
-    Merges two runs with differing (possibly variable) numbers of live points
-    into one run.
+    Internal method used to merges two runs with differing (possibly variable)
+    numbers of live points into one run.
 
     Parameters
     ----------
-    res1, res2 : `Results` instances
-        `Results` instances for two runs that will be merged.
+    res1 : :class:`~dynesty.results.Results` instance
+        The "base" nested sampling run.
+
+    res2 : :class:`~dynesty.results.Results` instance
+        The "new" nested sampling run.
 
     compute_aux : bool, optional
         Whether to compute auxiliary quantities (evidences, etc.) associated
-        with a given run. **Note that these are only valid if `res1` or `res2`
-        was initialized from the prior and their sampling bounds overlap.**
-        Default is *False*.
+        with a given run. **WARNING: these are only valid if `res1` or `res2`
+        was initialized from the prior *and* their sampling bounds overlap.**
+        Default is `False`.
 
     Returns
     -------
-    res : `Results` instances
-        A single combined `Results` instance.
+    res : :class:`~dynesty.results.Results` instances
+        :class:`~dynesty.results.Results` instance from the newly combined
+        nested sampling run.
 
     """
 
@@ -917,6 +980,7 @@ def _merge_two(res1, res2, compute_aux=False):
     base_nc = res1.ncall
     base_it = res1.samples_it
     nbase = len(base_id)
+
     # Number of live points throughout the run.
     try:
         base_n = res1.samples_n
@@ -930,6 +994,7 @@ def _merge_two(res1, res2, compute_aux=False):
         else:
             raise ValueError("Final number of samples differs from number of "
                              "iterations and number of live points in `res1`.")
+
     # Proposal information (if available).
     try:
         base_prop = res1.prop
@@ -939,6 +1004,7 @@ def _merge_two(res1, res2, compute_aux=False):
         base_proposals = True
     except:
         base_proposals = False
+
     # Batch information (if available).
     try:
         base_batch = res1.samples_batch
@@ -955,6 +1021,7 @@ def _merge_two(res1, res2, compute_aux=False):
     new_nc = res2.ncall
     new_it = res2.samples_it
     nnew = len(new_id)
+
     # Number of live points throughout the run.
     try:
         new_n = res2.samples_n
@@ -968,6 +1035,7 @@ def _merge_two(res1, res2, compute_aux=False):
         else:
             raise ValueError("Final number of samples differs from number of "
                              "iterations and number of live points in `res2`.")
+
     # Proposal information (if available).
     try:
         new_prop = res2.prop
@@ -977,6 +1045,7 @@ def _merge_two(res1, res2, compute_aux=False):
         new_proposals = True
     except:
         new_proposals = False
+
     # Batch information (if available).
     try:
         new_batch = res2.samples_batch
@@ -1002,6 +1071,7 @@ def _merge_two(res1, res2, compute_aux=False):
     combined_piter = []
     combined_scale = []
     combined_batch = []
+
     # Check if proposal info is the same and modify counters accordingly.
     if base_proposals and new_proposals:
         if base_prop == new_prop:
@@ -1010,6 +1080,7 @@ def _merge_two(res1, res2, compute_aux=False):
         else:
             prop = np.concatenate((base_prop, new_prop))
             poffset = len(base_prop)
+
     # Check if batch info is the same and modify counters accordingly.
     if np.all(base_bounds == new_bounds):
         bounds = base_bounds
@@ -1042,6 +1113,7 @@ def _merge_two(res1, res2, compute_aux=False):
             # Our collection of dead points from the "new" run
             # are below the bound, so just use those.
             nlive = nlive_n
+
         # Increment our position along depending on
         # which dead point (saved or new) is worse.
         if logl_b <= logl_n:
@@ -1161,4 +1233,5 @@ def _merge_two(res1, res2, compute_aux=False):
 
     # Combine to form final results object.
     res = Results(r)
+
     return res

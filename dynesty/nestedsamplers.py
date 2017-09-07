@@ -2,26 +2,25 @@
 # -*- coding: utf-8 -*-
 
 """
-Sampler classes for proposing new live points. Includes:
+Childen of :class:`dynesty.sampler` used to proposing new live points.
+Includes:
 
     UnitCubeSampler:
-        Samples from the unit N-cube with no constraints.
+        Uses the unit cube to bound the set of live points (i.e. no bound).
 
     SingleEllipsoidSampler:
-        Uses a single ellipsoid to bound new live points proposals.
+        Uses a single ellipsoid to bound the set of live points.
 
     MultiEllipsoidSampler:
-        Uses multiple ellipsoids to bound new live points proposals.
+        Uses multiple ellipsoids to bound the set of live points.
 
     RadFriendsSampler:
-        Uses an n-sphere of fixed radius centered on each
-        live point to bound new live point proposals. Based on the
-        p=2 L^p norm (Euclidean norm).
+        Uses an N-sphere of fixed radius centered on each
+        live point to bound the set of live points.
 
     SupFriendsSampler:
-        Uses an n-cube of fixed length centered on each
-        live point to bound new live point proposals. Based on the
-        p=inf L^p norm (sup norm).
+        Uses an N-cube of fixed length centered on each
+        live point to bound the set of live points.
 
 """
 
@@ -50,77 +49,88 @@ _SAMPLING = {'unif': sample_unif,
 
 class UnitCubeSampler(Sampler):
     """
-    Samples with no bounds (i.e. within the entire unit N-cube).
+    Samples conditioned on the unit N-cube (i.e. with no bounds).
 
     Parameters
     ----------
     loglikelihood : function
-        Function returning log(likelihood) given parameters as a 1-d numpy
+        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
         array of length `ndim`.
 
     prior_transform : function
-        Function translating a unit cube to the parameter space according to
-        the prior.
+        Function transforming a sample from the a unit cube to the parameter
+        space of interest according to the prior.
 
     npdim : int
-        Number of parameters accepted by prior.
+        Number of parameters accepted by `prior_transform`.
 
     live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
         Initial set of "live" points. Contains `live_u`, the coordinates
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {'unif', 'rwalk', 'slice'}
-        A chosen method for sampling conditioned on the proposal.
-
     update_interval : int
-        Only update the proposal distribution every `update_interval`-th
+        Only update the bounding distribution every `update_interval`-th
         likelihood call.
 
+    first_update : dict
+        A dictionary containing parameters governing when the sampler should
+        first update the bounding distribution from the unit cube to the one
+        specified by the user.
+
     rstate : `~numpy.random.RandomState`
-        RandomState instance.
+        `~numpy.random.RandomState` instance.
 
     queue_size: int
         Carry out likelihood evaluations in parallel by queueing up new live
-        point proposals using at most this many threads. Each thread
-        independently proposes new live points until the proposal distribution
-        is updated.
+        point proposals using (at most) this many threads/members.
 
     pool: pool
         Use this pool of workers to execute operations in parallel.
 
     use_pool : dict, optional
-        A dictionary containing flags for where a pool should be used to
-        execute operations in parallel.
+        A dictionary containing flags indicating where the provided `pool`
+        should be used to execute operations in parallel.
+
+    kwargs : dict, optional
+        A dictionary of additional parameters (described below).
 
     Other Parameters
     ----------------
     walks : int, optional
-        For the 'rwalk' sampling option, the minimum number of steps (minimum
-        2) to take before proposing a new live point. Default is *25*.
+        For the `'rwalk'` sampling option, the minimum number of steps (minimum
+        2) to take before proposing a new live point. Default is `25`.
 
     facc : float, optional
-        The target acceptance fraction for the 'rwalk' sampling option.
-        Default is *0.5*. Bounded to be between `[1. / walks, 1.]`.
+        The target acceptance fraction for the `'rwalk'` sampling option.
+        Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
 
     slices : int, optional
-        For the 'slice' sampling option, the number of times to slice through
-        **all dimensions** before proposing a new live point. Default is *3*.
+        For the `'slice'` sampling option, the number of times to slice through
+        **all dimensions** before proposing a new live point. Default is `3`.
 
     """
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
                  method, update_interval, first_update, rstate,
                  queue_size, pool, use_pool, kwargs={}):
+
+        # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
                          'slice': self.propose_live}
+        self.propose_point = self._PROPOSE[method]
+
+        # Initialize method to "evolve" a point to a new position.
+        self.sampling, self.evolve_point = method, _SAMPLING[method]
+
+        # Initialize heuristic used to update our sampling method.
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
                         'slice': self.update_slice}
-        self.propose_point = self._PROPOSE[method]
         self.update_proposal = self._UPDATE[method]
-        self.sampling, self.evolve_point = method, _SAMPLING[method]
+
+        # Initialize other arguments.
         self.kwargs = kwargs
         self.scale = 1.
         self.bootstrap = kwargs.get('bootstrap')
@@ -133,24 +143,26 @@ class UnitCubeSampler(Sampler):
             self.enlarge = kwargs.get('enlarge', 1.0)
         else:
             self.enlarge = kwargs.get('enlarge', 1.25)
+
+        # Initialize sampler.
         super(UnitCubeSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, first_update,
                              rstate, queue_size, pool, use_pool)
         self.unitcube = UnitCube(self.npdim)
-        self.bound = 'none'
+        self.bounding = 'none'
         self.method = method
 
-        # random walk
+        # Initialize random walk parameters.
         self.walks = max(2, self.kwargs.get('walks', 25))
         self.facc = self.kwargs.get('facc', 0.5)
         self.facc = min(1., max(1. / self.walks, self.facc))
 
-        # slice
+        # Initialize slice parameters.
         self.slices = self.kwargs.get('slices', 3)
 
     def update(self, pointvol):
-        """Update the unit cube proposal."""
+        """Update the unit cube bound."""
 
         return copy.deepcopy(self.unitcube)
 
@@ -164,7 +176,7 @@ class UnitCubeSampler(Sampler):
         return u, ax
 
     def propose_live(self):
-        """Propose a live point/bound to be used by other sampling methods."""
+        """Return a live point/axes to be used by other sampling methods."""
 
         i = self.rstate.randint(self.nlive)
         u = self.live_u[i, :]
@@ -173,7 +185,7 @@ class UnitCubeSampler(Sampler):
         return u, ax
 
     def update_unif(self, blob):
-        """Update the uniform proposal."""
+        """Filler function."""
 
         pass
 
@@ -181,6 +193,7 @@ class UnitCubeSampler(Sampler):
         """Update the random walk proposal scale based on the current
         number of accepted/rejected steps."""
 
+        self.scale = blob['scale']
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
         norm = max(self.facc, 1. - self.facc)
@@ -188,7 +201,7 @@ class UnitCubeSampler(Sampler):
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
-        size of slice compared to our initial guess."""
+        size of the slices compared to our initial guess."""
 
         fscale = blob['fscale']
         self.scale *= fscale
@@ -196,91 +209,96 @@ class UnitCubeSampler(Sampler):
 
 class SingleEllipsoidSampler(Sampler):
     """
-    Bounds live points in a single ellipsoid and samples conditioned
-    on the ellipsoid.
+    Samples conditioned on a single ellipsoid used to bound the
+    set of live points.
 
     Parameters
     ----------
     loglikelihood : function
-        Function returning log(likelihood) given parameters as a 1-d numpy
+        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
         array of length `ndim`.
 
     prior_transform : function
-        Function translating a unit cube to the parameter space according to
-        the prior.
+        Function transforming a sample from the a unit cube to the parameter
+        space of interest according to the prior.
 
     npdim : int
-        Number of parameters accepted by prior.
+        Number of parameters accepted by `prior_transform`.
 
     live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
         Initial set of "live" points. Contains `live_u`, the coordinates
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {'unif', 'rwalk', 'slice'}
-        A chosen method for sampling conditioned on the proposal.
-
     update_interval : int
-        Only update the proposal distribution every `update_interval`-th
+        Only update the bounding distribution every `update_interval`-th
         likelihood call.
 
+    first_update : dict
+        A dictionary containing parameters governing when the sampler should
+        first update the bounding distribution from the unit cube to the one
+        specified by the user.
+
     rstate : `~numpy.random.RandomState`
-        RandomState instance.
+        `~numpy.random.RandomState` instance.
 
     queue_size: int
         Carry out likelihood evaluations in parallel by queueing up new live
-        point proposals using at most this many threads. Each thread
-        independently proposes new live points until the proposal distribution
-        is updated.
+        point proposals using (at most) this many threads/members.
 
     pool: pool
         Use this pool of workers to execute operations in parallel.
 
-
     use_pool : dict, optional
-        A dictionary containing flags for where a pool should be used to
-        execute operations in parallel.
+        A dictionary containing flags indicating where the provided `pool`
+        should be used to execute operations in parallel.
+
+    kwargs : dict, optional
+        A dictionary of additional parameters (described below).
 
     Other Parameters
     ----------------
     enlarge : float, optional
-        Enlarge the volumes of the ellipsoid by this fraction. The preferred
+        Enlarge the volumes of the ellipsoids by this fraction. The preferred
         method is to determine this organically using bootstrapping. If
-        `bootstrap > 0`, this defaults to *1.0*. If `bootstrap = 0`,
-        this instead defaults to *1.25*.
-
-    bootstrap : int, optional
-        Compute this many bootstrap resampled realizations of the bounding
-        ellipsoid. Use the maximum distance found to the set of points
-        left out during each iteration to enlarge the resulting ellipsoids.
-        Default is *20*.
+        `bootstrap > 0`, this defaults to `1.0`. If `bootstrap = 0`,
+        this instead defaults to `1.25`.
 
     walks : int, optional
-        For the 'rwalk' sampling option, the minimum number of steps (minimum
-        2) to take before proposing a new live point. Default is *25*.
+        For the `'rwalk'` sampling option, the minimum number of steps
+        (minimum 2) before proposing a new live point. Default is `25`.
 
     facc : float, optional
-        The target acceptance fraction for the 'rwalk' sampling option.
-        Default is *0.5*. Bounded to be between `[1. / walks, 1.]`.
+        The target acceptance fraction for the `'rwalk'` sampling option.
+        Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
 
     slices : int, optional
-        For the 'slice' sampling option, the number of times to slice through
-        **all dimensions** before proposing a new live point. Default is *3*.
+        For the `'slice'` sampling option, the number of times to "slice"
+        through **all dimensions** before proposing a new live point.
+        Default is `3`.
 
     """
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
                  method, update_interval, first_update, rstate,
                  queue_size, pool, use_pool, kwargs={}):
+
+        # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
                          'slice': self.propose_live}
+        self.propose_point = self._PROPOSE[method]
+
+        # Initialize method to "evolve" a point to a new position.
+        self.sampling, self.evolve_point = method, _SAMPLING[method]
+
+        # Initialize heuristic used to update our sampling method.
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
                         'slice': self.update_slice}
-        self.propose_point = self._PROPOSE[method]
         self.update_proposal = self._UPDATE[method]
-        self.sampling, self.evolve_point = method, _SAMPLING[method]
+
+        # Initialize other arguments.
         self.kwargs = kwargs
         self.scale = 1.
         self.bootstrap = kwargs.get('bootstrap')
@@ -293,30 +311,35 @@ class SingleEllipsoidSampler(Sampler):
             self.enlarge = kwargs.get('enlarge', 1.0)
         else:
             self.enlarge = kwargs.get('enlarge', 1.25)
+
+        # Initialize sampler.
         super(SingleEllipsoidSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, first_update,
                              rstate, queue_size, pool, use_pool)
         self.ell = Ellipsoid(np.zeros(self.npdim), np.identity(self.npdim))
-        self.bound = 'single'
+        self.bounding = 'single'
         self.method = method
 
-        # random walk
+        # Initialize random walk parameters.
         self.walks = max(2, self.kwargs.get('walks', 25))
         self.facc = self.kwargs.get('facc', 0.5)
         self.facc = min(1., max(1. / self.walks, self.facc))
 
-        # slice
+        # Initialize slice parameters.
         self.slices = self.kwargs.get('slices', 3)
 
     def update(self, pointvol):
-        """Update bounding ellipsoid using the current set of live points."""
+        """Update the bounding ellipsoid using the current set of
+        live points."""
 
-        self._empty_queue()
+        # Check if we should use the provided pool for updating.
         if self.use_pool_update:
             pool = self.pool
         else:
             pool = None
+
+        # Update the ellipsoid.
         self.ell.update(self.live_u, pointvol=pointvol, rstate=self.rstate,
                         bootstrap=self.bootstrap, pool=pool)
         if self.enlarge != 1.:
@@ -329,14 +352,17 @@ class SingleEllipsoidSampler(Sampler):
         within the ellipsoid."""
 
         while True:
+            # Sample a point from the ellipsoid.
             u = self.ell.sample(rstate=self.rstate)
+
+            # Check if `u` is within the unit cube.
             if self._check_unit_cube(u):
-                break
+                break  # if it is, we're done!
 
         return u, self.ell.axes
 
     def propose_live(self):
-        """Propose a live point/bound to be used by other sampling methods."""
+        """Return a live point/axes to be used by other sampling methods."""
 
         i = self.rstate.randint(self.nlive)
         u = self.live_u[i, :]
@@ -344,7 +370,7 @@ class SingleEllipsoidSampler(Sampler):
         return u, self.ell.axes
 
     def update_unif(self, blob):
-        """Update our uniform proposal."""
+        """Filler function."""
 
         pass
 
@@ -352,6 +378,7 @@ class SingleEllipsoidSampler(Sampler):
         """Update the random walk proposal scale based on the current
         number of accepted/rejected steps."""
 
+        self.scale = blob['scale']
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
         norm = max(self.facc, 1. - self.facc)
@@ -359,7 +386,7 @@ class SingleEllipsoidSampler(Sampler):
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
-        size of slice compared to our initial guess."""
+        size of the slices compared to our initial guess."""
 
         fscale = blob['fscale']
         self.scale *= fscale
@@ -367,100 +394,114 @@ class SingleEllipsoidSampler(Sampler):
 
 class MultiEllipsoidSampler(Sampler):
     """
-    Bounds live points in multiple ellipsoids and samples conditioned
-    on their union.
+    Samples conditioned on the union of multiple (possibly overlapping)
+    ellipsoids used to bound the set of live points.
 
     Parameters
     ----------
     loglikelihood : function
-        Function returning log(likelihood) given parameters as a 1-d numpy
+        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
         array of length `ndim`.
 
     prior_transform : function
-        Function translating a unit cube to the parameter space according to
-        the prior.
+        Function transforming a sample from the a unit cube to the parameter
+        space of interest according to the prior.
 
     npdim : int
-        Number of parameters accepted by prior.
+        Number of parameters accepted by `prior_transform`.
 
     live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
         Initial set of "live" points. Contains `live_u`, the coordinates
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {'unif', 'rwalk', 'slice'}
-        A chosen method for sampling conditioned on the proposal.
-
     update_interval : int
-        Only update the proposal distribution every `update_interval`-th
+        Only update the bounding distribution every `update_interval`-th
         likelihood call.
 
+    first_update : dict
+        A dictionary containing parameters governing when the sampler should
+        first update the bounding distribution from the unit cube to the one
+        specified by the user.
+
     rstate : `~numpy.random.RandomState`
-        RandomState instance.
+        `~numpy.random.RandomState` instance.
 
     queue_size: int
         Carry out likelihood evaluations in parallel by queueing up new live
-        point proposals using at most this many threads. Each thread
-        independently proposes new live points until the proposal distribution
-        is updated.
+        point proposals using (at most) this many threads/members.
 
     pool: pool
         Use this pool of workers to execute operations in parallel.
 
-
     use_pool : dict, optional
-        A dictionary containing flags for where a pool should be used to
-        execute operations in parallel.
+        A dictionary containing flags indicating where the provided `pool`
+        should be used to execute operations in parallel.
+
+    kwargs : dict, optional
+        A dictionary of additional parameters (described below).
 
     Other Parameters
     ----------------
     enlarge : float, optional
         Enlarge the volumes of the ellipsoids by this fraction. The preferred
         method is to determine this organically using bootstrapping. If
-        `bootstrap > 0`, this defaults to *1.0*. If `bootstrap = 0`,
-        this instead defaults to *1.25*.
+        `bootstrap > 0`, this defaults to `1.0`. If `bootstrap = 0`,
+        this instead defaults to `1.25`.
 
     bootstrap : int, optional
-        Compute this many bootstrap resampled realizations of the bounding
-        ellipsoids. Use the maximum distance found to the set of points
-        left out during each iteration to enlarge the resulting ellipsoids.
-        Default is *20*.
+        Compute this many bootstrapped realizations of the bounding
+        objects. Use the maximum distance found to the set of points left
+        out during each iteration to enlarge the resulting volumes.
+        Default is `20` for uniform sampling (`'unif'`) and `0` for random
+        walks (`'rwalk'`) and slice sampling (`'slice'`).
 
     vol_dec : float, optional
-        The required fractional reduction in volume after splitting an
-        ellipsoid in order to to accept the proposed split. Default is *0.5*.
+        For the `'multi'` bounding option, the required fractional reduction
+        in volume after splitting an ellipsoid in order to to accept the split.
+        Default is `0.5`.
 
     vol_check : float, optional
-        The factor used to when checking whether the volume of the original
-        bounding ellipsoid is large enough to warrant more trial splits via
-        `ell.vol > vol_check * nlive * pointvol`. Default is *2.0*.
+        For the `'multi'` bounding option, the factor used when checking if
+        the volume of the original bounding ellipsoid is large enough to
+        warrant `> 2` splits via `ell.vol > vol_check * nlive * pointvol`.
+        Default is `2.0`.
 
     walks : int, optional
-        For the 'rwalk' sampling option, the minimum number of steps (minimum
-        2) to take before proposing a new live point. Default is *25*.
+        For the `'rwalk'` sampling option, the minimum number of steps
+        (minimum 2) before proposing a new live point. Default is `25`.
 
     facc : float, optional
-        The target acceptance fraction for the 'rwalk' sampling option.
-        Default is *0.5*. Bounded to be between `[1. / walks, 1.]`.
+        The target acceptance fraction for the `'rwalk'` sampling option.
+        Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
 
     slices : int, optional
-        For the 'slice' sampling option, the number of times to slice through
-        **all dimensions** before proposing a new live point. Default is *3*.
+        For the `'slice'` sampling option, the number of times to "slice"
+        through **all dimensions** before proposing a new live point.
+        Default is `3`.
 
     """
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
                  method, update_interval, first_update, rstate,
                  queue_size, pool, use_pool, kwargs={}):
+
+        # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
                          'slice': self.propose_live}
+        self.propose_point = self._PROPOSE[method]
+
+        # Initialize method to "evolve" a point to a new position.
+        self.sampling, self.evolve_point = method, _SAMPLING[method]
+
+        # Initialize heuristic used to update our sampling method.
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
                         'slice': self.update_slice}
-        self.propose_point = self._PROPOSE[method]
         self.update_proposal = self._UPDATE[method]
-        self.sampling, self.evolve_point = method, _SAMPLING[method]
+
+        # Initialize other arguments.
         self.kwargs = kwargs
         self.scale = 1.
         self.bootstrap = kwargs.get('bootstrap')
@@ -475,31 +516,36 @@ class MultiEllipsoidSampler(Sampler):
             self.enlarge = kwargs.get('enlarge', 1.25)
         self.vol_dec = kwargs.get('vol_dec', 0.5)
         self.vol_check = kwargs.get('vol_check', 2.0)
+
+        # Initialize sampler.
         super(MultiEllipsoidSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, first_update,
                              rstate, queue_size, pool, use_pool)
         self.mell = MultiEllipsoid(ctrs=[np.zeros(self.npdim)],
                                    ams=[np.identity(self.npdim)])
-        self.bound = 'multi'
+        self.bounding = 'multi'
         self.method = method
 
-        # random walk
+        # Initialize random walk parameters.
         self.walks = max(2, self.kwargs.get('walks', 25))
         self.facc = self.kwargs.get('facc', 0.5)
         self.facc = min(1., max(1. / self.walks, self.facc))
 
-        # slice
+        # Initialize slice parameters.
         self.slices = self.kwargs.get('slices', 3)
 
     def update(self, pointvol):
-        """Update bounding ellipsoids using the current set of live points."""
+        """Update the bounding ellipsoids using the current set of
+        live points."""
 
-        self._empty_queue()
+        # Check if we should use the pool for updating.
         if self.use_pool_update:
             pool = self.pool
         else:
             pool = None
+
+        # Update the bounding ellipsoids.
         self.mell.update(self.live_u, pointvol=pointvol,
                          vol_dec=self.vol_dec, vol_check=self.vol_check,
                          rstate=self.rstate, bootstrap=self.bootstrap,
@@ -511,47 +557,62 @@ class MultiEllipsoidSampler(Sampler):
 
     def propose_unif(self):
         """Propose a new live point by sampling *uniformly* within
-        the ellipsoids."""
+        the union of ellipsoids."""
 
         while True:
+            # Sample a point from the union of ellipsoids.
+            # Returns the point `u`, ellipsoid index `idx`, and number of
+            # overlapping ellipsoids `q` at position `u`.
             u, idx, q = self.mell.sample(rstate=self.rstate, return_q=True)
+
+            # Check if the point is within the unit cube.
             if self._check_unit_cube(u):
                 # Accept the point with probability 1/q to account for
                 # overlapping ellipsoids.
                 if q == 1 or self.rstate.rand() < 1.0 / q:
-                    break
+                    break  # if successful, we're done!
 
         return u, self.mell.ells[idx].axes
 
     def propose_live(self):
-        """Propose a live point/bound to be used by other sampling methods."""
+        """Return a live point/axes to be used by other sampling methods."""
 
         # Copy a random live point.
         i = self.rstate.randint(self.nlive)
         u = self.live_u[i, :]
-        ell_idxs = self.mell.within(u)  # check ellipsoid overlap
-        nidx = len(ell_idxs)  # get number of overlapping ellipsoids
+
+        # Check for ellipsoid overlap.
+        ell_idxs = self.mell.within(u)
+        nidx = len(ell_idxs)
 
         # Automatically trigger an update if we're not in any ellipsoid.
         if nidx == 0:
             try:
+                # Expected ln(prior volume) at a given iteration.
                 expected_vol = math.exp(self.saved_logvol[-1] - self.dlv)
             except:
+                # Expected ln(prior volume) at the first iteration.
                 expected_vol = math.exp(-self.dlv)
-            pointvol = expected_vol / self.nlive
-            prop = self.update(pointvol)
-            if self.save_proposals:
-                self.prop.append(prop)
-            self.nprop += 1
+            pointvol = expected_vol / self.nlive  # minimum point volume
+
+            # Update the bounding ellipsoids.
+            bound = self.update(pointvol)
+            if self.save_bounds:
+                self.bound.append(bound)
+            self.nbound += 1
             self.since_update = 0
+
+            # Check for ellipsoid overlap (again).
             ell_idxs = self.mell.within(u)
             nidx = len(ell_idxs)
-        ell_idx = ell_idxs[self.rstate.randint(nidx)]  # pick one
+
+        # Pick a random ellipsoid that encompasses `u`.
+        ell_idx = ell_idxs[self.rstate.randint(nidx)]
 
         return u, self.mell.ells[ell_idx].axes
 
     def update_unif(self, blob):
-        """Update our uniform proposal."""
+        """Filler function."""
 
         pass
 
@@ -559,6 +620,7 @@ class MultiEllipsoidSampler(Sampler):
         """Update the random walk proposal scale based on the current
         number of accepted/rejected steps."""
 
+        self.scale = blob['scale']
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
         norm = max(self.facc, 1. - self.facc)
@@ -566,7 +628,7 @@ class MultiEllipsoidSampler(Sampler):
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
-        size of slice compared to our initial guess."""
+        size of the slices compared to our initial guess."""
 
         fscale = blob['fscale']
         self.scale *= fscale
@@ -574,91 +636,103 @@ class MultiEllipsoidSampler(Sampler):
 
 class RadFriendsSampler(Sampler):
     """
-    Bounds new live point proposals using n-spheres centered on the
-    current set of live points.
+    Samples conditioned on the union of (possibly overlapping) N-spheres
+    centered on the current set of live points.
 
     Parameters
     ----------
     loglikelihood : function
-        Function returning log(likelihood) given parameters as a 1-d numpy
+        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
         array of length `ndim`.
 
     prior_transform : function
-        Function translating a unit cube to the parameter space according to
-        the prior.
+        Function transforming a sample from the a unit cube to the parameter
+        space of interest according to the prior.
 
     npdim : int
-        Number of parameters accepted by prior.
+        Number of parameters accepted by `prior_transform`.
 
     live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
         Initial set of "live" points. Contains `live_u`, the coordinates
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {'unif', 'rwalk', 'slice'}
-        A chosen method for sampling conditioned on the proposal.
-
     update_interval : int
-        Only update the proposal distribution every `update_interval`-th
+        Only update the bounding distribution every `update_interval`-th
         likelihood call.
 
+    first_update : dict
+        A dictionary containing parameters governing when the sampler should
+        first update the bounding distribution from the unit cube to the one
+        specified by the user.
+
     rstate : `~numpy.random.RandomState`
-        RandomState instance.
+        `~numpy.random.RandomState` instance.
 
     queue_size: int
         Carry out likelihood evaluations in parallel by queueing up new live
-        point proposals using at most this many threads. Each thread
-        independently proposes new live points until the proposal distribution
-        is updated.
+        point proposals using (at most) this many threads/members.
 
     pool: pool
         Use this pool of workers to execute operations in parallel.
 
     use_pool : dict, optional
-        A dictionary containing flags for where a pool should be used to
-        execute operations in parallel.
+        A dictionary containing flags indicating where the provided `pool`
+        should be used to execute operations in parallel.
+
+    kwargs : dict, optional
+        A dictionary of additional parameters (described below).
 
     Other Parameters
     ----------------
     enlarge : float, optional
-        Enlarge the volumes of the n-spheres by this factor by scaling the
-        associated radius. The preferred method is to set the radius
-        organically using bootstrapping. If `bootstrap > 0`, this defaults
-        to *1.0*. If `bootstrap = 0`, this instead defaults to *1.25*.
+        Enlarge the volumes of the N-spheres by this fraction. The preferred
+        method is to determine this organically using bootstrapping. If
+        `bootstrap > 0`, this defaults to `1.0`. If `bootstrap = 0`,
+        this instead defaults to `1.25`.
 
     bootstrap : int, optional
-        Compute this many bootstrap resampled realizations when determining
-        the radius of the n-sphere used at each iteration. Default is *20*.
-        If this is set to *0*, then the radius is constructed using a
-        leave-one-out approach (which may be slower depending on the number
-        of live points!).
+        Compute this many bootstrapped realizations of the bounding
+        objects. Use the maximum distance found to the set of points left
+        out during each iteration to enlarge the resulting volumes.
+        Default is `20` for uniform sampling (`'unif'`) and `0` for random
+        walks (`'rwalk'`) and slice sampling (`'slice'`).
 
     walks : int, optional
-        For the 'rwalk' sampling option, the minimum number of steps (minimum
-        2) to take before proposing a new live point. Default is *25*.
+        For the `'rwalk'` sampling option, the minimum number of steps
+        (minimum 2) before proposing a new live point. Default is `25`.
 
     facc : float, optional
-        The target acceptance fraction for the 'rwalk' sampling option.
-        Default is *0.5*. Bounded to be between `[1. / walks, 1.]`.
+        The target acceptance fraction for the `'rwalk'` sampling option.
+        Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
 
     slices : int, optional
-        For the 'slice' sampling option, the number of times to slice through
-        **all dimensions** before proposing a new live point. Default is *3*.
+        For the `'slice'` sampling option, the number of times to "slice"
+        through **all dimensions** before proposing a new live point.
+        Default is `3`.
 
     """
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
                  method, update_interval, first_update, rstate,
                  queue_size, pool, use_pool, kwargs={}):
+
+        # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
                          'slice': self.propose_live}
+        self.propose_point = self._PROPOSE[method]
+
+        # Initialize method to "evolve" a point to a new position.
+        self.sampling, self.evolve_point = method, _SAMPLING[method]
+
+        # Initialize heuristic used to update our sampling method.
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
                         'slice': self.update_slice}
-        self.propose_point = self._PROPOSE[method]
         self.update_proposal = self._UPDATE[method]
-        self.sampling, self.evolve_point = method, _SAMPLING[method]
+
+        # Initialize other arguments.
         self.kwargs = kwargs
         self.scale = 1.
         self.bootstrap = kwargs.get('bootstrap')
@@ -671,32 +745,37 @@ class RadFriendsSampler(Sampler):
             self.enlarge = kwargs.get('enlarge', 1.0)
         else:
             self.enlarge = kwargs.get('enlarge', 1.25)
+
+        # Initialize sampler.
         super(RadFriendsSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, first_update,
                              rstate, queue_size, pool, use_pool)
         self.radfriends = RadFriends(self.npdim, 0.)
-        self.bound = 'balls'
+        self.bounding = 'balls'
         self.method = method
 
-        # random walk
+        # Initialize random walk parameters.
         self.walks = max(2, self.kwargs.get('walks', 25))
         self.facc = self.kwargs.get('facc', 0.5)
         self.facc = min(1., max(1. / self.walks, self.facc))
 
-        # slice
+        # Initialize slice parameters.
         self.slices = self.kwargs.get('slices', 3)
 
     def update(self, pointvol):
-        """Update proposal radius using the current set of live points."""
+        """Update the N-sphere radii using the current set of live points."""
 
+        # Initialize a K-D Tree to assist nearest neighbor searches.
         kdtree = spatial.KDTree(self.live_u)
 
-        self._empty_queue()
+        # Check if we should use the provided pool for updating.
         if self.use_pool_update:
             pool = self.pool
         else:
             pool = None
+
+        # Update the N-spheres.
         self.radfriends.update(self.live_u, pointvol=pointvol,
                                rstate=self.rstate, bootstrap=self.bootstrap,
                                pool=pool, kdtree=kdtree)
@@ -708,24 +787,31 @@ class RadFriendsSampler(Sampler):
 
     def propose_unif(self):
         """Propose a new live point by sampling *uniformly* within
-        the collection of n-spheres defined by our live points."""
+        the union of N-spheres defined by our live points."""
 
+        # Initialize a K-D Tree to assist nearest neighbor searches.
         kdtree = spatial.KDTree(self.live_u)
 
         while True:
+            # Sample a point `u` from the union of N-spheres along with the
+            # number of overlapping spheres `q` at point `u`.
             u, q = self.radfriends.sample(self.live_u, rstate=self.rstate,
                                           return_q=True, kdtree=kdtree)
+
+            # Check if our sample is within the unit cube.
             if self._check_unit_cube(u):
                 # Accept the point with probability 1/q to account for
                 # overlapping balls.
                 if q == 1 or self.rstate.rand() < 1.0 / q:
-                    break
+                    break  # if successful, we're done!
+
+        # Define the axes of the N-sphere.
         ax = np.identity(self.npdim) * self.radfriends.radius
 
         return u, ax
 
     def propose_live(self):
-        """Propose a live point/bound to be used by other sampling methods."""
+        """Propose a live point/axes to be used by other sampling methods."""
 
         i = self.rstate.randint(self.nlive)
         u = self.live_u[i, :]
@@ -734,7 +820,7 @@ class RadFriendsSampler(Sampler):
         return u, ax
 
     def update_unif(self, blob):
-        """Update our uniform proposal."""
+        """Filler function."""
 
         pass
 
@@ -742,6 +828,7 @@ class RadFriendsSampler(Sampler):
         """Update the random walk proposal scale based on the current
         number of accepted/rejected steps."""
 
+        self.scale = blob['scale']
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
         norm = max(self.facc, 1. - self.facc)
@@ -749,7 +836,7 @@ class RadFriendsSampler(Sampler):
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
-        size of slice compared to our initial guess."""
+        size of the slices compared to our initial guess."""
 
         fscale = blob['fscale']
         self.scale *= fscale
@@ -757,92 +844,103 @@ class RadFriendsSampler(Sampler):
 
 class SupFriendsSampler(Sampler):
     """
-    Bounds new live point proposals using n-cubes centered on the
-    current set of live points.
-
+    Samples conditioned on the union of (possibly overlapping) N-cubes
+    centered on the current set of live points.
 
     Parameters
     ----------
     loglikelihood : function
-        Function returning log(likelihood) given parameters as a 1-d numpy
+        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
         array of length `ndim`.
 
     prior_transform : function
-        Function translating a unit cube to the parameter space according to
-        the prior.
+        Function transforming a sample from the a unit cube to the parameter
+        space of interest according to the prior.
 
     npdim : int
-        Number of parameters accepted by prior.
+        Number of parameters accepted by `prior_transform`.
 
     live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
         Initial set of "live" points. Contains `live_u`, the coordinates
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {'unif', 'rwalk', 'slice'}
-        A chosen method for sampling conditioned on the proposal.
-
     update_interval : int
-        Only update the proposal distribution every `update_interval`-th
+        Only update the bounding distribution every `update_interval`-th
         likelihood call.
 
+    first_update : dict
+        A dictionary containing parameters governing when the sampler should
+        first update the bounding distribution from the unit cube to the one
+        specified by the user.
+
     rstate : `~numpy.random.RandomState`
-        RandomState instance.
+        `~numpy.random.RandomState` instance.
 
     queue_size: int
         Carry out likelihood evaluations in parallel by queueing up new live
-        point proposals using at most this many threads. Each thread
-        independently proposes new live points until the proposal distribution
-        is updated.
+        point proposals using (at most) this many threads/members.
 
     pool: pool
         Use this pool of workers to execute operations in parallel.
 
     use_pool : dict, optional
-        A dictionary containing flags for where a pool should be used to
-        execute operations in parallel.
+        A dictionary containing flags indicating where the provided `pool`
+        should be used to execute operations in parallel.
+
+    kwargs : dict, optional
+        A dictionary of additional parameters (described below).
 
     Other Parameters
     ----------------
     enlarge : float, optional
-        Enlarge the volumes of the n-cubes by this factor by scaling the
-        associated radius. The preferred method is to set the radius
-        organically using bootstrapping. If `bootstrap > 0`, this defaults
-        to *1.0*. If `bootstrap = 0`, this instead defaults to *1.25*.
+        Enlarge the volumes of the N-cubes by this fraction. The preferred
+        method is to determine this organically using bootstrapping. If
+        `bootstrap > 0`, this defaults to `1.0`. If `bootstrap = 0`,
+        this instead defaults to `1.25`.
 
     bootstrap : int, optional
-        Compute this many bootstrap resampled realizations when determining
-        the side-length of the n-cube at each iteration. Default is *20*.
-        If this is set to *0*, then the radius is constructed using a
-        leave-one-out approach (which may be slower depending on the number
-        of live points!).
+        Compute this many bootstrapped realizations of the bounding
+        objects. Use the maximum distance found to the set of points left
+        out during each iteration to enlarge the resulting volumes.
+        Default is `20` for uniform sampling (`'unif'`) and `0` for random
+        walks (`'rwalk'`) and slice sampling (`'slice'`).
 
     walks : int, optional
-        For the 'rwalk' sampling option, the minimum number of steps (minimum
-        2) to take before proposing a new live point. Default is *25*.
+        For the `'rwalk'` sampling option, the minimum number of steps
+        (minimum 2) before proposing a new live point. Default is `25`.
 
     facc : float, optional
-        The target acceptance fraction for the 'rwalk' sampling option.
-        Default is *0.5*. Bounded to be between `[1. / walks, 1.]`.
+        The target acceptance fraction for the `'rwalk'` sampling option.
+        Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
 
     slices : int, optional
-        For the 'slice' sampling option, the number of times to slice through
-        **all dimensions** before proposing a new live point. Default is *3*.
+        For the `'slice'` sampling option, the number of times to "slice"
+        through **all dimensions** before proposing a new live point.
+        Default is `3`.
 
     """
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
                  method, update_interval, first_update, rstate,
                  queue_size, pool, use_pool, kwargs={}):
+
+        # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
                          'slice': self.propose_live}
+        self.propose_point = self._PROPOSE[method]
+
+        # Initialize method to "evolve" a point to a new position.
+        self.sampling, self.evolve_point = method, _SAMPLING[method]
+
+        # Initialize heuristic used to update our sampling method.
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
                         'slice': self.update_slice}
-        self.propose_point = self._PROPOSE[method]
         self.update_proposal = self._UPDATE[method]
-        self.sampling, self.evolve_point = method, _SAMPLING[method]
+
+        # Initialize other arguments.
         self.kwargs = kwargs
         self.scale = 1.
         self.bootstrap = kwargs.get('bootstrap')
@@ -855,32 +953,38 @@ class SupFriendsSampler(Sampler):
             self.enlarge = kwargs.get('enlarge', 1.0)
         else:
             self.enlarge = kwargs.get('enlarge', 1.25)
+
+        # Initialize sampler.
         super(SupFriendsSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, first_update,
                              rstate, queue_size, pool, use_pool)
         self.supfriends = SupFriends(self.npdim, 0.)
-        self.bound = 'cubes'
+        self.bounding = 'cubes'
         self.method = method
 
-        # random walk
+        # Initialize random walk parameters.
         self.walks = max(2, self.kwargs.get('walks', 25))
         self.facc = self.kwargs.get('facc', 0.5)
         self.facc = min(1., max(1. / self.walks, self.facc))
 
-        # slice
+        # Initialize slice parameters.
         self.slices = self.kwargs.get('slices', 3)
 
     def update(self, pointvol):
-        """Update proposal side-length using the current set of live points."""
+        """Update the N-cube side-lengths using the current set of
+        live points."""
 
+        # Initialize a K-D Tree to assist nearest neighbor searches.
         kdtree = spatial.KDTree(self.live_u)
 
-        self._empty_queue()
+        # Check if we should use the provided pool for updating.
         if self.use_pool_update:
             pool = self.pool
         else:
             pool = None
+
+        # Update the N-cubes.
         self.supfriends.update(self.live_u, pointvol=pointvol,
                                rstate=self.rstate, bootstrap=self.bootstrap,
                                pool=pool, kdtree=kdtree)
@@ -892,24 +996,31 @@ class SupFriendsSampler(Sampler):
 
     def propose_unif(self):
         """Propose a new live point by sampling *uniformly* within
-        the collection of n-cubes defined by our live points."""
+        the collection of N-cubes defined by our live points."""
 
+        # Initialize a K-D Tree to assist nearest neighbor searches.
         kdtree = spatial.KDTree(self.live_u)
 
         while True:
+            # Sample a point `u` from the union of N-cubes along with the
+            # number of overlapping cubes `q` at point `u`.
             u, q = self.supfriends.sample(self.live_u, rstate=self.rstate,
                                           return_q=True, kdtree=kdtree)
+
+            # Check if our point is within the unit cube.
             if self._check_unit_cube(u):
                 # Accept the point with probability 1/q to account for
                 # overlapping cubes.
                 if q == 1 or self.rstate.rand() < 1.0 / q:
-                    break
+                    break  # if successful, we're done!
+
+        # Define the axes of our N-cube.
         ax = np.identity(self.npdim) * self.supfriends.hside
 
         return u, ax
 
     def propose_live(self):
-        """Propose a live point/bound to be used by other sampling methods."""
+        """Return a live point/axes to be used by other sampling methods."""
 
         i = self.rstate.randint(self.nlive)
         u = self.live_u[i, :]
@@ -918,7 +1029,7 @@ class SupFriendsSampler(Sampler):
         return u, ax
 
     def update_unif(self, blob):
-        """Update our uniform proposal."""
+        """Filler function."""
 
         pass
 
@@ -926,6 +1037,7 @@ class SupFriendsSampler(Sampler):
         """Update the random walk proposal scale based on the current
         number of accepted/rejected steps."""
 
+        self.scale = blob['scale']
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
         norm = max(self.facc, 1. - self.facc)
@@ -933,7 +1045,7 @@ class SupFriendsSampler(Sampler):
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
-        size of slice compared to our initial guess."""
+        size of the slices compared to our initial guess."""
 
         fscale = blob['fscale']
         self.scale *= fscale

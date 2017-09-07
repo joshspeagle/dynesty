@@ -2,7 +2,9 @@
 # -*- coding: utf-8 -*-
 
 """
-dynesty: Bayesian evidence and posteriors using dynamic nested sampling
+The top-level interface (defined natively upon initialization) that
+provides access to the two main sampler "super-classes" via
+:meth:`NestedSampler` and :meth:`DynamicNestedSampler`.
 
 """
 
@@ -41,20 +43,19 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
                   enlarge=None, bootstrap=None, vol_dec=0.5, vol_check=2.0,
                   walks=25, facc=0.5, slices=3, **kwargs):
     """
-    Initializes and returns a chosen sampler to evaluate Bayesian evidence
-    and posteriors using nested sampling.
+    Initializes and returns a sampler object for Static Nested Sampling.
 
     Parameters
     ----------
     loglikelihood : function
-        Function returning log(likelihood) given parameters as a 1-d numpy
+        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
         array of length `ndim`.
 
     prior_transform : function
         Function translating a unit cube to the parameter space according to
-        the prior. The input is a 1-d numpy array with length `ndim`, where
+        the prior. The input is a 1-d `~numpy` array with length `ndim`, where
         each value is in the range [0, 1). The return value should also be a
-        1-d numpy array with length `ndim`, where each value is a parameter.
+        1-d `~numpy` array with length `ndim`, where each value is a parameter.
         The return value is passed to the loglikelihood function. For example,
         for a 2 parameter model with flat priors in the range [0, 2), the
         function would be::
@@ -63,58 +64,58 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
                 return 2.0 * u
 
     ndim : int
-        Number of parameters returned by prior and accepted by loglikelihood.
+        Number of parameters returned by `prior_transform` and accepted by
+        `loglikelihood`.
 
     nlive : int, optional
         Number of "live" points. Larger numbers result in a more finely
         sampled posterior (more accurate evidence), but also a larger
-        number of iterations required to converge. Default is *250*.
+        number of iterations required to converge. Default is `250`.
 
-    bound : {'none', 'single', 'multi', 'balls', 'cubes'}, optional
+    bound : {`'none'`, `'single'`, `'multi'`, `'balls'`, `'cubes'`}, optional
         Method used to approximately bound the prior using the current
-        set of live points. Used to condition sampling methods used to
-        propose new live points. Choices are no bound ('none'), a single
-        bounding ellipsoid ('single'), multiple bounding ellipsoids
-        ('multi'), balls centered on each live point ('balls'), and
-        cubes centered on each live point ('cubes'). Default is 'multi'.
+        set of live points. Conditions the sampling methods used to
+        propose new live points. Choices are no bound (`'none'`), a single
+        bounding ellipsoid (`'single'`), multiple bounding ellipsoids
+        (`'multi'`), balls centered on each live point (`'balls'`), and
+        cubes centered on each live point (`'cubes'`). Default is `'multi'`.
 
-    sample : {'unif', 'rwalk', 'slice'}, optional
+    sample : {`'unif'`, `'rwalk'`, `'slice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds. Choices are uniform
-        ('unif'), random walks ('rwalk'), and slices ('slice').
-        Default is 'unif'.
+        (`'unif'`), random walks (`'rwalk'`), and slices (`'slice'`).
+        Default is `'unif'`.
 
     update_interval : int or float, optional
         If an integer is passed, only update the proposal distribution every
         `update_interval`-th likelihood call. If a float is passed, update the
         proposal after every `round(update_interval * nlive)`-th likelihood
         call. Larger update intervals larger can be more efficient
-        when the likelihood function is quick to evaluate. Default is *0.6*.
+        when the likelihood function is quick to evaluate. Default is `0.6`.
 
     first_update : dict, optional
         A dictionary containing parameters governing when the sampler should
-        first update the bounding distribution from the unit cube ('none')
+        first update the bounding distribution from the unit cube (`'none'`)
         to the one specified by `sample`. Options are the minimum number of
         likelihood calls (`'min_ncall'`) and the minimum allowed overall
-        efficiency in percent (`'min_eff'`). Defaults are `2 * nlive` and *10.*,
-        respectively, when sampling uniformly and *-np.inf* and *np.inf*
-        otherwise.
+        efficiency in percent (`'min_eff'`). Defaults are `2 * nlive` and
+        `10.`, respectively.
 
     npdim : int, optional
-        Number of parameters accepted by prior. This might differ from `ndim`
-        in the case where a parameter of loglikelihood is dependent upon
-        multiple independently distributed parameters, some of which may be
-        nuisance parameters.
+        Number of parameters accepted by `prior_transform`. This might differ
+        from `ndim` in the case where a parameter of loglikelihood is dependent
+        upon multiple independently distributed parameters, some of which may
+        be nuisance parameters.
 
     rstate : `~numpy.random.RandomState`, optional
-        RandomState instance. If not given, the global random state of the
-        `numpy.random` module will be used.
+        `~numpy.random.RandomState` instance. If not given, the
+         global random state of the `~numpy.random` module will be used.
 
     queue_size : int, optional
         Carry out likelihood evaluations in parallel by queueing up new live
-        point proposals using at most this many threads. Each thread
+        point proposals using (at most) this many threads. Each thread
         independently proposes new live points until the proposal distribution
-        is updated. Default is *1* (no parallelism).
+        is updated. Default is `1` (no parallelism).
 
     pool : user-provided pool, optional
         Use this pool of workers to execute operations in parallel. If
@@ -122,15 +123,14 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
         thrown.
 
     use_pool : dict, optional
-        A dictionary containing flags for where a pool should be used to
+        A dictionary containing flags indicating where a pool should be used to
         execute operations in parallel. These govern whether `prior_transform`
         is executed in parallel during initialization (`'prior_transform'`),
         `loglikelihood` is executed in parallel during initialization
         (`'loglikelihood'`), live points are proposed in parallel during a run
         (`'propose_point'`), and bounding distributions are updated in
-        parallel during a run (`'update_bound'`). Default is *True* for all
+        parallel during a run (`'update_bound'`). Default is `True` for all
         options.
-        
 
     live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
         A set of live points used to initialize the nested sampling run.
@@ -140,49 +140,50 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
         will be drawn uniformly from the unit `npdim`-cube.
         **WARNING: It is crucial that the initial set of live points have been
         sampled from the prior. Failure to provide a set of valid live points
-        will result in biased results.**
+        will result in incorrect results.**
 
     Other Parameters
     ----------------
     enlarge : float, optional
         Enlarge the volumes of the specified bounding object(s) by this
         fraction. The preferred method is to determine this organically
-        using bootstrapping. If `bootstrap > 0`, this defaults to *1.0*.
-        If `bootstrap = 0`, this instead defaults to *1.25*.
+        using bootstrapping. If `bootstrap > 0`, this defaults to `1.0`.
+        If `bootstrap = 0`, this instead defaults to `1.25`.
 
     bootstrap : int, optional
-        Compute this many bootstrap-resampled realizations of the bounding
+        Compute this many bootstrapped realizations of the bounding
         objects. Use the maximum distance found to the set of points left
         out during each iteration to enlarge the resulting volumes.
-        Default is *20* for uniform sampling ('unif') and *0* for random walks
-        ('rwalk') and slice sampling ('slice').
+        Default is `20` for uniform sampling (`'unif'`) and `0` for random
+        walks (`'rwalk'`) and slice sampling (`'slice'`).
 
     vol_dec : float, optional
-        For the 'multi' bounding option, the required fractional reduction in
-        volume after splitting an ellipsoid in order to to accept the split.
-        Default is *0.5*.
+        For the `'multi'` bounding option, the required fractional reduction
+        in volume after splitting an ellipsoid in order to to accept the split.
+        Default is `0.5`.
 
     vol_check : float, optional
-        For the 'multi' bounding option, the factor used when checking if
+        For the `'multi'` bounding option, the factor used when checking if
         the volume of the original bounding ellipsoid is large enough to
-        warrant >2 splits via `ell.vol > vol_check * nlive * pointvol`.
-        Default is *2.0*.
+        warrant `> 2` splits via `ell.vol > vol_check * nlive * pointvol`.
+        Default is `2.0`.
 
     walks : int, optional
-        For the 'rwalk' sampling option, the minimum number of steps (minimum
-        2) to take before proposing a new live point. Default is *25*.
+        For the `'rwalk'` sampling option, the minimum number of steps
+        (minimum 2) before proposing a new live point. Default is `25`.
 
     facc : float, optional
-        The target acceptance fraction for the 'rwalk' sampling option.
-        Default is *0.5*. Bounded to be between `[1. / walks, 1.]`.
+        The target acceptance fraction for the `'rwalk'` sampling option.
+        Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
 
     slices : int, optional
-        For the 'slice' sampling option, the number of times to slice through
-        **all dimensions** before proposing a new live point. Default is *3*.
+        For the `'slice'` sampling option, the number of times to "slice"
+        through **all dimensions** before proposing a new live point.
+        Default is `3`.
 
     Returns
     -------
-    NestedSampler : `NestedSampler` instance
+    sampler : sampler from :mod:`~dynesty.nestedsamplers`
         An initialized instance of the chosen sampler specified via `bound`.
 
     """
@@ -276,20 +277,19 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
                          vol_dec=0.5, vol_check=2.0,
                          walks=25, facc=0.5, slices=3, **kwargs):
     """
-    Initializes and returns a chosen sampler to evaluate Bayesian evidence
-    and posteriors using nested sampling.
+    Initializes and returns a sampler object for Dynamic Nested Sampling.
 
     Parameters
     ----------
     loglikelihood : function
-        Function returning log(likelihood) given parameters as a 1-d numpy
+        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
         array of length `ndim`.
 
     prior_transform : function
         Function translating a unit cube to the parameter space according to
-        the prior. The input is a 1-d numpy array with length `ndim`, where
+        the prior. The input is a 1-d `~numpy` array with length `ndim`, where
         each value is in the range [0, 1). The return value should also be a
-        1-d numpy array with length `ndim`, where each value is a parameter.
+        1-d `~numpy` array with length `ndim`, where each value is a parameter.
         The return value is passed to the loglikelihood function. For example,
         for a 2 parameter model with flat priors in the range [0, 2), the
         function would be::
@@ -298,71 +298,72 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
                 return 2.0 * u
 
     ndim : int
-        Number of parameters returned by prior and accepted by loglikelihood.
+        Number of parameters returned by `prior_transform` and accepted by
+        `loglikelihood`.
 
-    bound : {'none', 'single', 'multi', 'balls', 'cubes'}, optional
+    nlive : int, optional
+        Number of "live" points. Larger numbers result in a more finely
+        sampled posterior (more accurate evidence), but also a larger
+        number of iterations required to converge. Default is `250`.
+
+    bound : {`'none'`, `'single'`, `'multi'`, `'balls'`, `'cubes'`}, optional
         Method used to approximately bound the prior using the current
-        set of live points. Used to condition sampling methods used to
-        propose new live points. Choices are no bound ('none'), a single
-        bounding ellipsoid ('single'), multiple bounding ellipsoids
-        ('multi'), balls centered on each live point ('balls'), and
-        cubes centered on each live point ('cubes'). Default is 'multi'.
+        set of live points. Conditions the sampling methods used to
+        propose new live points. Choices are no bound (`'none'`), a single
+        bounding ellipsoid (`'single'`), multiple bounding ellipsoids
+        (`'multi'`), balls centered on each live point (`'balls'`), and
+        cubes centered on each live point (`'cubes'`). Default is `'multi'`.
 
-    sample : {'unif', 'rwalk', 'slice'}, optional
+    sample : {`'unif'`, `'rwalk'`, `'slice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds. Choices are uniform
-        ('unif'), random walks ('rwalk'), and slices ('slice').
-        Default is 'unif'.
+        (`'unif'`), random walks (`'rwalk'`), and slices (`'slice'`).
+        Default is `'unif'`.
 
     update_interval : int or float, optional
         If an integer is passed, only update the proposal distribution every
         `update_interval`-th likelihood call. If a float is passed, update the
         proposal after every `round(update_interval * nlive)`-th likelihood
-        call, changing depending on how many live points are currently
-        active. Larger update intervals can be more efficient
-        when the likelihood function is quick to evaluate. Default is *0.6*.
+        call. Larger update intervals larger can be more efficient
+        when the likelihood function is quick to evaluate. Default is `0.6`.
 
     first_update : dict, optional
         A dictionary containing parameters governing when the sampler should
-        first update the bounding distribution from the unit cube ('none')
+        first update the bounding distribution from the unit cube (`'none'`)
         to the one specified by `sample`. Options are the minimum number of
         likelihood calls (`'min_ncall'`) and the minimum allowed overall
-        efficiency in percent (`'min_eff'`). Defaults are `2 * nlive_init` and
-        *10.*, respectively, when sampling uniformly and *-np.inf* and *np.inf*
-        otherwise. The corresponding loglikelihood where the first
-        update takes place is saved so that any live points added after the
-        initial baseline run will use the same criteria.
+        efficiency in percent (`'min_eff'`). Defaults are `2 * nlive` and
+        `10.`, respectively.
 
     npdim : int, optional
-        Number of parameters accepted by prior. This might differ from `ndim`
-        in the case where a parameter of loglikelihood is dependent upon
-        multiple independently distributed parameters, some of which may be
-        nuisance parameters.
+        Number of parameters accepted by `prior_transform`. This might differ
+        from `ndim` in the case where a parameter of loglikelihood is dependent
+        upon multiple independently distributed parameters, some of which may
+        be nuisance parameters.
 
     rstate : `~numpy.random.RandomState`, optional
-        RandomState instance. If not given, the global random state of the
-        `numpy.random` module will be used.
+        `~numpy.random.RandomState` instance. If not given, the
+         global random state of the `~numpy.random` module will be used.
 
     queue_size : int, optional
         Carry out likelihood evaluations in parallel by queueing up new live
-        point proposals using at most this many threads. Each thread
+        point proposals using (at most) this many threads. Each thread
         independently proposes new live points until the proposal distribution
-        is updated. Default is *1* (no parallelism).
+        is updated. Default is `1` (no parallelism).
 
     pool : user-provided pool, optional
-        Use this pool of workers to propose live points in parallel. If
+        Use this pool of workers to execute operations in parallel. If
         `queue_size > 1` and `pool` is not specified, a `ValueError` will be
         thrown.
 
     use_pool : dict, optional
-        A dictionary containing flags for where a pool should be used to
+        A dictionary containing flags indicating where a pool should be used to
         execute operations in parallel. These govern whether `prior_transform`
         is executed in parallel during initialization (`'prior_transform'`),
         `loglikelihood` is executed in parallel during initialization
         (`'loglikelihood'`), live points are proposed in parallel during a run
-        (`'propose_point'`), bounding distributions are updated in parallel
-        during a run (`'update_bound'`), and stopping criteria are updated
-        in parallel during a run (`'stop_function'`). Default is *True* for all
+        (`'propose_point'`), and bounding distributions are updated in
+        parallel during a run (`'update_bound'`). Default is `True` for all
         options.
 
     Other Parameters
@@ -370,43 +371,44 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
     enlarge : float, optional
         Enlarge the volumes of the specified bounding object(s) by this
         fraction. The preferred method is to determine this organically
-        using bootstrapping. If `bootstrap > 0`, this defaults to *1.0*.
-        If `bootstrap = 0`, this instead defaults to *1.25*.
+        using bootstrapping. If `bootstrap > 0`, this defaults to `1.0`.
+        If `bootstrap = 0`, this instead defaults to `1.25`.
 
     bootstrap : int, optional
-        Compute this many bootstrap-resampled realizations of the bounding
+        Compute this many bootstrapped realizations of the bounding
         objects. Use the maximum distance found to the set of points left
         out during each iteration to enlarge the resulting volumes.
-        Default is *20* for uniform sampling ('unif') and *0* for random walks
-        ('rwalk') and slice sampling ('slice').
+        Default is `20` for uniform sampling (`'unif'`) and `0` for random
+        walks (`'rwalk'`) and slice sampling (`'slice'`).
 
     vol_dec : float, optional
-        For the 'multi' bounding option, the required fractional reduction in
-        volume after splitting an ellipsoid in order to to accept the split.
-        Default is *0.5*.
+        For the `'multi'` bounding option, the required fractional reduction
+        in volume after splitting an ellipsoid in order to to accept the split.
+        Default is `0.5`.
 
     vol_check : float, optional
-        For the 'multi' bounding option, the factor used when checking if
+        For the `'multi'` bounding option, the factor used when checking if
         the volume of the original bounding ellipsoid is large enough to
-        warrant >2 splits via `ell.vol > vol_check * nlive * pointvol`.
-        Default is *2.0*.
+        warrant `> 2` splits via `ell.vol > vol_check * nlive * pointvol`.
+        Default is `2.0`.
 
     walks : int, optional
-        For the 'rwalk' sampling option, the minimum number of steps (minimum
-        2) to take before proposing a new live point. Default is *25*.
+        For the `'rwalk'` sampling option, the minimum number of steps
+        (minimum 2) before proposing a new live point. Default is `25`.
 
     facc : float, optional
-        The target acceptance fraction for the 'rwalk' sampling option.
-        Default is *0.5*. Bounded to be between `[1. / walks, 1.]`.
+        The target acceptance fraction for the `'rwalk'` sampling option.
+        Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
 
     slices : int, optional
-        For the 'slice' sampling option, the number of times to slice through
-        **all dimensions** before proposing a new live point. Default is *3*.
+        For the `'slice'` sampling option, the number of times to "slice"
+        through **all dimensions** before proposing a new live point.
+        Default is `3`.
 
     Returns
     -------
-    NestedSampler : `NestedSampler` instance
-        An initialized instance of the chosen sampler specified via `bound`.
+    sampler : a :class:`dynesty.DynamicSampler` instance
+        An initialized instance of the dynamic nested sampler.
 
     """
 

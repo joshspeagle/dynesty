@@ -2,7 +2,10 @@
 # -*- coding: utf-8 -*-
 
 """
-Sampling functions for proposing new live points.
+Functions for proposing new live points used by
+:class:`~dynesty.sampler.Sampler` (and its children from
+:mod:`~dynesty.nestedsamplers`) and
+:class:`~dynesty.dynamicsampler.DynamicSampler`.
 
 """
 
@@ -24,8 +27,58 @@ SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
 def sample_unif(args):
-    """Return a new live point sampled uniformly from a bounding proposal
-    distribution."""
+    """
+    Evaluate a new point sampled uniformly from a bounding proposal
+    distribution. Parameters are zipped within `args` to utilize
+    `pool.map`-style functions.
+
+    Parameters
+    ----------
+    u : `~numpy.ndarray` with shape (npdim,)
+        Position of the initial sample.
+
+    loglstar : float
+        Ln(likelihood) bound. **Not applicable here.**
+
+    axes : `~numpy.ndarray` with shape (ndim, ndim)
+        Axes used to propose new points. **Not applicable here.**
+
+    scale : float
+        Value used to scale the provided axes. **Not applicable here.**
+
+    prior_transform : function
+        Function transforming a sample from the a unit cube to the parameter
+        space of interest according to the prior.
+
+    loglikelihood : function
+        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
+        array of length `ndim`.
+
+    kwargs : dict
+        A dictionary of additional method-specific parameters.
+        **Not applicable here.**
+
+    Returns
+    -------
+    u : `~numpy.ndarray` with shape (npdim,)
+        Position of the final proposed point within the unit cube. **For
+        uniform sampling this is the same as the initial input position.**
+
+    v : `~numpy.ndarray` with shape (ndim,)
+        Position of the final proposed point in the target parameter space.
+
+    logl : float
+        Ln(likelihood) of the final proposed point.
+
+    nc : int
+        Number of function calls used to generate the sample. For uniform
+        sampling this is `1` by construction.
+
+    blob : dict
+        Collection of ancillary quantities used to tune :data:`scale`. **Not
+        applicable for uniform sampling.**
+
+    """
 
     # Unzipping.
     (u, loglstar, axes, scale,
@@ -40,8 +93,56 @@ def sample_unif(args):
 
 
 def sample_rwalk(args):
-    """Return a new live point proposed via a random walk away from an
-    existing live point."""
+    """
+    Return a new live point proposed by random walking away from an
+    existing live point.
+
+    Parameters
+    ----------
+    u : `~numpy.ndarray` with shape (npdim,)
+        Position of the initial sample. **This is a copy of an existing live
+        point.**
+
+    loglstar : float
+        Ln(likelihood) bound.
+
+    axes : `~numpy.ndarray` with shape (ndim, ndim)
+        Axes used to propose new points. For random walks new positions are
+        proposed using the :class:`~dynesty.bounding.Ellipsoid` whose
+        shape is defined by axes.
+
+    scale : float
+        Value used to scale the provided axes.
+
+    prior_transform : function
+        Function transforming a sample from the a unit cube to the parameter
+        space of interest according to the prior.
+
+    loglikelihood : function
+        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
+        array of length `ndim`.
+
+    kwargs : dict
+        A dictionary of additional method-specific parameters.
+
+    Returns
+    -------
+    u : `~numpy.ndarray` with shape (npdim,)
+        Position of the final proposed point within the unit cube.
+
+    v : `~numpy.ndarray` with shape (ndim,)
+        Position of the final proposed point in the target parameter space.
+
+    logl : float
+        Ln(likelihood) of the final proposed point.
+
+    nc : int
+        Number of function calls used to generate the sample.
+
+    blob : dict
+        Collection of ancillary quantities used to tune :data:`scale`.
+
+    """
 
     # Unzipping.
     (u, loglstar, axes, scale,
@@ -53,6 +154,8 @@ def sample_rwalk(args):
     accept = 0
     reject = 0
     nc = 0
+    ncall = 0
+
     while nc < walks or accept == 0:
         while True:
             # Propose a direction on the unit n-sphere.
@@ -66,16 +169,9 @@ def sample_rwalk(args):
             du = np.dot(axes, dr)
             u_prop = u + scale * du
 
-            # Check unit cube constraints.
-            if np.all(u_prop > 0.) and np.all(u_prop < 1.):
-                break
-            else:
-                reject += 1
-
-            # Check if we're stuck generating bad numbers.
-            if reject > 1000 * walks:
-                raise RuntimeError("The random walk sampling appears to "
-                                   "be stuck! Some useful output quantities:\n"
+            if scale == 0.:
+                raise RuntimeError("The random walk sampling is stuck! "
+                                   "Some useful output quantities:\n"
                                    "u: {0}\n"
                                    "drhat: {1}\n"
                                    "dr: {2}\n"
@@ -88,6 +184,20 @@ def sample_rwalk(args):
                                    .format(u, drhat, dr, du, u_prop,
                                            loglstar, logl_prop, axes, scale))
 
+            # Check unit cube constraints.
+            if np.all(u_prop > 0.) and np.all(u_prop < 1.):
+                break
+            else:
+                reject += 1
+
+            # Check if we're stuck generating bad numbers.
+            if reject > 1000 * walks:
+                scale /= 2.
+                warnings.warn("Random number generation appears to be "
+                              "extremely inefficient. Adjusting the "
+                              "scale-factor accordingly.")
+                nc, accept, reject = 0, 0, 0  # reset values
+
         # Check proposed point.
         v_prop = prior_transform(u_prop)
         logl_prop = loglikelihood(v_prop)
@@ -99,31 +209,71 @@ def sample_rwalk(args):
         else:
             reject += 1
         nc += 1
+        ncall += 1
 
         # Check if we're stuck generating bad points.
         if nc > 50 * walks:
-            raise RuntimeError("The random walk sampling appears to be stuck! "
-                               "Some useful output quantities:\n"
-                               "u: {0}\n"
-                               "drhat: {1}\n"
-                               "dr: {2}\n"
-                               "du: {3}\n"
-                               "u_prop: {4}\n"
-                               "loglstar: {5}\n"
-                               "logl_prop: {6}\n"
-                               "axes: {7}\n"
-                               "scale: {8}."
-                               .format(u, drhat, dr, du, u_prop,
-                                       loglstar, logl_prop, axes, scale))
+            scale /= 2.
+            warnings.warn("Random walk proposals appear to be "
+                          "extremely inefficient. Adjusting the "
+                          "scale-factor accordingly.")
+            nc, accept, reject = 0, 0, 0  # reset values
 
-    blob = {'accept': accept, 'reject': reject}
+    blob = {'accept': accept, 'reject': reject, 'scale': scale}
 
-    return u, v, logl, nc, blob
+    return u, v, logl, ncall, blob
 
 
 def sample_slice(args):
-    """Return a new live point proposed via a series of random slices
-    away from an existing live point."""
+    """
+    Return a new live point proposed by a series of random slices
+    away from an existing live point.
+
+    Parameters
+    ----------
+    u : `~numpy.ndarray` with shape (npdim,)
+        Position of the initial sample. **This is a copy of an existing live
+        point.**
+
+    loglstar : float
+        Ln(likelihood) bound.
+
+    axes : `~numpy.ndarray` with shape (ndim, ndim)
+        Axes used to propose new points. For slices new positions are
+        proposed along the arthogonal basis defined by :data:`axes`.
+
+    scale : float
+        Value used to scale the provided axes.
+
+    prior_transform : function
+        Function transforming a sample from the a unit cube to the parameter
+        space of interest according to the prior.
+
+    loglikelihood : function
+        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
+        array of length `ndim`.
+
+    kwargs : dict
+        A dictionary of additional method-specific parameters.
+
+    Returns
+    -------
+    u : `~numpy.ndarray` with shape (npdim,)
+        Position of the final proposed point within the unit cube.
+
+    v : `~numpy.ndarray` with shape (ndim,)
+        Position of the final proposed point in the target parameter space.
+
+    logl : float
+        Ln(likelihood) of the final proposed point.
+
+    nc : int
+        Number of function calls used to generate the sample.
+
+    blob : dict
+        Collection of ancillary quantities used to tune :data:`scale`.
+
+    """
 
     # Unzipping.
     (u, loglstar, axes, scale,
@@ -215,8 +365,8 @@ def sample_slice(args):
                     elif s > 0:  # right
                         u_r = u_prop
                     else:
-                        raise RuntimeError("Slice sampler has failed to find a "
-                                           "valid point. Some useful "
+                        raise RuntimeError("Slice sampler has failed to find "
+                                           "a valid point. Some useful "
                                            "output quantities:\n"
                                            "u: {0}\n"
                                            "u_left: {1}\n"

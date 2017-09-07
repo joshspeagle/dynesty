@@ -2,7 +2,13 @@
 # -*- coding: utf-8 -*-
 
 """
-Dynamic nested sampler class for adaptively proposing new live points.
+Contains the dynamic nested sampler class :class:`DynamicSampler` used to
+dynamically allocate nested samples. Note that :class:`DynamicSampler`
+implicitly wraps a sampler from :mod:`~dynesty.nestedsamplers`. Also contains
+the weight function :meth:`weight_function` and stopping function
+:meth:`stopping_function`. These are used by default within
+:class:`DynamicSampler` if corresponding functions are not provided
+by the user.
 
 """
 
@@ -26,7 +32,8 @@ from .sampling import *
 from .results import *
 from .utils import *
 
-__all__ = ["DynamicSampler", "weight_function", "stopping_function"]
+__all__ = ["DynamicSampler", "weight_function", "stopping_function",
+           "_kld_error"]
 
 _SAMPLERS = {'none': UnitCubeSampler,
              'single': SingleEllipsoidSampler,
@@ -41,10 +48,8 @@ SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
 def _kld_error(args):
-    """
-    Internal `pool.map`-friendly wrapper for the `kld_error` function to ensure
-    appropriate parallel behavior.
-    """
+    """ Internal `pool.map`-friendly wrapper for :meth:`kld_error` used by
+    :meth:`stopping_function`."""
 
     # Extract arguments.
     results, error = args
@@ -52,26 +57,28 @@ def _kld_error(args):
     return kld_error(results, error, rstate=np.random, return_new=True)
 
 
-def weight_function(results, args, return_weights=False):
+def weight_function(results, args=None, return_weights=False):
     """
-    The default weight function utilized by `DynamicSampler` defined
-    based on Higson et al. (2017). Parameters
-    are passed to the function via `args`. This simply assigns
-    each point a weight based on a weighted average of the
-    posterior and evidence information content as::
+    The default weight function utilized by :class:`DynamicSampler`.
+    Zipped parameters are passed to the function via :data:`args`.
+    Assigns each point a weight based on a weighted average of the
+    posterior and evidence information content::
 
-        weight = pfrac * pweight + (1-pfrac) * zweight
+        weight = pfrac * pweight + (1. - pfrac) * zweight
 
-    where the evidence weight is based on the estimated remaining prior
-    volume and the posterior weight is simply the importance weight. The
-    function returns a set of log-likelihood bounds set by the earliest/latest
-    samples where `weight > maxfrac * max(weight)`, with left/right padding of
-    `pad`.
+    where `pfrac` is the fractional importance placed on the posterior,
+    the evidence weight `zweight` is based on the estimated remaining
+    posterior mass, and the posterior weight `pweight` is the sample's
+    importance weight.
+
+    Returns a set of log-likelihood bounds set by the earliest/latest
+    samples where `weight > maxfrac * max(weight)`, with additional
+    left/right padding based on `pad`.
 
     Parameters
     ----------
-    results : `Results` instances
-        `Results` instance.
+    results : :class:`Results` instance
+        :class:`Results` instance.
 
     args : dictionary of keyword arguments, optional
         Arguments used to set the log-likelihood bounds used for sampling,
@@ -80,20 +87,22 @@ def weight_function(results, args, return_weights=False):
 
     return_weights : bool, optional
         Whether to return the individual weights (and their components) used
-        to compute the log-likelihood bounds. Default is *False*.
+        to compute the log-likelihood bounds. Default is `False`.
 
     Returns
     -------
-    logl_bounds : length-2 tuple
+    logl_bounds : tuple with shape (2,)
         Log-likelihood bounds `(logl_min, logl_max)` determined by the weights.
 
-    weights : length-3 tuple, optional
+    weights : tuple with shape (3,), optional
         The individual weights `(pweight, zweight, weight)` used to determine
         `logl_bounds`.
 
     """
 
     # Initialize hyperparameters.
+    if args is None:
+        args = dict({})
     pfrac = args.get('pfrac', 0.8)
     if not 0. <= pfrac <= 1.:
         raise ValueError("The provided `pfrac` {0} is not between 0. and 1."
@@ -107,7 +116,7 @@ def weight_function(results, args, return_weights=False):
         raise ValueError("`lpad` {0} is less than zero.".format(lpad))
 
     # Derive evidence weights.
-    logz = results.logz  # final log(evidence)
+    logz = results.logz  # final ln(evidence)
     logz_remain = results.logl[-1] + results.logvol[-1]  # remainder
     logz_tot = np.logaddexp(logz[-1], logz_remain)  # estimated upper bound
     zin = np.exp(logz_tot) - np.exp(logz)  # remaining evidence
@@ -119,7 +128,7 @@ def weight_function(results, args, return_weights=False):
     pweight /= sum(pweight)  # normalize
 
     # Compute combined weights.
-    weight = (1 - pfrac) * zweight + pfrac * pweight
+    weight = (1. - pfrac) * zweight + pfrac * pweight
 
     # Compute logl bounds
     nsamps = len(logz)
@@ -137,52 +146,56 @@ def weight_function(results, args, return_weights=False):
         return (logl_min, logl_max)
 
 
-def stopping_function(results, args, rstate=np.random, M=map,
+def stopping_function(results, args=None, rstate=None, M=None,
                       return_vals=False):
     """
-    The default stopping function utilized by `DynamicSampler`. Parameters
-    are passed to the function via `args`. This assigns the run a stopping
-    value based on `n_mc` realizations of the input run that represents
-    a weighted average of the stopping values for the posterior and evidence::
+    The default stopping function utilized by :class:`DynamicSampler`.
+    Zipped parameters are passed to the function via :data:`args`.
+    Assigns the run a stopping value based on a weighted average of the
+    stopping values for the posterior and evidence::
 
-        stop = pfrac * stop_post + (1-pfrac) * stop_evid
+        stop = pfrac * stop_post + (1.- pfrac) * stop_evid
 
     The evidence stopping value is based on the estimated evidence error
-    relative to a given threshold::
+    (i.e. standard deviation) relative to a given threshold::
 
         stop_evid = evid_std / evid_thresh
 
-    The posterior stopping value is based on the fractional variation
-    in the Kullback-Leibler (KL) divergence relative to a given threshold::
+    The posterior stopping value is based on the fractional error (i.e.
+    standard deviation / mean) in the Kullback-Leibler (KL) divergence
+    relative to a given threshold::
 
         stop_post = (kld_std / kld_mean) / post_thresh
 
-    The function returns the boolean `stop <= 1` used to decide when to stop
-    the run.
+    Estimates of the mean and standard deviation are computed using `n_mc`
+    realizations of the input using a provided `'error'` keyword (either
+    `'jitter'` or `'simulate'`, which call related functions :meth:`jitter_run`
+    and :meth:`simulate_run` in :mod:`dynesty.utils`).
+
+    Returns the boolean `stop <= 1`. If `True`, the :class:`DynamicSampler`
+    will stop adding new samples to our results.
 
     Parameters
     ----------
-    results : `Results` instances
-        `Results` instance.
+    results : :class:`Results` instance
+        :class:`Results` instance.
 
     args : dictionary of keyword arguments, optional
-        Arguments used to set the stopping values. In addition to the values
-        outlined above, users can also choose the *type* of realizations used
-        to compute quantities via the `'error'` keyword (choices are 'jitter'
-        and 'simulate'). Default values are `pfrac = 1.0`, `evid_thresh = 0.1`,
-        `post_thresh = 0.02`, `n_mc = 32`, and `error = 'simulate'`.
+        Arguments used to set the stopping values. Default values are
+        `pfrac = 1.0`, `evid_thresh = 0.1`, `post_thresh = 0.02`,
+        `n_mc = 32`, and `error = 'simulate'`.
 
-    rstate : `~numpy.random.RandomState`
-        RandomState instance.
+    rstate : `~numpy.random.RandomState`, optional
+        `~numpy.random.RandomState` instance.
 
-    M : map, optional
-        An alias to an equivalent `map` function. This allows users to pass
+    M : `map` function, optional
+        An alias to a `map`-like function. This allows users to pass
         functions from pools (e.g., `pool.map`) to compute realizations in
         parallel. By default the standard `map` function is used.
 
     return_vals : bool, optional
         Whether to return the stopping value (and its components). Default
-        is *False*.
+        is `False`.
 
     Returns
     -------
@@ -190,11 +203,19 @@ def stopping_function(results, args, rstate=np.random, M=map,
         Boolean flag indicating whether we have passed the desired stopping
         criteria.
 
-    stop_vals : length-3 tuple, optional
-        The individual stopping values `(stop_post, stop_evid, weight)` used
+    stop_vals : tuple of shape (3,), optional
+        The individual stopping values `(stop_post, stop_evid, stop)` used
         to determine the stopping criteria.
 
     """
+
+    # Initialize values.
+    if args is None:
+        args = dict({})
+    if rstate is None:
+        rstate = np.random
+    if M is None:
+        M = map
 
     # Initialize hyperparameters.
     pfrac = args.get('pfrac', 1.0)
@@ -204,7 +225,7 @@ def stopping_function(results, args, rstate=np.random, M=map,
     evid_thresh = args.get('evid_thresh', 0.1)
     if pfrac < 1. and evid_thresh < 0.:
         raise ValueError("The provided `evid_thresh` {0} is not non-negative "
-                         "even though `1 - pfrac` is {1}."
+                         "even though `1. - pfrac` is {1}."
                          .format(evid_thresh, 1. - pfrac))
     post_thresh = args.get('post_thresh', 0.02)
     if pfrac > 0. and post_thresh < 0.:
@@ -217,7 +238,7 @@ def stopping_function(results, args, rstate=np.random, M=map,
                          "than 1.".format(n_mc))
     elif n_mc < 20:
         warnings.warn("Using a small number of realizations might result in "
-                      "noisy stopping value estimates.")
+                      "excessively noisy stopping value estimates.")
     error = args.get('error', 'simulate')
     if error not in {'jitter', 'simulate'}:
         raise ValueError("The chosen `'error'` option {0} is not valid."
@@ -251,86 +272,101 @@ def stopping_function(results, args, rstate=np.random, M=map,
 class DynamicSampler(object):
     """
     A dynamic nested sampler that allocates live points adaptively during
-    a single run until a specified stopping criteria is reached.
+    a single run according to a specified weight function until a specified
+    stopping criteria is reached.
 
     Parameters
     ----------
     loglikelihood : function
-        Function returning log(likelihood) given parameters as a 1-d numpy
+        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
         array of length `ndim`.
 
     prior_transform : function
-        Function translating a unit cube to the parameter space according to
-        the prior.
+        Function transforming a sample from the a unit cube to the parameter
+        space of interest according to the prior.
 
-    npdim : int
-        Number of parameters accepted by prior.
+    npdim : int, optional
+        Number of parameters accepted by `prior_transform`.
 
-    choose_method : function
-        A function that takes information on the run and returns an
-        associated bounding and sampling method.
+    bound : {`'none'`, `'single'`, `'multi'`, `'balls'`, `'cubes'`}, optional
+        Method used to approximately bound the prior using the current
+        set of live points. Conditions the sampling methods used to
+        propose new live points. Choices are no bound (`'none'`), a single
+        bounding ellipsoid (`'single'`), multiple bounding ellipsoids
+        (`'multi'`), balls centered on each live point (`'balls'`), and
+        cubes centered on each live point (`'cubes'`). Default is `'multi'`.
+
+    method : {`'unif'`, `'rwalk'`, `'slice'`}, optional
+        Method used to sample uniformly within the likelihood constraint,
+        conditioned on the provided bounds. Choices are uniform
+        (`'unif'`), random walks (`'rwalk'`), and slices (`'slice'`).
+        Default is `'unif'`.
 
     update_interval : int
-        Only update the proposal distribution every
-        `update_interval * nlive`-th likelihood call.
+        Only update the bounding distribution every `update_interval`-th
+        likelihood call.
 
     first_update : dict
         A dictionary containing parameters governing when the sampler should
-        first update the bounding distribution from the unit cube ('none')
-        to the one specified by `sample`.
+        first update the bounding distribution from the unit cube to the one
+        specified by the user.
 
     rstate : `~numpy.random.RandomState`
-        RandomState instance.
+        `~numpy.random.RandomState` instance.
 
     queue_size: int
         Carry out likelihood evaluations in parallel by queueing up new live
-        point proposals using at most this many threads. Each thread
-        independently proposes new live points until the proposal distribution
-        is updated.
+        point proposals using (at most) this many threads/members.
 
     pool: pool
         Use this pool of workers to execute operations in parallel.
 
     use_pool : dict, optional
-        A dictionary containing flags for where a pool should be used to
-        execute operations in parallel.
+        A dictionary containing flags indicating where the provided `pool`
+        should be used to execute operations in parallel.
+
+    kwargs : dict, optional
+        A dictionary of additional parameters (described below).
 
     Other Parameters
     ----------------
     enlarge : float, optional
-        Enlarge the volumes of the specified bounding object(s) by this
-        fraction. The preferred method is to determine this organically
-        using bootstrapping. If `bootstrap > 0`, this defaults to *1.0*.
-        If `bootstrap = 0`, this instead defaults to *1.25*.
+        Enlarge the volumes of the ellipsoids by this fraction. The preferred
+        method is to determine this organically using bootstrapping. If
+        `bootstrap > 0`, this defaults to `1.0`. If `bootstrap = 0`,
+        this instead defaults to `1.25`.
 
     bootstrap : int, optional
-        Compute this many bootstrap-resampled realizations of the bounding
+        Compute this many bootstrapped realizations of the bounding
         objects. Use the maximum distance found to the set of points left
         out during each iteration to enlarge the resulting volumes.
-        Default is *20*.
+        Default is `20` for uniform sampling (`'unif'`) and `0` for random
+        walks (`'rwalk'`) and slice sampling (`'slice'`).
 
     vol_dec : float, optional
-        For the 'multi' bounding option, the required fractional reduction in
-        volume after splitting an ellipsoid in order to to accept the split.
-        Default is *0.5*.
+        For the `'multi'` bounding option, the required fractional reduction
+        in volume after splitting an ellipsoid in order to to accept the split.
+        Default is `0.5`.
 
     vol_check : float, optional
-        For the 'multi' bounding option, the factor used when checking if
+        For the `'multi'` bounding option, the factor used when checking if
         the volume of the original bounding ellipsoid is large enough to
-        warrant >2 splits via `ell.vol > vol_check * nlive * pointvol`.
-        Default is *2.0*.
+        warrant `> 2` splits via `ell.vol > vol_check * nlive * pointvol`.
+        Default is `2.0`.
 
     walks : int, optional
-        For the 'rwalk' sampling option, the minimum number of steps (minimum
-        2) to take before proposing a new live point. Default is *25*.
+        For the `'rwalk'` sampling option, the minimum number of steps
+        (minimum 2) before proposing a new live point. Default is `25`.
 
     facc : float, optional
-        The target acceptance fraction for the 'rwalk' sampling option.
-        Default is *0.5*. Bounded to be between `[1. / walks, 1.]`.
+        The target acceptance fraction for the `'rwalk'` sampling option.
+        Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
 
     slices : int, optional
-        For the 'slice' sampling option, the number of times to slice through
-        **all dimensions** before proposing a new live point. Default is *3*.
+        For the `'slice'` sampling option, the number of times to "slice"
+        through **all dimensions** before proposing a new live point.
+        Default is `3`.
+
 
     """
 
@@ -343,7 +379,7 @@ class DynamicSampler(object):
         self.npdim = npdim
 
         # bounding/sampling
-        self.bound = bound
+        self.bounding = bound
         self.method = method
         self.update_interval = update_interval
         self.first_update = first_update
@@ -384,7 +420,7 @@ class DynamicSampler(object):
         self.it = 1  # number of iterations
         self.batch = 0  # number of batches allocated dynamically
         self.ncall = 0  # number of function calls
-        self.prop = []  # initial states used to compute proposals
+        self.bound = []  # initial states used to compute bounds
         self.eff = 1.  # sampling efficiency
         self.base = False  # base run complete
 
@@ -393,16 +429,16 @@ class DynamicSampler(object):
         self.saved_u = []  # unit cube samples
         self.saved_v = []  # transformed variable samples
         self.saved_logl = []  # loglikelihoods of samples
-        self.saved_logvol = []  # expected log(volume)
-        self.saved_logwt = []  # log(weights)
-        self.saved_logz = []  # cumulative log(evidence)
-        self.saved_logzvar = []  # cumulative error on log(evidence)
+        self.saved_logvol = []  # expected ln(volume)
+        self.saved_logwt = []  # ln(weights)
+        self.saved_logz = []  # cumulative ln(evidence)
+        self.saved_logzvar = []  # cumulative error on ln(evidence)
         self.saved_h = []  # cumulative information
         self.saved_nc = []  # number of calls at each iteration
-        self.saved_propidx = []  # index of proposal dead point was drawn from
+        self.saved_boundidx = []  # index of bound dead point was drawn from
         self.saved_it = []  # iteration the live (now dead) point was proposed
         self.saved_n = []  # number of live points interior to dead point
-        self.saved_piter = []  # active proposal at a specific iteration
+        self.saved_bounditer = []  # active bound at a specific iteration
         self.saved_scale = []  # scale factor at each iteration
         self.saved_batch = []  # live point batch ID
         self.saved_batch_nlive = []  # number of live points added in batch
@@ -419,10 +455,10 @@ class DynamicSampler(object):
         self.base_logzvar = []
         self.base_h = []
         self.base_nc = []
-        self.base_propidx = []
+        self.base_boundidx = []
         self.base_it = []
         self.base_n = []
-        self.base_piter = []
+        self.base_bounditer = []
         self.base_scale = []
 
         # results from our most recent addition
@@ -433,10 +469,10 @@ class DynamicSampler(object):
         self.new_nc = []
         self.new_it = []
         self.new_n = []
-        self.new_propidx = []
-        self.new_piter = []
+        self.new_boundidx = []
+        self.new_bounditer = []
         self.new_scale = []
-        self.new_logl_min, self.new_logl_max = -np.inf, np.inf
+        self.new_logl_min, self.new_logl_max = -np.inf, np.inf  # logl bounds
 
     def reset(self):
         """Re-initialize the sampler."""
@@ -445,7 +481,7 @@ class DynamicSampler(object):
         self.it = 1
         self.batch = 0
         self.ncall = 0
-        self.prop = []
+        self.bound = []
         self.eff = 1.
         self.base = False
 
@@ -460,10 +496,10 @@ class DynamicSampler(object):
         self.saved_logzvar = []
         self.saved_h = []
         self.saved_nc = []
-        self.saved_propidx = []
+        self.saved_boundidx = []
         self.saved_it = []
         self.saved_n = []
-        self.saved_piter = []
+        self.saved_bounditer = []
         self.saved_scale = []
         self.saved_batch = []
         self.saved_batch_nlive = []
@@ -480,10 +516,10 @@ class DynamicSampler(object):
         self.base_logzvar = []
         self.base_h = []
         self.base_nc = []
-        self.base_propidx = []
+        self.base_boundidx = []
         self.base_it = []
         self.base_n = []
-        self.base_piter = []
+        self.base_bounditer = []
         self.base_scale = []
 
         # results from our most recent addition
@@ -494,14 +530,15 @@ class DynamicSampler(object):
         self.new_nc = []
         self.new_it = []
         self.new_n = []
-        self.new_propidx = []
-        self.new_piter = []
+        self.new_boundidx = []
+        self.new_bounditer = []
         self.new_scale = []
         self.new_logl_min, self.new_logl_max = -np.inf, np.inf
 
     @property
     def results(self):
-        """The full results from the dynamic nested sampling run."""
+        """Saved results from the dynamic nested sampling run. All saved
+        bounds are also returned."""
 
         results = [('niter', self.it - 1),
                    ('ncall', np.array(self.saved_nc)),
@@ -518,10 +555,11 @@ class DynamicSampler(object):
                    ('logz', np.array(self.saved_logz)),
                    ('logzerr', np.sqrt(np.array(self.saved_logzvar))),
                    ('scale', np.array(self.saved_scale)),
-                   ('h', np.array(self.saved_h)),
-                   ('prop', copy.deepcopy(self.prop)),
-                   ('prop_iter', np.array(self.saved_piter, dtype='int')),
-                   ('samples_prop', np.array(self.saved_propidx, dtype='int')),
+                   ('information', np.array(self.saved_h)),
+                   ('bound', copy.deepcopy(self.bound)),
+                   ('bound_iter', np.array(self.saved_bounditer, dtype='int')),
+                   ('samples_bound', np.array(self.saved_boundidx,
+                                              dtype='int')),
                    ('batch_nlive', np.array(self.saved_batch_nlive,
                                             dtype='int')),
                    ('batch_bounds', np.array(self.saved_batch_bounds))]
@@ -533,27 +571,28 @@ class DynamicSampler(object):
                        dlogz=0.01, live_points=None):
         """
         Generate a series of initial samples from a nested sampling
-        run using a fixed number of live points. Instantiates a
-        generator object that will be called by the user.
+        run using a fixed number of live points using an internal
+        sampler from :mod:`~dynesty.nestedsamplers`. Instantiates a
+        generator that will be called by the user.
 
         Parameters
         ----------
         nlive : int, optional
             The number of live points to use for the baseline nested
-            sampling run. Default is *100*.
+            sampling run. Default is `100`.
 
         update_interval : int or float, optional
-            If an integer is passed, only update the proposal distribution
+            If an integer is passed, only update the bounding distribution
             every `update_interval`-th likelihood call. If a float is passed,
-            update the proposal after every `round(update_interval * nlive)`-th
+            update the bound after every `round(update_interval * nlive)`-th
             likelihood call. Larger update intervals can be more efficient
             when the likelihood function is quick to evaluate. If no value is
             provided, defaults to the value passed during initialization.
 
-        first_update : dict
+        first_update : dict, optional
             A dictionary containing parameters governing when the sampler will
-            first update the bounding distribution from the unit cube ('none')
-            to the one specified by `sample`.
+            first update the bounding distribution from the unit cube
+            (`'none'`) to the one specified by `sample`.
 
         maxiter : int, optional
             Maximum number of iterations. Iteration may stop earlier if the
@@ -569,10 +608,10 @@ class DynamicSampler(object):
             Iteration will stop when the estimated contribution of the
             remaining prior volume to the total evidence falls below
             this threshold. Explicitly, the stopping criterion is
-            `log(z + z_est) - log(z) < dlogz`, where `z` is the current
+            `ln(z + z_est) - ln(z) < dlogz`, where `z` is the current
             evidence from all saved samples and `z_est` is the estimated
             contribution from the remaining volume. The default is
-            *0.01*.
+            `0.01`.
 
         live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
             A set of live points used to initialize the nested sampling run.
@@ -582,7 +621,7 @@ class DynamicSampler(object):
             set of live points will be drawn from the unit `npdim`-cube.
             **WARNING: It is crucial that the initial set of live points have
             been sampled from the prior. Failure to provide a set of valid
-            live points will result in biased results.**
+            live points will lead to incorrect results.**
 
         Returns
         -------
@@ -596,42 +635,53 @@ class DynamicSampler(object):
         vstar : `~numpy.ndarray` with shape (ndim,)
             Transformed position of the sample.
 
-        loglstar : double
+        loglstar : float
             Ln(likelihood) of the sample.
 
-        logvol : double
-            Ln(volume) of the prior contained within the sample.
+        logvol : float
+            Ln(prior volume) within the sample.
 
-        logwt : double
+        logwt : float
             Ln(weight) of the sample.
 
-        logz : double
+        logz : float
             Cumulative ln(evidence) up to the sample (inclusive).
 
-        logzvar : double
-            Associated error on `logz`.
+        logzvar : float
+            Estimated cumulative variance on `logz` (inclusive).
 
-        h : double
+        h : float
             Cumulative information up to the sample (inclusive).
 
         nc : int
-            Number of likelihood calls performed before a new proposed
+            Number of likelihood calls performed before the new
             live point was accepted.
 
         worst_it : int
             Iteration when the live (now dead) point was originally proposed.
 
-        n : int
-            Number of live points at the current iteration.
+        boundidx : int
+            Index of the bound the dead point was originally drawn from.
+
+        bounditer : int
+            Index of the bound being used at the current iteration.
+
+        eff : float
+            The cumulative sampling efficiency (in percent).
+
+        delta_logz : float
+            The estimated remaining evidence expressed as the ln(ratio) of the
+            current evidence.
 
         """
 
+        # Initialize inputs.
         if maxcall is None:
             maxcall = sys.maxsize
         if maxiter is None:
             maxiter = sys.maxsize
 
-        # Reset results to avoid any possible conflicts.
+        # Reset saved results to avoid any possible conflicts.
         self.reset()
 
         # Initialize the first set of live points.
@@ -671,28 +721,28 @@ class DynamicSampler(object):
         live_points = [self.live_u, self.live_v, self.live_logl]
         self.live_init = [np.array(l) for l in live_points]
         self.ncall += self.nlive_init
-        self.live_prop = np.zeros(self.nlive_init, dtype='int')
+        self.live_bound = np.zeros(self.nlive_init, dtype='int')
         self.live_it = np.zeros(self.nlive_init, dtype='int')
 
-        # Initialize the sampler.
+        # Initialize the internal `sampler` object.
         if update_interval is None:
             update_interval = self.update_interval
         if isinstance(update_interval, float):
             update_interval = int(round(self.update_interval * nlive))
-        bound = self.bound
-        if bound == 'none':
+        bounding = self.bounding
+        if bounding == 'none':
             update_interval = np.inf  # no need to update with no bounds
         if first_update is None:
             first_update = self.first_update
-        self.sampler = _SAMPLERS[bound](self.loglikelihood,
-                                        self.prior_transform,
-                                        self.npdim, self.live_init,
-                                        self.method, update_interval,
-                                        first_update,
-                                        self.rstate, self.queue_size,
-                                        self.pool, self.use_pool,
-                                        self.kwargs)
-        self.prop = self.sampler.prop
+        self.sampler = _SAMPLERS[bounding](self.loglikelihood,
+                                           self.prior_transform,
+                                           self.npdim, self.live_init,
+                                           self.method, update_interval,
+                                           first_update,
+                                           self.rstate, self.queue_size,
+                                           self.pool, self.use_pool,
+                                           self.kwargs)
+        self.bound = self.sampler.bound
 
         # Run the sampler internally as a generator.
         for i in range(1):
@@ -701,7 +751,7 @@ class DynamicSampler(object):
                                          maxcall=maxcall, dlogz=dlogz)):
                 # Grab results.
                 (worst, ustar, vstar, loglstar, logvol, logwt,
-                 logz, logzvar, h, nc, worst_it, propidx, propiter,
+                 logz, logzvar, h, nc, worst_it, boundidx, bounditer,
                  eff, delta_logz) = results
 
                 # Save our base run (which we will use later).
@@ -717,8 +767,8 @@ class DynamicSampler(object):
                 self.base_nc.append(nc)
                 self.base_it.append(worst_it)
                 self.base_n.append(self.nlive_init)
-                self.base_propidx.append(propidx)
-                self.base_piter.append(propiter)
+                self.base_boundidx.append(boundidx)
+                self.base_bounditer.append(bounditer)
                 self.base_scale.append(self.sampler.scale)
 
                 # Save a copy of the results.
@@ -734,8 +784,8 @@ class DynamicSampler(object):
                 self.saved_nc.append(nc)
                 self.saved_it.append(worst_it)
                 self.saved_n.append(self.nlive_init)
-                self.saved_propidx.append(propidx)
-                self.saved_piter.append(propiter)
+                self.saved_boundidx.append(boundidx)
+                self.saved_bounditer.append(bounditer)
                 self.saved_scale.append(self.sampler.scale)
 
                 # Increment relevant counters.
@@ -744,13 +794,13 @@ class DynamicSampler(object):
                 self.it += 1
 
                 yield (worst, ustar, vstar, loglstar, logvol, logwt,
-                       logz, logzvar, h, nc, worst_it, propidx, propiter,
+                       logz, logzvar, h, nc, worst_it, boundidx, bounditer,
                        self.eff, delta_logz)
 
             for it, results in enumerate(self.sampler.add_live_points()):
                 # Grab results.
                 (worst, ustar, vstar, loglstar, logvol, logwt,
-                 logz, logzvar, h, nc, worst_it, propidx, propiter,
+                 logz, logzvar, h, nc, worst_it, boundidx, bounditer,
                  eff, delta_logz) = results
 
                 # Save our base run (which we will use later).
@@ -766,8 +816,8 @@ class DynamicSampler(object):
                 self.base_nc.append(nc)
                 self.base_it.append(worst_it)
                 self.base_n.append(self.nlive_init - it)
-                self.base_propidx.append(propidx)
-                self.base_piter.append(propiter)
+                self.base_boundidx.append(boundidx)
+                self.base_bounditer.append(bounditer)
                 self.base_scale.append(self.sampler.scale)
 
                 # Save a copy of the results.
@@ -783,8 +833,8 @@ class DynamicSampler(object):
                 self.saved_nc.append(nc)
                 self.saved_it.append(worst_it)
                 self.saved_n.append(self.nlive_init - it)
-                self.saved_propidx.append(propidx)
-                self.saved_piter.append(propiter)
+                self.saved_boundidx.append(boundidx)
+                self.saved_bounditer.append(bounditer)
                 self.saved_scale.append(self.sampler.scale)
 
                 # Increment relevant counters.
@@ -792,7 +842,7 @@ class DynamicSampler(object):
                 self.it += 1
 
                 yield (worst, ustar, vstar, loglstar, logvol, logwt,
-                       logz, logzvar, h, nc, worst_it, propidx, propiter,
+                       logz, logzvar, h, nc, worst_it, boundidx, bounditer,
                        self.eff, delta_logz)
 
         self.base = True  # baseline run complete
@@ -802,28 +852,29 @@ class DynamicSampler(object):
 
     def sample_batch(self, nlive_new=100, update_interval=None,
                      logl_bounds=None, maxiter=None, maxcall=None,
-                     save_proposals=True):
+                     save_bounds=True):
         """
-        Generate an additional series of nested samples to be added to
-        the previous set of dead points. Instantiates a generator object
-        that will be called by the user.
+        Generate an additional series of nested samples that will be combined
+        with the previous set of dead points. Works by hacking the internal
+        `sampler` object.
+        Instantiates a generator that will be called by the user.
 
         Parameters
         ----------
         nlive_new : int
-            Number of new live points to be added.
+            Number of new live points to be added. Default is `100`.
 
         update_interval : int or float, optional
-            If an integer is passed, only update the proposal distribution
+            If an integer is passed, only update the bounding distribution
             every `update_interval`-th likelihood call. If a float is passed,
-            update the proposal after every `round(update_interval * nlive)`-th
+            update the bound after every `round(update_interval * nlive)`-th
             likelihood call. Larger update intervals can be more efficient
             when the likelihood function is quick to evaluate. If no value is
             provided, defaults to the value passed during initialization.
 
-        logl_bounds : tuple of 2 floats, optional
-            The ln(likelihood) bounds used to bracket the run. If *None*,
-            the default is to span the entire range covered by the
+        logl_bounds : tuple of size (2,), optional
+            The ln(likelihood) bounds used to bracket the run. If `None`,
+            the default bounds span the entire range covered by the
             original run.
 
         maxiter : int, optional
@@ -836,9 +887,9 @@ class DynamicSampler(object):
             earlier if termination condition is reached. Default is
             `sys.maxsize` (no limit).
 
-        save_proposals : bool, optional
-            Whether or not to save past proposal distributions used to bound
-            the live points internally. Default is *True*.
+        save_bounds : bool, optional
+            Whether or not to save past distributions used to bound
+            the live points internally. Default is `True`.
 
         Returns
         -------
@@ -852,27 +903,37 @@ class DynamicSampler(object):
         vstar : `~numpy.ndarray` with shape (ndim,)
             Transformed position of the sample.
 
-        loglstar : double
+        loglstar : float
             Ln(likelihood) of the sample.
 
         nc : int
-            Number of likelihood calls performed before a new proposed
+            Number of likelihood calls performed before the new
             live point was accepted.
 
         worst_it : int
             Iteration when the live (now dead) point was originally proposed.
 
+        boundidx : int
+            Index of the bound the dead point was originally drawn from.
+
+        bounditer : int
+            Index of the bound being used at the current iteration.
+
+        eff : float
+            The cumulative sampling efficiency (in percent).
+
         """
 
+        # Initialize default values.
         if maxcall is None:
             maxcall = sys.maxsize
         if maxiter is None:
             maxiter = sys.maxsize
-        self.sampler.save_proposals = save_proposals
+        self.sampler.save_bounds = save_bounds
 
-        # Initialize values.
+        # Initialize starting values.
         h = 0.0  # Information, initially *0.*
-        logz = -1.e300  # log(evidence), initially *0.*
+        logz = -1.e300  # ln(evidence), initially *0.*
         logvol = 0.  # initially contains the whole prior (volume=1.)
 
         # Grab results from base run.
@@ -881,10 +942,10 @@ class DynamicSampler(object):
         base_v = np.array(self.base_v)
         base_logl = np.array(self.base_logl)
         base_nc = np.array(self.base_nc)
-        base_propidx = np.array(self.base_propidx)
+        base_boundidx = np.array(self.base_boundidx)
         base_it = np.array(self.base_it)
         base_n = np.array(self.base_n)
-        base_piter = np.array(self.base_piter)
+        base_bounditer = np.array(self.base_bounditer)
         base_scale = np.array(self.base_scale)
         nbase = len(base_n)
         nblive = self.nlive_init
@@ -897,8 +958,8 @@ class DynamicSampler(object):
         self.new_nc = []
         self.new_it = []
         self.new_n = []
-        self.new_propidx = []
-        self.new_piter = []
+        self.new_boundidx = []
+        self.new_bounditer = []
         self.new_scale = []
         self.new_logl_min, self.new_logl_max = -np.inf, np.inf
 
@@ -909,10 +970,11 @@ class DynamicSampler(object):
             logl_min, logl_max = logl_bounds
         self.new_logl_min, self.new_logl_max = logl_min, logl_max
 
+        # Check whether the lower bound encompasses all previous base samples.
         psel = np.all(logl_min <= base_logl)
-        vol = 1. - 1. / nblive
+        vol = 1. - 1. / nblive  # starting ln(prior volume)
         if psel:
-            # If the lower bound encompasses all live points, we want
+            # If the lower bound encompasses all base samples, we want
             # to propose a new set of points from the unit cube.
             live_u = self.rstate.rand(nlive_new, self.npdim)
             if self.use_pool_ptform:
@@ -923,13 +985,14 @@ class DynamicSampler(object):
                 live_logl = np.array(self.M(self.loglikelihood, live_v))
             else:
                 live_logl = np.array(map(self.loglikelihood, live_v))
-            live_prop = np.zeros(nlive_new, dtype='int')
+            live_bound = np.zeros(nlive_new, dtype='int')
             live_it = np.zeros(nlive_new, dtype='int') + self.it
             live_nc = np.ones(nlive_new, dtype='int')
             self.ncall += nlive_new
         else:
-            # Rewind our previous run until we arrive at the relevant
-            # set of live points (and scale).
+            # If the lower bound doesn't encompass all base samples, we need
+            # to "rewind" our previous base run until we arrive at the
+            # relevant set of live points (and scale) at the bound.
             live_u = np.empty((nblive, self.npdim))
             live_v = np.empty((nblive, self.npdim))
             live_logl = np.empty(nblive)
@@ -946,67 +1009,74 @@ class DynamicSampler(object):
                     break
             live_scale = base_scale[r]
 
-            # Overwrite the live points and scale factor of our internal
-            # sampler and trigger an update of our bound.
+            # Hack the internal sampler by overwriting the live points
+            # and scale factor.
             self.sampler.nlive = nblive
             self.sampler.live_u = np.array(live_u)
             self.sampler.live_v = np.array(live_v)
             self.sampler.live_logl = np.array(live_logl)
             self.sampler.scale = live_scale
+
+            # Trigger an update of the internal bounding distribution based
+            # on the "new" set of live points.
             vol = math.exp(- 1. * (nbase + r) / nblive)
             loglmin = min(live_logl)
-            if self.sampler._beyond_unit_prop(loglmin):
-                prop = self.sampler.update(vol / nblive)
-                if save_proposals:
-                    self.sampler.prop.append(copy.deepcopy(prop))
-                self.sampler.nprop += 1
+            if self.sampler._beyond_unit_bound(loglmin):
+                bound = self.sampler.update(vol / nblive)
+                if save_bounds:
+                    self.sampler.bound.append(copy.deepcopy(bound))
+                self.sampler.nbound += 1
                 self.sampler.since_update = 0
 
-            # Sample a new batch of `nlive_new` live points given our
-            # `logl_min` constraint.
+            # Sample a new batch of `nlive_new` live points using the
+            # internal sampler given the `logl_min` constraint.
             live_u = np.empty((nlive_new, self.npdim))
             live_v = np.empty((nlive_new, self.npdim))
             live_logl = np.empty(nlive_new)
-            live_prop = np.zeros(nlive_new, dtype='int')
-            if self.sampler._beyond_unit_prop(loglmin):
-                live_prop += self.sampler.nprop - 1
+            live_bound = np.zeros(nlive_new, dtype='int')
+            if self.sampler._beyond_unit_bound(loglmin):
+                live_bound += self.sampler.nbound - 1
             live_it = np.empty(nlive_new, dtype='int')
             live_nc = np.empty(nlive_new, dtype='int')
             for i in range(nlive_new):
                 (live_u[i], live_v[i], live_logl[i],
-                 live_nc[i]) = self.sampler._new_point(logl_min)
+                 live_nc[i]) = self.sampler._new_point(logl_min, math.log(vol))
                 live_it[i] = self.it
                 self.ncall += live_nc[i]
 
-        # Overwrite the live points of our previous sampler with the
-        # new batch of points and trigger an update (again).
+        # Overwrite the previous set of live points in our internal sampler
+        # with the new batch of points we just generated.
         self.sampler.nlive = nlive_new
         self.sampler.live_u = np.array(live_u)
         self.sampler.live_v = np.array(live_v)
         self.sampler.live_logl = np.array(live_logl)
-        self.sampler.live_prop = np.array(live_prop)
+        self.sampler.live_bound = np.array(live_bound)
         self.sampler.live_it = np.array(live_it)
+
+        # Trigger an update of the internal bounding distribution (again).
         loglmin = min(live_logl)
-        if self.sampler._beyond_unit_prop(loglmin):
-            prop = self.sampler.update(vol / nlive_new)
-            if save_proposals:
-                    self.sampler.prop.append(copy.deepcopy(prop))
-            self.sampler.nprop += 1
+        if self.sampler._beyond_unit_bound(loglmin):
+            bound = self.sampler.update(vol / nlive_new)
+            if save_bounds:
+                    self.sampler.bound.append(copy.deepcopy(bound))
+            self.sampler.nbound += 1
             self.sampler.since_update = 0
 
-        # Copy over proposal reference.
-        self.prop = self.sampler.prop
+        # Copy over bound reference.
+        self.bound = self.sampler.bound
 
-        # Update `update_interval`.
+        # Update `update_interval` based on our new set of live points.
         if update_interval is None:
             update_interval = self.update_interval
         if isinstance(update_interval, float):
             update_interval = int(round(self.update_interval * nlive_new))
-        if self.bound == 'none':
+        if self.bounding == 'none':
             update_interval = np.inf  # no need to update with no bounds
         self.sampler.update_interval = update_interval
 
-        # Update internal log-volume quantities
+        # Update internal ln(prior volume)-based quantities used to set things
+        # like `pointvol` that help to prevent constructing over-constrained
+        # bounding distributions.
         if self.new_logl_min == -np.inf:
             bound_logvol = 0.
         else:
@@ -1017,12 +1087,13 @@ class DynamicSampler(object):
         self.sampler.dlv = bound_dlv
 
         # Tell the sampler *not* to try and remove the previous addition of
-        # live points (the internal results are garbage anyways).
+        # live points. All the hacks above make the internal results
+        # garbage anyways.
         self.sampler.added_live = False
 
         # Run the sampler internally as a generator until we hit
         # the lower likelihood threshold. Afterwards, we add in our remaining
-        # live points as if we had terminated the run. This allows us to
+        # live points *as if* we had terminated the run. This allows us to
         # sample past the original bounds "for free".
         for i in range(1):
             for it, results in enumerate(self.sampler.sample(dlogz=0.,
@@ -1030,11 +1101,11 @@ class DynamicSampler(object):
                                          maxiter=maxiter-nlive_new-1,
                                          maxcall=maxcall-sum(live_nc),
                                          save_samples=False,
-                                         save_proposals=save_proposals)):
+                                         save_bounds=save_bounds)):
 
                 # Grab results.
                 (worst, ustar, vstar, loglstar, logvol, logwt,
-                 logz, logzvar, h, nc, worst_it, propidx, propiter,
+                 logz, logzvar, h, nc, worst_it, boundidx, bounditer,
                  eff, delta_logz) = results
 
                 # Save results.
@@ -1045,8 +1116,8 @@ class DynamicSampler(object):
                 self.new_nc.append(nc)
                 self.new_it.append(worst_it)
                 self.new_n.append(nlive_new)
-                self.new_propidx.append(propidx)
-                self.new_piter.append(propiter)
+                self.new_boundidx.append(boundidx)
+                self.new_bounditer.append(bounditer)
                 self.new_scale.append(self.sampler.scale)
 
                 # Increment relevant counters.
@@ -1055,12 +1126,12 @@ class DynamicSampler(object):
                 self.it += 1
 
                 yield (worst, ustar, vstar, loglstar, nc,
-                       worst_it, propidx, propiter, self.eff)
+                       worst_it, boundidx, bounditer, self.eff)
 
             for it, results in enumerate(self.sampler.add_live_points()):
                 # Grab results.
                 (worst, ustar, vstar, loglstar, logvol, logwt,
-                 logz, logzvar, h, nc, worst_it, propidx, propiter,
+                 logz, logzvar, h, nc, worst_it, boundidx, bounditer,
                  eff, delta_logz) = results
 
                 # Save results.
@@ -1071,8 +1142,8 @@ class DynamicSampler(object):
                 self.new_nc.append(live_nc[worst])
                 self.new_it.append(worst_it)
                 self.new_n.append(nlive_new - it)
-                self.new_propidx.append(propidx)
-                self.new_piter.append(propiter)
+                self.new_boundidx.append(boundidx)
+                self.new_bounditer.append(bounditer)
                 self.new_scale.append(self.sampler.scale)
 
                 # Increment relevant counters.
@@ -1080,7 +1151,7 @@ class DynamicSampler(object):
                 self.it += 1
 
                 yield (worst, ustar, vstar, loglstar, live_nc[worst],
-                       worst_it, propidx, propiter, self.eff)
+                       worst_it, boundidx, bounditer, self.eff)
 
     def combine_runs(self):
         """ Merge the most recent run into the previous (combined) run by
@@ -1096,10 +1167,10 @@ class DynamicSampler(object):
         saved_v = np.array(self.saved_v)
         saved_logl = np.array(self.saved_logl)
         saved_nc = np.array(self.saved_nc)
-        saved_propidx = np.array(self.saved_propidx)
+        saved_boundidx = np.array(self.saved_boundidx)
         saved_it = np.array(self.saved_it)
         saved_n = np.array(self.saved_n)
-        saved_piter = np.array(self.saved_piter)
+        saved_bounditer = np.array(self.saved_bounditer)
         saved_scale = np.array(self.saved_scale)
         saved_batch = np.array(self.saved_batch)
         nsaved = len(saved_n)
@@ -1110,10 +1181,10 @@ class DynamicSampler(object):
         new_v = np.array(self.new_v)
         new_logl = np.array(self.new_logl)
         new_nc = np.array(self.new_nc)
-        new_propidx = np.array(self.new_propidx)
+        new_boundidx = np.array(self.new_boundidx)
         new_it = np.array(self.new_it)
         new_n = np.array(self.new_n)
-        new_piter = np.array(self.new_piter)
+        new_bounditer = np.array(self.new_bounditer)
         new_scale = np.array(self.new_scale)
         nnew = len(new_n)
         llmin, llmax = self.new_logl_min, self.new_logl_max
@@ -1129,10 +1200,10 @@ class DynamicSampler(object):
         self.saved_logzvar = []
         self.saved_h = []
         self.saved_nc = []
-        self.saved_propidx = []
+        self.saved_boundidx = []
         self.saved_it = []
         self.saved_n = []
-        self.saved_piter = []
+        self.saved_bounditer = []
         self.saved_scale = []
         self.saved_batch = []
 
@@ -1162,9 +1233,9 @@ class DynamicSampler(object):
                 self.saved_v.append(saved_v[idx_saved])
                 self.saved_logl.append(saved_logl[idx_saved])
                 self.saved_nc.append(saved_nc[idx_saved])
-                self.saved_propidx.append(saved_propidx[idx_saved])
+                self.saved_boundidx.append(saved_boundidx[idx_saved])
                 self.saved_it.append(saved_it[idx_saved])
-                self.saved_piter.append(saved_piter[idx_saved])
+                self.saved_bounditer.append(saved_bounditer[idx_saved])
                 self.saved_scale.append(saved_scale[idx_saved])
                 self.saved_batch.append(saved_batch[idx_saved])
                 idx_saved += 1
@@ -1174,9 +1245,9 @@ class DynamicSampler(object):
                 self.saved_v.append(new_v[idx_new])
                 self.saved_logl.append(new_logl[idx_new])
                 self.saved_nc.append(new_nc[idx_new])
-                self.saved_propidx.append(new_propidx[idx_new])
+                self.saved_boundidx.append(new_boundidx[idx_new])
                 self.saved_it.append(new_it[idx_new])
-                self.saved_piter.append(new_piter[idx_new])
+                self.saved_bounditer.append(new_bounditer[idx_new])
                 self.saved_scale.append(new_scale[idx_new])
                 self.saved_batch.append(self.batch + 1)
                 idx_new += 1
@@ -1201,7 +1272,7 @@ class DynamicSampler(object):
                 logl_n = np.inf
                 nlive_n = 0
 
-        # Compute the posterior quantities of interest.
+        # Compute quantities of interest.
         h = 0.
         logz = -1.e300
         loglstar = -1.e300
@@ -1240,8 +1311,8 @@ class DynamicSampler(object):
         self.new_nc = []
         self.new_it = []
         self.new_n = []
-        self.new_propidx = []
-        self.new_piter = []
+        self.new_boundidx = []
+        self.new_bounditer = []
         self.new_scale = []
         self.new_logl_min, self.new_logl_max = -np.inf, np.inf
 
@@ -1258,48 +1329,52 @@ class DynamicSampler(object):
                    maxiter_batch=None, maxcall_batch=None,
                    maxiter=None, maxcall=None, maxbatch=None,
                    stop_function=None, stop_kwargs=None, use_stop=True,
-                   save_proposals=True, print_progress=True, live_points=None):
+                   save_bounds=True, print_progress=True, live_points=None):
         """
-        Dynamically allocate (nested) samples to optimize a target
-        weight function until a specified stopping criterion is reached.
+        **The main dynamic nested sampling loop.** After an initial "baseline"
+        run using a constant number of live points, dynamically allocates
+        additional (nested) samples to optimize a specified weight function
+        until a specified stopping criterion is reached.
 
         Parameters
         ----------
         nlive_init : int, optional
             The number of live points used during the initial ("baseline")
-            nested sampling run. Default is *100*.
+            nested sampling run. Default is `100`.
 
         maxiter_init : int, optional
             Maximum number of iterations for the initial baseline nested
             sampling run. Iteration may stop earlier if the
-            termination condition is reached. Default is no limit.
+            termination condition is reached. Default is `sys.maxsize`
+            (no limit).
 
         maxcall_init : int, optional
             Maximum number of likelihood evaluations for the initial
             baseline nested sampling run. Iteration may stop earlier
-            if the termination condition is reached. Default is no limit.
+            if the termination condition is reached. Default is `sys.maxsize`
+            (no limit).
 
         dlogz_init : float, optional
             The baseline run will stop when the estimated contribution of the
             remaining prior volume to the total evidence falls below
             this threshold. Explicitly, the stopping criterion is
-            `log(z + z_est) - log(z) < dlogz`, where `z` is the current
+            `ln(z + z_est) - ln(z) < dlogz`, where `z` is the current
             evidence from all saved samples and `z_est` is the estimated
             contribution from the remaining volume. The default is
-            *0.01*.
+            `0.01`.
 
         nlive_batch : int, optional
             The number of live points used when adding additional samples
-            from a nested sampling run within each batch. Default is *100*.
+            from a nested sampling run within each batch. Default is `100`.
 
         wt_function : func, optional
-            A cost function that takes a `Results` dictionary instance
+            A cost function that takes a :class:`Results` instance
             and returns a log-likelihood range over which a new batch of
             samples should be generated. The default function simply
             computes a weighted average of the posterior and evidence
             information content as::
 
-                weight = (1 - pfrac) * zweight + pfrac * pweight
+                weight = pfrac * pweight + (1. - pfrac) * zweight
 
         wt_kwargs : dict, optional
             Extra arguments to be passed to the weight function.
@@ -1307,25 +1382,29 @@ class DynamicSampler(object):
         maxiter_batch : int, optional
             Maximum number of iterations for the nested
             sampling run within each batch. Iteration may stop earlier
-            if the termination condition is reached. Default is no limit.
+            if the termination condition is reached. Default is `sys.maxsize`
+            (no limit).
 
         maxcall_batch : int, optional
             Maximum number of likelihood evaluations for the nested
             sampling run within each batch. Iteration may stop earlier
-            if the termination condition is reached. Default is no limit.
+            if the termination condition is reached. Default is `sys.maxsize`
+            (no limit).
 
         maxiter : int, optional
-            Maximum number of iterations allowed. Default is no limit.
+            Maximum number of iterations allowed. Default is `sys.maxsize`
+            (no limit).
 
         maxcall : int, optional
             Maximum number of likelihood evaluations allowed.
-            Default is no limit.
+            Default is `sys.maxsize` (no limit).
 
         maxbatch : int, optional
-            Maximum number of batches allowed. Default is no limit.
+            Maximum number of batches allowed. Default is `sys.maxsize`
+            (no limit).
 
         stop_function : func, optional
-            A function that takes a `Results` dictionary instance and
+            A function that takes a :class:`Results` instance and
             returns a boolean indicating that we should terminate the run
             because we've collected enough samples.
 
@@ -1335,16 +1414,16 @@ class DynamicSampler(object):
         use_stop : bool, optional
             Whether to evaluate our stopping function after each batch.
             Disabling this can improve performance if other stopping criteria
-            are already specified. Default is *True*.
+            such as :data:`maxcall` are already specified. Default is `True`.
 
-        save_proposals : bool, optional
-            Whether or not to save past proposal distributions used to bound
-            the live points internally during dynamic live point additions.
-            Default is *True*.
+        save_bounds : bool, optional
+            Whether or not to save distributions used to bound
+            the live points internally during dynamic live point allocation.
+            Default is `True`.
 
         print_progress : bool, optional
-            If *True*, outputs a simple summary of the current run that
-            updates each iteration. Default is *True*.
+            Whether to output a simple summary of the current run that
+            updates each iteration. Default is `True`.
 
         live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
             A set of live points used to initialize the nested sampling run.
@@ -1381,7 +1460,7 @@ class DynamicSampler(object):
             stop_function = stopping_function
         if stop_kwargs is None:
             stop_kwargs = dict()
-        saveprop = save_proposals
+        savebound = save_bounds
 
         # Run the main dynamic nested sampling loop.
         ncall = self.ncall
@@ -1398,19 +1477,26 @@ class DynamicSampler(object):
                                                live_points=live_points):
                 (worst, ustar, vstar, loglstar, logvol,
                  logwt, logz, logzvar, h, nc, worst_it,
-                 propidx, propiter, eff, delta_logz) = results
-                if delta_logz > 1e6:
-                    delta_logz = np.inf
+                 boundidx, bounditer, eff, delta_logz) = results
                 ncall += nc
                 niter += 1
                 if print_progress:
-                    logzerr = np.sqrt(logzvar)
-                    sys.stderr.write("\riter: {:d} | batch: {:d} | nc: {:d} | "
+                    if delta_logz > 1e6:
+                        delta_logz = np.inf
+                    if logzvar >= 0. and logzvar <= 1e6:
+                        logzerr = np.sqrt(logzvar)
+                    else:
+                        logzerr = np.nan
+                    if logz <= -1e6:
+                        logz = -np.inf
+                    sys.stderr.write("\riter: {:d} | batch: {:d} | "
+                                     "bound: {:d} | nc: {:d} | "
                                      "ncall: {:d} | eff(%): {:6.3f} | "
                                      "logz: {:6.3f} +/- {:6.3f} | "
                                      "dlogz: {:6.3f} > {:6.3f}    "
-                                     .format(niter, 0, nc, ncall, eff, logz,
-                                             logzerr, delta_logz, dlogz_init))
+                                     .format(niter, 0, bounditer, nc, ncall,
+                                             eff, logz, logzerr,
+                                             delta_logz, dlogz_init))
                     sys.stderr.flush()
 
         # Add points in batches.
@@ -1443,23 +1529,29 @@ class DynamicSampler(object):
                                                  logl_bounds=logl_bounds,
                                                  maxiter=miter,
                                                  maxcall=mcall,
-                                                 save_proposals=saveprop):
+                                                 save_bounds=savebound):
                     (worst, ustar, vstar, loglstar, nc,
-                     worst_it, propidx, propiter, eff) = results
+                     worst_it, boundidx, bounditer, eff) = results
                     ncall += nc
                     niter += 1
                     if print_progress:
+                        if logzvar >= 0. and logzvar <= 1e6:
+                            logzerr = np.sqrt(logzvar)
+                        else:
+                            logzerr = np.nan
+                        if logz <= -1e6:
+                            logz = -np.inf
                         sys.stderr.write("\riter: {:d} | batch: {:d} | "
-                                         "nc: {:d} | ncall: {:d} | "
-                                         "eff(%): {:6.3f} | "
+                                         "bound: {:d} | nc: {:d} | "
+                                         "ncall: {:d} | eff(%): {:6.3f} | "
                                          "loglstar: {:6.3f} < {:6.3f} "
                                          "< {:6.3f} | "
                                          "logz: {:6.3f} +/- {:6.3f} | "
                                          "stop: {:6.3f}    "
-                                         .format(niter, n+1, nc, ncall,
-                                                 eff, logl_bounds[0], loglstar,
-                                                 logl_bounds[1], lnz, lnzerr,
-                                                 stop_val))
+                                         .format(niter, n+1, bounditer, nc,
+                                                 ncall, eff, logl_bounds[0],
+                                                 loglstar, logl_bounds[1],
+                                                 lnz, lnzerr, stop_val))
                         sys.stderr.flush()
                 self.combine_runs()
             else:
@@ -1469,49 +1561,52 @@ class DynamicSampler(object):
         if print_progress:
             sys.stderr.write("\n")
 
-    def add_batch(self, nlive_batch=100, wt_function=None, wt_kwargs=None,
-                  maxiter=None, maxcall=None, save_proposals=True,
+    def add_batch(self, nlive=100, wt_function=None, wt_kwargs=None,
+                  maxiter=None, maxcall=None, save_bounds=True,
                   print_progress=True):
         """
         Allocate an additional batch of (nested) samples based on
-        the set of previous samples using the specified weight function.
+        the combined set of previous samples using the specified
+        weight function.
 
         Parameters
         ----------
-        nbatch : int, optional
+        nlive : int, optional
             The number of live points used when adding additional samples
-            from a nested sampling run within each batch. Default is *100*.
+            in the batch. Default is `100`.
 
         wt_function : func, optional
-            A cost function that takes a `Results` dictionary instance
+            A cost function that takes a `Results` instance
             and returns a log-likelihood range over which a new batch of
             samples should be generated. The default function simply
             computes a weighted average of the posterior and evidence
             information content as::
 
-                weight = (1-pweight) * w_evid + pweight * w_post
+                weight = pfrac * pweight + (1. - pfrac) * zweight
 
         wt_kwargs : dict, optional
             Extra arguments to be passed to the weight function.
 
         maxiter : int, optional
-            Maximum number of iterations allowed. Default is no limit.
+            Maximum number of iterations allowed. Default is `sys.maxsize`
+            (no limit).
 
         maxcall : int, optional
             Maximum number of likelihood evaluations allowed.
-            Default is no limit.
+            Default is `sys.maxsize` (no limit).
 
-        save_proposals : bool, optional
-            Whether or not to save past proposal distributions used to bound
-            the live points internally during dynamic live point additions.
-            Default is *True*.
+        save_bounds : bool, optional
+            Whether or not to save distributions used to bound
+            the live points internally during dynamic live point allocations.
+            Default is `True`.
 
         print_progress : bool, optional
-            If *True*, outputs a simple summary of the current run that
-            updates each iteration. Default is *True*.
+            Whether to output a simple summary of the current run that
+            updates each iteration. Default is `True`.
 
         """
 
+        # Initialize values.
         if maxcall is None:
             maxcall = sys.maxsize
         if maxiter is None:
@@ -1530,23 +1625,29 @@ class DynamicSampler(object):
             res = self.results
             lnz, lnzerr = res.logz[-1], res.logzerr[-1]
             logl_bounds = wt_function(res, wt_kwargs)
-            for results in self.sample_batch(nlive_new=nlive_batch,
+            for results in self.sample_batch(nlive_new=nlive,
                                              logl_bounds=logl_bounds,
                                              maxiter=maxiter,
                                              maxcall=maxcall,
-                                             save_proposals=save_proposals):
+                                             save_bounds=save_bounds):
                 (worst, ustar, vstar, loglstar, nc,
-                 worst_it, propidx, propiter, eff) = results
+                 worst_it, boundidx, bounditer, eff) = results
                 ncall += nc
                 niter += 1
                 if print_progress:
+                    if logzvar >= 0. and logzvar <= 1e6:
+                        logzerr = np.sqrt(logzvar)
+                    else:
+                        logzerr = np.nan
+                    if logz <= -1e6:
+                        logz = -np.inf
                     sys.stderr.write("\riter: {:d} | batch: {:d} | "
-                                     "nc: {:d} | ncall: {:d} | "
+                                     "bound: {:d} | nc: {:d} | ncall: {:d} | "
                                      "eff(%): {:6.3f} | "
                                      "loglstar: {:6.3f} < {:6.3f} "
                                      "< {:6.3f} | "
                                      "logz: {:6.3f} +/- {:6.3f}    "
-                                     .format(niter, n+1, nc, ncall,
+                                     .format(niter, n+1, bounditer, nc, ncall,
                                              eff, logl_bounds[0], loglstar,
                                              logl_bounds[1], lnz, lnzerr))
                     sys.stderr.flush()

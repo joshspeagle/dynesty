@@ -1,9 +1,5 @@
 numpy
 scipy
-six
 matplotlib
+six
 numpydoc
-tk-dev
-tk
-tcl-dev
-tcl

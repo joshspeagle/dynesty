@@ -3,3 +3,7 @@ scipy
 six
 matplotlib
 numpydoc
+tk-dev
+tk
+tcl-dev
+tcl

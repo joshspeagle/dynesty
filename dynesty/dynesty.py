@@ -521,8 +521,8 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
 
 class _function_wrapper(object):
     """
-    A hack to make the likelihood function pickleable when ``args``
-    or ``kwargs`` are also included. Based on the implementation in
+    A hack to make functions pickleable when `args` or `kwargs` are
+    also included. Based on the implementation in
     `emcee <http://dan.iel.fm/emcee/>`_.
 
     """

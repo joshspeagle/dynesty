@@ -25,5 +25,5 @@ setup(
     long_description=open("README.md").read(),
     package_data={"": ["README.md", "LICENSE"]},
     include_package_data=True,
-    install_requires=["numpy", "scipy", "six", "matplotlib"],
+    install_requires=["numpy", "scipy", "matplotlib", "six"],
 )

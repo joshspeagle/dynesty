@@ -21,7 +21,7 @@ from .sampling import *
 from .nestedsamplers import *
 from .dynamicsampler import *
 
-__all__ = ["NestedSampler", "DynamicNestedSampler"]
+__all__ = ["NestedSampler", "DynamicNestedSampler", "_function_wrapper"]
 
 _SAMPLERS = {'none': UnitCubeSampler,
              'single': SingleEllipsoidSampler,
@@ -40,8 +40,11 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
                   update_interval=0.6, first_update=None,
                   npdim=None, rstate=None, queue_size=1, pool=None,
                   use_pool=None, live_points=None,
+                  logl_args=None, logl_kwargs=None,
+                  ptform_args=None, ptform_kwargs=None,
                   enlarge=None, bootstrap=None, vol_dec=0.5, vol_check=2.0,
-                  walks=25, facc=0.5, slices=3, **kwargs):
+                  walks=25, facc=0.5, slices=3,
+                  **kwargs):
     """
     Initializes and returns a sampler object for Static Nested Sampling.
 
@@ -142,6 +145,18 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
         sampled from the prior. Failure to provide a set of valid live points
         will result in incorrect results.**
 
+    logl_args : dict, optional
+        Additional arguments that can be passed to `loglikelihood`.
+
+    logl_kwargs : dict, optional
+        Additional keyword arguments that can be passed to `loglikelihood`.
+
+    ptform_args : dict, optional
+        Additional arguments that can be passed to `prior_transform`.
+
+    ptform_kwargs : dict, optional
+        Additional keyword arguments that can be passed to `prior_transform`.
+
     Other Parameters
     ----------------
     enlarge : float, optional
@@ -205,6 +220,14 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
         first_update = dict()
     if rstate is None:
         rstate = np.random
+    if logl_args is None:
+        logl_args = dict()
+    if logl_kwargs is None:
+        logl_kwargs = dict()
+    if ptform_args is None:
+        ptform_args = dict()
+    if ptform_kwargs is None:
+        ptform_kwargs = dict()
 
     # Initialize kwargs ("other parameters").
     if enlarge is not None:
@@ -235,17 +258,23 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
     if use_pool is None:
         use_pool = dict()
 
-    # Initialize live points and calculate likelihoods.
+    # Wrap functions.
+    ptform = _function_wrapper(prior_transform, ptform_args, ptform_kwargs,
+                               name='prior_transform')
+    loglike = _function_wrapper(loglikelihood, logl_args, logl_kwargs,
+                                name='loglikelihood')
+
+    # Initialize live points and calculate log-likelihoods.
     if live_points is None:
         live_u = rstate.rand(nlive, npdim)  # positions in unit cube
         if use_pool.get('prior_transform', True):
-            live_v = np.array(M(prior_transform, live_u))  # real parameters
+            live_v = np.array(M(ptform, live_u))  # real parameters
         else:
-            live_v = np.array(map(prior_transform, live_u))
+            live_v = np.array(map(ptform, live_u))
         if use_pool.get('loglikelihood', True):
-            live_logl = np.array(M(loglikelihood, live_v))  # log likelihood
+            live_logl = np.array(M(loglike, live_v))  # log likelihood
         else:
-            live_logl = np.array(map(loglikelihood, live_v))
+            live_logl = np.array(map(loglike, live_v))
         live_points = [live_u, live_v, live_logl]
 
     # Convert all `-np.inf` log-likelihoods to finite large numbers.
@@ -261,7 +290,7 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
                                          live_points[1][i]))
 
     # Initialize our nested sampler.
-    sampler = _SAMPLERS[bound](loglikelihood, prior_transform, npdim,
+    sampler = _SAMPLERS[bound](loglike, ptform, npdim,
                                live_points, sample, update_interval,
                                first_update, rstate, queue_size, pool,
                                use_pool, kwargs)
@@ -273,9 +302,12 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
                          bound='multi', sample='unif',
                          update_interval=0.6, first_update=None,
                          npdim=None, rstate=None, queue_size=1, pool=None,
-                         use_pool=None, enlarge=None, bootstrap=None,
+                         use_pool=None, logl_args=None, logl_kwargs=None,
+                         ptform_args=None, ptform_kwargs=None,
+                         enlarge=None, bootstrap=None,
                          vol_dec=0.5, vol_check=2.0,
-                         walks=25, facc=0.5, slices=3, **kwargs):
+                         walks=25, facc=0.5, slices=3,
+                         **kwargs):
     """
     Initializes and returns a sampler object for Dynamic Nested Sampling.
 
@@ -366,6 +398,18 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         parallel during a run (`'update_bound'`). Default is `True` for all
         options.
 
+    logl_args : dict, optional
+        Additional arguments that can be passed to `loglikelihood`.
+
+    logl_kwargs : dict, optional
+        Additional keyword arguments that can be passed to `loglikelihood`.
+
+    ptform_args : dict, optional
+        Additional arguments that can be passed to `prior_transform`.
+
+    ptform_kwargs : dict, optional
+        Additional keyword arguments that can be passed to `prior_transform`.
+
     Other Parameters
     ----------------
     enlarge : float, optional
@@ -423,6 +467,14 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         first_update = dict()
     if rstate is None:
         rstate = np.random
+    if logl_args is None:
+        logl_args = dict()
+    if logl_kwargs is None:
+        logl_kwargs = dict()
+    if ptform_args is None:
+        ptform_args = dict()
+    if ptform_kwargs is None:
+        ptform_kwargs = dict()
 
     # Initialize kwargs ("other parameters").
     if enlarge is not None:
@@ -453,9 +505,43 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
     if use_pool is None:
         use_pool = dict()
 
+    # Wrap functions.
+    ptform = _function_wrapper(prior_transform, ptform_args, ptform_kwargs,
+                               name='prior_transform')
+    loglike = _function_wrapper(loglikelihood, logl_args, logl_kwargs,
+                                name='loglikelihood')
+
     # Initialize our nested sampler.
-    sampler = DynamicSampler(loglikelihood, prior_transform, npdim,
+    sampler = DynamicSampler(loglike, ptform, npdim,
                              bound, sample, update_interval, first_update,
                              rstate, queue_size, pool, use_pool, kwargs)
 
     return sampler
+
+
+class _function_wrapper(object):
+    """
+    A hack to make the likelihood function pickleable when ``args``
+    or ``kwargs`` are also included. Based on the implementation in
+    `emcee <http://dan.iel.fm/emcee/>`_.
+
+    """
+
+    def __init__(self, func, args, kwargs, name='input'):
+        self.func = func
+        self.args = args
+        self.kwargs = kwargs
+        self.name = name
+
+    def __call__(self, x):
+        try:
+            return self.func(x, *self.args, **self.kwargs)
+        except:
+            import traceback
+            print("Exception while calling {0} function:".format(self.name))
+            print("  params:", x)
+            print("  args:", self.args)
+            print("  kwargs:", self.kwargs)
+            print("  exception:")
+            traceback.print_exc()
+            raise

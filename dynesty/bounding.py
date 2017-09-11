@@ -1141,6 +1141,8 @@ def make_eigvals_positive(am, targetprod):
         new_val = max(1.e-10, (targetprod / nzprod) ** (1. / nzeros))
         w[mask] = new_val  # adjust zero eigvals
         am_new = np.dot(np.dot(v, np.diag(w)), linalg.inv(v))  # re-form cov
+    else:
+        am_new = am
 
     return am_new
 

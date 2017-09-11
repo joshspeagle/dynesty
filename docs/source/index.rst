@@ -12,7 +12,7 @@ Installation
 ============
 
 ``dynesty`` is compatible with both Python 2 and Python 3. It requires
-``numpy``, ``scipy``, and ``six``.
+``numpy``, ``scipy``, ``matplotlib``, and ``six``.
 After downloading the directory, the package can be installed by running::
 
     python setup.py install

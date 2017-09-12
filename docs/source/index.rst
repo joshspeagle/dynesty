@@ -20,6 +20,18 @@ After downloading the directory, the package can be installed by running::
 Changelog
 =========
 
+0.8.1 (2017-09-12)
+------------------
+
+* Introduced a function wrapper for `prior_transform` and `loglikelihood`
+  functions to allow users to pass `args` and `kwargs`.
+
+* Fixed a small bug that could cause bounding ellipsoids to fail.
+
+* Introduced a stability fix to the default 
+  `~dynesty.dynamicsampler.weight_function` when computing evidence-based
+  weights.
+
 0.8.0 (2017-09-08)
 ------------------
 

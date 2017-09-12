@@ -119,9 +119,12 @@ def weight_function(results, args=None, return_weights=False):
     logz = results.logz  # final ln(evidence)
     logz_remain = results.logl[-1] + results.logvol[-1]  # remainder
     logz_tot = np.logaddexp(logz[-1], logz_remain)  # estimated upper bound
-    zin = np.exp(logz_tot) - np.exp(logz)  # remaining evidence
-    zweight = zin / results.samples_n  # evidence weight
-    zweight /= sum(zweight)  # normalize
+    lzones = np.ones_like(logz)
+    logzin = misc.logsumexp([lzones * logz_tot, logz], axis=0,
+                            b=[lzones, -lzones]) # ln(remaining evidence)
+    logzweight = logzin - np.log(results.samples_n)  # ln(evidence weight)
+    logzweight -= misc.logsumexp(logzweight)  # normalize
+    zweight = np.exp(logzweight)  # convert to linear scale
 
     # Derive posterior weights.
     pweight = np.exp(results.logwt - results.logz[-1])  # importance weight

@@ -151,16 +151,20 @@ class Sampler(object):
         self.live_u = self.rstate.rand(self.nlive, self.npdim)
         if self.use_pool_ptform:
             # Use the pool to compute the prior transform.
-            self.live_v = np.array(self.M(self.prior_transform, self.live_u))
+            self.live_v = np.array(list(self.M(self.prior_transform,
+                                        self.live_u)))
         else:
             # Compute the prior transform using the default `map` function.
-            self.live_v = np.array(map(self.prior_transform, self.live_u))
+            self.live_v = np.array(list(map(self.prior_transform,
+                                            self.live_u)))
         if self.use_pool_logl:
             # Use the pool to compute the log-likelihoods.
-            self.live_logl = np.array(self.M(self.loglikelihood, self.live_v))
+            self.live_logl = np.array(list(self.M(self.loglikelihood,
+                                                  self.live_v)))
         else:
             # Compute the log-likelihoods using the default `map` function.
-            self.live_logl = np.array(map(self.loglikelihood, self.live_v))
+            self.live_logl = np.array(list(map(self.loglikelihood,
+                                               self.live_v)))
         self.live_bound = np.zeros(self.nlive, dtype='int')
         self.live_it = np.zeros(self.nlive, dtype='int')
 
@@ -296,11 +300,11 @@ class Sampler(object):
 
         if self.use_pool_evolve:
             # Use the pool to propose ("evolve") a new live point.
-            self.queue = self.M(evolve_point, args)
+            self.queue = list(self.M(evolve_point, args))
         else:
             # Propose ("evolve") a new live point using the default `map`
             # function.
-            self.queue = map(evolve_point, args)
+            self.queue = list(map(evolve_point, args))
 
     def _get_point_value(self, loglstar):
         """Grab the first live point proposal in the queue."""
@@ -332,7 +336,7 @@ class Sampler(object):
 
             # If our queue is empty, update any tuning parameters associated
             # with our proposal (sampling) method.
-            if self.nqueue <= 0 and bcheck:
+            if blob is not None and self.nqueue <= 0 and bcheck:
                 self.update_proposal(blob)
 
             # If we satisfy the log-likelihood constraint, we're done!

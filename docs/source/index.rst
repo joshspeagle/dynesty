@@ -20,6 +20,14 @@ After downloading the directory, the package can be installed by running::
 Changelog
 =========
 
+0.8.2 (2017-09-15)
+------------------
+
+* Fixed `map` bugs that broke compatibility between Python 2 and 3.
+
+* Fixed a bug where the sampler could break during the first update from the
+  unit cube when using a `pool`.
+
 0.8.1 (2017-09-12)
 ------------------
 

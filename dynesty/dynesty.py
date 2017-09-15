@@ -268,13 +268,13 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
     if live_points is None:
         live_u = rstate.rand(nlive, npdim)  # positions in unit cube
         if use_pool.get('prior_transform', True):
-            live_v = np.array(M(ptform, live_u))  # real parameters
+            live_v = np.array(list(M(ptform, live_u)))  # real parameters
         else:
-            live_v = np.array(map(ptform, live_u))
+            live_v = np.array(list(map(ptform, live_u)))
         if use_pool.get('loglikelihood', True):
-            live_logl = np.array(M(loglike, live_v))  # log likelihood
+            live_logl = np.array(list(M(loglike, live_v)))  # log likelihood
         else:
-            live_logl = np.array(map(loglike, live_v))
+            live_logl = np.array(list(map(loglike, live_v)))
         live_points = [live_u, live_v, live_logl]
 
     # Convert all `-np.inf` log-likelihoods to finite large numbers.

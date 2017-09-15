@@ -11,4 +11,4 @@ from . import utils
 from . import plotting
 
 
-__version__ = "0.8.1"
+__version__ = "0.8.2"

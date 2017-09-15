@@ -1450,10 +1450,10 @@ def boundplot(results, dims, it=None, idx=None, prior_transform=None,
         # Remove points outside of the unit cube.
         sel = [np.all(point > 0.) and np.all(point < 1.)
                for point in psamps]
-        vsamps = np.array(map(prior_transform, psamps[sel]))
+        vsamps = np.array(list(map(prior_transform, psamps[sel])))
         x1, x2 = vsamps[:, dims].T
         if show_live:
-            lsamps = np.array(map(prior_transform, live_u))
+            lsamps = np.array(list(map(prior_transform, live_u)))
             l1, l2 = lsamps[:, dims].T
 
     # Setting up default plot layout.
@@ -1721,10 +1721,10 @@ def cornerbound(results, it=None, idx=None, prior_transform=None,
         # Remove points outside of the unit cube.
         sel = [np.all(point > 0.) and np.all(point < 1.)
                for point in psamps]
-        psamps = np.array(map(prior_transform, psamps[sel]))
+        psamps = np.array(list(map(prior_transform, psamps[sel])))
         psamps = psamps.T
         if show_live:
-            lsamps = np.array(map(prior_transform, live_u))
+            lsamps = np.array(list(map(prior_transform, live_u)))
             lsamps = lsamps.T
 
     # Set labels

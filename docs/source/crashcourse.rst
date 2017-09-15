@@ -24,7 +24,7 @@ from [-10, 10)::
     # Define our 3-D correlated multivariate normal likelihood.
     C = np.identity(ndim)  # set covariance to identity matrix
     C[C==0] = 0.95  # set off-diagonal terms
-    Cinv = linalg.inv(C)  # define the inverse (i.e. the precision matrix)
+    Cinv = np.linalg.inv(C)  # define the inverse (i.e. the precision matrix)
     lnorm = -0.5 * (np.log(2 * np.pi) * ndim +
                     np.log(np.linalg.det(C)))  # ln(normalization)
 

@@ -312,7 +312,7 @@ class Ellipsoid(object):
             ps = [points for it in range(bootstrap)]
             pvs = [pointvol for it in range(bootstrap)]
             args = zip(ps, pvs)
-            expands = M(_ellipsoid_bootstrap_expand, args)
+            expands = list(M(_ellipsoid_bootstrap_expand, args))
 
             # Conservatively set the expansion factor to be the maximum
             # factor derived from our set of bootstraps.
@@ -612,7 +612,7 @@ class MultiEllipsoid(object):
             vds = [vol_dec for it in range(bootstrap)]
             vcs = [vol_check for it in range(bootstrap)]
             args = zip(ps, pvs, vds, vcs)
-            expands = M(_ellipsoids_bootstrap_expand, args)
+            expands = list(M(_ellipsoids_bootstrap_expand, args))
 
             # Conservatively set the expansion factor to be the maximum
             # factor derived from our set of bootstraps.
@@ -839,7 +839,7 @@ class RadFriends(object):
             ps = [points for it in range(bootstrap)]
             ftypes = ['balls' for it in range(bootstrap)]
             args = zip(ps, ftypes)
-            radii = M(_friends_bootstrap_radius, args)
+            radii = list(M(_friends_bootstrap_radius, args))
 
         # Conservatively set radius to be maximum of the set.
         rmax = max(radii)
@@ -1073,7 +1073,7 @@ class SupFriends(object):
             ps = [points for it in range(bootstrap)]
             ftypes = ['cubes' for it in range(bootstrap)]
             args = zip(ps, ftypes)
-            hsides = M(_friends_bootstrap_radius, args)
+            hsides = list(M(_friends_bootstrap_radius, args))
 
         # Conservatively set radius to be maximum of the set.
         hsmax = max(hsides)

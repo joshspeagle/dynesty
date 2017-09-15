@@ -251,7 +251,7 @@ def stopping_function(results, args=None, rstate=None, M=None,
     rlist = [results for i in range(n_mc)]
     error_list = [error for i in range(n_mc)]
     args = zip(rlist, error_list)
-    outputs = M(_kld_error, args)
+    outputs = list(M(_kld_error, args))
     kld_arr, lnz_arr = np.array([(kld[-1], res.logz[-1])
                                  for kld, res in outputs]).T
 
@@ -692,17 +692,17 @@ class DynamicSampler(object):
             self.nlive_init = nlive
             self.live_u = self.rstate.rand(self.nlive_init, self.npdim)
             if self.use_pool_ptform:
-                self.live_v = np.array(self.M(self.prior_transform,
-                                              self.live_u))
+                self.live_v = np.array(list(self.M(self.prior_transform,
+                                                   self.live_u)))
             else:
-                self.live_v = np.array(map(self.prior_transform,
-                                           self.live_u))
+                self.live_v = np.array(list(map(self.prior_transform,
+                                                self.live_u)))
             if self.use_pool_logl:
-                self.live_logl = np.array(self.M(self.loglikelihood,
-                                                 self.live_v))
+                self.live_logl = np.array(list(self.M(self.loglikelihood,
+                                                      self.live_v)))
             else:
-                self.live_logl = np.array(map(self.loglikelihood,
-                                              self.live_v))
+                self.live_logl = np.array(list(map(self.loglikelihood,
+                                                   self.live_v)))
         else:
             self.live_u, self.live_v, self.live_logl = live_points
             self.nlive_init = len(self.live_u)
@@ -981,13 +981,13 @@ class DynamicSampler(object):
             # to propose a new set of points from the unit cube.
             live_u = self.rstate.rand(nlive_new, self.npdim)
             if self.use_pool_ptform:
-                live_v = np.array(self.M(self.prior_transform, live_u))
+                live_v = np.array(list(self.M(self.prior_transform, live_u)))
             else:
-                live_v = np.array(map(self.prior_transform, live_u))
+                live_v = np.array(list(map(self.prior_transform, live_u)))
             if self.use_pool_logl:
-                live_logl = np.array(self.M(self.loglikelihood, live_v))
+                live_logl = np.array(list(self.M(self.loglikelihood, live_v)))
             else:
-                live_logl = np.array(map(self.loglikelihood, live_v))
+                live_logl = np.array(list(map(self.loglikelihood, live_v)))
             live_bound = np.zeros(nlive_new, dtype='int')
             live_it = np.zeros(nlive_new, dtype='int') + self.it
             live_nc = np.ones(nlive_new, dtype='int')

@@ -16,7 +16,7 @@ except ImportError:
 setup(
     name="dynesty",
     url="https://github.com/joshspeagle/dynesty",
-    version="0.8.1",
+    version="0.8.2",
     author="Josh Speagle",
     author_email="jspeagle@cfa.harvard.edu",
     packages=["dynesty"],

@@ -733,29 +733,32 @@ def merge_runs(res_list, print_progress=True):
         rlist_add = []
 
     # Merge baseline runs while there are > 2 remaining results.
-    while len(rlist_base) > 2:
-        rlist_new = []
-        nruns = len(rlist_base)
-        i = 0
-        while i < nruns:
-            try:
-                # Ignore posterior quantities while merging the runs.
-                r1, r2 = rlist_base[i], rlist_base[i+1]
-                res = _merge_two(r1, r2, compute_aux=False)
-                rlist_new.append(res)
-            except:
-                # Append the odd run to the new list.
-                rlist_new.append(rlist_base[i])
-            i += 2
-            counter += 1
-            # Print progress.
-            if print_progress:
-                sys.stderr.write('\rMerge: {0}/{1}     '.format(counter, ntot))
-        # Overwrite baseline set of results with merged results.
-        rlist_base = copy.copy(rlist_new)
+    if len(rlist_base) > 1:
+        while len(rlist_base) > 2:
+            rlist_new = []
+            nruns = len(rlist_base)
+            i = 0
+            while i < nruns:
+                try:
+                    # Ignore posterior quantities while merging the runs.
+                    r1, r2 = rlist_base[i], rlist_base[i+1]
+                    res = _merge_two(r1, r2, compute_aux=False)
+                    rlist_new.append(res)
+                except:
+                    # Append the odd run to the new list.
+                    rlist_new.append(rlist_base[i])
+                i += 2
+                counter += 1
+                # Print progress.
+                if print_progress:
+                    sys.stderr.write('\rMerge: {0}/{1}     '.format(counter, ntot))
+            # Overwrite baseline set of results with merged results.
+            rlist_base = copy.copy(rlist_new)
 
-    # Compute posterior quantities after merging the final two baseline runs.
-    res = _merge_two(rlist_base[0], rlist_base[1], compute_aux=True)
+        # Compute posterior quantities after merging the final two baseline runs.
+        res = _merge_two(rlist_base[0], rlist_base[1], compute_aux=True)
+    else:
+        res = rlist_base[0]
 
     # Iteratively merge any remaining "add-on" results.
     nruns = len(rlist_add)

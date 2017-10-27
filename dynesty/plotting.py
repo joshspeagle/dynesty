@@ -214,10 +214,16 @@ def runplot(results, span=None, logplot=False, color='blue',
         # Establish axes.
         ax = axes[i]
         # Set color(s)/colormap(s).
-        if isinstance(color, types.StringTypes):
-            c = color
-        else:
-            c = color[i]
+        try:
+            if isinstance(color, types.StringTypes):
+                c = color
+            else:
+                c = color[i]
+        except AttributeError:
+            if isinstance(color, str):
+                c = color
+            else:
+                c=color[i]
         # Setup axes.
         if max_x_ticks == 0:
             ax.xaxis.set_major_locator(NullLocator())
@@ -485,10 +491,12 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
         labels = [r"$x_{"+str(i+1)+"}$" for i in range(ndim)]
 
     # Setting up smoothing.
-    if (isinstance(smooth, types.IntType) or isinstance(smooth,
-                                                        types.FloatType)):
-        smooth = [smooth for i in range(ndim)]
-
+    try:
+        if (isinstance(smooth, types.IntType) or isinstance(smooth,types.FloatType)):
+            smooth = [smooth for i in range(ndim)]
+    except AttributeError:
+        if (isinstance(smooth, int) or isinstance(smooth,float)):
+            smooth = [smooth for i in range(ndim)]
     # Setting up default plot layout.
     if fig is None:
         fig, axes = pl.subplots(ndim, 2, figsize=(12, 3*ndim))
@@ -512,16 +520,28 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
             ax = axes[i, 0]
         # Set color(s)/colormap(s).
         if trace_color is not None:
-            if isinstance(trace_color, types.StringTypes):
-                color = trace_color
-            else:
-                color = trace_color[i]
+            try:
+                if isinstance(trace_color, types.StringTypes):
+                    color = trace_color
+                else:
+                    color = trace_color[i]
+            except AttributeError:
+                if isinstance(trace_color, str):
+                    color = trace_color
+                else:
+                    color = trace_color[i]
         else:
             color = weights
-        if isinstance(trace_cmap, types.StringTypes):
-            cmap = trace_cmap
-        else:
-            cmap = trace_cmap[i]
+        try:
+            if isinstance(trace_cmap, types.StringTypes):
+                cmap = trace_cmap
+            else:
+                cmap = trace_cmap[i]
+        except AttributeError:
+            if isinstance(trace_cmap, str):
+                cmap = trace_cmap
+            else:
+                cmap = trace_cmap[i]
         # Setup axes.
         ax.set_xlim([0., -min(logvol)])
         ax.set_ylim([min(x), max(x)])
@@ -560,10 +580,16 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
         else:
             ax = axes[i, 1]
         # Set color(s).
-        if isinstance(post_color, types.StringTypes):
-            color = post_color
-        else:
-            color = post_color[i]
+        try:
+            if isinstance(post_color, types.StringTypes):
+                color = post_color
+            else:
+                color = post_color[i]
+        except AttributeError:
+            if isinstance(post_color, str):
+                color = post_color
+            else:
+                color = post_color[i]
         # Setup axes
         ax.set_xlim(span[i])
         if max_n_ticks == 0:
@@ -578,27 +604,50 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
         ax.set_xlabel(labels[i], **label_kwargs)
         # Generate distribution.
         s = smooth[i]
-        if isinstance(s, types.IntType):
-            # If `s` is an integer, plot a weighted histogram with
-            # `s` bins within the provided bounds.
-            n, b, _ = ax.hist(x, bins=s, weights=weights, color=color,
+        try:
+            if isinstance(s, types.IntType):
+                # If `s` is an integer, plot a weighted histogram with
+                # `s` bins within the provided bounds.
+                n, b, _ = ax.hist(x, bins=s, weights=weights, color=color,
                               range=np.sort(span[i]), **post_kwargs)
-            x0 = np.array(list(zip(b[:-1], b[1:]))).flatten()
-            y0 = np.array(list(zip(n, n))).flatten()
-        else:
-            if norm_kde is None:
-                raise ImportError("Please install scipy if you would like "
+                x0 = np.array(list(zip(b[:-1], b[1:]))).flatten()
+                y0 = np.array(list(zip(n, n))).flatten()
+            else:
+                if norm_kde is None:
+                    raise ImportError("Please install scipy if you would like "
                                   "to use Gaussian smoothing.")
-            # If `s` is a float, oversample the data relative to the
-            # smoothing filter by a factor of 10, then use a Gaussian
-            # filter to smooth the results.
-            bins = int(round(10. / s))
-            n, b = np.histogram(x, bins=bins, weights=weights,
+                # If `s` is a float, oversample the data relative to the
+                # smoothing filter by a factor of 10, then use a Gaussian
+                # filter to smooth the results.
+                bins = int(round(10. / s))
+                n, b = np.histogram(x, bins=bins, weights=weights,
                                 range=np.sort(span[i]))
-            n = norm_kde(n, 10.)
-            x0 = 0.5 * (b[1:] + b[:-1])
-            y0 = n
-            ax.fill_between(x0, y0, color=color, **post_kwargs)
+                n = norm_kde(n, 10.)
+                x0 = 0.5 * (b[1:] + b[:-1])
+                y0 = n
+                ax.fill_between(x0, y0, color=color, **post_kwargs)
+        except AttributeError:
+            if isinstance(s, int):
+                # If `s` is an integer, plot a weighted histogram with
+                # `s` bins within the provided bounds.
+                n, b, _ = ax.hist(x, bins=s, weights=weights, color=color,
+                              range=np.sort(span[i]), **post_kwargs)
+                x0 = np.array(list(zip(b[:-1], b[1:]))).flatten()
+                y0 = np.array(list(zip(n, n))).flatten()
+            else:
+                if norm_kde is None:
+                    raise ImportError("Please install scipy if you would like "
+                                  "to use Gaussian smoothing.")
+                # If `s` is a float, oversample the data relative to the
+                # smoothing filter by a factor of 10, then use a Gaussian
+                # filter to smooth the results.
+                bins = int(round(10. / s))
+                n, b = np.histogram(x, bins=bins, weights=weights,
+                                range=np.sort(span[i]))
+                n = norm_kde(n, 10.)
+                x0 = 0.5 * (b[1:] + b[:-1])
+                y0 = n
+                ax.fill_between(x0, y0, color=color, **post_kwargs) 
         ax.set_ylim([0., max(y0) * 1.05])
         # Plot quantiles.
         if quantiles is not None and len(quantiles) > 0:
@@ -1030,9 +1079,12 @@ def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
         labels = [r"$x_{"+str(i+1)+"}$" for i in range(ndim)]
 
     # Setting up smoothing.
-    if (isinstance(smooth, types.IntType) or isinstance(smooth,
-                                                        types.FloatType)):
-        smooth = [smooth for i in range(ndim)]
+    try:
+        if (isinstance(smooth, types.IntType) or isinstance(smooth,types.FloatType)):
+            smooth = [smooth for i in range(ndim)]
+    except AttributeError:
+        if (isinstance(smooth, int) or isinstance(smooth,float)):
+            smooth = [smooth for i in range(ndim)]
 
     # Setup axis layout (from `corner.py`).
     factor = 2.0  # size of side of one panel
@@ -1091,27 +1143,51 @@ def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
             ax.xaxis.set_label_coords(0.5, -0.3)
         # Generate distribution.
         sx = smooth[i]
-        if isinstance(sx, types.IntType):
-            # If `sx` is an integer, plot a weighted histogram with
-            # `sx` bins within the provided bounds.
-            n, b, _ = ax.hist(x, bins=sx, weights=weights, color=color,
+        try:
+            if isinstance(sx, types.IntType):
+                # If `sx` is an integer, plot a weighted histogram with
+                # `sx` bins within the provided bounds.
+                n, b, _ = ax.hist(x, bins=sx, weights=weights, color=color,
                               range=np.sort(span[i]), **hist_kwargs)
-        else:
-            if norm_kde is None:
-                raise ImportError("Please install scipy if you would like "
-                                  "to use Gaussian smoothing.")
             else:
-                # If `sx` is a float, oversample the data relative to the
-                # smoothing filter by a factor of 10, then use a Gaussian
-                # filter to smooth the results.
-                bins = int(round(10. / sx))
-                n, b = np.histogram(x, bins=bins, weights=weights,
+                if norm_kde is None:
+                    raise ImportError("Please install scipy if you would like "
+                                  "to use Gaussian smoothing.")
+                else:
+                    # If `sx` is a float, oversample the data relative to the
+                    # smoothing filter by a factor of 10, then use a Gaussian
+                    # filter to smooth the results.
+                    bins = int(round(10. / sx))
+                    n, b = np.histogram(x, bins=bins, weights=weights,
                                     range=np.sort(span[i]))
-                n = norm_kde(n, 10.)
-                b0 = 0.5 * (b[1:] + b[:-1])
-                n, b, _ = ax.hist(b0, bins=b, weights=n,
+                    n = norm_kde(n, 10.)
+                    b0 = 0.5 * (b[1:] + b[:-1])
+                    n, b, _ = ax.hist(b0, bins=b, weights=n,
                                   range=np.sort(span[i]), color=color,
                                   **hist_kwargs)
+        except AttributeError:
+            if isinstance(sx, int):
+                # If `sx` is an integer, plot a weighted histogram with
+                # `sx` bins within the provided bounds.
+                n, b, _ = ax.hist(x, bins=sx, weights=weights, color=color,
+                              range=np.sort(span[i]), **hist_kwargs)
+            else:
+                if norm_kde is None:
+                    raise ImportError("Please install scipy if you would like "
+                                  "to use Gaussian smoothing.")
+                else:
+                    # If `sx` is a float, oversample the data relative to the
+                    # smoothing filter by a factor of 10, then use a Gaussian
+                    # filter to smooth the results.
+                    bins = int(round(10. / sx))
+                    n, b = np.histogram(x, bins=bins, weights=weights,
+                                    range=np.sort(span[i]))
+                    n = norm_kde(n, 10.)
+                    b0 = 0.5 * (b[1:] + b[:-1])
+                    n, b, _ = ax.hist(b0, bins=b, weights=n,
+                                  range=np.sort(span[i]), color=color,
+                                  **hist_kwargs)
+        
         ax.set_ylim([0., max(n) * 1.05])
         # Plot quantiles.
         if quantiles is not None and len(quantiles) > 0:
@@ -1183,8 +1259,12 @@ def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
                 ax.yaxis.set_label_coords(-0.3, 0.5)
             # Generate distribution.
             sy = smooth[j]
-            check_ix = isinstance(sx, types.IntType)
-            check_iy = isinstance(sy, types.IntType)
+            try:
+                check_ix = isinstance(sx, types.IntType)
+                check_iy = isinstance(sy, types.IntType)
+            except AttributeError:
+                check_ix = isinstance(sx, int)
+                check_iy = isinstance(sy, int)
             if check_ix and check_iy:
                 fill_contours = False
                 plot_contours = False
@@ -1910,26 +1990,45 @@ def _hist2d(x, y, smooth=0.02, span=None, weights=None, levels=None,
         contour_cmap[i][-1] *= float(i) / (len(levels)+1)
 
     # Initialize smoothing.
-    if (isinstance(smooth, types.IntType) or isinstance(smooth,
-                                                        types.FloatType)):
-        smooth = [smooth, smooth]
+    try:
+        if (isinstance(smooth, types.IntType) or isinstance(smooth,types.FloatType)):
+            smooth = [smooth, smooth]
+    except AttributeError:
+        if (isinstance(smooth, int) or isinstance(smooth,float)):
+            smooth = [smooth, smooth]
     bins = []
     svalues = []
     for s in smooth:
-        if isinstance(s, types.IntType):
-            # If `s` is an integer, the weighted histogram has
-            # `s` bins within the provided bounds.
-            bins.append(s)
-            svalues.append(0.)
-        else:
-            if norm_kde is None:
-                raise ImportError("Please install scipy if you would "
+        try:
+            if isinstance(s, types.IntType):
+                # If `s` is an integer, the weighted histogram has
+                # `s` bins within the provided bounds.
+                bins.append(s)
+                svalues.append(0.)
+            else:
+                if norm_kde is None:
+                    raise ImportError("Please install scipy if you would "
                                   "like to use Gaussian smoothing.")
-            # If `s` is a float, oversample the data relative to the
-            # smoothing filter by a factor of 2, then use a Gaussian
-            # filter to smooth the results.
-            bins.append(int(round(2. / s)))
-            svalues.append(2.)
+                # If `s` is a float, oversample the data relative to the
+                # smoothing filter by a factor of 2, then use a Gaussian
+                # filter to smooth the results.
+                bins.append(int(round(2. / s)))
+                svalues.append(2.)
+        except AttributeError:
+            if isinstance(s, int):
+                # If `s` is an integer, the weighted histogram has
+                # `s` bins within the provided bounds.
+                bins.append(s)
+                svalues.append(0.)
+            else:
+                if norm_kde is None:
+                    raise ImportError("Please install scipy if you would "
+                                  "like to use Gaussian smoothing.")
+                # If `s` is a float, oversample the data relative to the
+                # smoothing filter by a factor of 2, then use a Gaussian
+                # filter to smooth the results.
+                bins.append(int(round(2. / s)))
+                svalues.append(2.)
 
     # We'll make the 2D histogram to directly estimate the density.
     try:

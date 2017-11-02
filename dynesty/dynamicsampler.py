@@ -1502,7 +1502,7 @@ class DynamicSampler(object):
                     message += "dlogz: {:6.3f} > {:6.3f} "
                     message = message.format(niter, 0, bounditer, nc, ncall,
                                              eff, logz, logzerr,
-                                             delta_logz, dlogz_init))
+                                             delta_logz, dlogz_init)
                     if print_to_stderr:
                         sys.stderr.write("\r" + message)
                         sys.stderr.flush()
@@ -1558,7 +1558,7 @@ class DynamicSampler(object):
                         message = message.format(niter, n+1, bounditer, nc,
                                                  ncall, eff, logl_bounds[0],
                                                  loglstar, logl_bounds[1],
-                                                 lnz, lnzerr, stop_val))
+                                                 lnz, lnzerr, stop_val)
                         if print_to_stderr:
                             sys.stderr.write("\r" + message)
                             sys.stderr.flush()
@@ -1661,7 +1661,7 @@ class DynamicSampler(object):
                     message += "logz: {:6.3f} +/- {:6.3f} "
                     message = message.format(niter, n+1, bounditer, nc, ncall,
                                              eff, logl_bounds[0], loglstar,
-                                             logl_bounds[1], lnz, lnzerr))
+                                             logl_bounds[1], lnz, lnzerr)
                     if print_to_stderr:
                         sys.stderr.write("\r" + message)
                         sys.stderr.flush()

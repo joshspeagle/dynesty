@@ -1332,7 +1332,8 @@ class DynamicSampler(object):
                    maxiter_batch=None, maxcall_batch=None,
                    maxiter=None, maxcall=None, maxbatch=None,
                    stop_function=None, stop_kwargs=None, use_stop=True,
-                   save_bounds=True, print_progress=True, live_points=None):
+                   save_bounds=True, print_progress=True, print_to_stderr=True,
+                   live_points=None):
         """
         **The main dynamic nested sampling loop.** After an initial "baseline"
         run using a constant number of live points, dynamically allocates
@@ -1428,6 +1429,10 @@ class DynamicSampler(object):
             Whether to output a simple summary of the current run that
             updates each iteration. Default is `True`.
 
+        print_to_stderr : bool, optional
+            Whether the print_progress output should be directed to stderr (*True*) with
+            carriage return separation or to stdout (*False*) with newline separation.
+
         live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
             A set of live points used to initialize the nested sampling run.
             Contains `live_u`, the coordinates on the unit cube, `live_v`, the
@@ -1492,15 +1497,18 @@ class DynamicSampler(object):
                         logzerr = np.nan
                     if logz <= -1e6:
                         logz = -np.inf
-                    sys.stderr.write("\riter: {:d} | batch: {:d} | "
-                                     "bound: {:d} | nc: {:d} | "
-                                     "ncall: {:d} | eff(%): {:6.3f} | "
-                                     "logz: {:6.3f} +/- {:6.3f} | "
-                                     "dlogz: {:6.3f} > {:6.3f}    "
-                                     .format(niter, 0, bounditer, nc, ncall,
+                    message = "iter: {:d} | batch: {:d} | bound: {:d} | nc: {:d} | "
+                    message += "ncall: {:d} | eff(%): {:6.3f} | logz: {:6.3f} +/- {:6.3f} | "
+                    message += "dlogz: {:6.3f} > {:6.3f} "
+                    message = message.format(niter, 0, bounditer, nc, ncall,
                                              eff, logz, logzerr,
                                              delta_logz, dlogz_init))
-                    sys.stderr.flush()
+                    if print_to_stderr:
+                        sys.stderr.write("\r" + message)
+                        sys.stderr.flush()
+                    else:
+                        sys.stdout.write(message + "\n")
+                        sys.stdout.flush()
 
         # Add points in batches.
         for n in range(self.batch, maxbatch):
@@ -1544,18 +1552,19 @@ class DynamicSampler(object):
                             logzerr = np.nan
                         if logz <= -1e6:
                             logz = -np.inf
-                        sys.stderr.write("\riter: {:d} | batch: {:d} | "
-                                         "bound: {:d} | nc: {:d} | "
-                                         "ncall: {:d} | eff(%): {:6.3f} | "
-                                         "loglstar: {:6.3f} < {:6.3f} "
-                                         "< {:6.3f} | "
-                                         "logz: {:6.3f} +/- {:6.3f} | "
-                                         "stop: {:6.3f}    "
-                                         .format(niter, n+1, bounditer, nc,
+                        message = "iter: {:d} | batch: {:d} | bound: {:d} | nc: {:d} | ncall: {:d} | "
+                        message += "eff(%): {:6.3f} | loglstar: {:6.3f} < {:6.3f} < {:6.3f} | "
+                        message += "logz: {:6.3f} +/- {:6.3f} | stop: {:6.3f} "
+                        message = message.format(niter, n+1, bounditer, nc,
                                                  ncall, eff, logl_bounds[0],
                                                  loglstar, logl_bounds[1],
                                                  lnz, lnzerr, stop_val))
-                        sys.stderr.flush()
+                        if print_to_stderr:
+                            sys.stderr.write("\r" + message)
+                            sys.stderr.flush()
+                        else:
+                            sys.stdout.write(message + "\n")
+                            sys.stdout.flush()
                 self.combine_runs()
             else:
                 # We're done!
@@ -1566,7 +1575,7 @@ class DynamicSampler(object):
 
     def add_batch(self, nlive=100, wt_function=None, wt_kwargs=None,
                   maxiter=None, maxcall=None, save_bounds=True,
-                  print_progress=True):
+                  print_progress=True, print_to_stderr=True):
         """
         Allocate an additional batch of (nested) samples based on
         the combined set of previous samples using the specified
@@ -1607,6 +1616,9 @@ class DynamicSampler(object):
             Whether to output a simple summary of the current run that
             updates each iteration. Default is `True`.
 
+        print_to_stderr : bool, optional
+            Whether the print_progress output should be directed to stderr (*True*) with
+            carriage return separation or to stdout (*False*) with newline separation.
         """
 
         # Initialize values.
@@ -1644,14 +1656,16 @@ class DynamicSampler(object):
                         logzerr = np.nan
                     if logz <= -1e6:
                         logz = -np.inf
-                    sys.stderr.write("\riter: {:d} | batch: {:d} | "
-                                     "bound: {:d} | nc: {:d} | ncall: {:d} | "
-                                     "eff(%): {:6.3f} | "
-                                     "loglstar: {:6.3f} < {:6.3f} "
-                                     "< {:6.3f} | "
-                                     "logz: {:6.3f} +/- {:6.3f}    "
-                                     .format(niter, n+1, bounditer, nc, ncall,
+                    message = "iter: {:d} | batch: {:d} | bound: {:d} | nc: {:d} | ncall: {:d} | "
+                    message += "eff(%): {:6.3f} | loglstar: {:6.3f} < {:6.3f} < {:6.3f} | "
+                    message += "logz: {:6.3f} +/- {:6.3f} "
+                    message = message.format(niter, n+1, bounditer, nc, ncall,
                                              eff, logl_bounds[0], loglstar,
                                              logl_bounds[1], lnz, lnzerr))
-                    sys.stderr.flush()
+                    if print_to_stderr:
+                        sys.stderr.write("\r" + message)
+                        sys.stderr.flush()
+                    else:
+                        sys.stdout.write(message + "\n")
+                        sys.stdout.flush()
             self.combine_runs()

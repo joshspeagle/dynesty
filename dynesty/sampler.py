@@ -758,7 +758,8 @@ class Sampler(object):
                    self.eff, delta_logz)
 
     def run_nested(self, maxiter=None, maxcall=None, dlogz=None,
-                   add_live=True, print_progress=True, save_bounds=True):
+                   logl_max=np.inf, add_live=True, print_progress=True,
+                   save_bounds=True):
         """
         **A wrapper that executes the main nested sampling loop.**
         Iteratively replace the worst live point with a sample drawn
@@ -787,6 +788,10 @@ class Sampler(object):
             the default is `0.005 * (nlive + 1)`. Otherwise, the
             default is `0.01`.
 
+        logl_max : float, optional
+            Iteration will stop when the sampled ln(likelihood) exceeds the
+            threshold set by `logl_max`. Default is no bound (`np.inf`).
+
         add_live : bool, optional
             Whether or not to add the remaining set of live points to
             the list of samples at the end of each run. Default is `True`.
@@ -812,6 +817,7 @@ class Sampler(object):
         ncall = self.ncall
         for it, results in enumerate(self.sample(maxiter=maxiter,
                                      maxcall=maxcall, dlogz=dlogz,
+                                     logl_max=logl_max,
                                      save_bounds=save_bounds,
                                      save_samples=True)):
             (worst, ustar, vstar, loglstar, logvol, logwt,
@@ -833,11 +839,12 @@ class Sampler(object):
                                  "nc: {:d} | "
                                  "ncall: {:d} | "
                                  "eff(%): {:6.3f} | "
+                                 "loglstar: {:6.3f} < {:6.3f} | "
                                  "logz: {:6.3f} +/- {:6.3f} | "
                                  "dlogz: {:6.3f} > {:6.3f}    "
                                  .format(i, bounditer, nc, ncall,
-                                         eff, logz, logzerr,
-                                         delta_logz, dlogz))
+                                         eff, loglstar, logl_max, logz,
+                                         logzerr, delta_logz, dlogz))
                 sys.stderr.flush()
 
         # Add remaining live points to samples.
@@ -861,11 +868,12 @@ class Sampler(object):
                                      "nc: {:d} | "
                                      "ncall: {:d} | "
                                      "eff(%): {:6.3f} | "
+                                     "loglstar: {:6.3f} < {:6.3f} | "
                                      "logz: {:6.3f} +/- {:6.3f} | "
                                      "dlogz: {:6.3f} < {:6.3f}    "
                                      .format(it, i + 1, bounditer, nc, ncall,
-                                             eff, logz, logzerr,
-                                             delta_logz, dlogz))
+                                             eff, loglstar, logl_max, logz,
+                                             logzerr, delta_logz, dlogz))
                     sys.stderr.flush()
 
         if print_progress:

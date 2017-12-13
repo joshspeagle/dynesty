@@ -571,7 +571,7 @@ class DynamicSampler(object):
 
     def sample_initial(self, nlive=100, update_interval=None,
                        first_update=None, maxiter=None, maxcall=None,
-                       dlogz=0.01, live_points=None):
+                       logl_max=np.inf, dlogz=0.01, live_points=None):
         """
         Generate a series of initial samples from a nested sampling
         run using a fixed number of live points using an internal
@@ -615,6 +615,10 @@ class DynamicSampler(object):
             evidence from all saved samples and `z_est` is the estimated
             contribution from the remaining volume. The default is
             `0.01`.
+
+        logl_max : float, optional
+            Iteration will stop when the sampled ln(likelihood) exceeds the
+            threshold set by `logl_max`. Default is no bound (`np.inf`).
 
         live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
             A set of live points used to initialize the nested sampling run.
@@ -1327,7 +1331,7 @@ class DynamicSampler(object):
         self.saved_batch_bounds.append((llmin, llmax))
 
     def run_nested(self, nlive_init=100, maxiter_init=None,
-                   maxcall_init=None, dlogz_init=0.01,
+                   maxcall_init=None, dlogz_init=0.01, logl_max_init=np.inf,
                    nlive_batch=100, wt_function=None, wt_kwargs=None,
                    maxiter_batch=None, maxcall_batch=None,
                    maxiter=None, maxcall=None, maxbatch=None,
@@ -1365,6 +1369,10 @@ class DynamicSampler(object):
             evidence from all saved samples and `z_est` is the estimated
             contribution from the remaining volume. The default is
             `0.01`.
+
+        logl_max_init : float, optional
+            The baseline run will stop when the sampled ln(likelihood) exceeds
+            this threshold. Default is no bound (`np.inf`).
 
         nlive_batch : int, optional
             The number of live points used when adding additional samples
@@ -1477,6 +1485,7 @@ class DynamicSampler(object):
                                                dlogz=dlogz_init,
                                                maxcall=maxcall_init,
                                                maxiter=maxiter_init,
+                                               logl_max=logl_max_init,
                                                live_points=live_points):
                 (worst, ustar, vstar, loglstar, logvol,
                  logwt, logz, logzvar, h, nc, worst_it,
@@ -1495,11 +1504,13 @@ class DynamicSampler(object):
                     sys.stderr.write("\riter: {:d} | batch: {:d} | "
                                      "bound: {:d} | nc: {:d} | "
                                      "ncall: {:d} | eff(%): {:6.3f} | "
+                                     "loglstar: {:6.3f} < {:6.3f} | "
                                      "logz: {:6.3f} +/- {:6.3f} | "
                                      "dlogz: {:6.3f} > {:6.3f}    "
                                      .format(niter, 0, bounditer, nc, ncall,
-                                             eff, logz, logzerr,
-                                             delta_logz, dlogz_init))
+                                             eff, loglstar, logl_max_init,
+                                             logz, logzerr, delta_logz,
+                                             dlogz_init))
                     sys.stderr.flush()
 
         # Add points in batches.

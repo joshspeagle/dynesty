@@ -21,6 +21,15 @@ from scipy import spatial
 import warnings
 
 try:
+    str_type = types.StringTypes
+    float_type = types.FloatType
+    int_type = types.IntType
+except:
+    str_type = str
+    float_type = float
+    int_type = int
+
+try:
     from scipy.ndimage import gaussian_filter as norm_kde
 except ImportError:
     norm_kde = None
@@ -214,7 +223,7 @@ def runplot(results, span=None, logplot=False, color='blue',
         # Establish axes.
         ax = axes[i]
         # Set color(s)/colormap(s).
-        if isinstance(color, types.StringTypes):
+        if isinstance(color, str_type):
             c = color
         else:
             c = color[i]
@@ -485,8 +494,7 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
         labels = [r"$x_{"+str(i+1)+"}$" for i in range(ndim)]
 
     # Setting up smoothing.
-    if (isinstance(smooth, types.IntType) or isinstance(smooth,
-                                                        types.FloatType)):
+    if (isinstance(smooth, int_type) or isinstance(smooth, float_type)):
         smooth = [smooth for i in range(ndim)]
 
     # Setting up default plot layout.
@@ -512,13 +520,13 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
             ax = axes[i, 0]
         # Set color(s)/colormap(s).
         if trace_color is not None:
-            if isinstance(trace_color, types.StringTypes):
+            if isinstance(trace_color, str_type):
                 color = trace_color
             else:
                 color = trace_color[i]
         else:
             color = weights
-        if isinstance(trace_cmap, types.StringTypes):
+        if isinstance(trace_cmap, str_type):
             cmap = trace_cmap
         else:
             cmap = trace_cmap[i]
@@ -560,7 +568,7 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
         else:
             ax = axes[i, 1]
         # Set color(s).
-        if isinstance(post_color, types.StringTypes):
+        if isinstance(post_color, str_type):
             color = post_color
         else:
             color = post_color[i]
@@ -578,7 +586,7 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
         ax.set_xlabel(labels[i], **label_kwargs)
         # Generate distribution.
         s = smooth[i]
-        if isinstance(s, types.IntType):
+        if isinstance(s, int_type):
             # If `s` is an integer, plot a weighted histogram with
             # `s` bins within the provided bounds.
             n, b, _ = ax.hist(x, bins=s, weights=weights, color=color,
@@ -607,7 +615,7 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
                 ax.axvline(q, lw=2, ls="dashed", color=color)
             if verbose:
                 print("Quantiles:")
-                print(label, [blob for blob in zip(quantiles, qs)])
+                print(labels[i], [blob for blob in zip(quantiles, qs)])
         # Add truth value(s).
         if truths is not None and truths[i] is not None:
             try:
@@ -1030,8 +1038,7 @@ def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
         labels = [r"$x_{"+str(i+1)+"}$" for i in range(ndim)]
 
     # Setting up smoothing.
-    if (isinstance(smooth, types.IntType) or isinstance(smooth,
-                                                        types.FloatType)):
+    if (isinstance(smooth, int_type) or isinstance(smooth, float_type)):
         smooth = [smooth for i in range(ndim)]
 
     # Setup axis layout (from `corner.py`).
@@ -1091,7 +1098,7 @@ def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
             ax.xaxis.set_label_coords(0.5, -0.3)
         # Generate distribution.
         sx = smooth[i]
-        if isinstance(sx, types.IntType):
+        if isinstance(sx, int_type):
             # If `sx` is an integer, plot a weighted histogram with
             # `sx` bins within the provided bounds.
             n, b, _ = ax.hist(x, bins=sx, weights=weights, color=color,
@@ -1120,7 +1127,7 @@ def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
                 ax.axvline(q, lw=2, ls="dashed", color=color)
             if verbose:
                 print("Quantiles:")
-                print(label, [blob for blob in zip(quantiles, qs)])
+                print(labels[i], [blob for blob in zip(quantiles, qs)])
         # Add truth value(s).
         if truths is not None and truths[i] is not None:
             try:
@@ -1183,8 +1190,8 @@ def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
                 ax.yaxis.set_label_coords(-0.3, 0.5)
             # Generate distribution.
             sy = smooth[j]
-            check_ix = isinstance(sx, types.IntType)
-            check_iy = isinstance(sy, types.IntType)
+            check_ix = isinstance(sx, int_type)
+            check_iy = isinstance(sy, int_type)
             if check_ix and check_iy:
                 fill_contours = False
                 plot_contours = False
@@ -1910,13 +1917,12 @@ def _hist2d(x, y, smooth=0.02, span=None, weights=None, levels=None,
         contour_cmap[i][-1] *= float(i) / (len(levels)+1)
 
     # Initialize smoothing.
-    if (isinstance(smooth, types.IntType) or isinstance(smooth,
-                                                        types.FloatType)):
+    if (isinstance(smooth, int_type) or isinstance(smooth, float_type)):
         smooth = [smooth, smooth]
     bins = []
     svalues = []
     for s in smooth:
-        if isinstance(s, types.IntType):
+        if isinstance(s, int_type):
             # If `s` is an integer, the weighted histogram has
             # `s` bins within the provided bounds.
             bins.append(s)

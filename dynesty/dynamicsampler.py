@@ -121,7 +121,7 @@ def weight_function(results, args=None, return_weights=False):
     logz_tot = np.logaddexp(logz[-1], logz_remain)  # estimated upper bound
     lzones = np.ones_like(logz)
     logzin = misc.logsumexp([lzones * logz_tot, logz], axis=0,
-                            b=[lzones, -lzones]) # ln(remaining evidence)
+                            b=[lzones, -lzones])  # ln(remaining evidence)
     logzweight = logzin - np.log(results.samples_n)  # ln(evidence weight)
     logzweight -= misc.logsumexp(logzweight)  # normalize
     zweight = np.exp(logzweight)  # convert to linear scale

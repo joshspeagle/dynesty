@@ -759,7 +759,7 @@ class Sampler(object):
 
     def run_nested(self, maxiter=None, maxcall=None, dlogz=None,
                    logl_max=np.inf, add_live=True, print_progress=True,
-                   save_bounds=True):
+                   print_func=None, save_bounds=True):
         """
         **A wrapper that executes the main nested sampling loop.**
         Iteratively replace the worst live point with a sample drawn
@@ -800,11 +800,19 @@ class Sampler(object):
             Whether or not to output a simple summary of the current run that
             updates with each iteration. Default is `True`.
 
+        print_func : function, optional
+            A function that prints out the current state of the sampler.
+            If not provided, the default :meth:`results.print_fn` is used.
+
         save_bounds : bool, optional
             Whether or not to save past bounding distributions used to bound
             the live points internally. Default is *True*.
 
         """
+
+        # Initialize quantities/
+        if print_func is None:
+            print_func = print_fn
 
         # Define our stopping criteria.
         if dlogz is None:
@@ -832,20 +840,11 @@ class Sampler(object):
                 logzerr = np.nan
             if logz <= -1e6:
                 logz = -np.inf
+
+            # Print progress.
             if print_progress:
                 i = self.it - 1
-                sys.stderr.write("\riter: {:d} | "
-                                 "bound: {:d} | "
-                                 "nc: {:d} | "
-                                 "ncall: {:d} | "
-                                 "eff(%): {:6.3f} | "
-                                 "loglstar: {:6.3f} < {:6.3f} | "
-                                 "logz: {:6.3f} +/- {:6.3f} | "
-                                 "dlogz: {:6.3f} > {:6.3f}    "
-                                 .format(i, bounditer, nc, ncall,
-                                         eff, loglstar, logl_max, logz,
-                                         logzerr, delta_logz, dlogz))
-                sys.stderr.flush()
+                print_func(results, i, ncall, dlogz=dlogz, logl_max=logl_max)
 
         # Add remaining live points to samples.
         if add_live:
@@ -862,20 +861,8 @@ class Sampler(object):
                     logzerr = np.nan
                 if logz <= -1e6:
                     logz = -np.inf
-                if print_progress:
-                    sys.stderr.write("\riter: {:d}+{:d} | "
-                                     "bound: {:d} | "
-                                     "nc: {:d} | "
-                                     "ncall: {:d} | "
-                                     "eff(%): {:6.3f} | "
-                                     "loglstar: {:6.3f} < {:6.3f} | "
-                                     "logz: {:6.3f} +/- {:6.3f} | "
-                                     "dlogz: {:6.3f} < {:6.3f}    "
-                                     .format(it, i + 1, bounditer, nc, ncall,
-                                             eff, loglstar, logl_max, logz,
-                                             logzerr, delta_logz, dlogz))
-                    sys.stderr.flush()
 
-        if print_progress:
-            sys.stderr.write("\n")
-            sys.stderr.flush()
+                # Print progress.
+                if print_progress:
+                    print_func(results, it, ncall, add_live_it=i+1,
+                               dlogz=dlogz, logl_max=logl_max)

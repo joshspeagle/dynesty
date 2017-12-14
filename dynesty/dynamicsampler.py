@@ -1336,7 +1336,8 @@ class DynamicSampler(object):
                    maxiter_batch=None, maxcall_batch=None,
                    maxiter=None, maxcall=None, maxbatch=None,
                    stop_function=None, stop_kwargs=None, use_stop=True,
-                   save_bounds=True, print_progress=True, live_points=None):
+                   save_bounds=True, print_progress=True, print_func=None,
+                   live_points=None):
         """
         **The main dynamic nested sampling loop.** After an initial "baseline"
         run using a constant number of live points, dynamically allocates
@@ -1436,6 +1437,10 @@ class DynamicSampler(object):
             Whether to output a simple summary of the current run that
             updates each iteration. Default is `True`.
 
+        print_func : function, optional
+            A function that prints out the current state of the sampler.
+            If not provided, the default :meth:`results.print_fn` is used.
+
         live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
             A set of live points used to initialize the nested sampling run.
             Contains `live_u`, the coordinates on the unit cube, `live_v`, the
@@ -1471,6 +1476,8 @@ class DynamicSampler(object):
             stop_function = stopping_function
         if stop_kwargs is None:
             stop_kwargs = dict()
+        if print_func is None:
+            print_func = print_fn
         savebound = save_bounds
 
         # Run the main dynamic nested sampling loop.
@@ -1492,26 +1499,11 @@ class DynamicSampler(object):
                  boundidx, bounditer, eff, delta_logz) = results
                 ncall += nc
                 niter += 1
+
+                # Print progress.
                 if print_progress:
-                    if delta_logz > 1e6:
-                        delta_logz = np.inf
-                    if logzvar >= 0. and logzvar <= 1e6:
-                        logzerr = np.sqrt(logzvar)
-                    else:
-                        logzerr = np.nan
-                    if logz <= -1e6:
-                        logz = -np.inf
-                    sys.stderr.write("\riter: {:d} | batch: {:d} | "
-                                     "bound: {:d} | nc: {:d} | "
-                                     "ncall: {:d} | eff(%): {:6.3f} | "
-                                     "loglstar: {:6.3f} < {:6.3f} | "
-                                     "logz: {:6.3f} +/- {:6.3f} | "
-                                     "dlogz: {:6.3f} > {:6.3f}    "
-                                     .format(niter, 0, bounditer, nc, ncall,
-                                             eff, loglstar, logl_max_init,
-                                             logz, logzerr, delta_logz,
-                                             dlogz_init))
-                    sys.stderr.flush()
+                    print_func(results, niter, ncall, nbatch=0,
+                               dlogz=dlogz_init, logl_max=logl_max_init)
 
         # Add points in batches.
         for n in range(self.batch, maxbatch):
@@ -1548,25 +1540,20 @@ class DynamicSampler(object):
                      worst_it, boundidx, bounditer, eff) = results
                     ncall += nc
                     niter += 1
+
+                    # Reorganize results.
+                    results = (worst, ustar, vstar, loglstar, np.nan, np.nan,
+                               lnz, lnzerr**2, np.nan, nc, worst_it, boundidx,
+                               bounditer, eff, np.nan)
+
+                    # Print progress.
                     if print_progress:
-                        if logzvar >= 0. and logzvar <= 1e6:
-                            logzerr = np.sqrt(logzvar)
-                        else:
-                            logzerr = np.nan
-                        if logz <= -1e6:
-                            logz = -np.inf
-                        sys.stderr.write("\riter: {:d} | batch: {:d} | "
-                                         "bound: {:d} | nc: {:d} | "
-                                         "ncall: {:d} | eff(%): {:6.3f} | "
-                                         "loglstar: {:6.3f} < {:6.3f} "
-                                         "< {:6.3f} | "
-                                         "logz: {:6.3f} +/- {:6.3f} | "
-                                         "stop: {:6.3f}    "
-                                         .format(niter, n+1, bounditer, nc,
-                                                 ncall, eff, logl_bounds[0],
-                                                 loglstar, logl_bounds[1],
-                                                 lnz, lnzerr, stop_val))
-                        sys.stderr.flush()
+                        print_func(results, niter, ncall, nbatch=n+1,
+                                   stop_val=stop_val,
+                                   logl_min=logl_bounds[0],
+                                   logl_max=logl_bounds[1])
+
+                # Combine batch with previous runs.
                 self.combine_runs()
             else:
                 # We're done!
@@ -1577,7 +1564,7 @@ class DynamicSampler(object):
 
     def add_batch(self, nlive=100, wt_function=None, wt_kwargs=None,
                   maxiter=None, maxcall=None, save_bounds=True,
-                  print_progress=True):
+                  print_progress=True, print_func=None):
         """
         Allocate an additional batch of (nested) samples based on
         the combined set of previous samples using the specified
@@ -1618,6 +1605,10 @@ class DynamicSampler(object):
             Whether to output a simple summary of the current run that
             updates each iteration. Default is `True`.
 
+        print_func : function, optional
+            A function that prints out the current state of the sampler.
+            If not provided, the default :meth:`results.print_fn` is used.
+
         """
 
         # Initialize values.
@@ -1629,6 +1620,8 @@ class DynamicSampler(object):
             wt_function = weight_function
         if wt_kwargs is None:
             wt_kwargs = dict()
+        if print_func is None:
+            print_func = print_fn
 
         # If we have either likelihood calls or iterations remaining,
         # add our new batch of live points.
@@ -1648,21 +1641,18 @@ class DynamicSampler(object):
                  worst_it, boundidx, bounditer, eff) = results
                 ncall += nc
                 niter += 1
+
+                # Reorganize results.
+                results = (worst, ustar, vstar, loglstar, np.nan, np.nan,
+                           lnz, lnzerr**2, np.nan, nc, worst_it, boundidx,
+                           bounditer, eff, np.nan)
+
+                # Print progress.
                 if print_progress:
-                    if logzvar >= 0. and logzvar <= 1e6:
-                        logzerr = np.sqrt(logzvar)
-                    else:
-                        logzerr = np.nan
-                    if logz <= -1e6:
-                        logz = -np.inf
-                    sys.stderr.write("\riter: {:d} | batch: {:d} | "
-                                     "bound: {:d} | nc: {:d} | ncall: {:d} | "
-                                     "eff(%): {:6.3f} | "
-                                     "loglstar: {:6.3f} < {:6.3f} "
-                                     "< {:6.3f} | "
-                                     "logz: {:6.3f} +/- {:6.3f}    "
-                                     .format(niter, n+1, bounditer, nc, ncall,
-                                             eff, logl_bounds[0], loglstar,
-                                             logl_bounds[1], lnz, lnzerr))
-                    sys.stderr.flush()
+                    print_func(results, niter, ncall, nbatch=n+1,
+                               stop_val=stop_val,
+                               logl_min=logl_bounds[0],
+                               logl_max=logl_bounds[1])
+
+            # Combine batch with previous runs.
             self.combine_runs()

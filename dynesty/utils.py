@@ -751,11 +751,12 @@ def merge_runs(res_list, print_progress=True):
                 counter += 1
                 # Print progress.
                 if print_progress:
-                    sys.stderr.write('\rMerge: {0}/{1}     '.format(counter, ntot))
+                    sys.stderr.write('\rMerge: {0}/{1}     '.format(counter,
+                                                                    ntot))
             # Overwrite baseline set of results with merged results.
             rlist_base = copy.copy(rlist_new)
 
-        # Compute posterior quantities after merging the final two baseline runs.
+        # Compute posterior quantities after merging the final baseline runs.
         res = _merge_two(rlist_base[0], rlist_base[1], compute_aux=True)
     else:
         res = rlist_base[0]

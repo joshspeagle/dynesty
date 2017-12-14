@@ -36,13 +36,13 @@ __all__ = ["runplot", "traceplot", "cornerpoints", "cornerplot",
            "boundplot", "cornerbound", "_hist2d", "_quantile"]
 
 
-def runplot(results, span=None, logplot=False, kde=False, color='blue',
+def runplot(results, span=None, logplot=False, kde=True, color='blue',
             plot_kwargs=None, label_kwargs=None, lnz_error=True,
             lnz_truth=None, truth_color='red', truth_kwargs=None,
             max_x_ticks=8, max_y_ticks=3, use_math_text=True,
             mark_final_live=True, fig=None):
     """
-    Plot effective iteration, ln(likelihood), ln(weight), and ln(evidence)
+    Plot live points, ln(likelihood), ln(weight), and ln(evidence)
     as a function of ln(prior volume).
 
     Parameters
@@ -68,7 +68,7 @@ def runplot(results, span=None, logplot=False, kde=False, color='blue',
         Whether to use kernel density estimation to estimate and plot
         the PDF of the importance weights as a function of log-volume
         (as opposed to the importance weights themselves). Default is
-        `False`.
+        `True`.
 
     color : str or iterable with shape (4,), optional
         A `~matplotlib`-style color (either a single color or a different
@@ -121,8 +121,8 @@ def runplot(results, span=None, logplot=False, kde=False, color='blue',
 
     Returns
     -------
-    traceplot : (`~matplotlib.figure.Figure`, `~matplotlib.axes.Axes`)
-        Output trace plot.
+    runplot : (`~matplotlib.figure.Figure`, `~matplotlib.axes.Axes`)
+        Output summary plot.
 
     """
 
@@ -150,18 +150,19 @@ def runplot(results, span=None, logplot=False, kde=False, color='blue',
     logzerr[~np.isfinite(logzerr)] = 0.
     nsamps = len(logwt)  # number of samples
 
-    # Check whether the run was "standard" or "dynamic".
+    # Check whether the run was "static" or "dynamic".
     try:
-        nlive_dynamic = results['samples_n']
+        nlive = results['samples_n']
         mark_final_live = False
     except:
-        pass
+        nlive = np.ones(niter) * results['nlive']
+        if nsamps - niter == results['nlive']:
+            nlive_final = np.arange(1, results['nlive'] + 1)[::-1]
+            nlive = np.append(nlive, nlive_final)
 
     # Check if the final set of live points were added to the results.
-    it = np.arange(nsamps)
     if mark_final_live:
-        nlive = results['nlive']
-        if nsamps - niter == nlive:
+        if nsamps - niter == results['nlive']:
             live_idx = niter
         else:
             warnings.warn("The number of iterations and samples differ "
@@ -170,7 +171,7 @@ def runplot(results, span=None, logplot=False, kde=False, color='blue',
             mark_final_live = False
 
     # Determine plotting bounds for each subplot.
-    data = [it, np.exp(logl), np.exp(logwt), np.exp(logz)]
+    data = [nlive, np.exp(logl), np.exp(logwt), np.exp(logz)]
     if kde:
         wt_kde = gaussian_kde(resample_equal(-logvol, data[2]))  # KDE
         data[2] = wt_kde.pdf(-logvol)  # evaluate KDE PDF
@@ -224,7 +225,7 @@ def runplot(results, span=None, logplot=False, kde=False, color='blue',
      for i in range(4)]
 
     # Plotting.
-    labels = ['Iteration', 'Likelihood\n(normalized)',
+    labels = ['Live Points', 'Likelihood\n(normalized)',
               'Importance\nWeight', 'Evidence']
     if kde:
         labels[2] += ' PDF'
@@ -1294,7 +1295,9 @@ def boundplot(results, dims, it=None, idx=None, prior_transform=None,
     show_live : bool, optional
         Whether the live points at a given iteration (for `it`) or
         associated with the bounding (for `idx`) should be highlighted.
-        Default is `False`.
+        Default is `False`. In the dynamic case, only the live points
+        associated with the batch used to construct the relevant bound
+        are plotted.
 
     live_color : str, optional
         The color of the live points. Default is `'darkviolet'`.
@@ -1409,10 +1412,28 @@ def boundplot(results, dims, it=None, idx=None, prior_transform=None,
                 uidx = samples_id[r]
                 live_u[uidx] = samples[r]
         except:
-            # In the dynamic sampling case, this is currently not implemented.
-            show_live = False
-            warnings.warn("`show_live` currently not implemented for dynamic "
-                          "sampling results.")
+            # In the dynamic sampling case, we will show the live points used
+            # during the batch associated with a particular iteration/bound.
+            batch = results['samples_batch'][it]  # select batch
+            nbatch = results['batch_nlive'][batch]  # nlive in the batch
+            bsel = results['samples_batch'] == batch  # select batch
+            niter_eff = sum(bsel) - nbatch  # "effective" iterations in batch
+            # Grab our final set of live points (with proper IDs).
+            samples = results['samples_u'][bsel]
+            samples_id = results['samples_id'][bsel]
+            samples_id -= min(samples_id)  # re-index to start at zero
+            ndim = samples.shape[1]
+            live_u = np.empty((nbatch, ndim))
+            live_u[samples_id[-nbatch:]] = samples[-nbatch:]
+            # Find generating bound ID if necessary.
+            if it is None:
+                it = results['samples_it'][idx]
+            it_eff = sum(bsel[:it+1])  # effective iteration in batch
+            # Run our sampling backwards.
+            for i in range(1, niter_eff - it_eff + 1):
+                r = -(nbatch + i)
+                uidx = samples_id[r]
+                live_u[uidx] = samples[r]
 
     # Draw samples from the bounding distribution.
     try:
@@ -1568,7 +1589,9 @@ def cornerbound(results, it=None, idx=None, prior_transform=None,
     show_live : bool, optional
         Whether the live points at a given iteration (for `it`) or
         associated with the bounding (for `idx`) should be highlighted.
-        Default is `False`.
+        Default is `False`. In the dynamic case, only the live points
+        associated with the batch used to construct the relevant bound
+        are plotted.
 
     live_color : str, optional
         The color of the live points. Default is `'darkviolet'`.
@@ -1684,10 +1707,28 @@ def cornerbound(results, it=None, idx=None, prior_transform=None,
                 uidx = samples_id[r]
                 live_u[uidx] = samples[r]
         except:
-            # In the dynamic sampling case, this is currently not implemented.
-            show_live = False
-            warnings.warn("`show_live` currently not implemented for dynamic "
-                          "sampling results.")
+            # In the dynamic sampling case, we will show the live points used
+            # during the batch associated with a particular iteration/bound.
+            batch = results['samples_batch'][it]  # select batch
+            nbatch = results['batch_nlive'][batch]  # nlive in the batch
+            bsel = results['samples_batch'] == batch  # select batch
+            niter_eff = sum(bsel) - nbatch  # "effective" iterations in batch
+            # Grab our final set of live points (with proper IDs).
+            samples = results['samples_u'][bsel]
+            samples_id = results['samples_id'][bsel]
+            samples_id -= min(samples_id)  # re-index to start at zero
+            ndim = samples.shape[1]
+            live_u = np.empty((nbatch, ndim))
+            live_u[samples_id[-nbatch:]] = samples[-nbatch:]
+            # Find generating bound ID if necessary.
+            if it is None:
+                it = results['samples_it'][idx]
+            it_eff = sum(bsel[:it+1])  # effective iteration in batch
+            # Run our sampling backwards.
+            for i in range(1, niter_eff - it_eff + 1):
+                r = -(nbatch + i)
+                uidx = samples_id[r]
+                live_u[uidx] = samples[r]
 
     # Draw samples from the bounding distribution.
     try:

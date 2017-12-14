@@ -18,7 +18,10 @@ from matplotlib.ticker import MaxNLocator, NullLocator
 from matplotlib.colors import LinearSegmentedColormap, colorConverter
 from matplotlib.ticker import ScalarFormatter
 from scipy import spatial
+from scipy.ndimage import gaussian_filter as norm_kde
+from scipy.stats import gaussian_kde
 import warnings
+from .utils import resample_equal
 
 try:
     str_type = types.StringTypes
@@ -29,16 +32,11 @@ except:
     float_type = float
     int_type = int
 
-try:
-    from scipy.ndimage import gaussian_filter as norm_kde
-except ImportError:
-    norm_kde = None
-
 __all__ = ["runplot", "traceplot", "cornerpoints", "cornerplot",
            "boundplot", "cornerbound", "_hist2d", "_quantile"]
 
 
-def runplot(results, span=None, logplot=False, color='blue',
+def runplot(results, span=None, logplot=False, kde=False, color='blue',
             plot_kwargs=None, label_kwargs=None, lnz_error=True,
             lnz_truth=None, truth_color='red', truth_kwargs=None,
             max_x_ticks=8, max_y_ticks=3, use_math_text=True,
@@ -65,6 +63,12 @@ def runplot(results, span=None, logplot=False, color='blue',
 
     logplot : bool, optional
         Whether to plot the evidence on a log scale. Default is `False`.
+
+    kde : bool, optional
+        Whether to use kernel density estimation to estimate and plot
+        the PDF of the importance weights as a function of log-volume
+        (as opposed to the importance weights themselves). Default is
+        `False`.
 
     color : str or iterable with shape (4,), optional
         A `~matplotlib`-style color (either a single color or a different
@@ -139,7 +143,7 @@ def runplot(results, span=None, logplot=False, color='blue',
     # Extract results.
     niter = results['niter']  # number of iterations
     logvol = results['logvol']  # ln(prior volume)
-    logl = results['logl']  # ln(likelihood)
+    logl = results['logl'] - max(results['logl'])  # ln(normalized likelihood)
     logwt = results['logwt'] - results['logz'][-1]  # ln(importance weight)
     logz = results['logz']  # ln(evidence)
     logzerr = results['logzerr']  # error in ln(evidence)
@@ -167,6 +171,9 @@ def runplot(results, span=None, logplot=False, color='blue',
 
     # Determine plotting bounds for each subplot.
     data = [it, np.exp(logl), np.exp(logwt), np.exp(logz)]
+    if kde:
+        wt_kde = gaussian_kde(resample_equal(-logvol, data[2]))  # KDE
+        data[2] = wt_kde.pdf(-logvol)  # evaluate KDE PDF
     if span is None:
         span = [(0., 1.05 * max(d)) for d in data]
         no_span = True
@@ -217,7 +224,11 @@ def runplot(results, span=None, logplot=False, color='blue',
      for i in range(4)]
 
     # Plotting.
-    labels = ['Iteration', 'Likelihood', 'Weight', 'Evidence']
+    labels = ['Iteration', 'Likelihood\n(normalized)',
+              'Importance\nWeight', 'Evidence']
+    if kde:
+        labels[2] += ' PDF'
+
     for i, d in enumerate(data):
 
         # Establish axes.
@@ -594,9 +605,6 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
             x0 = np.array(list(zip(b[:-1], b[1:]))).flatten()
             y0 = np.array(list(zip(n, n))).flatten()
         else:
-            if norm_kde is None:
-                raise ImportError("Please install scipy if you would like "
-                                  "to use Gaussian smoothing.")
             # If `s` is a float, oversample the data relative to the
             # smoothing filter by a factor of 10, then use a Gaussian
             # filter to smooth the results.
@@ -1104,21 +1112,17 @@ def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
             n, b, _ = ax.hist(x, bins=sx, weights=weights, color=color,
                               range=np.sort(span[i]), **hist_kwargs)
         else:
-            if norm_kde is None:
-                raise ImportError("Please install scipy if you would like "
-                                  "to use Gaussian smoothing.")
-            else:
-                # If `sx` is a float, oversample the data relative to the
-                # smoothing filter by a factor of 10, then use a Gaussian
-                # filter to smooth the results.
-                bins = int(round(10. / sx))
-                n, b = np.histogram(x, bins=bins, weights=weights,
-                                    range=np.sort(span[i]))
-                n = norm_kde(n, 10.)
-                b0 = 0.5 * (b[1:] + b[:-1])
-                n, b, _ = ax.hist(b0, bins=b, weights=n,
-                                  range=np.sort(span[i]), color=color,
-                                  **hist_kwargs)
+            # If `sx` is a float, oversample the data relative to the
+            # smoothing filter by a factor of 10, then use a Gaussian
+            # filter to smooth the results.
+            bins = int(round(10. / sx))
+            n, b = np.histogram(x, bins=bins, weights=weights,
+                                range=np.sort(span[i]))
+            n = norm_kde(n, 10.)
+            b0 = 0.5 * (b[1:] + b[:-1])
+            n, b, _ = ax.hist(b0, bins=b, weights=n,
+                              range=np.sort(span[i]), color=color,
+                              **hist_kwargs)
         ax.set_ylim([0., max(n) * 1.05])
         # Plot quantiles.
         if quantiles is not None and len(quantiles) > 0:
@@ -1928,9 +1932,6 @@ def _hist2d(x, y, smooth=0.02, span=None, weights=None, levels=None,
             bins.append(s)
             svalues.append(0.)
         else:
-            if norm_kde is None:
-                raise ImportError("Please install scipy if you would "
-                                  "like to use Gaussian smoothing.")
             # If `s` is a float, oversample the data relative to the
             # smoothing filter by a factor of 2, then use a Gaussian
             # filter to smooth the results.

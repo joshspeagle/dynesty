@@ -107,9 +107,10 @@ def print_fn(results, niter, ncall, add_live_it=None,
                                                                    logl_max)
     print_str += "logz: {:6.3f} +/- {:6.3f} | ".format(logz, logzerr)
     if dlogz is not None:
-        print_str += "dlogz: {:6.3f} > {:6.3f}    ".format(delta_logz, dlogz)
+        print_str += "dlogz: {:6.3f} > {:6.3f}        ".format(delta_logz,
+                                                               dlogz)
     else:
-        print_str += "stop: {:6.3f}    ".format(stop_val)
+        print_str += "stop: {:6.3f}        ".format(stop_val)
 
     # Printing.
     sys.stderr.write(print_str)

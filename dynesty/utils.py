@@ -19,7 +19,7 @@ import copy
 from .results import *
 
 __all__ = ["random_choice", "resample_equal", "mean_and_cov",
-           "jitter_run", "resample_run", "simulate_run",
+           "jitter_run", "resample_run", "simulate_run", "reweight_run",
            "unravel_run", "merge_runs", "kl_divergence", "kld_error",
            "_merge_two"]
 
@@ -544,6 +544,86 @@ def simulate_run(res, rstate=None, return_idx=False):
         return new_res, samp_idx
     else:
         return new_res
+
+
+def reweight_run(res, logp_new, logp_old=None):
+    """
+    Reweight a given run based on a new target distribution.
+
+    Parameters
+    ----------
+    res : :class:`~dynesty.results.Results` instance
+        The :class:`~dynesty.results.Results` instance taken from a previous
+        nested sampling run.
+
+    logp_new : `~numpy.ndarray` with shape (nsamps,)
+        New target distribution evaluated at the location of the samples.
+
+    logp_old : `~numpy.ndarray` with shape (nsamps,)
+        Old target distribution evaluated at the location of the samples.
+        If not provided, the `logl` values from `res` will be used.
+
+    Returns
+    -------
+    new_res : :class:`~dynesty.results.Results` instance
+        A new :class:`~dynesty.results.Results` instance with corresponding
+        weights based on our reweighted samples.
+
+    """
+
+    # Extract info.
+    if logp_old is None:
+        logp_old = res['logl']
+    logrwt = logp_new - logp_old  # ln(reweight)
+    logvol = res['logvol']
+    logl = res['logl']
+    nsamps = len(logvol)
+
+    # Compute weights using quadratic estimator.
+    h = 0.
+    logz = -1.e300
+    loglstar = -1.e300
+    logzvar = 0.
+    logvols_pad = np.concatenate(([0.], logvol))
+    logdvols = misc.logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
+                              axis=1, b=np.c_[np.ones(nsamps),
+                                              -np.ones(nsamps)])
+    logdvols += math.log(0.5)
+    dlvs = -np.diff(np.append(0., logvol))
+    saved_logwt, saved_logz, saved_logzvar, saved_h = [], [], [], []
+    for i in range(nsamps):
+        loglstar_new = logl[i]
+        logdvol, dlv = logdvols[i], dlvs[i]
+        logwt = np.logaddexp(loglstar_new, loglstar) + logdvol + logrwt[i]
+        logz_new = np.logaddexp(logz, logwt)
+        try:
+            lzterm = (math.exp(loglstar - logz_new) * loglstar +
+                      math.exp(loglstar_new - logz_new) * loglstar_new)
+        except:
+            lzterm = 0.
+        h_new = (math.exp(logdvol) * lzterm +
+                 math.exp(logz - logz_new) * (h + logz) -
+                 logz_new)
+        dh = h_new - h
+        h = h_new
+        logz = logz_new
+        logzvar += dh * dlv
+        loglstar = loglstar_new
+        saved_logwt.append(logwt)
+        saved_logz.append(logz)
+        saved_logzvar.append(logzvar)
+        saved_h.append(h)
+
+    # Copy results.
+    new_res = Results([item for item in res.items()])
+
+    # Overwrite items with our new estimates.
+    new_res.logwt = np.array(saved_logwt)
+    new_res.logz = np.array(saved_logz)
+    new_res.logzerr = np.sqrt(np.array(saved_logzvar))
+    new_res.h = np.array(saved_h)
+
+    return new_res
 
 
 def unravel_run(res, save_proposals=True, print_progress=True):

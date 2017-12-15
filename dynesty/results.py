@@ -89,6 +89,8 @@ def print_fn(results, niter, ncall, add_live_it=None,
         logzerr = np.nan
     if logz <= -1e6:
         logz = -np.inf
+    if loglstar <= -1e6:
+        loglstar = -np.inf
 
     # Constructing output.
     print_str = "\r"  # overwrite previous output

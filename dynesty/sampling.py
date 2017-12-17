@@ -341,8 +341,8 @@ def sample_slice(args):
             # Sample within limits. If the sample is not valid, shrink
             # the limits until we hit the `loglstar` bound.
             while True:
-                uhat = u_r - u_l
-                u_prop = u_l + rstate.rand() * uhat  # scale from left
+                u_hat = u_r - u_l
+                u_prop = u_l + rstate.rand() * u_hat  # scale from left
                 if np.all(u_prop > 0.) and np.all(u_prop < 1.):
                     v_prop = prior_transform(u_prop)
                     logl_prop = loglikelihood(v_prop)
@@ -351,7 +351,7 @@ def sample_slice(args):
                 nc += 1
                 # If we succeed, move to the new position.
                 if logl_prop >= loglstar:
-                    window = np.linalg.norm(uhat)  # length of window
+                    window = np.linalg.norm(u_hat)  # length of window
                     fscale.append(window / axlen)
                     u = u_prop
                     break
@@ -359,7 +359,7 @@ def sample_slice(args):
                 # our original point along our proposal axis and update
                 # the bounds accordingly.
                 else:
-                    s = np.dot(u_prop - u, uhat)  # check sign (+/-)
+                    s = np.dot(u_prop - u, u_hat)  # check sign (+/-)
                     if s < 0:  # left
                         u_l = u_prop
                     elif s > 0:  # right

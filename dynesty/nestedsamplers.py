@@ -44,7 +44,8 @@ __all__ = ["UnitCubeSampler", "SingleEllipsoidSampler",
 
 _SAMPLING = {'unif': sample_unif,
              'rwalk': sample_rwalk,
-             'slice': sample_slice}
+             'slice': sample_slice,
+             'rslice': sample_rslice}
 
 
 class UnitCubeSampler(Sampler):
@@ -118,7 +119,8 @@ class UnitCubeSampler(Sampler):
         # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
-                         'slice': self.propose_live}
+                         'slice': self.propose_live,
+                         'rslice': self.propose_live}
         self.propose_point = self._PROPOSE[method]
 
         # Initialize method to "evolve" a point to a new position.
@@ -127,7 +129,8 @@ class UnitCubeSampler(Sampler):
         # Initialize heuristic used to update our sampling method.
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
-                        'slice': self.update_slice}
+                        'slice': self.update_slice,
+                        'rslice': self.update_slice}
         self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.
@@ -286,7 +289,8 @@ class SingleEllipsoidSampler(Sampler):
         # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
-                         'slice': self.propose_live}
+                         'slice': self.propose_live,
+                         'rslice': self.propose_live}
         self.propose_point = self._PROPOSE[method]
 
         # Initialize method to "evolve" a point to a new position.
@@ -295,7 +299,8 @@ class SingleEllipsoidSampler(Sampler):
         # Initialize heuristic used to update our sampling method.
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
-                        'slice': self.update_slice}
+                        'slice': self.update_slice,
+                        'rslice': self.update_slice}
         self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.
@@ -489,7 +494,8 @@ class MultiEllipsoidSampler(Sampler):
         # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
-                         'slice': self.propose_live}
+                         'slice': self.propose_live,
+                         'rslice': self.propose_live}
         self.propose_point = self._PROPOSE[method]
 
         # Initialize method to "evolve" a point to a new position.
@@ -498,7 +504,8 @@ class MultiEllipsoidSampler(Sampler):
         # Initialize heuristic used to update our sampling method.
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
-                        'slice': self.update_slice}
+                        'slice': self.update_slice,
+                        'rslice': self.update_slice}
         self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.
@@ -720,7 +727,8 @@ class RadFriendsSampler(Sampler):
         # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
-                         'slice': self.propose_live}
+                         'slice': self.propose_live,
+                         'rslice': self.propose_live}
         self.propose_point = self._PROPOSE[method]
 
         # Initialize method to "evolve" a point to a new position.
@@ -729,7 +737,8 @@ class RadFriendsSampler(Sampler):
         # Initialize heuristic used to update our sampling method.
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
-                        'slice': self.update_slice}
+                        'slice': self.update_slice,
+                        'rslice': self.update_slice}
         self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.
@@ -928,7 +937,8 @@ class SupFriendsSampler(Sampler):
         # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
-                         'slice': self.propose_live}
+                         'slice': self.propose_live,
+                         'rslice': self.propose_live}
         self.propose_point = self._PROPOSE[method]
 
         # Initialize method to "evolve" a point to a new position.
@@ -937,7 +947,8 @@ class SupFriendsSampler(Sampler):
         # Initialize heuristic used to update our sampling method.
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
-                        'slice': self.update_slice}
+                        'slice': self.update_slice,
+                        'rslice': self.update_slice}
         self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.

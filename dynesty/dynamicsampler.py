@@ -42,7 +42,8 @@ _SAMPLERS = {'none': UnitCubeSampler,
              'cubes': SupFriendsSampler}
 _SAMPLING = {'unif': sample_unif,
              'rwalk': sample_rwalk,
-             'slice': sample_slice}
+             'slice': sample_slice,
+             'rslice': sample_rslice}
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 

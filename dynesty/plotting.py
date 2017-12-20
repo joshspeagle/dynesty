@@ -36,8 +36,8 @@ __all__ = ["runplot", "traceplot", "cornerpoints", "cornerplot",
            "boundplot", "cornerbound", "_hist2d", "_quantile"]
 
 
-def runplot(results, span=None, logplot=False, kde=True, color='blue',
-            plot_kwargs=None, label_kwargs=None, lnz_error=True,
+def runplot(results, span=None, logplot=False, kde=True, nkde=1000,
+            color='blue', plot_kwargs=None, label_kwargs=None, lnz_error=True,
             lnz_truth=None, truth_color='red', truth_kwargs=None,
             max_x_ticks=8, max_y_ticks=3, use_math_text=True,
             mark_final_live=True, fig=None):
@@ -69,6 +69,10 @@ def runplot(results, span=None, logplot=False, kde=True, color='blue',
         the PDF of the importance weights as a function of log-volume
         (as opposed to the importance weights themselves). Default is
         `True`.
+
+    nkde : int, optional
+        The number of grid points used when plotting the kernel density
+        estimate. Default is `1000`.
 
     color : str or iterable with shape (4,), optional
         A `~matplotlib`-style color (either a single color or a different
@@ -173,8 +177,10 @@ def runplot(results, span=None, logplot=False, kde=True, color='blue',
     # Determine plotting bounds for each subplot.
     data = [nlive, np.exp(logl), np.exp(logwt), np.exp(logz)]
     if kde:
+        # Derive kernel density estimate.
         wt_kde = gaussian_kde(resample_equal(-logvol, data[2]))  # KDE
-        data[2] = wt_kde.pdf(-logvol)  # evaluate KDE PDF
+        logvol_new = np.linspace(logvol[0], logvol[-1], nkde)  # resample
+        data[2] = wt_kde.pdf(-logvol_new)  # evaluate KDE PDF
     if span is None:
         span = [(0., 1.05 * max(d)) for d in data]
         no_span = True
@@ -257,6 +263,8 @@ def runplot(results, span=None, logplot=False, kde=True, color='blue',
         if logplot and i == 3:
             ax.semilogy(-logvol, d, color=c, **plot_kwargs)
             yspan = [ax.get_ylim() for ax in axes]
+        elif kde and i == 2:
+            ax.plot(-logvol_new, d, color=c, **plot_kwargs)
         else:
             ax.plot(-logvol, d, color=c, **plot_kwargs)
         if i == 3 and lnz_error:

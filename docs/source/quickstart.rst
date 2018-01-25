@@ -91,7 +91,7 @@ which often is flexible enough to capture the complexity of many likelihood
 distributions while simple enough to quickly and efficiently generate new
 samples. For more complex distributions, overlapping balls (`'balls'`)
 or cubes (`'cubes'`) can generate more flexible bounding distributions but
-come with significantly more overhead but can be less efficient at generating
+come with significantly more overhead that can be less efficient at generating
 samples. For simpler distributions, a single ellipsoid (`'single'`) is often
 sufficient. Sampling directly from the unit cube (`'none'`) is extremely
 inefficient but is a useful option to verify your results and

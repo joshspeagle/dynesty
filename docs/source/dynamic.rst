@@ -200,7 +200,7 @@ used to generate the posterior/evidence stopping values.
 
 
 The default values of these are :math:`f_p = 1` (100% posterior/0% evidence),
-:math:`s_p = 0.02`, :math:`s_{\mathcal{Z}} = 0.1, and :math:`n=32`. 
+:math:`s_p = 0.02`, :math:`s_{\mathcal{Z}} = 0.1`, and :math:`n=32`. 
 More details on :math:`S_p(n)` and :math:`S_\mathcal{Z}(n)` are outlined below.
 
 How Many Samples are Enough?

@@ -695,6 +695,7 @@ class DynamicSampler(object):
         # Initialize the first set of live points.
         if live_points is None:
             self.nlive_init = nlive
+            sys.stderr.write('Allocating live points from unit cube...')
             self.live_u = self.rstate.rand(self.nlive_init, self.npdim)
             if self.use_pool_ptform:
                 self.live_v = np.array(list(self.M(self.prior_transform,
@@ -702,6 +703,7 @@ class DynamicSampler(object):
             else:
                 self.live_v = np.array(list(map(self.prior_transform,
                                                 self.live_u)))
+            sys.stderr.write('Evaluating likelihoods...')
             if self.use_pool_logl:
                 self.live_logl = np.array(list(self.M(self.loglikelihood,
                                                       self.live_v)))
@@ -731,6 +733,7 @@ class DynamicSampler(object):
         self.ncall += self.nlive_init
         self.live_bound = np.zeros(self.nlive_init, dtype='int')
         self.live_it = np.zeros(self.nlive_init, dtype='int')
+        sys.stderr.write('done!\n')
 
         # Initialize the internal `sampler` object.
         if update_interval is None:
@@ -860,7 +863,7 @@ class DynamicSampler(object):
 
     def sample_batch(self, nlive_new=100, update_interval=None,
                      logl_bounds=None, maxiter=None, maxcall=None,
-                     save_bounds=True):
+                     save_bounds=True, print_progress=True):
         """
         Generate an additional series of nested samples that will be combined
         with the previous set of dead points. Works by hacking the internal
@@ -984,6 +987,8 @@ class DynamicSampler(object):
         if psel:
             # If the lower bound encompasses all base samples, we want
             # to propose a new set of points from the unit cube.
+            if print_progress:
+                sys.stderr.write('\rRegenerating live points...')
             live_u = self.rstate.rand(nlive_new, self.npdim)
             if self.use_pool_ptform:
                 live_v = np.array(list(self.M(self.prior_transform, live_u)))
@@ -993,6 +998,18 @@ class DynamicSampler(object):
                 live_logl = np.array(list(self.M(self.loglikelihood, live_v)))
             else:
                 live_logl = np.array(list(map(self.loglikelihood, live_v)))
+            # Convert all `-np.inf` log-likelihoods to finite large numbers.
+            # Necessary to keep estimators in our sampler from breaking.
+            for i, logl in enumerate(live_logl):
+                if not np.isfinite(logl):
+                    if np.sign(logl) < 0:
+                        live_logl[i] = -1e300
+                    else:
+                        raise ValueError("The log-likelihood ({0}) of live "
+                                         "point {1} located at u={2} v={3} "
+                                         " is invalid."
+                                         .format(logl, i, live_u[i],
+                                                 live_v[i]))
             live_bound = np.zeros(nlive_new, dtype='int')
             live_it = np.zeros(nlive_new, dtype='int') + self.it
             live_nc = np.ones(nlive_new, dtype='int')
@@ -1047,6 +1064,9 @@ class DynamicSampler(object):
             live_it = np.empty(nlive_new, dtype='int')
             live_nc = np.empty(nlive_new, dtype='int')
             for i in range(nlive_new):
+                if print_progress:
+                    sys.stderr.write('\rRegenerating live points {0}/{1}...'
+                                     .format(i + 1, nlive_new))
                 (live_u[i], live_v[i], live_logl[i],
                  live_nc[i]) = self.sampler._new_point(logl_min, math.log(vol))
                 live_it[i] = self.it
@@ -1479,7 +1499,6 @@ class DynamicSampler(object):
             stop_kwargs = dict()
         if print_func is None:
             print_func = print_fn
-        savebound = save_bounds
 
         # Run the main dynamic nested sampling loop.
         ncall = self.ncall
@@ -1517,6 +1536,8 @@ class DynamicSampler(object):
                     M = self.M
                 else:
                     M = map
+                if print_progress:
+                    sys.stderr.write('\rEvaluating stopping function...')
                 stop, stop_vals = stop_function(res, stop_kwargs,
                                                 rstate=self.rstate, M=M,
                                                 return_vals=True)
@@ -1532,13 +1553,14 @@ class DynamicSampler(object):
                 # weight function.
                 logl_bounds = wt_function(res, wt_kwargs)
                 lnz, lnzerr = res.logz[-1], res.logzerr[-1]
-                for results in self.sample_batch(nlive_new=nlive_batch,
-                                                 logl_bounds=logl_bounds,
-                                                 maxiter=miter,
-                                                 maxcall=mcall,
-                                                 save_bounds=savebound):
+                for res in self.sample_batch(nlive_new=nlive_batch,
+                                             logl_bounds=logl_bounds,
+                                             maxiter=miter,
+                                             maxcall=mcall,
+                                             save_bounds=save_bounds,
+                                             print_progress=print_progress):
                     (worst, ustar, vstar, loglstar, nc,
-                     worst_it, boundidx, bounditer, eff) = results
+                     worst_it, boundidx, bounditer, eff) = res
                     ncall += nc
                     niter += 1
 
@@ -1558,6 +1580,11 @@ class DynamicSampler(object):
                 self.combine_runs()
             else:
                 # We're done!
+                if print_progress:
+                    print_func(results, niter, ncall, nbatch=n+1,
+                               stop_val=stop_val,
+                               logl_min=logl_bounds[0],
+                               logl_max=logl_bounds[1])
                 break
 
         if print_progress:
@@ -1637,7 +1664,8 @@ class DynamicSampler(object):
                                              logl_bounds=logl_bounds,
                                              maxiter=maxiter,
                                              maxcall=maxcall,
-                                             save_bounds=save_bounds):
+                                             save_bounds=save_bounds,
+                                             print_progress=print_progress):
                 (worst, ustar, vstar, loglstar, nc,
                  worst_it, boundidx, bounditer, eff) = results
                 ncall += nc

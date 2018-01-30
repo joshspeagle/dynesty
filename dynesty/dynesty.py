@@ -269,11 +269,13 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
 
     # Initialize live points and calculate log-likelihoods.
     if live_points is None:
+        sys.stderr.write('Allocating live points from unit cube...')
         live_u = rstate.rand(nlive, npdim)  # positions in unit cube
         if use_pool.get('prior_transform', True):
             live_v = np.array(list(M(ptform, live_u)))  # real parameters
         else:
             live_v = np.array(list(map(ptform, live_u)))
+        sys.stderr.write('Evaluating likelihoods...')
         if use_pool.get('loglikelihood', True):
             live_logl = np.array(list(M(loglike, live_v)))  # log likelihood
         else:
@@ -293,10 +295,12 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
                                          live_points[1][i]))
 
     # Initialize our nested sampler.
+    sys.stderr.write('Initializing sampler...')
     sampler = _SAMPLERS[bound](loglike, ptform, npdim,
                                live_points, sample, update_interval,
                                first_update, rstate, queue_size, pool,
                                use_pool, kwargs)
+    sys.stderr.write('done!\n')
 
     return sampler
 
@@ -517,9 +521,11 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
                                 name='loglikelihood')
 
     # Initialize our nested sampler.
+    sys.stderr.write('Initializing sampler...')
     sampler = DynamicSampler(loglike, ptform, npdim,
                              bound, sample, update_interval, first_update,
                              rstate, queue_size, pool, use_pool, kwargs)
+    sys.stderr.write('done!\n')
 
     return sampler
 

@@ -94,6 +94,7 @@ def print_fn(results, niter, ncall, add_live_it=None,
 
     # Constructing output.
     print_str = "\r"  # overwrite previous output
+    print_str += "Printing current sampler progress... "
     print_str += "iter: {:d}".format(niter)
     if add_live_it is not None:
         print_str += "+{:d}".format(add_live_it)

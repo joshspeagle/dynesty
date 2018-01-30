@@ -583,7 +583,7 @@ class Sampler(object):
         # Check whether we're starting fresh or continuing a previous run.
         if self.it == 1:
             # Initialize values for nested sampling loop.
-            h = 0.0  # information, initially *0.*
+            h = 0.  # information, initially *0.*
             logz = -1.e300  # ln(evidence), initially *0.*
             logzvar = 0.  # var[ln(evidence)], initially *0.*
             logvol = 0.  # initially contains the whole prior (volume=1.)

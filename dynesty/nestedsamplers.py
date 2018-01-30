@@ -199,7 +199,7 @@ class UnitCubeSampler(Sampler):
         self.scale = blob['scale']
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
-        norm = max(self.facc, 1. - self.facc)
+        norm = max(self.facc, 1. - self.facc) * self.npdim
         self.scale *= math.exp((facc - self.facc) / norm)
 
     def update_slice(self, blob):
@@ -386,7 +386,7 @@ class SingleEllipsoidSampler(Sampler):
         self.scale = blob['scale']
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
-        norm = max(self.facc, 1. - self.facc)
+        norm = max(self.facc, 1. - self.facc) * self.npdim
         self.scale *= math.exp((facc - self.facc) / norm)
 
     def update_slice(self, blob):
@@ -630,7 +630,7 @@ class MultiEllipsoidSampler(Sampler):
         self.scale = blob['scale']
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
-        norm = max(self.facc, 1. - self.facc)
+        norm = max(self.facc, 1. - self.facc) * self.npdim
         self.scale *= math.exp((facc - self.facc) / norm)
 
     def update_slice(self, blob):
@@ -840,7 +840,7 @@ class RadFriendsSampler(Sampler):
         self.scale = blob['scale']
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
-        norm = max(self.facc, 1. - self.facc)
+        norm = max(self.facc, 1. - self.facc) * self.npdim
         self.scale *= math.exp((facc - self.facc) / norm)
 
     def update_slice(self, blob):
@@ -1051,7 +1051,7 @@ class SupFriendsSampler(Sampler):
         self.scale = blob['scale']
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
-        norm = max(self.facc, 1. - self.facc)
+        norm = max(self.facc, 1. - self.facc) * self.npdim
         self.scale *= math.exp((facc - self.facc) / norm)
 
     def update_slice(self, blob):

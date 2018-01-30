@@ -258,11 +258,11 @@ Similar to `emcee <http://dan.iel.fm/emcee/current/>`_, `sampler` objects in
 like::
 
     # The main nested sampling loop.
-    for it, results in enumerate(sampler.sample(dlogz=0.5)):
+    for it, res in enumerate(sampler.sample(dlogz=0.5)):
         pass
 
     # Adding the final set of live points.
-    for it_final, results in enumerate(sampler.add_live_points()):
+    for it_final, res in enumerate(sampler.add_live_points()):
         pass
 
 Results

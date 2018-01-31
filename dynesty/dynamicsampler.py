@@ -695,7 +695,6 @@ class DynamicSampler(object):
         # Initialize the first set of live points.
         if live_points is None:
             self.nlive_init = nlive
-            sys.stderr.write('Allocating live points from unit cube...')
             self.live_u = self.rstate.rand(self.nlive_init, self.npdim)
             if self.use_pool_ptform:
                 self.live_v = np.array(list(self.M(self.prior_transform,
@@ -703,7 +702,6 @@ class DynamicSampler(object):
             else:
                 self.live_v = np.array(list(map(self.prior_transform,
                                                 self.live_u)))
-            sys.stderr.write('Evaluating likelihoods...')
             if self.use_pool_logl:
                 self.live_logl = np.array(list(self.M(self.loglikelihood,
                                                       self.live_v)))
@@ -733,7 +731,6 @@ class DynamicSampler(object):
         self.ncall += self.nlive_init
         self.live_bound = np.zeros(self.nlive_init, dtype='int')
         self.live_it = np.zeros(self.nlive_init, dtype='int')
-        sys.stderr.write('done!\n')
 
         # Initialize the internal `sampler` object.
         if update_interval is None:
@@ -863,7 +860,7 @@ class DynamicSampler(object):
 
     def sample_batch(self, nlive_new=100, update_interval=None,
                      logl_bounds=None, maxiter=None, maxcall=None,
-                     save_bounds=True, print_progress=True):
+                     save_bounds=True):
         """
         Generate an additional series of nested samples that will be combined
         with the previous set of dead points. Works by hacking the internal
@@ -906,7 +903,8 @@ class DynamicSampler(object):
         -------
         worst : int
             Index of the live point with the worst likelihood. This is our
-            new dead point sample.
+            new dead point sample. **Negative values indicate the index
+            of a new live point generated when initializing a new batch.**
 
         ustar : `~numpy.ndarray` with shape (npdim,)
             Position of the sample.
@@ -987,8 +985,6 @@ class DynamicSampler(object):
         if psel:
             # If the lower bound encompasses all base samples, we want
             # to propose a new set of points from the unit cube.
-            if print_progress:
-                sys.stderr.write('\rRegenerating live points...')
             live_u = self.rstate.rand(nlive_new, self.npdim)
             if self.use_pool_ptform:
                 live_v = np.array(list(self.M(self.prior_transform, live_u)))
@@ -1014,6 +1010,10 @@ class DynamicSampler(object):
             live_it = np.zeros(nlive_new, dtype='int') + self.it
             live_nc = np.ones(nlive_new, dtype='int')
             self.ncall += nlive_new
+            # Return live points in generator format.
+            for i in range(nlive_new):
+                yield (-i - 1, live_u[i], live_v[i], live_logl[i], live_nc[i],
+                       live_it[i], 0, 0, self.eff)
         else:
             # If the lower bound doesn't encompass all base samples, we need
             # to "rewind" our previous base run until we arrive at the
@@ -1064,13 +1064,13 @@ class DynamicSampler(object):
             live_it = np.empty(nlive_new, dtype='int')
             live_nc = np.empty(nlive_new, dtype='int')
             for i in range(nlive_new):
-                if print_progress:
-                    sys.stderr.write('\rRegenerating live points {0}/{1}...'
-                                     .format(i + 1, nlive_new))
                 (live_u[i], live_v[i], live_logl[i],
                  live_nc[i]) = self.sampler._new_point(logl_min, math.log(vol))
                 live_it[i] = self.it
                 self.ncall += live_nc[i]
+                # Return live points in generator format.
+                yield (-i - 1, live_u[i], live_v[i], live_logl[i], live_nc[i],
+                       live_it[i], live_bound[i], live_bound[i], self.eff)
 
         # Overwrite the previous set of live points in our internal sampler
         # with the new batch of points we just generated.
@@ -1536,8 +1536,6 @@ class DynamicSampler(object):
                     M = self.M
                 else:
                     M = map
-                if print_progress:
-                    sys.stderr.write('\rEvaluating stopping function...')
                 stop, stop_vals = stop_function(res, stop_kwargs,
                                                 rstate=self.rstate, M=M,
                                                 return_vals=True)
@@ -1557,12 +1555,16 @@ class DynamicSampler(object):
                                              logl_bounds=logl_bounds,
                                              maxiter=miter,
                                              maxcall=mcall,
-                                             save_bounds=save_bounds,
-                                             print_progress=print_progress):
+                                             save_bounds=save_bounds):
                     (worst, ustar, vstar, loglstar, nc,
                      worst_it, boundidx, bounditer, eff) = res
-                    ncall += nc
-                    niter += 1
+
+                    # When initializing a batch (i.e. when `worst < 0`),
+                    # don't increment our call counter or our current
+                    # number of iterations.
+                    if worst >= 0:
+                        ncall += nc
+                        niter += 1
 
                     # Reorganize results.
                     results = (worst, ustar, vstar, loglstar, np.nan, np.nan,
@@ -1664,12 +1666,16 @@ class DynamicSampler(object):
                                              logl_bounds=logl_bounds,
                                              maxiter=maxiter,
                                              maxcall=maxcall,
-                                             save_bounds=save_bounds,
-                                             print_progress=print_progress):
+                                             save_bounds=save_bounds):
                 (worst, ustar, vstar, loglstar, nc,
                  worst_it, boundidx, bounditer, eff) = results
-                ncall += nc
-                niter += 1
+
+                # When initializing a batch (i.e. when `worst < 0`),
+                # don't increment our call counter or our current
+                # number of iterations.
+                if worst >= 0:
+                    ncall += nc
+                    niter += 1
 
                 # Reorganize results.
                 results = (worst, ustar, vstar, loglstar, np.nan, np.nan,

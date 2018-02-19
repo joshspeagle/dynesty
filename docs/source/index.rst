@@ -11,7 +11,7 @@ for more information. The latest development version can be found `here
 Installation
 ============
 
-``dynesty`` is compatible with both Python 2 and Python 3. It requires
+``dynesty`` is compatible with both Python 2.7 and Python 3.6. It requires
 ``numpy``, ``scipy``, ``matplotlib``, and ``six``.
 After downloading the directory, the package can be installed by running::
 
@@ -19,6 +19,27 @@ After downloading the directory, the package can be installed by running::
 
 Changelog
 =========
+
+0.8.4 (2018-01-30)
+------------------
+
+* Changed internals to allow user to access quantities during dynamic batch
+  allocation. Breaks some aspects of backwards compatibility with generators.
+
+* Added new slice sampling options (`'rslice'` and `'hslice'`).
+
+0.8.3 (2017-12-13)
+------------------
+
+* Fixed additional Python 2/3 compatibility bugs.
+
+* Added the ability to pass user-specified custom print functions.
+
+* Added importance reweighting.
+
+* Small improvements to plotting utilities.
+
+* Small changes to improve user outputs and basic functionality.
 
 0.8.2 (2017-09-15)
 ------------------

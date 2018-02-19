@@ -98,6 +98,24 @@ points. `5 * ndim` per mode seems to work reasonably well (see, e.g., the
 Sampling Questions
 ------------------
 
+**Sometimes while sampling I get sqrt errors and my estimated evidence
+errors become undefined. Should I be concerned?**
+
+Most often this is not a cause for concern. As mentioned in
+:ref:`Approximate Evidence Errors`, `dynesty` uses an approximate method to
+estimate evidence errors in real time based on the KL divergence and the
+current number of live points. Sometimes this approximation can lead to
+improper results (i.e. negative variances), which can often occur
+early in the run when there is a lot of variation. While this often "corrects"
+itself later in the run, sometimes the effect can persist. Regardless of
+whether the approximation converges, however, errors can still be computed
+using the functions described in :ref:`Nested Sampling Errors` as normal.
+
+In rare cases, issues with the evidence error approximation can be a sign
+that something has gone wrong during the sampling phase. In that case, it is
+often useful to terminate the run early and examine the set of samples to see
+if there are any possible issues.
+
 **Sampling is taking a long time. What should I do?!**
 
 Unfortunately, there's no catch-all solution to this. The most important

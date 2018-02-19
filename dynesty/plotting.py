@@ -18,24 +18,31 @@ from matplotlib.ticker import MaxNLocator, NullLocator
 from matplotlib.colors import LinearSegmentedColormap, colorConverter
 from matplotlib.ticker import ScalarFormatter
 from scipy import spatial
+from scipy.ndimage import gaussian_filter as norm_kde
+from scipy.stats import gaussian_kde
 import warnings
+from .utils import resample_equal
 
 try:
-    from scipy.ndimage import gaussian_filter as norm_kde
-except ImportError:
-    norm_kde = None
+    str_type = types.StringTypes
+    float_type = types.FloatType
+    int_type = types.IntType
+except:
+    str_type = str
+    float_type = float
+    int_type = int
 
 __all__ = ["runplot", "traceplot", "cornerpoints", "cornerplot",
            "boundplot", "cornerbound", "_hist2d", "_quantile"]
 
 
-def runplot(results, span=None, logplot=False, color='blue',
-            plot_kwargs=None, label_kwargs=None, lnz_error=True,
+def runplot(results, span=None, logplot=False, kde=True, nkde=1000,
+            color='blue', plot_kwargs=None, label_kwargs=None, lnz_error=True,
             lnz_truth=None, truth_color='red', truth_kwargs=None,
             max_x_ticks=8, max_y_ticks=3, use_math_text=True,
             mark_final_live=True, fig=None):
     """
-    Plot effective iteration, ln(likelihood), ln(weight), and ln(evidence)
+    Plot live points, ln(likelihood), ln(weight), and ln(evidence)
     as a function of ln(prior volume).
 
     Parameters
@@ -56,6 +63,16 @@ def runplot(results, span=None, logplot=False, color='blue',
 
     logplot : bool, optional
         Whether to plot the evidence on a log scale. Default is `False`.
+
+    kde : bool, optional
+        Whether to use kernel density estimation to estimate and plot
+        the PDF of the importance weights as a function of log-volume
+        (as opposed to the importance weights themselves). Default is
+        `True`.
+
+    nkde : int, optional
+        The number of grid points used when plotting the kernel density
+        estimate. Default is `1000`.
 
     color : str or iterable with shape (4,), optional
         A `~matplotlib`-style color (either a single color or a different
@@ -108,8 +125,8 @@ def runplot(results, span=None, logplot=False, color='blue',
 
     Returns
     -------
-    traceplot : (`~matplotlib.figure.Figure`, `~matplotlib.axes.Axes`)
-        Output trace plot.
+    runplot : (`~matplotlib.figure.Figure`, `~matplotlib.axes.Axes`)
+        Output summary plot.
 
     """
 
@@ -130,25 +147,26 @@ def runplot(results, span=None, logplot=False, color='blue',
     # Extract results.
     niter = results['niter']  # number of iterations
     logvol = results['logvol']  # ln(prior volume)
-    logl = results['logl']  # ln(likelihood)
+    logl = results['logl'] - max(results['logl'])  # ln(normalized likelihood)
     logwt = results['logwt'] - results['logz'][-1]  # ln(importance weight)
     logz = results['logz']  # ln(evidence)
     logzerr = results['logzerr']  # error in ln(evidence)
     logzerr[~np.isfinite(logzerr)] = 0.
     nsamps = len(logwt)  # number of samples
 
-    # Check whether the run was "standard" or "dynamic".
+    # Check whether the run was "static" or "dynamic".
     try:
-        nlive_dynamic = results['samples_n']
+        nlive = results['samples_n']
         mark_final_live = False
     except:
-        pass
+        nlive = np.ones(niter) * results['nlive']
+        if nsamps - niter == results['nlive']:
+            nlive_final = np.arange(1, results['nlive'] + 1)[::-1]
+            nlive = np.append(nlive, nlive_final)
 
     # Check if the final set of live points were added to the results.
-    it = np.arange(nsamps)
     if mark_final_live:
-        nlive = results['nlive']
-        if nsamps - niter == nlive:
+        if nsamps - niter == results['nlive']:
             live_idx = niter
         else:
             warnings.warn("The number of iterations and samples differ "
@@ -157,7 +175,12 @@ def runplot(results, span=None, logplot=False, color='blue',
             mark_final_live = False
 
     # Determine plotting bounds for each subplot.
-    data = [it, np.exp(logl), np.exp(logwt), np.exp(logz)]
+    data = [nlive, np.exp(logl), np.exp(logwt), np.exp(logz)]
+    if kde:
+        # Derive kernel density estimate.
+        wt_kde = gaussian_kde(resample_equal(-logvol, data[2]))  # KDE
+        logvol_new = np.linspace(logvol[0], logvol[-1], nkde)  # resample
+        data[2] = wt_kde.pdf(-logvol_new)  # evaluate KDE PDF
     if span is None:
         span = [(0., 1.05 * max(d)) for d in data]
         no_span = True
@@ -208,13 +231,17 @@ def runplot(results, span=None, logplot=False, color='blue',
      for i in range(4)]
 
     # Plotting.
-    labels = ['Iteration', 'Likelihood', 'Weight', 'Evidence']
+    labels = ['Live Points', 'Likelihood\n(normalized)',
+              'Importance\nWeight', 'Evidence']
+    if kde:
+        labels[2] += ' PDF'
+
     for i, d in enumerate(data):
 
         # Establish axes.
         ax = axes[i]
         # Set color(s)/colormap(s).
-        if isinstance(color, types.StringTypes):
+        if isinstance(color, str_type):
             c = color
         else:
             c = color[i]
@@ -236,6 +263,8 @@ def runplot(results, span=None, logplot=False, color='blue',
         if logplot and i == 3:
             ax.semilogy(-logvol, d, color=c, **plot_kwargs)
             yspan = [ax.get_ylim() for ax in axes]
+        elif kde and i == 2:
+            ax.plot(-logvol_new, d, color=c, **plot_kwargs)
         else:
             ax.plot(-logvol, d, color=c, **plot_kwargs)
         if i == 3 and lnz_error:
@@ -485,8 +514,7 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
         labels = [r"$x_{"+str(i+1)+"}$" for i in range(ndim)]
 
     # Setting up smoothing.
-    if (isinstance(smooth, types.IntType) or isinstance(smooth,
-                                                        types.FloatType)):
+    if (isinstance(smooth, int_type) or isinstance(smooth, float_type)):
         smooth = [smooth for i in range(ndim)]
 
     # Setting up default plot layout.
@@ -512,13 +540,13 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
             ax = axes[i, 0]
         # Set color(s)/colormap(s).
         if trace_color is not None:
-            if isinstance(trace_color, types.StringTypes):
+            if isinstance(trace_color, str_type):
                 color = trace_color
             else:
                 color = trace_color[i]
         else:
             color = weights
-        if isinstance(trace_cmap, types.StringTypes):
+        if isinstance(trace_cmap, str_type):
             cmap = trace_cmap
         else:
             cmap = trace_cmap[i]
@@ -560,7 +588,7 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
         else:
             ax = axes[i, 1]
         # Set color(s).
-        if isinstance(post_color, types.StringTypes):
+        if isinstance(post_color, str_type):
             color = post_color
         else:
             color = post_color[i]
@@ -578,7 +606,7 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
         ax.set_xlabel(labels[i], **label_kwargs)
         # Generate distribution.
         s = smooth[i]
-        if isinstance(s, types.IntType):
+        if isinstance(s, int_type):
             # If `s` is an integer, plot a weighted histogram with
             # `s` bins within the provided bounds.
             n, b, _ = ax.hist(x, bins=s, weights=weights, color=color,
@@ -586,9 +614,6 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
             x0 = np.array(list(zip(b[:-1], b[1:]))).flatten()
             y0 = np.array(list(zip(n, n))).flatten()
         else:
-            if norm_kde is None:
-                raise ImportError("Please install scipy if you would like "
-                                  "to use Gaussian smoothing.")
             # If `s` is a float, oversample the data relative to the
             # smoothing filter by a factor of 10, then use a Gaussian
             # filter to smooth the results.
@@ -607,7 +632,7 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
                 ax.axvline(q, lw=2, ls="dashed", color=color)
             if verbose:
                 print("Quantiles:")
-                print(label, [blob for blob in zip(quantiles, qs)])
+                print(labels[i], [blob for blob in zip(quantiles, qs)])
         # Add truth value(s).
         if truths is not None and truths[i] is not None:
             try:
@@ -1030,8 +1055,7 @@ def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
         labels = [r"$x_{"+str(i+1)+"}$" for i in range(ndim)]
 
     # Setting up smoothing.
-    if (isinstance(smooth, types.IntType) or isinstance(smooth,
-                                                        types.FloatType)):
+    if (isinstance(smooth, int_type) or isinstance(smooth, float_type)):
         smooth = [smooth for i in range(ndim)]
 
     # Setup axis layout (from `corner.py`).
@@ -1091,27 +1115,23 @@ def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
             ax.xaxis.set_label_coords(0.5, -0.3)
         # Generate distribution.
         sx = smooth[i]
-        if isinstance(sx, types.IntType):
+        if isinstance(sx, int_type):
             # If `sx` is an integer, plot a weighted histogram with
             # `sx` bins within the provided bounds.
             n, b, _ = ax.hist(x, bins=sx, weights=weights, color=color,
                               range=np.sort(span[i]), **hist_kwargs)
         else:
-            if norm_kde is None:
-                raise ImportError("Please install scipy if you would like "
-                                  "to use Gaussian smoothing.")
-            else:
-                # If `sx` is a float, oversample the data relative to the
-                # smoothing filter by a factor of 10, then use a Gaussian
-                # filter to smooth the results.
-                bins = int(round(10. / sx))
-                n, b = np.histogram(x, bins=bins, weights=weights,
-                                    range=np.sort(span[i]))
-                n = norm_kde(n, 10.)
-                b0 = 0.5 * (b[1:] + b[:-1])
-                n, b, _ = ax.hist(b0, bins=b, weights=n,
-                                  range=np.sort(span[i]), color=color,
-                                  **hist_kwargs)
+            # If `sx` is a float, oversample the data relative to the
+            # smoothing filter by a factor of 10, then use a Gaussian
+            # filter to smooth the results.
+            bins = int(round(10. / sx))
+            n, b = np.histogram(x, bins=bins, weights=weights,
+                                range=np.sort(span[i]))
+            n = norm_kde(n, 10.)
+            b0 = 0.5 * (b[1:] + b[:-1])
+            n, b, _ = ax.hist(b0, bins=b, weights=n,
+                              range=np.sort(span[i]), color=color,
+                              **hist_kwargs)
         ax.set_ylim([0., max(n) * 1.05])
         # Plot quantiles.
         if quantiles is not None and len(quantiles) > 0:
@@ -1120,7 +1140,7 @@ def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
                 ax.axvline(q, lw=2, ls="dashed", color=color)
             if verbose:
                 print("Quantiles:")
-                print(label, [blob for blob in zip(quantiles, qs)])
+                print(labels[i], [blob for blob in zip(quantiles, qs)])
         # Add truth value(s).
         if truths is not None and truths[i] is not None:
             try:
@@ -1183,8 +1203,8 @@ def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
                 ax.yaxis.set_label_coords(-0.3, 0.5)
             # Generate distribution.
             sy = smooth[j]
-            check_ix = isinstance(sx, types.IntType)
-            check_iy = isinstance(sy, types.IntType)
+            check_ix = isinstance(sx, int_type)
+            check_iy = isinstance(sy, int_type)
             if check_ix and check_iy:
                 fill_contours = False
                 plot_contours = False
@@ -1283,7 +1303,9 @@ def boundplot(results, dims, it=None, idx=None, prior_transform=None,
     show_live : bool, optional
         Whether the live points at a given iteration (for `it`) or
         associated with the bounding (for `idx`) should be highlighted.
-        Default is `False`.
+        Default is `False`. In the dynamic case, only the live points
+        associated with the batch used to construct the relevant bound
+        are plotted.
 
     live_color : str, optional
         The color of the live points. Default is `'darkviolet'`.
@@ -1398,10 +1420,28 @@ def boundplot(results, dims, it=None, idx=None, prior_transform=None,
                 uidx = samples_id[r]
                 live_u[uidx] = samples[r]
         except:
-            # In the dynamic sampling case, this is currently not implemented.
-            show_live = False
-            warnings.warn("`show_live` currently not implemented for dynamic "
-                          "sampling results.")
+            # In the dynamic sampling case, we will show the live points used
+            # during the batch associated with a particular iteration/bound.
+            batch = results['samples_batch'][it]  # select batch
+            nbatch = results['batch_nlive'][batch]  # nlive in the batch
+            bsel = results['samples_batch'] == batch  # select batch
+            niter_eff = sum(bsel) - nbatch  # "effective" iterations in batch
+            # Grab our final set of live points (with proper IDs).
+            samples = results['samples_u'][bsel]
+            samples_id = results['samples_id'][bsel]
+            samples_id -= min(samples_id)  # re-index to start at zero
+            ndim = samples.shape[1]
+            live_u = np.empty((nbatch, ndim))
+            live_u[samples_id[-nbatch:]] = samples[-nbatch:]
+            # Find generating bound ID if necessary.
+            if it is None:
+                it = results['samples_it'][idx]
+            it_eff = sum(bsel[:it+1])  # effective iteration in batch
+            # Run our sampling backwards.
+            for i in range(1, niter_eff - it_eff + 1):
+                r = -(nbatch + i)
+                uidx = samples_id[r]
+                live_u[uidx] = samples[r]
 
     # Draw samples from the bounding distribution.
     try:
@@ -1557,7 +1597,9 @@ def cornerbound(results, it=None, idx=None, prior_transform=None,
     show_live : bool, optional
         Whether the live points at a given iteration (for `it`) or
         associated with the bounding (for `idx`) should be highlighted.
-        Default is `False`.
+        Default is `False`. In the dynamic case, only the live points
+        associated with the batch used to construct the relevant bound
+        are plotted.
 
     live_color : str, optional
         The color of the live points. Default is `'darkviolet'`.
@@ -1673,10 +1715,28 @@ def cornerbound(results, it=None, idx=None, prior_transform=None,
                 uidx = samples_id[r]
                 live_u[uidx] = samples[r]
         except:
-            # In the dynamic sampling case, this is currently not implemented.
-            show_live = False
-            warnings.warn("`show_live` currently not implemented for dynamic "
-                          "sampling results.")
+            # In the dynamic sampling case, we will show the live points used
+            # during the batch associated with a particular iteration/bound.
+            batch = results['samples_batch'][it]  # select batch
+            nbatch = results['batch_nlive'][batch]  # nlive in the batch
+            bsel = results['samples_batch'] == batch  # select batch
+            niter_eff = sum(bsel) - nbatch  # "effective" iterations in batch
+            # Grab our final set of live points (with proper IDs).
+            samples = results['samples_u'][bsel]
+            samples_id = results['samples_id'][bsel]
+            samples_id -= min(samples_id)  # re-index to start at zero
+            ndim = samples.shape[1]
+            live_u = np.empty((nbatch, ndim))
+            live_u[samples_id[-nbatch:]] = samples[-nbatch:]
+            # Find generating bound ID if necessary.
+            if it is None:
+                it = results['samples_it'][idx]
+            it_eff = sum(bsel[:it+1])  # effective iteration in batch
+            # Run our sampling backwards.
+            for i in range(1, niter_eff - it_eff + 1):
+                r = -(nbatch + i)
+                uidx = samples_id[r]
+                live_u[uidx] = samples[r]
 
     # Draw samples from the bounding distribution.
     try:
@@ -1910,21 +1970,17 @@ def _hist2d(x, y, smooth=0.02, span=None, weights=None, levels=None,
         contour_cmap[i][-1] *= float(i) / (len(levels)+1)
 
     # Initialize smoothing.
-    if (isinstance(smooth, types.IntType) or isinstance(smooth,
-                                                        types.FloatType)):
+    if (isinstance(smooth, int_type) or isinstance(smooth, float_type)):
         smooth = [smooth, smooth]
     bins = []
     svalues = []
     for s in smooth:
-        if isinstance(s, types.IntType):
+        if isinstance(s, int_type):
             # If `s` is an integer, the weighted histogram has
             # `s` bins within the provided bounds.
             bins.append(s)
             svalues.append(0.)
         else:
-            if norm_kde is None:
-                raise ImportError("Please install scipy if you would "
-                                  "like to use Gaussian smoothing.")
             # If `s` is a float, oversample the data relative to the
             # smoothing filter by a factor of 2, then use a Gaussian
             # filter to smooth the results.

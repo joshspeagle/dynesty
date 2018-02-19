@@ -20,7 +20,7 @@ from numpy import linalg
 from scipy import misc
 
 
-__all__ = ["sample_unif", "sample_rwalk", "sample_slice"]
+__all__ = ["sample_unif", "sample_rwalk", "sample_slice", "sample_rslice"]
 
 EPS = float(np.finfo(np.float64).eps)
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
@@ -227,7 +227,9 @@ def sample_rwalk(args):
 def sample_slice(args):
     """
     Return a new live point proposed by a series of random slices
-    away from an existing live point.
+    away from an existing live point. Standard "Gibs-like" implementation where
+    a single multivariate "slice" is a combination of `ndim` univariate slices
+    through each axis.
 
     Parameters
     ----------
@@ -341,8 +343,8 @@ def sample_slice(args):
             # Sample within limits. If the sample is not valid, shrink
             # the limits until we hit the `loglstar` bound.
             while True:
-                uhat = u_r - u_l
-                u_prop = u_l + rstate.rand() * uhat  # scale from left
+                u_hat = u_r - u_l
+                u_prop = u_l + rstate.rand() * u_hat  # scale from left
                 if np.all(u_prop > 0.) and np.all(u_prop < 1.):
                     v_prop = prior_transform(u_prop)
                     logl_prop = loglikelihood(v_prop)
@@ -351,7 +353,7 @@ def sample_slice(args):
                 nc += 1
                 # If we succeed, move to the new position.
                 if logl_prop >= loglstar:
-                    window = np.linalg.norm(uhat)  # length of window
+                    window = np.linalg.norm(u_hat)  # length of window
                     fscale.append(window / axlen)
                     u = u_prop
                     break
@@ -359,7 +361,7 @@ def sample_slice(args):
                 # our original point along our proposal axis and update
                 # the bounds accordingly.
                 else:
-                    s = np.dot(u_prop - u, uhat)  # check sign (+/-)
+                    s = np.dot(u_prop - u, u_hat)  # check sign (+/-)
                     if s < 0:  # left
                         u_l = u_prop
                     elif s > 0:  # right
@@ -381,6 +383,168 @@ def sample_slice(args):
                                            .format(u, u_l, u_r, u_hat, u_prop,
                                                    loglstar, logl_prop,
                                                    axes, axlens, s))
+
+    blob = {'fscale': np.mean(fscale)}
+
+    return u_prop, v_prop, logl_prop, nc, blob
+
+
+def sample_rslice(args):
+    """
+    Return a new live point proposed by a series of random slices
+    away from an existing live point. Standard "random" implementation where
+    each slice is along a random direction based on the provided axes.
+
+    Parameters
+    ----------
+    u : `~numpy.ndarray` with shape (npdim,)
+        Position of the initial sample. **This is a copy of an existing live
+        point.**
+
+    loglstar : float
+        Ln(likelihood) bound.
+
+    axes : `~numpy.ndarray` with shape (ndim, ndim)
+        Axes used to propose new slice directions.
+
+    scale : float
+        Value used to scale the provided axes.
+
+    prior_transform : function
+        Function transforming a sample from the a unit cube to the parameter
+        space of interest according to the prior.
+
+    loglikelihood : function
+        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
+        array of length `ndim`.
+
+    kwargs : dict
+        A dictionary of additional method-specific parameters.
+
+    Returns
+    -------
+    u : `~numpy.ndarray` with shape (npdim,)
+        Position of the final proposed point within the unit cube.
+
+    v : `~numpy.ndarray` with shape (ndim,)
+        Position of the final proposed point in the target parameter space.
+
+    logl : float
+        Ln(likelihood) of the final proposed point.
+
+    nc : int
+        Number of function calls used to generate the sample.
+
+    blob : dict
+        Collection of ancillary quantities used to tune :data:`scale`.
+
+    """
+
+    # Unzipping.
+    (u, loglstar, axes, scale,
+     prior_transform, loglikelihood, kwargs) = args
+    rstate = np.random
+
+    n = len(u)
+    slices = kwargs.get('slices', 3)  # number of slices
+    nc = 0
+    fscale = []
+
+    # Modifying axes and computing lengths.
+    axes = scale * axes.T  # scale based on past tuning
+
+    # Slice sampling loop.
+    for it in range(slices):
+
+        # Propose a direction on the unit n-sphere.
+        drhat = rstate.randn(n)
+        drhat /= linalg.norm(drhat)
+
+        # Scale based on dimensionality.
+        dr = drhat * rstate.rand()**(1./n)
+
+        # Transform from sphere to ellipsoid.
+        axis = np.dot(axes, dr)
+        axlen = linalg.norm(axis)
+
+        # Define starting "window".
+        r = rstate.rand()  # initial scale/offset
+        u_l = u - r * axis  # left bound
+        if np.all(u_l > 0.) and np.all(u_l < 1.):
+            v_l = prior_transform(u_l)
+            logl_l = loglikelihood(v_l)
+        else:
+            logl_l = -np.inf
+        nc += 1
+        u_r = u + (1 - r) * axis  # right bound
+        if np.all(u_r > 0.) and np.all(u_r < 1.):
+            v_r = prior_transform(u_r)
+            logl_r = loglikelihood(v_r)
+        else:
+            logl_r = -np.inf
+        nc += 1
+
+        # "Stepping out" the left and right bounds.
+        while logl_l >= loglstar:
+            u_l -= axis
+            if np.all(u_l > 0.) and np.all(u_l < 1.):
+                v_l = prior_transform(u_l)
+                logl_l = loglikelihood(v_l)
+            else:
+                logl_l = -np.inf
+            nc += 1
+        while logl_r >= loglstar:
+            u_r += axis
+            if np.all(u_r > 0.) and np.all(u_r < 1.):
+                v_r = prior_transform(u_r)
+                logl_r = loglikelihood(v_r)
+            else:
+                logl_r = -np.inf
+            nc += 1
+
+        # Sample within limits. If the sample is not valid, shrink
+        # the limits until we hit the `loglstar` bound.
+        while True:
+            u_hat = u_r - u_l
+            u_prop = u_l + rstate.rand() * u_hat  # scale from left
+            if np.all(u_prop > 0.) and np.all(u_prop < 1.):
+                v_prop = prior_transform(u_prop)
+                logl_prop = loglikelihood(v_prop)
+            else:
+                logl_prop = -np.inf
+            nc += 1
+            # If we succeed, move to the new position.
+            if logl_prop >= loglstar:
+                window = np.linalg.norm(u_hat)  # length of window
+                fscale.append(window / axlen)
+                u = u_prop
+                break
+            # If we fail, check if the new point is to the left/right of
+            # our original point along our proposal axis and update
+            # the bounds accordingly.
+            else:
+                s = np.dot(u_prop - u, u_hat)  # check sign (+/-)
+                if s < 0:  # left
+                    u_l = u_prop
+                elif s > 0:  # right
+                    u_r = u_prop
+                else:
+                    raise RuntimeError("Slice sampler has failed to find "
+                                       "a valid point. Some useful "
+                                       "output quantities:\n"
+                                       "u: {0}\n"
+                                       "u_left: {1}\n"
+                                       "u_right: {2}\n"
+                                       "u_hat: {3}\n"
+                                       "u_prop: {4}\n"
+                                       "loglstar: {5}\n"
+                                       "logl_prop: {6}\n"
+                                       "axis: {7}\n"
+                                       "axlen: {8}\n"
+                                       "s: {9}."
+                                       .format(u, u_l, u_r, u_hat, u_prop,
+                                               loglstar, logl_prop,
+                                               axis, axlen, s))
 
     blob = {'fscale': np.mean(fscale)}
 

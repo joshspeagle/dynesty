@@ -53,7 +53,7 @@ def _kld_error(args):
     :meth:`stopping_function`."""
 
     # Extract arguments.
-v    results, error = args
+    results, error = args
 
     return kld_error(results, error, rstate=np.random, return_new=True)
 

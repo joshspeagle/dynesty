@@ -1549,37 +1549,11 @@ class DynamicSampler(object):
             if mcall > 0 and miter > 0 and not stop:
                 # Compute our sampling bounds using the provided
                 # weight function.
-                logl_bounds = wt_function(res, wt_kwargs)
-                lnz, lnzerr = res.logz[-1], res.logzerr[-1]
-                for res in self.sample_batch(nlive_new=nlive_batch,
-                                             logl_bounds=logl_bounds,
-                                             maxiter=miter,
-                                             maxcall=mcall,
-                                             save_bounds=save_bounds):
-                    (worst, ustar, vstar, loglstar, nc,
-                     worst_it, boundidx, bounditer, eff) = res
-
-                    # When initializing a batch (i.e. when `worst < 0`),
-                    # don't increment our call counter or our current
-                    # number of iterations.
-                    if worst >= 0:
-                        ncall += nc
-                        niter += 1
-
-                    # Reorganize results.
-                    results = (worst, ustar, vstar, loglstar, np.nan, np.nan,
-                               lnz, lnzerr**2, np.nan, nc, worst_it, boundidx,
-                               bounditer, eff, np.nan)
-
-                    # Print progress.
-                    if print_progress:
-                        print_func(results, niter, ncall, nbatch=n+1,
-                                   stop_val=stop_val,
-                                   logl_min=logl_bounds[0],
-                                   logl_max=logl_bounds[1])
-
-                # Combine batch with previous runs.
-                self.combine_runs()
+                self.add_batch(nlive=nlive_batch, wt_function=wt_function,
+                               wt_kwargs=wt_kwargs, maxiter=miter,
+                               maxcall=mcall, save_bounds=save_bounds,
+                               print_progress=print_progress,
+                               print_func=print_func)
             else:
                 # We're done!
                 if print_progress:

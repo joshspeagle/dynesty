@@ -1572,7 +1572,8 @@ class DynamicSampler(object):
                                maxcall=mcall, save_bounds=save_bounds,
                                print_progress=print_progress,
                                print_func=print_func,
-                               maxcall_per_it=maxcall_per_it)
+                               maxcall_per_it=maxcall_per_it,
+                               stop_val=stop_val)
             else:
                 # We're done!
                 if print_progress:
@@ -1587,7 +1588,8 @@ class DynamicSampler(object):
 
     def add_batch(self, nlive=100, wt_function=None, wt_kwargs=None,
                   maxiter=None, maxcall=None, save_bounds=True,
-                  print_progress=True, print_func=None, maxcall_per_it=None):
+                  print_progress=True, print_func=None, maxcall_per_it=None,
+                  stop_val=None):
         """
         Allocate an additional batch of (nested) samples based on
         the combined set of previous samples using the specified
@@ -1635,6 +1637,11 @@ class DynamicSampler(object):
         maxcall_per_it : int, optional
             Maximum number of likelihood evaluations allowed in an iteration.
             Default is `sys.maxsize` (no limit).
+
+        stop_val : float, optional
+            The value of the stopping-criteria, to be passed to
+            :meth:`print_func`.
+
         """
 
         # Initialize values.

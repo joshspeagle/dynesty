@@ -39,7 +39,7 @@ SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
                   bound='multi', sample='unif',
                   update_interval=0.6, first_update=None,
-                  npdim=None, rstate=None, queue_size=1, pool=None,
+                  npdim=None, rstate=None, queue_size=None, pool=None,
                   use_pool=None, live_points=None,
                   logl_args=None, logl_kwargs=None,
                   ptform_args=None, ptform_kwargs=None,
@@ -117,14 +117,13 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
 
     queue_size : int, optional
         Carry out likelihood evaluations in parallel by queueing up new live
-        point proposals using (at most) this many threads. Each thread
+        point proposals using (at most) `queue_size` many threads. Each thread
         independently proposes new live points until the proposal distribution
-        is updated. Default is `1` (no parallelism).
+        is updated. If no value is passed, this defaults to `pool.size` (if
+        a `pool` has been provided) and `1` otherwise (no parallelism).
 
     pool : user-provided pool, optional
-        Use this pool of workers to execute operations in parallel. If
-        `queue_size > 1` and `pool` is not specified, a `ValueError` will be
-        thrown.
+        Use this pool of workers to execute operations in parallel.
 
     use_pool : dict, optional
         A dictionary containing flags indicating where a pool should be used to
@@ -249,15 +248,23 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
         kwargs['slices'] = slices
 
     # Set up parallel (or serial) evaluation.
-    if queue_size < 1:
+    if queue_size is not None and queue_size < 1:
         raise ValueError("The queue must contain at least one element!")
-    elif queue_size == 1:
+    elif (queue_size == 1) or (pool is None and queue_size is None):
         M = map
+        queue_size = 1
+    elif pool is not None:
+        M = pool.map
+        if queue_size is None:
+            try:
+                queue_size = pool.size
+            except:
+                raise ValueError("Cannot initialize `queue_size` because "
+                                 "`pool.size` has not been provided. Please"
+                                 "define `pool.size` or specify `queue_size` "
+                                 "explicitly.")
     else:
-        if pool is not None:
-            M = pool.map
-        else:
-            raise ValueError("Missing `pool`. Please provide a Pool.")
+        raise ValueError("`queue_size > 1` but no `pool` provided.")
     if use_pool is None:
         use_pool = dict()
 
@@ -382,14 +389,13 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
 
     queue_size : int, optional
         Carry out likelihood evaluations in parallel by queueing up new live
-        point proposals using (at most) this many threads. Each thread
+        point proposals using (at most) `queue_size` many threads. Each thread
         independently proposes new live points until the proposal distribution
-        is updated. Default is `1` (no parallelism).
+        is updated. If no value is passed, this defaults to `pool.size` (if
+        a `pool` has been provided) and `1` otherwise (no parallelism).
 
     pool : user-provided pool, optional
-        Use this pool of workers to execute operations in parallel. If
-        `queue_size > 1` and `pool` is not specified, a `ValueError` will be
-        thrown.
+        Use this pool of workers to execute operations in parallel.
 
     use_pool : dict, optional
         A dictionary containing flags indicating where a pool should be used to
@@ -498,15 +504,23 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         kwargs['slices'] = slices
 
     # Set up parallel (or serial) evaluation.
-    if queue_size < 1:
+    if queue_size is not None and queue_size < 1:
         raise ValueError("The queue must contain at least one element!")
-    elif queue_size == 1:
+    elif (queue_size == 1) or (pool is None and queue_size is None):
         M = map
+        queue_size = 1
+    elif pool is not None:
+        M = pool.map
+        if queue_size is None:
+            try:
+                queue_size = pool.size
+            except:
+                raise ValueError("Cannot initialize `queue_size` because "
+                                 "`pool.size` has not been provided. Please "
+                                 "define `pool.size` or specify `queue_size` "
+                                 "explicitly.")
     else:
-        if pool is not None:
-            M = pool.map
-        else:
-            raise ValueError("Missing `pool`. Please provide a Pool.")
+        raise ValueError("`queue_size > 1` but no `pool` provided.")
     if use_pool is None:
         use_pool = dict()
 

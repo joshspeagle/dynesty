@@ -22,6 +22,7 @@ from scipy.ndimage import gaussian_filter as norm_kde
 from scipy.stats import gaussian_kde
 import warnings
 from .utils import resample_equal
+from .utils import quantile as _quantile
 
 try:
     str_type = types.StringTypes
@@ -33,7 +34,7 @@ except:
     int_type = int
 
 __all__ = ["runplot", "traceplot", "cornerpoints", "cornerplot",
-           "boundplot", "cornerbound", "_hist2d", "_quantile"]
+           "boundplot", "cornerbound", "_hist2d"]
 
 
 def runplot(results, span=None, logplot=False, kde=True, nkde=1000,
@@ -655,7 +656,7 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
     return fig, axes
 
 
-def cornerpoints(results, span=None, cmap='plasma', color=None,
+def cornerpoints(results, thin=1, span=None, cmap='plasma', color=None,
                  plot_kwargs=None, labels=None, label_kwargs=None,
                  truths=None, truth_color='red', truth_kwargs=None,
                  max_n_ticks=5, use_math_text=False, fig=None):
@@ -668,6 +669,10 @@ def cornerpoints(results, span=None, cmap='plasma', color=None,
         A :class:`~dynesty.results.Results` instance from a nested
         sampling run. **Compatible with results derived from**
         `nestle <http://kylebarbary.com/nestle/>`_.
+
+    thin : int, optional
+        Thin the samples so that only each `thin`-th sample is plotted.
+        Default is `1` (no thinning).
 
     span : iterable with shape (ndim,), optional
         A list where each element is either a length-2 tuple containing
@@ -854,7 +859,13 @@ def cornerpoints(results, span=None, cmap='plasma', color=None,
                 ax.set_ylabel(labels[i+1], **label_kwargs)
                 ax.yaxis.set_label_coords(-0.3, 0.5)
             # Plot distribution.
-            ax.scatter(y, x, c=color, cmap=cmap, **plot_kwargs)
+            in_bounds = np.ones_like(y).astype('bool')
+            if span is not None and span[i] is not None:
+                in_bounds *= ((x >= span[i][0]) & (x <= span[i][1]))
+            if span is not None and span[j] is not None:
+                in_bounds *= ((y >= span[j][0]) & (y <= span[j][1]))
+            ax.scatter(y[in_bounds][::thin], x[in_bounds][::thin],
+                       c=color, cmap=cmap, **plot_kwargs)
             # Add truth values
             if truths is not None:
                 if truths[j] is not None:
@@ -2078,50 +2089,3 @@ def _hist2d(x, y, smooth=0.02, span=None, weights=None, levels=None,
 
     ax.set_xlim(span[0])
     ax.set_ylim(span[1])
-
-
-def _quantile(x, q, weights=None):
-    """
-    Internal function used to compute (weighted) sample quantiles.
-
-    Parameters
-    ----------
-    x : `~numpy.ndarray` with shape (nsamps,)
-        Input samples.
-
-    q : `~numpy.ndarray` with shape (nquantiles,)
-       The list of quantiles to compute from `[0., 1.]`.
-
-    weights : `~numpy.ndarray` with shape (nsamps,), optional
-        The associated weight from each sample.
-
-    Returns
-    -------
-    quantiles : `~numpy.ndarray` with shape (nquantiles,)
-        The sample quantiles computed at quantiles `q`.
-
-    """
-
-    # Initial check.
-    x = np.atleast_1d(x)
-    q = np.atleast_1d(q)
-
-    # Quantile check.
-    if np.any(q < 0.0) or np.any(q > 1.0):
-        raise ValueError("Quantiles must be between 0. and 1.")
-
-    if weights is None:
-        # If no weights provided, this simply calls `np.percentile`.
-        return np.percentile(x, list(100.0 * q))
-    else:
-        # If weights are provided, compute the weighted quantiles.
-        weights = np.atleast_1d(weights)
-        if len(x) != len(weights):
-            raise ValueError("Dimension mismatch: len(weights) != len(x).")
-        idx = np.argsort(x)  # sort samples
-        sw = weights[idx]  # sort weights
-        cdf = np.cumsum(sw)[:-1]  # compute CDF
-        cdf /= cdf[-1]  # normalize CDF
-        cdf = np.append(0, cdf)  # ensure proper span
-        quantiles = np.interp(q, cdf, x[idx]).tolist()
-        return quantiles

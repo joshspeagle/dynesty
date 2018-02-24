@@ -1549,11 +1549,16 @@ class DynamicSampler(object):
             if mcall > 0 and miter > 0 and not stop:
                 # Compute our sampling bounds using the provided
                 # weight function.
-                self.add_batch(nlive=nlive_batch, wt_function=wt_function,
-                               wt_kwargs=wt_kwargs, maxiter=miter,
-                               maxcall=mcall, save_bounds=save_bounds,
-                               print_progress=print_progress,
-                               print_func=print_func, stop_val=stop_val)
+                passback = self.add_batch(nlive=nlive_batch,
+                                          wt_function=wt_function,
+                                          wt_kwargs=wt_kwargs,
+                                          maxiter=miter,
+                                          maxcall=mcall,
+                                          save_bounds=save_bounds,
+                                          print_progress=print_progress,
+                                          print_func=print_func,
+                                          stop_val=stop_val)
+                ncall, niter, logl_bounds, results = passback
             else:
                 # We're done!
                 if print_progress:
@@ -1614,8 +1619,9 @@ class DynamicSampler(object):
             If not provided, the default :meth:`results.print_fn` is used.
 
         stop_val : float, optional
-            The value of the stopping-criteria, to be passed to
-            :meth:`print_func`.
+            The value of the stopping criteria to be passed to
+            :meth:`print_func`. Used internally within :meth:`run_nested` to
+            keep track of progress.
 
         """
 
@@ -1669,3 +1675,6 @@ class DynamicSampler(object):
 
             # Combine batch with previous runs.
             self.combine_runs()
+
+        # Pass back info.
+        return ncall, niter, logl_bounds, results

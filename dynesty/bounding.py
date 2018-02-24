@@ -43,7 +43,7 @@ from .utils import random_choice
 
 __all__ = ["UnitCube", "Ellipsoid", "MultiEllipsoid",
            "RadFriends", "SupFriends",
-           "vol_prefactor", "randsphere", "make_eigvals_positive",
+           "vol_prefactor", "randsphere",
            "bounding_ellipsoid", "bounding_ellipsoids",
            "_bounding_ellipsoids", "_ellipsoid_bootstrap_expand",
            "_ellipsoids_bootstrap_expand", "_friends_bootstrap_radius",
@@ -1128,25 +1128,6 @@ def randsphere(n, rstate=None):
     return xhat
 
 
-def make_eigvals_positive(am, targetprod):
-    """For the symmetric square matrix `am`, increase any zero eigenvalues
-    such that the total product of eigenvalues is greater or equal to
-    `targetprod`. Returns a (possibly) new, non-singular matrix."""
-
-    w, v = linalg.eigh(am)  # use eigh since a is symmetric
-    mask = w < 1.e-10
-    if np.any(mask):
-        nzprod = np.product(w[~mask])  # product of nonzero eigenvalues
-        nzeros = mask.sum()  # number of zero eigenvalues
-        new_val = max(1.e-10, (targetprod / nzprod) ** (1. / nzeros))
-        w[mask] = new_val  # adjust zero eigvals
-        am_new = np.dot(np.dot(v, np.diag(w)), linalg.inv(v))  # re-form cov
-    else:
-        am_new = am
-
-    return am_new
-
-
 def bounding_ellipsoid(points, pointvol=0.):
     """
     Calculate the bounding ellipsoid containing a collection of points.
@@ -1203,53 +1184,45 @@ def bounding_ellipsoid(points, pointvol=0.):
     # our sample covariance `cov` to compensate for this.
     cov *= (ndim + 2)
 
-    try:
-        # The matrix defining the ellipsoid.
-        am = linalg.inv(cov)
+    # Define the axes of our ellipsoid. Ensures that `cov` is
+    # nonsingular to deal with pathological cases where the ellipsoid has
+    # "zero" volume. This can occur when `npoints <= ndim` or when enough
+    # points are linear combinations of other points.
+    trials = 0  # scale factor
+    cov_temp = np.array(cov)
+    while True:
+        try:
+            # Check if matrix is invertible.
+            l, v = linalg.eigh(cov_temp)  # compute eigenvalues/vectors
+            if np.all((l > 1e-10) & (np.isfinite(l))):
+                am = linalg.inv(cov_temp)
+                break
+        except:
+            # If the matrix remains singular/unstable, increase the nugget.
+            trials += 1
+            cov_temp = cov + np.eye(ndim) * 2.**trials * 1e-10
+        if trials >= 32:
+            raise ValueError("Failed to modify the covariance matrix {0} "
+                             "to be non-singular.".format(cov))
 
-        # Calculate expansion factor necessary to bound each point.
-        # Points should obey `(x-v)^T A (x-v) <= 1`, so we calculate this for
-        # each point and then scale A up or down to make the
-        # "outermost" point obey `(x-v)^T A (x-v) = 1`. This can be done
-        # quickly using `einsum` and `tensordot` to iterate over all points.
-        delta = points - ctr
-        f = np.einsum('...i, ...i', np.tensordot(delta, am, axes=1), delta)
-        fmax = np.max(f)
+    # Calculate expansion factor necessary to bound each point.
+    # Points should obey `(x-v)^T A (x-v) <= 1`, so we calculate this for
+    # each point and then scale A up or down to make the
+    # "outermost" point obey `(x-v)^T A (x-v) = 1`. This can be done
+    # quickly using `einsum` and `tensordot` to iterate over all points.
+    delta = points - ctr
+    f = np.einsum('...i, ...i', np.tensordot(delta, am, axes=1), delta)
+    fmax = np.max(f)
 
-        # Due to round-off errors, we actually scale the ellipsoid so the
-        # outermost point obeys `(x-v)^T A (x-v) < 1 - (a bit) < 1`.
-        one_minus_a_bit = 1. - SQRTEPS
+    # Due to round-off errors, we actually scale the ellipsoid so the
+    # outermost point obeys `(x-v)^T A (x-v) < 1 - (a bit) < 1`.
+    one_minus_a_bit = 1. - SQRTEPS
 
-        if fmax > one_minus_a_bit:
-            am *= one_minus_a_bit / fmax
+    if fmax > one_minus_a_bit:
+        am *= one_minus_a_bit / fmax
 
-        # Initialize our ellipsoid.
-        ell = Ellipsoid(ctr, am)
-    except:
-        # If our initial attempt at constructing a bounding ellipsoid fails,
-        # ensure that `cov` is nonsingular to deal with pathological cases
-        # where the ellipsoid has "zero" volume. This can occur when
-        # `npoints <= ndim` or when enough points are linear combinations
-        # of other points. When this happens, we expand the ellipsoid
-        # in the "zero" dimensions to try and fulfill the volume
-        # expected from `pointvol`.
-        if pointvol > 0.:
-            targetprod = (npoints * pointvol / vol_prefactor(ndim))**2
-            cov = make_eigvals_positive(cov, targetprod)
-        elif linalg.cond(cov) >= 1./sys.float_info.epsilon:
-            raise ValueError("Cannot modify `a` to be non-singular to give "
-                             "our ellipsoid non-zero volume if `pointvol` "
-                             "is not specified.")
-
-        # Construct the ellipsoid.
-        am = linalg.inv(cov)
-        delta = points - ctr
-        f = np.einsum('...i, ...i', np.tensordot(delta, am, axes=1), delta)
-        fmax = np.max(f)
-        one_minus_a_bit = 1. - SQRTEPS
-        if fmax > one_minus_a_bit:
-            am *= one_minus_a_bit / fmax
-        ell = Ellipsoid(ctr, am)
+    # Initialize our ellipsoid.
+    ell = Ellipsoid(ctr, am)
 
     # Expand our ellipsoid to encompass a minimum volume.
     if pointvol > 0.:

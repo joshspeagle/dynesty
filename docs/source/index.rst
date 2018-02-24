@@ -20,13 +20,19 @@ After downloading the directory, the package can be installed by running::
 Changelog
 =========
 
-0.8.4 (2018-01-30)
+0.8.4 (2018-02-24)
 ------------------
+
+* Added new slice sampling option (`'rslice'`).
 
 * Changed internals to allow user to access quantities during dynamic batch
   allocation. Breaks some aspects of backwards compatibility with generators.
 
-* Added new slice sampling options (`'rslice'` and `'hslice'`).
+* Simplified parallelism options.
+
+* Fixed a singular decomposition bug that occasionally appeared during runtime.
+
+* Small plotting/utility improvements.
 
 0.8.3 (2017-12-13)
 ------------------

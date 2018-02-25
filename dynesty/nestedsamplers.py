@@ -45,7 +45,8 @@ __all__ = ["UnitCubeSampler", "SingleEllipsoidSampler",
 _SAMPLING = {'unif': sample_unif,
              'rwalk': sample_rwalk,
              'slice': sample_slice,
-             'rslice': sample_rslice}
+             'rslice': sample_rslice,
+             'hslice': sample_hslice}
 
 
 class UnitCubeSampler(Sampler):
@@ -120,7 +121,8 @@ class UnitCubeSampler(Sampler):
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
                          'slice': self.propose_live,
-                         'rslice': self.propose_live}
+                         'rslice': self.propose_live,
+                         'hslice': self.propose_live}
         self.propose_point = self._PROPOSE[method]
 
         # Initialize method to "evolve" a point to a new position.
@@ -130,7 +132,8 @@ class UnitCubeSampler(Sampler):
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
                         'slice': self.update_slice,
-                        'rslice': self.update_slice}
+                        'rslice': self.update_slice,
+                        'hslice': self.update_unif}
         self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.
@@ -162,7 +165,7 @@ class UnitCubeSampler(Sampler):
         self.facc = min(1., max(1. / self.walks, self.facc))
 
         # Initialize slice parameters.
-        self.slices = self.kwargs.get('slices', 3)
+        self.slices = self.kwargs.get('slices', 5)
 
     def update(self, pointvol):
         """Update the unit cube bound."""
@@ -290,7 +293,8 @@ class SingleEllipsoidSampler(Sampler):
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
                          'slice': self.propose_live,
-                         'rslice': self.propose_live}
+                         'rslice': self.propose_live,
+                         'hslice': self.propose_live}
         self.propose_point = self._PROPOSE[method]
 
         # Initialize method to "evolve" a point to a new position.
@@ -300,7 +304,8 @@ class SingleEllipsoidSampler(Sampler):
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
                         'slice': self.update_slice,
-                        'rslice': self.update_slice}
+                        'rslice': self.update_slice,
+                        'hslice': self.update_unif}
         self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.
@@ -332,7 +337,7 @@ class SingleEllipsoidSampler(Sampler):
         self.facc = min(1., max(1. / self.walks, self.facc))
 
         # Initialize slice parameters.
-        self.slices = self.kwargs.get('slices', 3)
+        self.slices = self.kwargs.get('slices', 5)
 
     def update(self, pointvol):
         """Update the bounding ellipsoid using the current set of
@@ -495,7 +500,8 @@ class MultiEllipsoidSampler(Sampler):
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
                          'slice': self.propose_live,
-                         'rslice': self.propose_live}
+                         'rslice': self.propose_live,
+                         'hslice': self.propose_live}
         self.propose_point = self._PROPOSE[method]
 
         # Initialize method to "evolve" a point to a new position.
@@ -505,7 +511,8 @@ class MultiEllipsoidSampler(Sampler):
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
                         'slice': self.update_slice,
-                        'rslice': self.update_slice}
+                        'rslice': self.update_slice,
+                        'hslice': self.update_unif}
         self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.
@@ -540,7 +547,7 @@ class MultiEllipsoidSampler(Sampler):
         self.facc = min(1., max(1. / self.walks, self.facc))
 
         # Initialize slice parameters.
-        self.slices = self.kwargs.get('slices', 3)
+        self.slices = self.kwargs.get('slices', 5)
 
     def update(self, pointvol):
         """Update the bounding ellipsoids using the current set of
@@ -728,7 +735,8 @@ class RadFriendsSampler(Sampler):
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
                          'slice': self.propose_live,
-                         'rslice': self.propose_live}
+                         'rslice': self.propose_live,
+                         'hslice': self.propose_live}
         self.propose_point = self._PROPOSE[method]
 
         # Initialize method to "evolve" a point to a new position.
@@ -738,7 +746,8 @@ class RadFriendsSampler(Sampler):
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
                         'slice': self.update_slice,
-                        'rslice': self.update_slice}
+                        'rslice': self.update_slice,
+                        'hslice': self.update_unif}
         self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.
@@ -770,7 +779,7 @@ class RadFriendsSampler(Sampler):
         self.facc = min(1., max(1. / self.walks, self.facc))
 
         # Initialize slice parameters.
-        self.slices = self.kwargs.get('slices', 3)
+        self.slices = self.kwargs.get('slices', 5)
 
     def update(self, pointvol):
         """Update the N-sphere radii using the current set of live points."""
@@ -938,7 +947,8 @@ class SupFriendsSampler(Sampler):
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
                          'slice': self.propose_live,
-                         'rslice': self.propose_live}
+                         'rslice': self.propose_live,
+                         'hslice': self.propose_live}
         self.propose_point = self._PROPOSE[method]
 
         # Initialize method to "evolve" a point to a new position.
@@ -948,7 +958,8 @@ class SupFriendsSampler(Sampler):
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
                         'slice': self.update_slice,
-                        'rslice': self.update_slice}
+                        'rslice': self.update_slice,
+                        'hslice': self.update_unif}
         self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.
@@ -980,7 +991,7 @@ class SupFriendsSampler(Sampler):
         self.facc = min(1., max(1. / self.walks, self.facc))
 
         # Initialize slice parameters.
-        self.slices = self.kwargs.get('slices', 3)
+        self.slices = self.kwargs.get('slices', 5)
 
     def update(self, pointvol):
         """Update the N-cube side-lengths using the current set of

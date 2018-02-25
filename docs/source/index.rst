@@ -23,7 +23,7 @@ Changelog
 0.8.4 (2018-02-24)
 ------------------
 
-* Added new slice sampling option (`'rslice'`).
+* Added two new slice sampling options (`'rslice'` and `'hslice'`).
 
 * Changed internals to allow user to access quantities during dynamic batch
   allocation. Breaks some aspects of backwards compatibility with generators.

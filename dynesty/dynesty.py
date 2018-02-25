@@ -31,7 +31,8 @@ _SAMPLERS = {'none': UnitCubeSampler,
 _SAMPLING = {'unif': sample_unif,
              'rwalk': sample_rwalk,
              'slice': sample_slice,
-             'rslice': sample_rslice}
+             'rslice': sample_rslice,
+             'hslice': sample_hslice}
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
@@ -44,7 +45,7 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
                   logl_args=None, logl_kwargs=None,
                   ptform_args=None, ptform_kwargs=None,
                   enlarge=None, bootstrap=None, vol_dec=0.5, vol_check=2.0,
-                  walks=25, facc=0.5, slices=3,
+                  walks=25, facc=0.5, slices=5,
                   **kwargs):
     """
     Initializes and returns a sampler object for Static Nested Sampling.
@@ -84,11 +85,12 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
         (`'multi'`), balls centered on each live point (`'balls'`), and
         cubes centered on each live point (`'cubes'`). Default is `'multi'`.
 
-    sample : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`}, optional
+    sample : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`, `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds. Choices are uniform
         (`'unif'`), random walks (`'rwalk'`), multivariate slices (`'slice'`),
-        and random slices (`'rslice'`). Default is `'unif'`.
+        random slices (`'rslice'`), and random trajectories ("Hamiltonian
+        slices"; `'hslice'`). Default is `'unif'`.
 
     update_interval : int or float, optional
         If an integer is passed, only update the proposal distribution every
@@ -192,11 +194,10 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
         Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
 
     slices : int, optional
-        For the `'slice'` and `'rslice'` sampling option, the number of times
-        to execute a "slice update" before proposing a new live point.
-        Default is `3`. Note that `'slice'` cycles through **all dimensions**
-        when executing a "slice update", while `'rslice'` executes a single
-        slice.
+        For the `'slice'`, `'rslice'`, and `'hslice'` sampling options, the
+        number of times to execute a "slice update" before proposing a new
+        live point. Default is `5`. Note that `'slice'` cycles through
+        **all dimensions** when executing a "slice update".
 
     Returns
     -------
@@ -316,7 +317,7 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
                          ptform_args=None, ptform_kwargs=None,
                          enlarge=None, bootstrap=None,
                          vol_dec=0.5, vol_check=2.0,
-                         walks=25, facc=0.5, slices=3,
+                         walks=25, facc=0.5, slices=5,
                          **kwargs):
     """
     Initializes and returns a sampler object for Dynamic Nested Sampling.
@@ -356,11 +357,12 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         (`'multi'`), balls centered on each live point (`'balls'`), and
         cubes centered on each live point (`'cubes'`). Default is `'multi'`.
 
-    sample : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`}, optional
+    sample : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`, `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds. Choices are uniform
         (`'unif'`), random walks (`'rwalk'`), multivariate slices (`'slice'`),
-        and random slices (`'rslice'`). Default is `'unif'`.
+        random slices (`'rslice'`), and random trajectories ("Hamiltonian
+        slices"; `'hslice'`). Default is `'unif'`.
 
     update_interval : int or float, optional
         If an integer is passed, only update the proposal distribution every
@@ -454,11 +456,10 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
 
     slices : int, optional
-        For the `'slice'` and `'rslice'` sampling option, the number of times
-        to execute a "slice update" before proposing a new live point.
-        Default is `3`. Note that `'slice'` cycles through **all dimensions**
-        when executing a "slice update", while `'rslice'` executes a single
-        slice.
+        For the `'slice'`, `'rslice'`, and `'hslice'` sampling options, the
+        number of times to execute a "slice update" before proposing a new
+        live point. Default is `5`. Note that `'slice'` cycles through
+        **all dimensions** when executing a "slice update".
 
     Returns
     -------

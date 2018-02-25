@@ -20,6 +20,11 @@ After downloading the directory, the package can be installed by running::
 Changelog
 =========
 
+0.9.0 (2018-02-25)
+------------------
+
+* `dynesty` is now on PyPI!
+
 0.8.4 (2018-02-24)
 ------------------
 

@@ -1188,22 +1188,22 @@ def bounding_ellipsoid(points, pointvol=0.):
     # nonsingular to deal with pathological cases where the ellipsoid has
     # "zero" volume. This can occur when `npoints <= ndim` or when enough
     # points are linear combinations of other points.
-    trials = 0  # scale factor
     cov_temp = np.array(cov)
-    while True:
+    for trials in range(100):
         try:
             # Check if matrix is invertible.
-            l, v = linalg.eigh(cov_temp)  # compute eigenvalues/vectors
-            if np.all((l > 1e-10) & (np.isfinite(l))):
-                am = linalg.inv(cov_temp)
+            am = linalg.inv(cov_temp)
+            l, v = linalg.eigh(am)  # compute eigenvalues/vectors
+            if np.all((l > 0.) & (np.isfinite(l))):
                 break
         except:
             # If the matrix remains singular/unstable, increase the nugget.
-            trials += 1
-            cov_temp = cov + np.eye(ndim) * 2.**trials * 1e-10
-        if trials >= 32:
-            raise ValueError("Failed to modify the covariance matrix {0} "
-                             "to be non-singular.".format(cov))
+            cov_temp = cov + np.eye(ndim) * (2.**(trials+1) * 1e-10)
+            pass
+    else:
+        Warning("Failed to guarantee the ellipsoid axes will be non-singular. "
+                "Defaulting to a sphere.")
+        am = np.eye(ndim)
 
     # Calculate expansion factor necessary to bound each point.
     # Points should obey `(x-v)^T A (x-v) <= 1`, so we calculate this for

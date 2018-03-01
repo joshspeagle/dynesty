@@ -108,8 +108,10 @@ class UnitCubeSampler(Sampler):
         Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
 
     slices : int, optional
-        For the `'slice'` sampling option, the number of times to slice through
-        **all dimensions** before proposing a new live point. Default is `3`.
+        For the `'slice'`, `'rslice'`, and `'hslice'` sampling options, the
+        number of times to execute a "slice update" before proposing a new
+        live point. Default is `5`. Note that `'slice'` cycles through
+        **all dimensions** when executing a "slice update".
 
     """
 
@@ -141,10 +143,10 @@ class UnitCubeSampler(Sampler):
         self.scale = 1.
         self.bootstrap = kwargs.get('bootstrap')
         if self.bootstrap is None:
-            if method == 'slice' or method == 'rwalk':
-                self.bootstrap = 0
-            else:
+            if method == 'unif':
                 self.bootstrap = 20
+            else:
+                self.bootstrap = 0
         if self.bootstrap > 0:
             self.enlarge = kwargs.get('enlarge', 1.0)
         else:
@@ -270,6 +272,12 @@ class SingleEllipsoidSampler(Sampler):
         `bootstrap > 0`, this defaults to `1.0`. If `bootstrap = 0`,
         this instead defaults to `1.25`.
 
+    bootstrap : int, optional
+        Compute this many bootstrapped realizations of the bounding
+        objects. Use the maximum distance found to the set of points left
+        out during each iteration to enlarge the resulting volumes.
+        Default is `20` for uniform sampling (`'unif'`) and `0` otherwise.
+
     walks : int, optional
         For the `'rwalk'` sampling option, the minimum number of steps
         (minimum 2) before proposing a new live point. Default is `25`.
@@ -279,9 +287,10 @@ class SingleEllipsoidSampler(Sampler):
         Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
 
     slices : int, optional
-        For the `'slice'` sampling option, the number of times to "slice"
-        through **all dimensions** before proposing a new live point.
-        Default is `3`.
+        For the `'slice'`, `'rslice'`, and `'hslice'` sampling options, the
+        number of times to execute a "slice update" before proposing a new
+        live point. Default is `5`. Note that `'slice'` cycles through
+        **all dimensions** when executing a "slice update".
 
     """
 
@@ -313,10 +322,10 @@ class SingleEllipsoidSampler(Sampler):
         self.scale = 1.
         self.bootstrap = kwargs.get('bootstrap')
         if self.bootstrap is None:
-            if method == 'slice' or method == 'rwalk':
-                self.bootstrap = 0
-            else:
+            if method == 'unif':
                 self.bootstrap = 20
+            else:
+                self.bootstrap = 0
         if self.bootstrap > 0:
             self.enlarge = kwargs.get('enlarge', 1.0)
         else:
@@ -463,8 +472,7 @@ class MultiEllipsoidSampler(Sampler):
         Compute this many bootstrapped realizations of the bounding
         objects. Use the maximum distance found to the set of points left
         out during each iteration to enlarge the resulting volumes.
-        Default is `20` for uniform sampling (`'unif'`) and `0` for random
-        walks (`'rwalk'`) and slice sampling (`'slice'`).
+        Default is `20` for uniform sampling (`'unif'`) and `0` otherwise.
 
     vol_dec : float, optional
         For the `'multi'` bounding option, the required fractional reduction
@@ -486,9 +494,10 @@ class MultiEllipsoidSampler(Sampler):
         Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
 
     slices : int, optional
-        For the `'slice'` sampling option, the number of times to "slice"
-        through **all dimensions** before proposing a new live point.
-        Default is `3`.
+        For the `'slice'`, `'rslice'`, and `'hslice'` sampling options, the
+        number of times to execute a "slice update" before proposing a new
+        live point. Default is `5`. Note that `'slice'` cycles through
+        **all dimensions** when executing a "slice update".
 
     """
 
@@ -520,10 +529,10 @@ class MultiEllipsoidSampler(Sampler):
         self.scale = 1.
         self.bootstrap = kwargs.get('bootstrap')
         if self.bootstrap is None:
-            if method == 'slice' or method == 'rwalk':
-                self.bootstrap = 0
-            else:
+            if method == 'unif':
                 self.bootstrap = 20
+            else:
+                self.bootstrap = 0
         if self.bootstrap > 0:
             self.enlarge = kwargs.get('enlarge', 1.0)
         else:
@@ -709,8 +718,7 @@ class RadFriendsSampler(Sampler):
         Compute this many bootstrapped realizations of the bounding
         objects. Use the maximum distance found to the set of points left
         out during each iteration to enlarge the resulting volumes.
-        Default is `20` for uniform sampling (`'unif'`) and `0` for random
-        walks (`'rwalk'`) and slice sampling (`'slice'`).
+        Default is `20` for uniform sampling (`'unif'`) and `0` otherwise.
 
     walks : int, optional
         For the `'rwalk'` sampling option, the minimum number of steps
@@ -721,9 +729,10 @@ class RadFriendsSampler(Sampler):
         Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
 
     slices : int, optional
-        For the `'slice'` sampling option, the number of times to "slice"
-        through **all dimensions** before proposing a new live point.
-        Default is `3`.
+        For the `'slice'`, `'rslice'`, and `'hslice'` sampling options, the
+        number of times to execute a "slice update" before proposing a new
+        live point. Default is `5`. Note that `'slice'` cycles through
+        **all dimensions** when executing a "slice update".
 
     """
 
@@ -755,10 +764,10 @@ class RadFriendsSampler(Sampler):
         self.scale = 1.
         self.bootstrap = kwargs.get('bootstrap')
         if self.bootstrap is None:
-            if method == 'slice' or method == 'rwalk':
-                self.bootstrap = 0
-            else:
+            if method == 'unif':
                 self.bootstrap = 20
+            else:
+                self.bootstrap = 0
         if self.bootstrap > 0:
             self.enlarge = kwargs.get('enlarge', 1.0)
         else:
@@ -921,8 +930,7 @@ class SupFriendsSampler(Sampler):
         Compute this many bootstrapped realizations of the bounding
         objects. Use the maximum distance found to the set of points left
         out during each iteration to enlarge the resulting volumes.
-        Default is `20` for uniform sampling (`'unif'`) and `0` for random
-        walks (`'rwalk'`) and slice sampling (`'slice'`).
+        Default is `20` for uniform sampling (`'unif'`) and `0` otherwise.
 
     walks : int, optional
         For the `'rwalk'` sampling option, the minimum number of steps
@@ -933,9 +941,10 @@ class SupFriendsSampler(Sampler):
         Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
 
     slices : int, optional
-        For the `'slice'` sampling option, the number of times to "slice"
-        through **all dimensions** before proposing a new live point.
-        Default is `3`.
+        For the `'slice'`, `'rslice'`, and `'hslice'` sampling options, the
+        number of times to execute a "slice update" before proposing a new
+        live point. Default is `5`. Note that `'slice'` cycles through
+        **all dimensions** when executing a "slice update".
 
     """
 
@@ -967,10 +976,10 @@ class SupFriendsSampler(Sampler):
         self.scale = 1.
         self.bootstrap = kwargs.get('bootstrap')
         if self.bootstrap is None:
-            if method == 'slice' or method == 'rwalk':
-                self.bootstrap = 0
-            else:
+            if method == 'unif':
                 self.bootstrap = 20
+            else:
+                self.bootstrap = 0
         if self.bootstrap > 0:
             self.enlarge = kwargs.get('enlarge', 1.0)
         else:

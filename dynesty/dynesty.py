@@ -171,8 +171,7 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
         Compute this many bootstrapped realizations of the bounding
         objects. Use the maximum distance found to the set of points left
         out during each iteration to enlarge the resulting volumes.
-        Default is `20` for uniform sampling (`'unif'`) and `0` for random
-        walks (`'rwalk'`) and slice sampling (`'slice'`).
+        Default is `20` for uniform sampling (`'unif'`) and `0` otherwise.
 
     vol_dec : float, optional
         For the `'multi'` bounding option, the required fractional reduction
@@ -433,8 +432,7 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         Compute this many bootstrapped realizations of the bounding
         objects. Use the maximum distance found to the set of points left
         out during each iteration to enlarge the resulting volumes.
-        Default is `20` for uniform sampling (`'unif'`) and `0` for random
-        walks (`'rwalk'`) and slice sampling (`'slice'`).
+        Default is `20` for uniform sampling (`'unif'`) and `0` otherwise.
 
     vol_dec : float, optional
         For the `'multi'` bounding option, the required fractional reduction

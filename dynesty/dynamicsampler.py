@@ -393,7 +393,11 @@ class DynamicSampler(object):
 
         # extra arguments
         self.kwargs = kwargs
-        self.bootstrap = kwargs.get('bootstrap', 20)
+        if kwargs.get('bootstrap') is None:
+            if self.method == 'unif':
+                self.bootstrap = 20
+            else:
+                self.bootstrap = 0
         if self.bootstrap > 0:
             self.enlarge = kwargs.get('enlarge', 1.0)
         else:

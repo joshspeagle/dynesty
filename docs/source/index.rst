@@ -12,13 +12,26 @@ Installation
 ============
 
 ``dynesty`` is compatible with both Python 2.7 and Python 3.6. It requires
-``numpy``, ``scipy``, ``matplotlib``, and ``six``.
-After downloading the directory, the package can be installed by running::
+``numpy``, ``scipy``, ``matplotlib``, and ``six``. Installing the most
+recent stable version of the package is as easy as::
+
+    pip install dynesty
+
+Alternately, for users who might want newer development versions, it can also
+be installed directly from the directory by running::
 
     python setup.py install
 
 Changelog
 =========
+
+0.9.1 (2018-03-01)
+------------------
+
+* Fixed a minor bootstrapping bug that affected performance for some users.
+
+* Fixed a serious bug associated with the new singular decomposition algorithm
+  and changed its behavior so it no longer auto-kills user runs when it fails.
 
 0.9.0 (2018-02-25)
 ------------------

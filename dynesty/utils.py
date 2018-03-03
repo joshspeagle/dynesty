@@ -198,7 +198,7 @@ def quantile(x, q, weights=None):
         return quantiles
 
 
-def jitter_run(res, rstate=None):
+def jitter_run(res, rstate=None, approx=False):
     """
     Probes **statistical uncertainties** on a nested sampling run by
     explicitly generating a *realization* of the prior volume associated
@@ -213,6 +213,10 @@ def jitter_run(res, rstate=None):
 
     rstate : `~numpy.random.RandomState`, optional
         `~numpy.random.RandomState` instance.
+
+    approx : bool, optional
+        Whether to approximate all sets of uniform order statistics by their
+        associated marginals (from the Beta distribution). Default is `False`.
 
     Returns
     -------
@@ -253,28 +257,29 @@ def jitter_run(res, rstate=None):
     # instead  sampling down a set of uniform random variables
     # (i.e. uniform order statistics).
     nlive_flag = np.ones(nsamps, dtype='bool')
+    nlive_start, bounds = [], []
 
-    # Find all instances where the number of live points is either constant
-    # or increasing.
-    nlive_flag[1:] = np.diff(samples_n) >= 0
+    if not approx:
+        # Find all instances where the number of live points is either constant
+        # or increasing.
+        nlive_flag[1:] = np.diff(samples_n) >= 0
 
-    # For all the portions that are decreasing, find out where they start,
-    # where they end, and how many live points are present at that given
-    # iteration.
-    bounds = []
-    nlive_start = []
-    if np.any(~nlive_flag):
-        i = 0
-        while i < nsamps:
-            if not nlive_flag[i]:
-                bound = []
-                bound.append(i-1)
-                nlive_start.append(samples_n[i-1])
-                while i < nsamps and not nlive_flag[i]:
-                    i += 1
-                bound.append(i)
-                bounds.append(bound)
-            i += 1
+        # For all the portions that are decreasing, find out where they start,
+        # where they end, and how many live points are present at that given
+        # iteration.
+
+        if np.any(~nlive_flag):
+            i = 0
+            while i < nsamps:
+                if not nlive_flag[i]:
+                    bound = []
+                    bound.append(i-1)
+                    nlive_start.append(samples_n[i-1])
+                    while i < nsamps and not nlive_flag[i]:
+                        i += 1
+                    bound.append(i)
+                    bounds.append(bound)
+                i += 1
 
     # The maximum out of a set of `K_i` uniformly distributed random variables
     # has a marginal distribution of `Beta(K_i, 1)`.
@@ -1005,7 +1010,8 @@ def kl_divergence(res1, res2):
     return np.cumsum(kld)
 
 
-def kld_error(res, error='simulate', rstate=None, return_new=False):
+def kld_error(res, error='simulate', rstate=None, return_new=False,
+              approx=False):
     """
     Computes the `Kullback-Leibler (KL) divergence
     <https://en.wikipedia.org/wiki/Kullback-Leibler_divergence>`_ *from* the
@@ -1030,6 +1036,10 @@ def kld_error(res, error='simulate', rstate=None, return_new=False):
         Whether to return the realization of the run used to compute the
         KL divergence. Default is `False`.
 
+    approx : bool, optional
+        Whether to approximate all sets of uniform order statistics by their
+        associated marginals (from the Beta distribution). Default is `False`.
+
     Returns
     -------
     kld : `~numpy.ndarray` with shape (nsamps,)
@@ -1047,7 +1057,7 @@ def kld_error(res, error='simulate', rstate=None, return_new=False):
 
     # Compute a random realization of our run.
     if error == 'jitter':
-        new_res = jitter_run(res)
+        new_res = jitter_run(res, rstate=rstate, approx=approx)
     elif error == 'resample':
         new_res, samp_idx = resample_run(res, rstate=rstate, return_idx=True)
         logp2 = logp2[samp_idx]  # re-order our original results to match

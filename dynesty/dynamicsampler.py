@@ -53,9 +53,10 @@ def _kld_error(args):
     :meth:`stopping_function`."""
 
     # Extract arguments.
-    results, error = args
+    results, error, approx = args
 
-    return kld_error(results, error, rstate=np.random, return_new=True)
+    return kld_error(results, error, rstate=np.random, return_new=True,
+                     approx=approx)
 
 
 def weight_function(results, args=None, return_weights=False):
@@ -174,7 +175,8 @@ def stopping_function(results, args=None, rstate=None, M=None,
     Estimates of the mean and standard deviation are computed using `n_mc`
     realizations of the input using a provided `'error'` keyword (either
     `'jitter'` or `'simulate'`, which call related functions :meth:`jitter_run`
-    and :meth:`simulate_run` in :mod:`dynesty.utils`).
+    and :meth:`simulate_run` in :mod:`dynesty.utils`, respectively, or
+    `'sim_approx'`, which boosts `'jitter'` by a factor of two).
 
     Returns the boolean `stop <= 1`. If `True`, the :class:`DynamicSampler`
     will stop adding new samples to our results.
@@ -187,7 +189,7 @@ def stopping_function(results, args=None, rstate=None, M=None,
     args : dictionary of keyword arguments, optional
         Arguments used to set the stopping values. Default values are
         `pfrac = 1.0`, `evid_thresh = 0.1`, `post_thresh = 0.02`,
-        `n_mc = 32`, and `error = 'simulate'`.
+        `n_mc = 128`, `error = 'sim_approx'`, and `approx = True`.
 
     rstate : `~numpy.random.RandomState`, optional
         `~numpy.random.RandomState` instance.
@@ -236,33 +238,40 @@ def stopping_function(results, args=None, rstate=None, M=None,
         raise ValueError("The provided `post_thresh` {0} is not non-negative "
                          "even though `pfrac` is {1}."
                          .format(post_thresh, pfrac))
-    n_mc = args.get('n_mc', 32)
+    n_mc = args.get('n_mc', 128)
     if n_mc <= 1:
         raise ValueError("The number of realizations {0} must be greater "
                          "than 1.".format(n_mc))
     elif n_mc < 20:
         warnings.warn("Using a small number of realizations might result in "
                       "excessively noisy stopping value estimates.")
-    error = args.get('error', 'simulate')
-    if error not in {'jitter', 'simulate'}:
+    error = args.get('error', 'sim_approx')
+    if error not in {'jitter', 'simulate', 'sim_approx'}:
         raise ValueError("The chosen `'error'` option {0} is not valid."
                          .format(noise))
+    if error == 'sim_approx':
+        error = 'jitter'
+        boost = 2.
+    else:
+        boost = 1.
+    approx = args.get('approx', True)
 
     # Compute realizations of ln(evidence) and the KL divergence.
     rlist = [results for i in range(n_mc)]
     error_list = [error for i in range(n_mc)]
-    args = zip(rlist, error_list)
+    approx_list = [approx for i in range(n_mc)]
+    args = zip(rlist, error_list, approx_list)
     outputs = list(M(_kld_error, args))
     kld_arr, lnz_arr = np.array([(kld[-1], res.logz[-1])
                                  for kld, res in outputs]).T
 
     # Evidence stopping value.
     lnz_std = np.std(lnz_arr)
-    stop_evid = lnz_std / evid_thresh
+    stop_evid = np.sqrt(boost) * lnz_std / evid_thresh
 
     # Posterior stopping value.
     kld_mean, kld_std = np.mean(kld_arr), np.std(kld_arr)
-    stop_post = (kld_std / kld_mean) / post_thresh
+    stop_post = boost * (kld_std / kld_mean) / post_thresh
 
     # Effective stopping value.
     stop = pfrac * stop_post + (1. - pfrac) * stop_evid

@@ -1507,6 +1507,7 @@ class DynamicSampler(object):
         # Run the main dynamic nested sampling loop.
         ncall = self.ncall
         niter = self.it - 1
+        logl_bounds = (-np.inf, np.inf)
         maxcall_init = min(maxcall_init, maxcall)  # set max calls
         maxiter_init = min(maxiter_init, maxiter)  # set max iterations
 
@@ -1535,7 +1536,7 @@ class DynamicSampler(object):
             res = self.results
             mcall = min(maxcall - ncall, maxcall_batch)
             miter = min(maxiter - niter, maxiter_batch)
-            if use_stop:
+            if mcall > 0 and miter > 0 and n > 0 and use_stop:
                 if self.use_pool_stopfn:
                     M = self.M
                 else:
@@ -1563,13 +1564,16 @@ class DynamicSampler(object):
                                           print_func=print_func,
                                           stop_val=stop_val)
                 ncall, niter, logl_bounds, results = passback
-            else:
-                # We're done!
+            elif logl_bounds[1] != np.inf:
+                # We ran at least one batch and now we're done!
                 if print_progress:
                     print_func(results, niter, ncall, nbatch=n+1,
                                stop_val=stop_val,
                                logl_min=logl_bounds[0],
                                logl_max=logl_bounds[1])
+                break
+            else:
+                # We didn't run a single batch but now we're done!
                 break
 
         if print_progress:

@@ -152,19 +152,19 @@ class Sampler(object):
         if self.use_pool_ptform:
             # Use the pool to compute the prior transform.
             self.live_v = np.array(list(self.M(self.prior_transform,
-                                        self.live_u)))
+                                        np.array(self.live_u))))
         else:
             # Compute the prior transform using the default `map` function.
             self.live_v = np.array(list(map(self.prior_transform,
-                                            self.live_u)))
+                                            np.array(self.live_u))))
         if self.use_pool_logl:
             # Use the pool to compute the log-likelihoods.
             self.live_logl = np.array(list(self.M(self.loglikelihood,
-                                                  self.live_v)))
+                                                  np.array(self.live_v))))
         else:
             # Compute the log-likelihoods using the default `map` function.
             self.live_logl = np.array(list(map(self.loglikelihood,
-                                               self.live_v)))
+                                               np.array(self.live_v))))
         self.live_bound = np.zeros(self.nlive, dtype='int')
         self.live_it = np.zeros(self.nlive, dtype='int')
 

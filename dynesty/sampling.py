@@ -85,8 +85,8 @@ def sample_unif(args):
     (u, loglstar, axes, scale,
      prior_transform, loglikelihood, kwargs) = args
 
-    v = prior_transform(u)
-    logl = loglikelihood(v)
+    v = prior_transform(np.array(u))
+    logl = loglikelihood(np.array(v))
     nc = 1
     blob = None
 
@@ -200,8 +200,8 @@ def sample_rwalk(args):
                 nc, accept, reject = 0, 0, 0  # reset values
 
         # Check proposed point.
-        v_prop = prior_transform(u_prop)
-        logl_prop = loglikelihood(v_prop)
+        v_prop = prior_transform(np.array(u_prop))
+        logl_prop = loglikelihood(np.array(v_prop))
         if logl_prop >= loglstar:
             u = u_prop
             v = v_prop
@@ -310,15 +310,15 @@ def sample_slice(args):
             r = rstate.rand()  # initial scale/offset
             u_l = u - r * axis  # left bound
             if np.all(u_l > 0.) and np.all(u_l < 1.):
-                v_l = prior_transform(u_l)
-                logl_l = loglikelihood(v_l)
+                v_l = prior_transform(np.array(u_l))
+                logl_l = loglikelihood(np.array(v_l))
             else:
                 logl_l = -np.inf
             nc += 1
             u_r = u + (1 - r) * axis  # right bound
             if np.all(u_r > 0.) and np.all(u_r < 1.):
-                v_r = prior_transform(u_r)
-                logl_r = loglikelihood(v_r)
+                v_r = prior_transform(np.array(u_r))
+                logl_r = loglikelihood(np.array(v_r))
             else:
                 logl_r = -np.inf
             nc += 1
@@ -327,16 +327,16 @@ def sample_slice(args):
             while logl_l >= loglstar:
                 u_l -= axis
                 if np.all(u_l > 0.) and np.all(u_l < 1.):
-                    v_l = prior_transform(u_l)
-                    logl_l = loglikelihood(v_l)
+                    v_l = prior_transform(np.array(u_l))
+                    logl_l = loglikelihood(np.array(v_l))
                 else:
                     logl_l = -np.inf
                 nc += 1
             while logl_r >= loglstar:
                 u_r += axis
                 if np.all(u_r > 0.) and np.all(u_r < 1.):
-                    v_r = prior_transform(u_r)
-                    logl_r = loglikelihood(v_r)
+                    v_r = prior_transform(np.array(u_r))
+                    logl_r = loglikelihood(np.array(v_r))
                 else:
                     logl_r = -np.inf
                 nc += 1
@@ -347,8 +347,8 @@ def sample_slice(args):
                 u_hat = u_r - u_l
                 u_prop = u_l + rstate.rand() * u_hat  # scale from left
                 if np.all(u_prop > 0.) and np.all(u_prop < 1.):
-                    v_prop = prior_transform(u_prop)
-                    logl_prop = loglikelihood(v_prop)
+                    v_prop = prior_transform(np.array(u_prop))
+                    logl_prop = loglikelihood(np.array(v_prop))
                 else:
                     logl_prop = -np.inf
                 nc += 1
@@ -472,15 +472,15 @@ def sample_rslice(args):
         r = rstate.rand()  # initial scale/offset
         u_l = u - r * axis  # left bound
         if np.all(u_l > 0.) and np.all(u_l < 1.):
-            v_l = prior_transform(u_l)
-            logl_l = loglikelihood(v_l)
+            v_l = prior_transform(np.array(u_l))
+            logl_l = loglikelihood(np.array(v_l))
         else:
             logl_l = -np.inf
         nc += 1
         u_r = u + (1 - r) * axis  # right bound
         if np.all(u_r > 0.) and np.all(u_r < 1.):
-            v_r = prior_transform(u_r)
-            logl_r = loglikelihood(v_r)
+            v_r = prior_transform(np.array(u_r))
+            logl_r = loglikelihood(np.array(v_r))
         else:
             logl_r = -np.inf
         nc += 1
@@ -489,16 +489,16 @@ def sample_rslice(args):
         while logl_l >= loglstar:
             u_l -= axis
             if np.all(u_l > 0.) and np.all(u_l < 1.):
-                v_l = prior_transform(u_l)
-                logl_l = loglikelihood(v_l)
+                v_l = prior_transform(np.array(u_l))
+                logl_l = loglikelihood(np.array(v_l))
             else:
                 logl_l = -np.inf
             nc += 1
         while logl_r >= loglstar:
             u_r += axis
             if np.all(u_r > 0.) and np.all(u_r < 1.):
-                v_r = prior_transform(u_r)
-                logl_r = loglikelihood(v_r)
+                v_r = prior_transform(np.array(u_r))
+                logl_r = loglikelihood(np.array(v_r))
             else:
                 logl_r = -np.inf
             nc += 1
@@ -509,8 +509,8 @@ def sample_rslice(args):
             u_hat = u_r - u_l
             u_prop = u_l + rstate.rand() * u_hat  # scale from left
             if np.all(u_prop > 0.) and np.all(u_prop < 1.):
-                v_prop = prior_transform(u_prop)
-                logl_prop = loglikelihood(v_prop)
+                v_prop = prior_transform(np.array(u_prop))
+                logl_prop = loglikelihood(np.array(v_prop))
             else:
                 logl_prop = -np.inf
             nc += 1
@@ -639,8 +639,8 @@ def sample_hslice(args):
             t_prop = rstate.uniform(t_l, t_r)  # sample time t
             u_prop = abs((vel * t_prop + u + 1) % 2 - 1)  # compute x(t)
             if np.all(u_prop > 0.) and np.all(u_prop < 1.):
-                v_prop = prior_transform(u_prop)
-                logl_prop = loglikelihood(v_prop)
+                v_prop = prior_transform(np.array(u_prop))
+                logl_prop = loglikelihood(np.array(v_prop))
             else:
                 logl_prop = -np.inf
             nc += 1

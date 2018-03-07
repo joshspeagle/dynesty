@@ -711,16 +711,16 @@ class DynamicSampler(object):
             self.live_u = self.rstate.rand(self.nlive_init, self.npdim)
             if self.use_pool_ptform:
                 self.live_v = np.array(list(self.M(self.prior_transform,
-                                                   self.live_u)))
+                                                   np.array(self.live_u))))
             else:
                 self.live_v = np.array(list(map(self.prior_transform,
-                                                self.live_u)))
+                                                np.array(self.live_u))))
             if self.use_pool_logl:
                 self.live_logl = np.array(list(self.M(self.loglikelihood,
-                                                      self.live_v)))
+                                                      np.array(self.live_v))))
             else:
                 self.live_logl = np.array(list(map(self.loglikelihood,
-                                                   self.live_v)))
+                                                   np.array(self.live_v))))
         else:
             self.live_u, self.live_v, self.live_logl = live_points
             self.nlive_init = len(self.live_u)
@@ -1000,13 +1000,17 @@ class DynamicSampler(object):
             # to propose a new set of points from the unit cube.
             live_u = self.rstate.rand(nlive_new, self.npdim)
             if self.use_pool_ptform:
-                live_v = np.array(list(self.M(self.prior_transform, live_u)))
+                live_v = np.array(list(self.M(self.prior_transform,
+                                              np.array(live_u))))
             else:
-                live_v = np.array(list(map(self.prior_transform, live_u)))
+                live_v = np.array(list(map(self.prior_transform,
+                                           np.array(live_u))))
             if self.use_pool_logl:
-                live_logl = np.array(list(self.M(self.loglikelihood, live_v)))
+                live_logl = np.array(list(self.M(self.loglikelihood,
+                                                 np.array(live_v))))
             else:
-                live_logl = np.array(list(map(self.loglikelihood, live_v)))
+                live_logl = np.array(list(map(self.loglikelihood,
+                                              np.array(live_v))))
             # Convert all `-np.inf` log-likelihoods to finite large numbers.
             # Necessary to keep estimators in our sampler from breaking.
             for i, logl in enumerate(live_logl):

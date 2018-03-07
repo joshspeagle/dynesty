@@ -25,6 +25,16 @@ be installed directly from the directory by running::
 Changelog
 =========
 
+0.9.2 (2018-03-03)
+------------------
+
+* Added in a fast approximation option for `jitter_run`.
+
+* Modified the default stopping heuristic. It now evaluates much faster but is
+  a less accurate probe of the "true" errors.
+
+* Added safety checks for `prior_transform`.
+
 0.9.1 (2018-03-01)
 ------------------
 
@@ -44,7 +54,8 @@ Changelog
 * Added two new slice sampling options (`'rslice'` and `'hslice'`).
 
 * Changed internals to allow user to access quantities during dynamic batch
-  allocation. Breaks some aspects of backwards compatibility with generators.
+  allocation. **WARNING: Breaks some aspects of backwards compatibility
+  for advanced users utilizing generators.**
 
 * Simplified parallelism options.
 

@@ -407,6 +407,8 @@ class DynamicSampler(object):
                 self.bootstrap = 20
             else:
                 self.bootstrap = 0
+        else:
+            self.bootstrap = kwargs.get('bootstrap')
         if self.bootstrap > 0:
             self.enlarge = kwargs.get('enlarge', 1.0)
         else:

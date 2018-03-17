@@ -154,22 +154,15 @@ def sample_rwalk(args):
     walks = kwargs.get('walks', 25)  # number of steps
     accept = 0
     reject = 0
+    fail = 0
     nc = 0
     ncall = 0
 
+    drhat, dr, du, u_prop, logl_prop = np.nan, np.nan, np.nan, np.nan, np.nan
     while nc < walks or accept == 0:
         while True:
-            # Propose a direction on the unit n-sphere.
-            drhat = rstate.randn(n)
-            drhat /= linalg.norm(drhat)
 
-            # Scale based on dimensionality.
-            dr = drhat * rstate.rand()**(1./n)
-
-            # Transform to proposal distribution.
-            du = np.dot(axes, dr)
-            u_prop = u + scale * du
-
+            # Check scale-factor.
             if scale == 0.:
                 raise RuntimeError("The random walk sampling is stuck! "
                                    "Some useful output quantities:\n"
@@ -185,19 +178,28 @@ def sample_rwalk(args):
                                    .format(u, drhat, dr, du, u_prop,
                                            loglstar, logl_prop, axes, scale))
 
+            # Propose a direction on the unit n-sphere.
+            drhat = rstate.randn(n)
+            drhat /= linalg.norm(drhat)
+
+            # Scale based on dimensionality.
+            dr = drhat * rstate.rand()**(1./n)
+
+            # Transform to proposal distribution.
+            du = np.dot(axes, dr)
+            u_prop = u + scale * du
+
             # Check unit cube constraints.
             if np.all(u_prop > 0.) and np.all(u_prop < 1.):
                 break
             else:
-                reject += 1
+                fail += 1
 
             # Check if we're stuck generating bad numbers.
-            if reject > 1000 * walks:
-                scale /= 2.
+            if fail > 500 * walks:
                 warnings.warn("Random number generation appears to be "
-                              "extremely inefficient. Adjusting the "
-                              "scale-factor accordingly.")
-                nc, accept, reject = 0, 0, 0  # reset values
+                              "extremely inefficient. Bounding distributions "
+                              "might be sub-optimal.")
 
         # Check proposed point.
         v_prop = prior_transform(np.array(u_prop))
@@ -214,13 +216,13 @@ def sample_rwalk(args):
 
         # Check if we're stuck generating bad points.
         if nc > 50 * walks:
-            scale /= 2.
+            scale *= math.exp(-1. / n)
             warnings.warn("Random walk proposals appear to be "
                           "extremely inefficient. Adjusting the "
                           "scale-factor accordingly.")
             nc, accept, reject = 0, 0, 0  # reset values
 
-    blob = {'accept': accept, 'reject': reject, 'scale': scale}
+    blob = {'accept': accept, 'reject': reject, 'fail': fail, 'scale': scale}
 
     return u, v, logl, ncall, blob
 

@@ -32,6 +32,7 @@ import numpy as np
 from numpy import linalg
 from scipy import special
 from scipy import spatial
+from scipy import linalg as lalg
 
 try:
     from scipy.cluster.vq import kmeans2
@@ -1192,17 +1193,20 @@ def bounding_ellipsoid(points, pointvol=0.):
     for trials in range(100):
         try:
             # Check if matrix is invertible.
-            am = linalg.inv(cov_temp)
+            am = lalg.solve(cov_temp, np.eye(ndim), assume_a='pos')
             l, v = linalg.eigh(am)  # compute eigenvalues/vectors
             if np.all((l > 0.) & (np.isfinite(l))):
                 break
+            else:
+                raise RuntimeError("The eigenvalue/eigenvector decomposition "
+                                   "failed!")
         except:
             # If the matrix remains singular/unstable, increase the nugget.
             cov_temp = cov + np.eye(ndim) * (2.**(trials+1) * 1e-10)
             pass
     else:
-        Warning("Failed to guarantee the ellipsoid axes will be non-singular. "
-                "Defaulting to a sphere.")
+        warnings.warn("Failed to guarantee the ellipsoid axes will be "
+                      "non-singular. Defaulting to a sphere.")
         am = np.eye(ndim)
 
     # Calculate expansion factor necessary to bound each point.

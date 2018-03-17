@@ -37,9 +37,9 @@ _SAMPLING = {'unif': sample_unif,
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
-def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
+def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
                   bound='multi', sample='unif',
-                  update_interval=0.6, first_update=None,
+                  update_interval=0.8, first_update=None,
                   npdim=None, rstate=None, queue_size=None, pool=None,
                   use_pool=None, live_points=None,
                   logl_args=None, logl_kwargs=None,
@@ -314,8 +314,8 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=250,
 
 def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
                          bound='multi', sample='unif',
-                         update_interval=0.6, first_update=None,
-                         npdim=None, rstate=None, queue_size=1, pool=None,
+                         update_interval=0.8, first_update=None,
+                         npdim=None, rstate=None, queue_size=None, pool=None,
                          use_pool=None, logl_args=None, logl_kwargs=None,
                          ptform_args=None, ptform_kwargs=None,
                          enlarge=None, bootstrap=None,

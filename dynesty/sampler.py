@@ -785,7 +785,7 @@ class Sampler(object):
             `ln(z + z_est) - ln(z) < dlogz`, where `z` is the current
             evidence from all saved samples and `z_est` is the estimated
             contribution from the remaining volume. If `add_live` is `True`,
-            the default is `0.005 * (nlive + 1)`. Otherwise, the
+            the default is `1e-3 * (nlive - 1) + 0.01`. Otherwise, the
             default is `0.01`.
 
         logl_max : float, optional
@@ -817,7 +817,7 @@ class Sampler(object):
         # Define our stopping criteria.
         if dlogz is None:
             if add_live:
-                dlogz = 0.005 * (self.nlive + 1.)
+                dlogz = 1e-3 * (self.nlive - 1.) + 0.01
             else:
                 dlogz = 0.01
 

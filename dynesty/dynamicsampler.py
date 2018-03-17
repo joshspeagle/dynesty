@@ -585,7 +585,7 @@ class DynamicSampler(object):
 
         return Results(results)
 
-    def sample_initial(self, nlive=100, update_interval=None,
+    def sample_initial(self, nlive=500, update_interval=None,
                        first_update=None, maxiter=None, maxcall=None,
                        logl_max=np.inf, dlogz=0.01, live_points=None):
         """
@@ -598,7 +598,7 @@ class DynamicSampler(object):
         ----------
         nlive : int, optional
             The number of live points to use for the baseline nested
-            sampling run. Default is `100`.
+            sampling run. Default is `500`.
 
         update_interval : int or float, optional
             If an integer is passed, only update the bounding distribution
@@ -873,7 +873,7 @@ class DynamicSampler(object):
         self.saved_batch_nlive.append(self.nlive_init)  # initial nlive
         self.saved_batch_bounds.append((-np.inf, np.inf))  # initial bounds
 
-    def sample_batch(self, nlive_new=100, update_interval=None,
+    def sample_batch(self, nlive_new=500, update_interval=None,
                      logl_bounds=None, maxiter=None, maxcall=None,
                      save_bounds=True):
         """
@@ -885,7 +885,7 @@ class DynamicSampler(object):
         Parameters
         ----------
         nlive_new : int
-            Number of new live points to be added. Default is `100`.
+            Number of new live points to be added. Default is `500`.
 
         update_interval : int or float, optional
             If an integer is passed, only update the bounding distribution
@@ -1370,9 +1370,9 @@ class DynamicSampler(object):
         self.saved_batch_nlive.append(max(new_n))
         self.saved_batch_bounds.append((llmin, llmax))
 
-    def run_nested(self, nlive_init=100, maxiter_init=None,
+    def run_nested(self, nlive_init=500, maxiter_init=None,
                    maxcall_init=None, dlogz_init=0.01, logl_max_init=np.inf,
-                   nlive_batch=100, wt_function=None, wt_kwargs=None,
+                   nlive_batch=500, wt_function=None, wt_kwargs=None,
                    maxiter_batch=None, maxcall_batch=None,
                    maxiter=None, maxcall=None, maxbatch=None,
                    stop_function=None, stop_kwargs=None, use_stop=True,
@@ -1388,7 +1388,7 @@ class DynamicSampler(object):
         ----------
         nlive_init : int, optional
             The number of live points used during the initial ("baseline")
-            nested sampling run. Default is `100`.
+            nested sampling run. Default is `500`.
 
         maxiter_init : int, optional
             Maximum number of iterations for the initial baseline nested
@@ -1417,7 +1417,7 @@ class DynamicSampler(object):
 
         nlive_batch : int, optional
             The number of live points used when adding additional samples
-            from a nested sampling run within each batch. Default is `100`.
+            from a nested sampling run within each batch. Default is `500`.
 
         wt_function : func, optional
             A cost function that takes a :class:`Results` instance
@@ -1594,7 +1594,7 @@ class DynamicSampler(object):
         if print_progress:
             sys.stderr.write("\n")
 
-    def add_batch(self, nlive=100, wt_function=None, wt_kwargs=None,
+    def add_batch(self, nlive=500, wt_function=None, wt_kwargs=None,
                   maxiter=None, maxcall=None, save_bounds=True,
                   print_progress=True, print_func=None, stop_val=None):
         """
@@ -1606,7 +1606,7 @@ class DynamicSampler(object):
         ----------
         nlive : int, optional
             The number of live points used when adding additional samples
-            in the batch. Default is `100`.
+            in the batch. Default is `500`.
 
         wt_function : func, optional
             A cost function that takes a `Results` instance

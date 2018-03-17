@@ -287,10 +287,10 @@ def runplot(results, span=None, logplot=False, kde=True, nkde=1000,
 
 
 def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
-              post_color='blue', post_kwargs=None, trace_cmap='plasma',
-              trace_color=None, trace_kwargs=None, connect=False,
-              connect_highlight=10, connect_color='red', connect_kwargs=None,
-              max_n_ticks=5, use_math_text=False,
+              post_color='blue', post_kwargs=None, kde=True, nkde=1000,
+              trace_cmap='plasma', trace_color=None, trace_kwargs=None,
+              connect=False, connect_highlight=10, connect_color='red',
+              connect_kwargs=None, max_n_ticks=5, use_math_text=False,
               labels=None, label_kwargs=None,
               show_titles=False, title_fmt=".2f", title_kwargs=None,
               truths=None, truth_color='red', truth_kwargs=None,
@@ -337,6 +337,16 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
     post_kwargs : dict, optional
         Extra keyword arguments that will be used for plotting the
         marginalized 1-D posteriors.
+
+    kde : bool, optional
+        Whether to use kernel density estimation to estimate and plot
+        the PDF of the importance weights as a function of log-volume
+        (as opposed to the importance weights themselves). Default is
+        `True`.
+
+    nkde : int, optional
+        The number of grid points used when plotting the kernel density
+        estimate. Default is `1000`.
 
     trace_cmap : str or iterable with shape (ndim,), optional
         A `~matplotlib`-style colormap (either a single colormap or a
@@ -458,6 +468,14 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
         weights = np.exp(results['logwt'] - results['logz'][-1])
     except:
         weights = results['weights']
+    if kde:
+        # Derive kernel density estimate.
+        wt_kde = gaussian_kde(resample_equal(-logvol, weights))  # KDE
+        logvol_grid = np.linspace(logvol[0], logvol[-1], nkde)  # resample
+        wt_grid = wt_kde.pdf(-logvol_grid)  # evaluate KDE PDF
+        wts = np.interp(-logvol, -logvol_grid, wt_grid)  # interpolate
+    else:
+        wts = weights
 
     # Deal with 1D results. A number of extra catches are also here
     # in case users are trying to plot other results besides the `Results`
@@ -546,7 +564,7 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
             else:
                 color = trace_color[i]
         else:
-            color = weights
+            color = wts
         if isinstance(trace_cmap, str_type):
             cmap = trace_cmap
         else:
@@ -657,9 +675,10 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
 
 
 def cornerpoints(results, thin=1, span=None, cmap='plasma', color=None,
-                 plot_kwargs=None, labels=None, label_kwargs=None,
-                 truths=None, truth_color='red', truth_kwargs=None,
-                 max_n_ticks=5, use_math_text=False, fig=None):
+                 kde=True, nkde=1000, plot_kwargs=None, labels=None,
+                 label_kwargs=None, truths=None, truth_color='red',
+                 truth_kwargs=None, max_n_ticks=5, use_math_text=False,
+                 fig=None):
     """
     Generate a (sub-)corner plot of (weighted) samples.
 
@@ -693,6 +712,16 @@ def cornerpoints(results, thin=1, span=None, cmap='plasma', color=None,
         A `~matplotlib`-style color used when plotting the points.
         This overrides the `cmap` option by giving all points
         the same color. Default is `None` (not used).
+
+    kde : bool, optional
+        Whether to use kernel density estimation to estimate and plot
+        the PDF of the importance weights as a function of log-volume
+        (as opposed to the importance weights themselves). Default is
+        `True`.
+
+    nkde : int, optional
+        The number of grid points used when plotting the kernel density
+        estimate. Default is `1000`.
 
     plot_kwargs : dict, optional
         Extra keyword arguments that will be used for plotting the points.
@@ -754,10 +783,17 @@ def cornerpoints(results, thin=1, span=None, cmap='plasma', color=None,
 
     # Extract weighted samples.
     samples = results['samples']
+    logvol = results['logvol']
     try:
         weights = np.exp(results['logwt'] - results['logz'][-1])
     except:
         weights = results['weights']
+    if kde:
+        # Derive kernel density estimate.
+        wt_kde = gaussian_kde(resample_equal(-logvol, weights))  # KDE
+        logvol_grid = np.linspace(logvol[0], logvol[-1], nkde)  # resample
+        wt_grid = wt_kde.pdf(-logvol_grid)  # evaluate KDE PDF
+        weights = np.interp(-logvol, -logvol_grid, wt_grid)  # interpolate
 
     # Deal with 1D results. A number of extra catches are also here
     # in case users are trying to plot other results besides the `Results`
@@ -1728,7 +1764,10 @@ def cornerbound(results, it=None, idx=None, prior_transform=None,
         except:
             # In the dynamic sampling case, we will show the live points used
             # during the batch associated with a particular iteration/bound.
-            batch = results['samples_batch'][it]  # select batch
+            if it is not None:
+                batch = results['samples_batch'][it]  # select batch
+            else:
+                batch = results['samples_batch'][idx]
             nbatch = results['batch_nlive'][batch]  # nlive in the batch
             bsel = results['samples_batch'] == batch  # select batch
             niter_eff = sum(bsel) - nbatch  # "effective" iterations in batch

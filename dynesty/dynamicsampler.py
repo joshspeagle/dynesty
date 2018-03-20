@@ -559,6 +559,7 @@ class DynamicSampler(object):
         """Saved results from the dynamic nested sampling run. All saved
         bounds are also returned."""
 
+        # Add all saved samples (and ancillary quantities) to the results.
         results = [('niter', self.it - 1),
                    ('ncall', np.array(self.saved_nc)),
                    ('eff', self.eff),
@@ -573,15 +574,19 @@ class DynamicSampler(object):
                    ('logvol', np.array(self.saved_logvol)),
                    ('logz', np.array(self.saved_logz)),
                    ('logzerr', np.sqrt(np.array(self.saved_logzvar))),
-                   ('scale', np.array(self.saved_scale)),
                    ('information', np.array(self.saved_h)),
-                   ('bound', copy.deepcopy(self.bound)),
-                   ('bound_iter', np.array(self.saved_bounditer, dtype='int')),
-                   ('samples_bound', np.array(self.saved_boundidx,
-                                              dtype='int')),
                    ('batch_nlive', np.array(self.saved_batch_nlive,
                                             dtype='int')),
                    ('batch_bounds', np.array(self.saved_batch_bounds))]
+
+        # Add any saved bounds (and ancillary quantities) to the results.
+        if self.sampler.save_bounds:
+            results.append(('bound', copy.deepcopy(self.bound)))
+            results.append(('bound_iter',
+                            np.array(self.saved_bounditer, dtype='int')))
+            results.append(('samples_bound',
+                            np.array(self.saved_boundidx, dtype='int')))
+            results.append(('scale', np.array(self.saved_scale)))
 
         return Results(results)
 
@@ -703,6 +708,8 @@ class DynamicSampler(object):
             maxcall = sys.maxsize
         if maxiter is None:
             maxiter = sys.maxsize
+        if nlive <= 2 * self.npdim:
+            warnings.warn("Beware: `nlive_init <= 2 * ndim`!")
 
         # Reset saved results to avoid any possible conflicts.
         self.reset()
@@ -953,6 +960,8 @@ class DynamicSampler(object):
             maxcall = sys.maxsize
         if maxiter is None:
             maxiter = sys.maxsize
+        if nlive_new <= 2 * self.npdim:
+            warnings.warn("Beware: `nlive_batch <= 2 * ndim`!")
         self.sampler.save_bounds = save_bounds
 
         # Initialize starting values.
@@ -1551,7 +1560,7 @@ class DynamicSampler(object):
             res = self.results
             mcall = min(maxcall - ncall, maxcall_batch)
             miter = min(maxiter - niter, maxiter_batch)
-            if mcall > 0 and miter > 0 and n > 0 and use_stop:
+            if mcall > 0 and miter > 0 and use_stop:
                 if self.use_pool_stopfn:
                     M = self.M
                 else:
@@ -1582,7 +1591,7 @@ class DynamicSampler(object):
             elif logl_bounds[1] != np.inf:
                 # We ran at least one batch and now we're done!
                 if print_progress:
-                    print_func(results, niter, ncall, nbatch=n+1,
+                    print_func(results, niter, ncall, nbatch=n,
                                stop_val=stop_val,
                                logl_min=logl_bounds[0],
                                logl_max=logl_bounds[1])

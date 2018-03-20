@@ -33,24 +33,45 @@ from numpy import linalg
 from scipy import special
 from scipy import spatial
 from scipy import linalg as lalg
-
-try:
-    from scipy.cluster.vq import kmeans2
-    HAVE_KMEANS = True
-except ImportError:  # pragma: no cover
-    HAVE_KMEANS = False
-
 from .utils import random_choice
 
 __all__ = ["UnitCube", "Ellipsoid", "MultiEllipsoid",
            "RadFriends", "SupFriends",
-           "vol_prefactor", "randsphere",
+           "vol_prefactor", "logvol_prefactor", "randsphere",
            "bounding_ellipsoid", "bounding_ellipsoids",
            "_bounding_ellipsoids", "_ellipsoid_bootstrap_expand",
            "_ellipsoids_bootstrap_expand", "_friends_bootstrap_radius",
            "_friends_leaveoneout_radius"]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
+
+# Try and import k-means clustering (used with 'multi').
+try:
+    from scipy.cluster.vq import kmeans2
+    HAVE_KMEANS = True
+except ImportError:  # pragma: no cover
+    HAVE_KMEANS = False
+
+# Alias for computing more robust/stable shrunk covariance estimates.
+try:
+    # Use the Oracle Approximating Shrinkage shrunk estimator.
+    # This is optimal for independent Normally-distributed data.
+    from sklearn.covariance import oas as oas_cov
+
+    def covariance(points):
+        return oas_cov(points)[0]
+    HAVE_OAS = True
+except ImportError:  # pragma: no cover
+    # If not available, use the default MLE sample covariance estimator.
+    # This is unbiased but noisy, especially if the covariance is sparse
+    # and the number of samples is small.
+    from numpy import cov as mle_cov
+
+    def covariance(points):
+        return mle_cov(points, rowvar=False)
+    HAVE_OAS = False
+    warnings.warn("Robust OAS shrunk covariance estimator from `sklearn` is "
+                  "not available. Defaulting to MLE estimator from `numpy`.")
 
 
 class UnitCube(object):
@@ -137,36 +158,39 @@ class Ellipsoid(object):
     ctr : `~numpy.ndarray` with shape (N,)
         Coordinates of ellipsoid center.
 
-    am : `~numpy.ndarray` with shape (N, N)
-        Matrix describing the axes.
+    cov : `~numpy.ndarray` with shape (N, N)
+        Covariance matrix describing the axes.
 
     """
 
-    def __init__(self, ctr, am):
+    def __init__(self, ctr, cov):
         self.n = len(ctr)  # dimension
         self.ctr = np.array(ctr)  # center coordinates
-        self.am = np.array(am)  # precision matrix (inverse of covariance)
+        self.cov = np.array(cov)  # covariance matrix
+        self.am = lalg.pinvh(cov)  # precision matrix (inverse of covariance)
+        self.axes = lalg.cholesky(cov, lower=True)  # transformation axes
 
         # Volume of ellipsoid is the volume of an n-sphere divided
         # by the (determinant of the) Jacobian associated with the
         # transformation, which by definition is the precision matrix.
-        self.vol = vol_prefactor(self.n) / np.sqrt(linalg.det(self.am))
+        detsign, detln = linalg.slogdet(self.am)
+        self.vol = np.exp(logvol_prefactor(self.n) - 0.5 * detln)
 
         # The eigenvalues (l) of `a` are (a^-2, b^-2, ...) where
         # (a, b, ...) are the lengths of principle axes.
         # The eigenvectors (v) are the normalized principle axes.
-        l, v = linalg.eigh(self.am)
+        l, v = lalg.eigh(self.cov)
         if np.all((l > 0.) & (np.isfinite(l))):
-            self.axlens = 1. / np.sqrt(l)
+            self.axlens = np.sqrt(l)
         else:
             raise ValueError("The input precision matrix defining the "
                              "ellipsoid {0} is apparently singular with "
-                             "l={1} and v={2}.".format(self.am, l, v))
+                             "l={1} and v={2}.".format(self.cov, l, v))
 
-        # Scaled eigenvectors are the axes, where `axes[:,i]` is the
-        # i-th axis.  Multiplying this matrix by a vector will transform a
+        # Scaled eigenvectors are the principle axes, where `paxes[:,i]` is the
+        # i-th axis. Multiplying this matrix by a vector will transform a
         # point in the unit n-sphere to a point in the ellipsoid.
-        self.axes = np.dot(v, np.diag(self.axlens))
+        self.paxes = np.dot(v, np.diag(self.axlens))
 
         # Amount by which volume was increased after initialization (i.e.
         # cumulative factor from `scale_to_vol`).
@@ -175,8 +199,9 @@ class Ellipsoid(object):
     def scale_to_vol(self, vol):
         """Scale ellipoid to a target volume."""
 
-        f = (vol / self.vol) ** (1.0 / self.n)  # linear factor
+        f = np.exp((np.log(vol) - np.log(self.vol)) / self.n)  # linear factor
         self.expand *= f
+        self.cov *= f**2
         self.am *= f**-2
         self.axlens *= f
         self.axes *= f
@@ -186,7 +211,7 @@ class Ellipsoid(object):
         """Return the endpoints of the major axis."""
 
         i = np.argmax(self.axlens)  # find the major axis
-        v = self.axes[:, i]  # vector from center to major axis endpoint
+        v = self.paxes[:, i]  # vector from center to major axis endpoint
 
         return self.ctr - v, self.ctr + v
 
@@ -296,10 +321,12 @@ class Ellipsoid(object):
         ell = bounding_ellipsoid(points, pointvol=pointvol)
         self.n = ell.n
         self.ctr = ell.ctr
+        self.cov = ell.cov
         self.am = ell.am
         self.vol = ell.vol
         self.axlens = ell.axlens
         self.axes = ell.axes
+        self.paxes = ell.paxes
         self.expand = ell.expand
 
         # Use bootstrapping to determine the volume expansion factor.
@@ -344,34 +371,36 @@ class MultiEllipsoid(object):
         Collection of coordinates of ellipsoid centers. Used to initialize
         :class:`MultiEllipsoid` if :data:`ams` is also provided.
 
-    ams : `~numpy.ndarray` with shape (M, N, N), optional
+    covs : `~numpy.ndarray` with shape (M, N, N), optional
         Collection of matrices describing the axes of the ellipsoids. Used to
         initialize :class:`MultiEllipsoid` if :data:`ctrs` also provided.
 
     """
 
-    def __init__(self, ells=None, ctrs=None, ams=None):
+    def __init__(self, ells=None, ctrs=None, covs=None):
         if ells is not None:
             # Try to initialize quantities using provided `Ellipsoid` objects.
-            if (ctrs is None) and (ams is None):
+            if (ctrs is None) and (covs is None):
                 self.nells = len(ells)
                 self.ells = ells
                 self.ctrs = np.array([ell.ctr for ell in self.ells])
+                self.covs = np.array([ell.cov for ell in self.ells])
                 self.ams = np.array([ell.am for ell in self.ells])
             else:
                 raise ValueError("You cannot specific both `ells` and "
                                  "(`ctrs`, `ams`)!")
         else:
             # Try to initialize quantities using provided `ctrs` and `ams`.
-            if (ctrs is None) and (ams is None):
+            if (ctrs is None) and (covs is None):
                 raise ValueError("You must specify either `ells` or "
-                                 "(`ctrs`, `ams`).")
+                                 "(`ctrs`, `covs`).")
             else:
                 self.nells = len(ctrs)
                 self.ctrs = np.array(ctrs)
-                self.ams = np.array(ams)
-                self.ells = [Ellipsoid(ctrs[i], ams[i])
+                self.covs = np.array(covs)
+                self.ells = [Ellipsoid(ctrs[i], covs[i])
                              for i in range(self.nells)]
+                self.ams = np.array([ell.am for ell in self.ells])
 
         # Compute quantities.
         self.vols = np.array([ell.vol for ell in self.ells])
@@ -393,9 +422,6 @@ class MultiEllipsoid(object):
 
     def major_axis_endpoints(self):
         """Return the endpoints of the major axis of each ellipsoid."""
-
-        i = np.argmax(self.axlens)  # find the major axis
-        v = self.axes[:, i]  # vector from center to major axis endpoint
 
         return np.array([ell.major_axis_endpoints() for ell in self.ells])
 
@@ -590,6 +616,7 @@ class MultiEllipsoid(object):
         self.nells = len(ells)
         self.ells = ells
         self.ctrs = np.array([ell.ctr for ell in self.ells])
+        self.covs = np.array([ell.cov for ell in self.ells])
         self.ams = np.array([ell.am for ell in self.ells])
         self.vols = np.array([ell.vol for ell in self.ells])
         self.vol_tot = sum(self.vols)
@@ -666,7 +693,7 @@ class RadFriends(object):
             # If no K-D Tree is provided, execute a brute-force
             # search over all balls.
             nctrs = len(ctrs)
-            within = np.array([linalg.norm(ctrs[i] - x) <= self.radius
+            within = np.array([lalg.norm(ctrs[i] - x) <= self.radius
                                for i in range(nctrs)], dtype='bool')
             idxs = np.arange(nctrs)[within]
         else:
@@ -1116,6 +1143,24 @@ def vol_prefactor(n, p=2.):
     return f
 
 
+def logvol_prefactor(n, p=2.):
+    """
+    Returns the ln(volume constant) for an `n`-dimensional sphere with an
+    :math:`L^p` norm. The constant is defined as::
+
+        lnf = n * ln(2.) + n * LogGamma(1./p + 1) - LogGamma(n/p + 1.)
+
+    By default the `p=2.` norm is used (i.e. the standard Euclidean norm).
+
+    """
+
+    p *= 1.  # convert to float in case user inputs an integer
+    lnf = (n * np.log(2.) + n * special.gammaln(1./p + 1.) -
+           special.gammaln(n/p + 1))
+
+    return lnf
+
+
 def randsphere(n, rstate=None):
     """Draw a point uniformly within an `n`-dimensional unit sphere."""
 
@@ -1123,7 +1168,7 @@ def randsphere(n, rstate=None):
         rstate = np.random
 
     z = rstate.randn(n)  # initial n-dim vector
-    zhat = z / linalg.norm(z)  # normalize
+    zhat = z / lalg.norm(z)  # normalize
     xhat = zhat * rstate.rand()**(1./n)  # scale
 
     return xhat
@@ -1162,16 +1207,26 @@ def bounding_ellipsoid(points, pointvol=0.):
     if npoints == 1:
         if pointvol > 0.:
             ctr = points[0]
-            r = (pointvol / vol_prefactor(ndim))**(1./ndim)
-            am = (1. / r**2) * np.identity(ndim)
-            return Ellipsoid(ctr, am)
+            r = np.exp((np.log(pointvol) - logvol_prefactor(ndim)) / ndim)
+            covar = r**2 * np.identity(ndim)
+            return Ellipsoid(ctr, covar)
         else:
             raise ValueError("Cannot compute a bounding ellipsoid to a "
                              "single point if `pointvol` is not specified.")
 
     # Calculate covariance of points.
     ctr = np.mean(points, axis=0)
-    cov = np.cov(points, rowvar=False)
+    cov = covariance(points)
+
+    if not HAVE_OAS:
+        if npoints <= 2 * ndim:
+            warnings.warn("Volume is sparsely sampled. MLE covariance "
+                          "estimates and associated ellipsoid decompositions "
+                          "might be unstable.")
+        if ndim >= 50:
+            warnings.warn("Dimensionality is large. MLE covariance "
+                          "estimates and associated ellipsoid decompositions "
+                          "might be unstable.")
 
     # When ndim = 1, `np.cov` returns a 0-d array. Make it a 1x1 2-d array.
     if ndim == 1:
@@ -1189,12 +1244,12 @@ def bounding_ellipsoid(points, pointvol=0.):
     # nonsingular to deal with pathological cases where the ellipsoid has
     # "zero" volume. This can occur when `npoints <= ndim` or when enough
     # points are linear combinations of other points.
-    cov_temp = np.array(cov)
+    covar = np.array(cov)
     for trials in range(100):
         try:
             # Check if matrix is invertible.
-            am = lalg.solve(cov_temp, np.eye(ndim), assume_a='pos')
-            l, v = linalg.eigh(am)  # compute eigenvalues/vectors
+            am = lalg.pinvh(covar)
+            l, v = lalg.eigh(covar)  # compute eigenvalues/vectors
             if np.all((l > 0.) & (np.isfinite(l))):
                 break
             else:
@@ -1202,7 +1257,7 @@ def bounding_ellipsoid(points, pointvol=0.):
                                    "failed!")
         except:
             # If the matrix remains singular/unstable, increase the nugget.
-            cov_temp = cov + np.eye(ndim) * (2.**(trials+1) * 1e-10)
+            covar = cov + np.eye(ndim) * (2.**(trials+1) * 1e-10)
             pass
     else:
         warnings.warn("Failed to guarantee the ellipsoid axes will be "
@@ -1223,16 +1278,16 @@ def bounding_ellipsoid(points, pointvol=0.):
     one_minus_a_bit = 1. - SQRTEPS
 
     if fmax > one_minus_a_bit:
-        am *= one_minus_a_bit / fmax
+        covar *= fmax / one_minus_a_bit
 
     # Initialize our ellipsoid.
-    ell = Ellipsoid(ctr, am)
+    ell = Ellipsoid(ctr, covar)
 
     # Expand our ellipsoid to encompass a minimum volume.
     if pointvol > 0.:
-        v = npoints * pointvol
-        if ell.vol < v:
-            ell.scale_to_vol(v)
+        minvol = npoints * pointvol
+        if ell.vol < minvol:
+            ell.scale_to_vol(minvol)
 
     return ell
 

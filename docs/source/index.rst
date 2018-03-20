@@ -12,28 +12,38 @@ Installation
 ============
 
 ``dynesty`` is compatible with both Python 2.7 and Python 3.6. It requires
-``numpy``, ``scipy``, ``matplotlib``, and ``six``. Installing the most
-recent stable version of the package is as easy as::
+``numpy``, ``scipy``, ``matplotlib``, and ``six``; ``sklearn`` is also
+recommended but not required. Installing the most recent stable version
+of the package is as easy as::
 
     pip install dynesty
 
 Alternately, for users who might want newer development versions, it can also
-be installed directly from the directory by running::
+be installed directly from a local copy of the repository by running::
 
     python setup.py install
 
 Changelog
 =========
 
-0.9.2 (2018-03-03)
+0.9.2 (2018-03-17)
 ------------------
 
-* Added in a fast approximation option for `jitter_run`.
+* Added in a fast approximation option for `jitter_run` and `simulate_run`.
 
-* Modified the default stopping heuristic. It now evaluates much faster but is
-  a less accurate probe of the "true" errors.
+* Modified the default stopping heuristic. It now evaluates significantly
+  faster but is a less accurate probe of the "true" KL divergence.
 
-* Added safety checks for `prior_transform`.
+* Modified `'rwalk'` behavior to better deal with edge cases.
+
+* Changed defaults so performance should now be more stable (albiet slower) 
+  for the average user.
+
+* Improved the stability of bounding ellipsoids.
+
+* Fixed performance issues with `'rslice'` and `'hslice'`.
+
+* Small plotting improvements.
 
 0.9.1 (2018-03-01)
 ------------------

@@ -386,7 +386,15 @@ class SingleEllipsoidSampler(Sampler):
         i = self.rstate.randint(self.nlive)
         u = self.live_u[i, :]
 
-        return u, self.ell.axes
+        # Choose axes.
+        if self.sampling == 'rwalk':
+            ax = self.ell.axes
+        elif self.sampling == 'slice':
+            ax = self.ell.paxes
+        else:
+            ax = np.identity(self.npdim)
+
+        return u, ax
 
     def update_unif(self, blob):
         """Filler function."""
@@ -546,7 +554,7 @@ class MultiEllipsoidSampler(Sampler):
                              live_points, update_interval, first_update,
                              rstate, queue_size, pool, use_pool)
         self.mell = MultiEllipsoid(ctrs=[np.zeros(self.npdim)],
-                                   ams=[np.identity(self.npdim)])
+                                   covs=[np.identity(self.npdim)])
         self.bounding = 'multi'
         self.method = method
 
@@ -632,7 +640,15 @@ class MultiEllipsoidSampler(Sampler):
         # Pick a random ellipsoid that encompasses `u`.
         ell_idx = ell_idxs[self.rstate.randint(nidx)]
 
-        return u, self.mell.ells[ell_idx].axes
+        # Choose axes.
+        if self.sampling == 'rwalk':
+            ax = self.mell.ells[ell_idx].axes
+        elif self.sampling == 'slice':
+            ax = self.mell.ells[ell_idx].paxes
+        else:
+            ax = np.identity(self.npdim)
+
+        return u, ax
 
     def update_unif(self, blob):
         """Filler function."""

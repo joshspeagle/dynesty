@@ -556,7 +556,7 @@ def resample_run(res, rstate=None, return_idx=False):
         return new_res
 
 
-def simulate_run(res, rstate=None, return_idx=False):
+def simulate_run(res, rstate=None, return_idx=False, approx=False):
     """
     Probes **combined uncertainties** (statistical and sampling) on a nested
     sampling run by wrapping :meth:`jitter_run` and :meth:`resample_run`.
@@ -574,6 +574,10 @@ def simulate_run(res, rstate=None, return_idx=False):
         Whether to return the list of resampled indices used to construct
         the new run. Default is `False`.
 
+    approx : bool, optional
+        Whether to approximate all sets of uniform order statistics by their
+        associated marginals (from the Beta distribution). Default is `False`.
+
     Returns
     -------
     new_res : :class:`~dynesty.results.Results` instance
@@ -590,7 +594,7 @@ def simulate_run(res, rstate=None, return_idx=False):
     new_res, samp_idx = resample_run(res, rstate=rstate, return_idx=True)
 
     # Jitter run.
-    new_res = jitter_run(new_res, rstate=rstate)
+    new_res = jitter_run(new_res, rstate=rstate, approx=approx)
 
     if return_idx:
         return new_res, samp_idx

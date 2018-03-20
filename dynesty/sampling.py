@@ -453,9 +453,6 @@ def sample_rslice(args):
     nc = 0
     fscale = []
 
-    # Modifying axes and computing lengths.
-    axes = scale * axes.T  # scale based on past tuning
-
     # Slice sampling loop.
     for it in range(slices):
 
@@ -463,12 +460,9 @@ def sample_rslice(args):
         drhat = rstate.randn(n)
         drhat /= linalg.norm(drhat)
 
-        # Scale based on dimensionality.
-        dr = drhat * rstate.rand()**(1./n)
-
-        # Transform from sphere to ellipsoid.
-        axis = np.dot(axes, dr)
-        axlen = linalg.norm(axis)
+        # Scale based on past tuning.
+        axis = drhat * scale
+        axlen = scale
 
         # Define starting "window".
         r = rstate.rand()  # initial scale/offset
@@ -615,21 +609,11 @@ def sample_hslice(args):
     slices = kwargs.get('slices', 5)  # number of slices
     nc = 0
 
-    # Modifying axes and computing lengths.
-    axes = scale * axes.T  # scale based on past tuning
-
     # Slice sampling loop.
     for it in range(slices):
 
-        # Propose a direction on the unit n-sphere.
-        drhat = rstate.randn(n)
-        drhat /= linalg.norm(drhat)
-
-        # Scale based on dimensionality.
-        dr = drhat * rstate.rand()**(1./n)
-
-        # Transform from sphere to ellipsoid.
-        vel = np.dot(axes, dr)
+        # Random Gaussian proposal.
+        vel = rstate.randn(n)
 
         # Define our starting "window" in time over our trajectory.
         t_l = -1e10  # "left" (past) direction
@@ -638,22 +622,30 @@ def sample_hslice(args):
         # Sample in time between `t_l` and `t_r`. If the sample is not valid,
         # shrink the limits until we hit the `loglstar` bound.
         while True:
-            t_prop = rstate.uniform(t_l, t_r)  # sample time t
-            u_prop = abs((vel * t_prop + u + 1) % 2 - 1)  # compute x(t)
+
+            # Sample time t.
+            t_prop = rstate.uniform(t_l, t_r)
+
+            # Compute new position x(t)
+            u_prop = np.abs(np.remainder(vel * t_prop + u + 1., 2.) - 1.)
+
+            # Check unit cube.
             if np.all(u_prop > 0.) and np.all(u_prop < 1.):
                 v_prop = prior_transform(np.array(u_prop))
                 logl_prop = loglikelihood(np.array(v_prop))
             else:
                 logl_prop = -np.inf
             nc += 1
-            # If we succeed, move to the new position.
+
+            # Update bounds.
             if logl_prop >= loglstar:
+                # If we succeed, move to the new position.
                 u = u_prop
                 break
-            # If we fail, check if the new point is to the left/right of
-            # our original point along our proposal axis and update
-            # the bounds accordingly.
             else:
+                # If we fail, check if the new point is to the left/right of
+                # our original point along our proposal axis and update
+                # the bounds accordingly.
                 if t_prop <= 0:  # left
                     t_l = t_prop
                 elif t_prop > 0:  # right

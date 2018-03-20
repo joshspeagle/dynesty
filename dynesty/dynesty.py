@@ -212,8 +212,8 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         raise ValueError("Unknown bounding method: '{0}'".format(bound))
     if sample not in _SAMPLING:
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
-    if nlive < 2 * ndim:
-        warnings.warn("You really want to make `nlive >= 2 * ndim`!")
+    if nlive <= 2 * ndim:
+        warnings.warn("Beware: `nlive <= 2 * ndim`!")
     if isinstance(update_interval, float):
         update_interval = max(1, round(update_interval * nlive))
     if bound == 'none':

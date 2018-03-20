@@ -48,3 +48,6 @@ docs/examples
 
 # old files
 old/*
+
+# saved data
+demos/*.pkl

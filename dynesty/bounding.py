@@ -53,6 +53,7 @@ except ImportError:  # pragma: no cover
     HAVE_KMEANS = False
 
 # Alias for computing more robust/stable shrunk covariance estimates.
+DIMWARN, SPARSEWARN = False, False
 try:
     # Use the Oracle Approximating Shrinkage shrunk estimator.
     # This is optimal for independent Normally-distributed data.
@@ -1219,14 +1220,16 @@ def bounding_ellipsoid(points, pointvol=0.):
     cov = covariance(points)
 
     if not HAVE_OAS:
-        if npoints <= 2 * ndim:
+        if not SPARSEWARN and npoints <= 2 * ndim:
             warnings.warn("Volume is sparsely sampled. MLE covariance "
                           "estimates and associated ellipsoid decompositions "
                           "might be unstable.")
-        if ndim >= 50:
+            SPARSEWARN = True
+        if not DIMWARN and ndim >= 50:
             warnings.warn("Dimensionality is large. MLE covariance "
                           "estimates and associated ellipsoid decompositions "
                           "might be unstable.")
+            DIMWARN = True
 
     # When ndim = 1, `np.cov` returns a 0-d array. Make it a 1x1 2-d array.
     if ndim == 1:

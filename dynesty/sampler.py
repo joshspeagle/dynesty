@@ -14,12 +14,16 @@ import sys
 import warnings
 import math
 import copy
-import scipy.misc as misc
 import numpy as np
 
 from .results import *
 from .bounding import *
 from .sampling import *
+
+try:
+    from scipy.special import logsumexp
+except ImportError:
+    from scipy.misc import logsumexp
 
 __all__ = ["Sampler"]
 
@@ -378,9 +382,9 @@ class Sampler(object):
         logvols = self.saved_logvol[-1]
         logvols += np.log(1. - (np.arange(self.nlive)+1.) / (self.nlive+1.))
         logvols_pad = np.concatenate(([self.saved_logvol[-1]], logvols))
-        logdvols = misc.logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
-                                  axis=1, b=np.c_[np.ones(self.nlive),
-                                                  -np.ones(self.nlive)])
+        logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
+                             axis=1, b=np.c_[np.ones(self.nlive),
+                                             -np.ones(self.nlive)])
         logdvols += math.log(0.5)
 
         # Defining change in `logvol` used in `logzvar` approximation.
@@ -691,8 +695,8 @@ class Sampler(object):
             loglstar_new = self.live_logl[worst]  # new likelihood
 
             # Set our new weight using quadratic estimates (trapezoid rule).
-            logdvol = misc.logsumexp(a=[logvol + self.dlv, logvol],
-                                     b=[0.5, -0.5])  # ln(dvol)
+            logdvol = logsumexp(a=[logvol + self.dlv, logvol],
+                                b=[0.5, -0.5])  # ln(dvol)
             logwt = np.logaddexp(loglstar_new, loglstar) + logdvol  # ln(wt)
 
             # Sample a new live point from within the likelihood constraint

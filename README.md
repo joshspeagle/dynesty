@@ -1,7 +1,7 @@
 dynesty
 =======
 
-A dynamic nested sampling package for computing Bayesian posteriors and
+A Dynamic Nested Sampling package for computing Bayesian posteriors and
 evidences. Pure Python. MIT license. **Beta release.**
 
 ### Documentation

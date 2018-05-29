@@ -365,7 +365,7 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         conditioned on the provided bounds. Choices are uniform
         (`'unif'`), random walks (`'rwalk'`), multivariate slices (`'slice'`),
         random slices (`'rslice'`), and random trajectories ("Hamiltonian
-        slices"; `'hslice'`). Default is `'unif'`.
+        slices"; `'hslice'`). Default is `'rwalk'`.
 
     update_interval : int or float, optional
         If an integer is passed, only update the proposal distribution every

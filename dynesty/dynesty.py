@@ -38,7 +38,7 @@ SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
 def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
-                  bound='multi', sample='unif',
+                  bound='multi', sample='rwalk',
                   update_interval=0.8, first_update=None,
                   npdim=None, rstate=None, queue_size=None, pool=None,
                   use_pool=None, live_points=None,
@@ -90,7 +90,7 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         conditioned on the provided bounds. Choices are uniform
         (`'unif'`), random walks (`'rwalk'`), multivariate slices (`'slice'`),
         random slices (`'rslice'`), and random trajectories ("Hamiltonian
-        slices"; `'hslice'`). Default is `'unif'`.
+        slices"; `'hslice'`). Default is `'rwalk'`.
 
     update_interval : int or float, optional
         If an integer is passed, only update the proposal distribution every
@@ -313,7 +313,7 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
 
 
 def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
-                         bound='multi', sample='unif',
+                         bound='multi', sample='rwalk',
                          update_interval=0.8, first_update=None,
                          npdim=None, rstate=None, queue_size=None, pool=None,
                          use_pool=None, logl_args=None, logl_kwargs=None,

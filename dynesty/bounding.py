@@ -34,6 +34,7 @@ from scipy import special
 from scipy import spatial
 from scipy import linalg as lalg
 from .utils import random_choice
+from numpy import cov as mle_cov
 
 __all__ = ["UnitCube", "Ellipsoid", "MultiEllipsoid",
            "RadFriends", "SupFriends",
@@ -51,29 +52,6 @@ try:
     HAVE_KMEANS = True
 except ImportError:  # pragma: no cover
     HAVE_KMEANS = False
-
-# Alias for computing more robust/stable shrunk covariance estimates.
-global _DIMWARN, _SPARSEWARN
-_DIMWARN, _SPARSEWARN = False, False
-try:
-    # Use the Oracle Approximating Shrinkage shrunk estimator.
-    # This is optimal for independent Normally-distributed data.
-    from sklearn.covariance import oas as oas_cov
-
-    def covariance(points):
-        return oas_cov(points)[0]
-    HAVE_OAS = True
-except ImportError:  # pragma: no cover
-    # If not available, use the default MLE sample covariance estimator.
-    # This is unbiased but noisy, especially if the covariance is sparse
-    # and the number of samples is small.
-    from numpy import cov as mle_cov
-
-    def covariance(points):
-        return mle_cov(points, rowvar=False)
-    HAVE_OAS = False
-    warnings.warn("Robust OAS shrunk covariance estimator from `sklearn` is "
-                  "not available. Defaulting to MLE estimator from `numpy`.")
 
 
 class UnitCube(object):
@@ -1218,20 +1196,7 @@ def bounding_ellipsoid(points, pointvol=0.):
 
     # Calculate covariance of points.
     ctr = np.mean(points, axis=0)
-    cov = covariance(points)
-
-    if not HAVE_OAS:
-        global _SPARSEWARN, _DIMWARN
-        if not _SPARSEWARN and npoints <= 2 * ndim:
-            warnings.warn("Volume is sparsely sampled. MLE covariance "
-                          "estimates and associated ellipsoid decompositions "
-                          "might be unstable.")
-            _SPARSEWARN = True
-        if not _DIMWARN and ndim >= 50:
-            warnings.warn("Dimensionality is large. MLE covariance "
-                          "estimates and associated ellipsoid decompositions "
-                          "might be unstable.")
-            _DIMWARN = True
+    cov = mle_cov(points, rowvar=False)
 
     # When ndim = 1, `np.cov` returns a 0-d array. Make it a 1x1 2-d array.
     if ndim == 1:
@@ -1261,8 +1226,10 @@ def bounding_ellipsoid(points, pointvol=0.):
                 raise RuntimeError("The eigenvalue/eigenvector decomposition "
                                    "failed!")
         except:
-            # If the matrix remains singular/unstable, increase the nugget.
-            covar = cov + np.eye(ndim) * (2.**(trials+1) * 1e-10)
+            # If the matrix remains singular/unstable,
+            # suppress the off-diagonal elements.
+            coeff = 1.1**(trials+1) / 1.1**100
+            covar = (1. - coeff) * cov + coeff * np.eye(ndim)
             pass
     else:
         warnings.warn("Failed to guarantee the ellipsoid axes will be "

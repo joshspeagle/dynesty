@@ -155,6 +155,7 @@ def sample_rwalk(args):
     accept = 0
     reject = 0
     fail = 0
+    nfail = 0
     nc = 0
     ncall = 0
 
@@ -194,12 +195,15 @@ def sample_rwalk(args):
                 break
             else:
                 fail += 1
+                nfail += 1
 
             # Check if we're stuck generating bad numbers.
-            if fail > 500 * walks:
+            if fail > 50 * walks:
                 warnings.warn("Random number generation appears to be "
-                              "extremely inefficient. Bounding distributions "
-                              "might be sub-optimal.")
+                              "extremely inefficient. Adjusting the "
+                              "scale-factor accordingly.")
+                fail = 0
+                scale *= math.exp(-1. / n)
 
         # Check proposed point.
         v_prop = prior_transform(np.array(u_prop))
@@ -222,7 +226,7 @@ def sample_rwalk(args):
                           "scale-factor accordingly.")
             nc, accept, reject = 0, 0, 0  # reset values
 
-    blob = {'accept': accept, 'reject': reject, 'fail': fail, 'scale': scale}
+    blob = {'accept': accept, 'reject': reject, 'fail': nfail, 'scale': scale}
 
     return u, v, logl, ncall, blob
 

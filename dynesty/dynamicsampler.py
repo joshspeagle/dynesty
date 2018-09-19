@@ -1047,7 +1047,7 @@ class DynamicSampler(object):
             # to "rewind" our previous base run until we arrive at the
             # relevant set of live points (and scale) at the bound.
             live_u = np.empty((nblive, self.npdim))
-            live_v = np.empty((nblive, self.npdim))
+            live_v = np.empty((nblive, base_v.shape[1]))
             live_logl = np.empty(nblive)
             live_u[base_id[-nblive:]] = base_u[-nblive:]
             live_v[base_id[-nblive:]] = base_v[-nblive:]
@@ -1084,7 +1084,7 @@ class DynamicSampler(object):
             # Sample a new batch of `nlive_new` live points using the
             # internal sampler given the `logl_min` constraint.
             live_u = np.empty((nlive_new, self.npdim))
-            live_v = np.empty((nlive_new, self.npdim))
+            live_v = np.empty((nlive_new, base_v.shape[1]))
             live_logl = np.empty(nlive_new)
             live_bound = np.zeros(nlive_new, dtype='int')
             if self.sampler._beyond_unit_bound(loglmin):

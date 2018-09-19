@@ -206,6 +206,7 @@ class UnitCubeSampler(Sampler):
         facc = (1. * accept) / (accept + reject)
         norm = max(self.facc, 1. - self.facc) * self.npdim
         self.scale *= math.exp((facc - self.facc) / norm)
+        self.scale = min(self.scale, math.sqrt(self.npdim))
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
@@ -410,6 +411,7 @@ class SingleEllipsoidSampler(Sampler):
         facc = (1. * accept) / (accept + reject)
         norm = max(self.facc, 1. - self.facc) * self.npdim
         self.scale *= math.exp((facc - self.facc) / norm)
+        self.scale = min(self.scale, math.sqrt(self.npdim))
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
@@ -664,6 +666,7 @@ class MultiEllipsoidSampler(Sampler):
         facc = (1. * accept) / (accept + reject)
         norm = max(self.facc, 1. - self.facc) * self.npdim
         self.scale *= math.exp((facc - self.facc) / norm)
+        self.scale = min(self.scale, math.sqrt(self.npdim))
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
@@ -876,6 +879,7 @@ class RadFriendsSampler(Sampler):
         facc = (1. * accept) / (accept + reject)
         norm = max(self.facc, 1. - self.facc) * self.npdim
         self.scale *= math.exp((facc - self.facc) / norm)
+        self.scale = min(self.scale, math.sqrt(self.npdim))
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
@@ -1089,6 +1093,7 @@ class SupFriendsSampler(Sampler):
         facc = (1. * accept) / (accept + reject)
         norm = max(self.facc, 1. - self.facc) * self.npdim
         self.scale *= math.exp((facc - self.facc) / norm)
+        self.scale = min(self.scale, math.sqrt(self.npdim))
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative

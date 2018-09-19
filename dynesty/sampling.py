@@ -198,7 +198,7 @@ def sample_rwalk(args):
                 nfail += 1
 
             # Check if we're stuck generating bad numbers.
-            if fail > 50 * walks:
+            if fail > 100 * walks:
                 warnings.warn("Random number generation appears to be "
                               "extremely inefficient. Adjusting the "
                               "scale-factor accordingly.")

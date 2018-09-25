@@ -38,13 +38,13 @@ SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
 def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
-                  bound='multi', sample='rwalk',
-                  update_interval=0.8, first_update=None,
+                  bound='multi', sample='auto',
+                  update_interval=None, first_update=None,
                   npdim=None, rstate=None, queue_size=None, pool=None,
                   use_pool=None, live_points=None,
                   logl_args=None, logl_kwargs=None,
                   ptform_args=None, ptform_kwargs=None,
-                  enlarge=None, bootstrap=None, vol_dec=0.5, vol_check=2.0,
+                  enlarge=None, bootstrap=0, vol_dec=0.5, vol_check=2.0,
                   walks=25, facc=0.5, slices=5,
                   **kwargs):
     """
@@ -85,19 +85,27 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         (`'multi'`), balls centered on each live point (`'balls'`), and
         cubes centered on each live point (`'cubes'`). Default is `'multi'`.
 
-    sample : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`, `'hslice'`}, optional
+    sample : {`'auto'`, `'unif'`, `'rwalk'`, `'slice'`, `'rslice'`,
+              `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
-        conditioned on the provided bounds. Choices are uniform
+        conditioned on the provided bounds. Methods available include uniform
         (`'unif'`), random walks (`'rwalk'`), multivariate slices (`'slice'`),
         random slices (`'rslice'`), and random trajectories ("Hamiltonian
-        slices"; `'hslice'`). Default is `'rwalk'`.
+        slices"; `'hslice'`). `'auto'` selects the sampling
+        method based on the provided `ndim`: `'unif'` if `ndim < 10`,
+        `'rwalk'` if `10 <= ndim <= 20`, and `'slice'` if `ndim > 20`.
+        Default is `'auto'`.
 
     update_interval : int or float, optional
         If an integer is passed, only update the proposal distribution every
         `update_interval`-th likelihood call. If a float is passed, update the
         proposal after every `round(update_interval * nlive)`-th likelihood
         call. Larger update intervals larger can be more efficient
-        when the likelihood function is quick to evaluate. Default is `0.6`.
+        when the likelihood function is quick to evaluate. Default behavior
+        is to target a roughly constant change in prior volume, with
+        `1.5` for `'unif'`, `0.15 * walks` for `'rwalk'`,
+        `0.9 * ndim * slices` for `'slice'`, and `np.inf` for `'rslice'` and
+        `'hslice'` which don't utilize bounding distributions.
 
     first_update : dict, optional
         A dictionary containing parameters governing when the sampler should
@@ -159,8 +167,6 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
     ptform_kwargs : dict, optional
         Additional keyword arguments that can be passed to `prior_transform`.
 
-    Other Parameters
-    ----------------
     enlarge : float, optional
         Enlarge the volumes of the specified bounding object(s) by this
         fraction. The preferred method is to determine this organically
@@ -170,8 +176,8 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
     bootstrap : int, optional
         Compute this many bootstrapped realizations of the bounding
         objects. Use the maximum distance found to the set of points left
-        out during each iteration to enlarge the resulting volumes.
-        Default is `20` for uniform sampling (`'unif'`) and `0` otherwise.
+        out during each iteration to enlarge the resulting volumes. Can
+        lead to unstable bounding ellipsoids. Default is `0` (no bootstrap).
 
     vol_dec : float, optional
         For the `'multi'` bounding option, the required fractional reduction
@@ -205,33 +211,65 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
 
     """
 
-    # Initialize variables.
+    # Prior dimensions.
     if npdim is None:
         npdim = ndim
+
+    # Bounding method.
     if bound not in _SAMPLERS:
         raise ValueError("Unknown bounding method: '{0}'".format(bound))
+
+    # Sampling method.
+    if sample == 'auto':
+        if npdim < 10:
+            sample = 'unif'
+        elif 10 <= npdim <= 20:
+            sample = 'rwalk'
+        else:
+            sample = 'slice'
     if sample not in _SAMPLING:
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
+
+    # Dimensional warning check.
     if nlive <= 2 * ndim:
         warnings.warn("Beware: `nlive <= 2 * ndim`!")
-    if isinstance(update_interval, float):
-        update_interval = max(1, round(update_interval * nlive))
+
+    # Update interval for bounds.
+    if update_interval is None:
+        if sample == 'unif':
+            update_interval = 1.5
+        elif sample == 'rwalk':
+            update_interval = 0.15 * walks
+        elif sample == 'slice':
+            update_interval = 0.9 * npdim * slices
+        else:
+            update_interval = np.inf  # no bounds needed for sampling method
     if bound == 'none':
         update_interval = np.inf  # no need to update when there are no bounds
+    if isinstance(update_interval, float):
+        update_interval = max(1, round(update_interval * nlive))
+
+    # Keyword arguments controlling the first update.
     if first_update is None:
         first_update = dict()
+
+    # Random state.
     if rstate is None:
         rstate = np.random
+
+    # Log-likelihood.
     if logl_args is None:
         logl_args = dict()
     if logl_kwargs is None:
         logl_kwargs = dict()
+
+    # Prior transform.
     if ptform_args is None:
         ptform_args = dict()
     if ptform_kwargs is None:
         ptform_kwargs = dict()
 
-    # Initialize kwargs ("other parameters").
+    # Bounding distribution modifications.
     if enlarge is not None:
         kwargs['enlarge'] = enlarge
     if bootstrap is not None:
@@ -240,6 +278,8 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         kwargs['vol_dec'] = vol_dec
     if vol_check is not None:
         kwargs['vol_check'] = vol_check
+
+    # Sampling.
     if walks is not None:
         kwargs['walks'] = walks
     if facc is not None:
@@ -313,12 +353,12 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
 
 
 def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
-                         bound='multi', sample='rwalk',
-                         update_interval=0.8, first_update=None,
+                         bound='multi', sample='auto',
+                         update_interval=None, first_update=None,
                          npdim=None, rstate=None, queue_size=None, pool=None,
                          use_pool=None, logl_args=None, logl_kwargs=None,
                          ptform_args=None, ptform_kwargs=None,
-                         enlarge=None, bootstrap=None,
+                         enlarge=None, bootstrap=0,
                          vol_dec=0.5, vol_check=2.0,
                          walks=25, facc=0.5, slices=5,
                          **kwargs):
@@ -360,19 +400,27 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         (`'multi'`), balls centered on each live point (`'balls'`), and
         cubes centered on each live point (`'cubes'`). Default is `'multi'`.
 
-    sample : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`, `'hslice'`}, optional
+    sample : {`'auto'`, `'unif'`, `'rwalk'`, `'slice'`, `'rslice'`,
+              `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
-        conditioned on the provided bounds. Choices are uniform
+        conditioned on the provided bounds. Methods available include uniform
         (`'unif'`), random walks (`'rwalk'`), multivariate slices (`'slice'`),
         random slices (`'rslice'`), and random trajectories ("Hamiltonian
-        slices"; `'hslice'`). Default is `'rwalk'`.
+        slices"; `'hslice'`). `'auto'` selects the sampling
+        method based on the provided `ndim`: `'unif'` if `ndim < 10`,
+        `'rwalk'` if `10 <= ndim <= 20`, and `'slice'` if `ndim > 20`.
+        Default is `'auto'`.
 
     update_interval : int or float, optional
         If an integer is passed, only update the proposal distribution every
         `update_interval`-th likelihood call. If a float is passed, update the
         proposal after every `round(update_interval * nlive)`-th likelihood
         call. Larger update intervals larger can be more efficient
-        when the likelihood function is quick to evaluate. Default is `0.6`.
+        when the likelihood function is quick to evaluate. Default behavior
+        is to target a roughly constant change in prior volume, with
+        `1.5` for `'unif'`, `0.15 * walks` for `'rwalk'`,
+        `0.9 * ndim * slices` for `'slice'`, and `np.inf` for `'rslice'` and
+        `'hslice'` which don't utilize bounding distributions.
 
     first_update : dict, optional
         A dictionary containing parameters governing when the sampler should
@@ -424,8 +472,6 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
     ptform_kwargs : dict, optional
         Additional keyword arguments that can be passed to `prior_transform`.
 
-    Other Parameters
-    ----------------
     enlarge : float, optional
         Enlarge the volumes of the specified bounding object(s) by this
         fraction. The preferred method is to determine this organically
@@ -435,8 +481,8 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
     bootstrap : int, optional
         Compute this many bootstrapped realizations of the bounding
         objects. Use the maximum distance found to the set of points left
-        out during each iteration to enlarge the resulting volumes.
-        Default is `20` for uniform sampling (`'unif'`) and `0` otherwise.
+        out during each iteration to enlarge the resulting volumes. Can lead
+        to unstable bounding ellipsoids. Default is `0` (no bootstrap).
 
     vol_dec : float, optional
         For the `'multi'` bounding option, the required fractional reduction
@@ -470,27 +516,59 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
 
     """
 
-    # Initialize variables.
+    # Prior dimensions.
     if npdim is None:
         npdim = ndim
+
+    # Bounding method.
     if bound not in _SAMPLERS:
         raise ValueError("Unknown bounding method: '{0}'".format(bound))
+
+    # Sampling method.
+    if sample == 'auto':
+        if npdim < 10:
+            sample = 'unif'
+        elif 10 <= npdim <= 20:
+            sample = 'rwalk'
+        else:
+            sample = 'slice'
     if sample not in _SAMPLING:
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
+
+    # Update interval for bounds.
+    if update_interval is None:
+        if sample == 'unif':
+            update_interval = 1.5
+        elif sample == 'rwalk':
+            update_interval = 0.15 * walks
+        elif sample == 'slice':
+            update_interval = 0.9 * npdim * slices
+        else:
+            update_interval = np.inf  # no bounds needed for sampling method
+    if bound == 'none':
+        update_interval = np.inf  # no need to update when there are no bounds
+
+    # Keyword arguments controlling the first update.
     if first_update is None:
         first_update = dict()
+
+    # Random state.
     if rstate is None:
         rstate = np.random
+
+    # Log-likelihood.
     if logl_args is None:
         logl_args = dict()
     if logl_kwargs is None:
         logl_kwargs = dict()
+
+    # Prior transform.
     if ptform_args is None:
         ptform_args = dict()
     if ptform_kwargs is None:
         ptform_kwargs = dict()
 
-    # Initialize kwargs ("other parameters").
+    # Bounding distribution modifications.
     if enlarge is not None:
         kwargs['enlarge'] = enlarge
     if bootstrap is not None:
@@ -499,6 +577,8 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         kwargs['vol_dec'] = vol_dec
     if vol_check is not None:
         kwargs['vol_check'] = vol_check
+
+    # Sampling.
     if walks is not None:
         kwargs['walks'] = walks
     if facc is not None:

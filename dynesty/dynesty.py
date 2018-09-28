@@ -104,7 +104,7 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         when the likelihood function is quick to evaluate. Default behavior
         is to target a roughly constant change in prior volume, with
         `1.5` for `'unif'`, `0.15 * walks` for `'rwalk'`,
-        `0.9 * ndim * slices` for `'slice'`, and `np.inf` for `'rslice'` and
+        `0.9 * ndim * slices` for `'slice'`, and `sys.maxsize` for `'rslice'` and
         `'hslice'` which don't utilize bounding distributions.
 
     first_update : dict, optional
@@ -243,9 +243,9 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         elif sample == 'slice':
             update_interval = 0.9 * npdim * slices
         else:
-            update_interval = np.inf  # no bounds needed for sampling method
+            update_interval = sys.maxsize  # no bounds needed
     if bound == 'none':
-        update_interval = np.inf  # no need to update when there are no bounds
+        update_interval = sys.maxsize  # no need to update with no bounds
     if isinstance(update_interval, float):
         update_interval = max(1, round(update_interval * nlive))
 
@@ -419,7 +419,7 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         when the likelihood function is quick to evaluate. Default behavior
         is to target a roughly constant change in prior volume, with
         `1.5` for `'unif'`, `0.15 * walks` for `'rwalk'`,
-        `0.9 * ndim * slices` for `'slice'`, and `np.inf` for `'rslice'` and
+        `0.9 * ndim * slices` for `'slice'`, and `sys.maxsize` for `'rslice'` and
         `'hslice'` which don't utilize bounding distributions.
 
     first_update : dict, optional
@@ -544,9 +544,9 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         elif sample == 'slice':
             update_interval = 0.9 * npdim * slices
         else:
-            update_interval = np.inf  # no bounds needed for sampling method
+            update_interval = sys.maxsize  # no bounds needed
     if bound == 'none':
-        update_interval = np.inf  # no need to update when there are no bounds
+        update_interval = sys.maxsize  # no need to update with no bounds
 
     # Keyword arguments controlling the first update.
     if first_update is None:

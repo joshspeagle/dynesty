@@ -482,8 +482,9 @@ class Sampler(object):
             raise ValueError("No live points were added to the "
                              "list of samples!")
 
-    def sample(self, maxiter=None, maxcall=None, dlogz=0.01,
-               logl_max=np.inf, save_bounds=True, save_samples=True):
+    def sample(self, maxiter=None, maxcall=None, maxcall_per_iter=None,
+               dlogz=0.01, logl_max=np.inf, save_bounds=True,
+               save_samples=True):
         """
         **The main nested sampling loop.** Iteratively replace the worst live
         point with a sample drawn uniformly from the prior until the
@@ -501,6 +502,12 @@ class Sampler(object):
             Maximum number of likelihood evaluations. Iteration may stop
             earlier if termination condition is reached. Default is
             `sys.maxsize` (no limit).
+
+        maxcall_per_iter : int, optional
+            Maximum number of likelihood evaluations allowed in an iteration.
+            Exits from any run (initialization or batch) if more calls 
+            are required for any iteration.
+            Default is `sys.maxsize` (no limit).
 
         dlogz : float, optional
             Iteration will stop when the estimated contribution of the
@@ -578,11 +585,14 @@ class Sampler(object):
         # Initialize quantities.
         if maxcall is None:
             maxcall = sys.maxsize
+        if maxcall_per_iter is None:
+            maxcall_per_iter = sys.maxsize
         if maxiter is None:
             maxiter = sys.maxsize
         self.save_samples = save_samples
         self.save_bounds = save_bounds
         ncall = 0
+        nc = 0
 
         # Check whether we're starting fresh or continuing a previous run.
         if self.it == 1:
@@ -660,6 +670,16 @@ class Sampler(object):
             # Stopping criterion 4: last dead point exceeded the upper
             # `logl_max` bound.
             if loglstar > logl_max:
+                if not self.save_samples:
+                    self.saved_logz.append(logz)
+                    self.saved_logzvar.append(logzvar)
+                    self.saved_h.append(h)
+                    self.saved_logvol.append(logvol)
+                    self.saved_logl.append(loglstar)
+                break
+                
+            # Stopping criterion 5: too many calls in last iteration
+            if nc > maxcall_per_iter:
                 if not self.save_samples:
                     self.saved_logz.append(logz)
                     self.saved_logzvar.append(logzvar)
@@ -761,9 +781,9 @@ class Sampler(object):
                    logz, logzvar, h, nc, worst_it, boundidx, bounditer,
                    self.eff, delta_logz)
 
-    def run_nested(self, maxiter=None, maxcall=None, dlogz=None,
-                   logl_max=np.inf, add_live=True, print_progress=True,
-                   print_func=None, save_bounds=True):
+    def run_nested(self, maxiter=None, maxcall=None, maxcall_per_iter=None, 
+                   dlogz=None, logl_max=np.inf, add_live=True,
+                   print_progress=True, print_func=None, save_bounds=True):
         """
         **A wrapper that executes the main nested sampling loop.**
         Iteratively replace the worst live point with a sample drawn
@@ -781,6 +801,12 @@ class Sampler(object):
             Maximum number of likelihood evaluations. Iteration may stop
             earlier if termination condition is reached. Default is
             `sys.maxsize` (no limit).
+
+        maxcall_per_iter : int, optional
+            Maximum number of likelihood evaluations allowed in an iteration.
+            Exits from any run (initialization or batch) if more calls 
+            are required for any iteration.
+            Default is `sys.maxsize` (no limit).
 
         dlogz : float, optional
             Iteration will stop when the estimated contribution of the
@@ -828,10 +854,12 @@ class Sampler(object):
         # Run the main nested sampling loop.
         ncall = self.ncall
         for it, results in enumerate(self.sample(maxiter=maxiter,
-                                     maxcall=maxcall, dlogz=dlogz,
-                                     logl_max=logl_max,
-                                     save_bounds=save_bounds,
-                                     save_samples=True)):
+                                                 maxcall=maxcall,
+                                                 maxcall_per_iter=maxcall_per_iter,
+                                                 dlogz=dlogz,
+                                                 logl_max=logl_max,
+                                                 save_bounds=save_bounds,
+                                                 save_samples=True)):
             (worst, ustar, vstar, loglstar, logvol, logwt,
              logz, logzvar, h, nc, worst_it, boundidx, bounditer,
              eff, delta_logz) = results

@@ -592,7 +592,7 @@ class DynamicSampler(object):
 
     def sample_initial(self, nlive=500, update_interval=None,
                        first_update=None, maxiter=None, maxcall=None,
-                       save_bounds=True,
+                       maxcall_per_iter=None, save_bounds=True,
                        logl_max=np.inf, dlogz=0.01, live_points=None):
         """
         Generate a series of initial samples from a nested sampling
@@ -628,6 +628,12 @@ class DynamicSampler(object):
             Maximum number of likelihood evaluations. Iteration may stop
             earlier if termination condition is reached. Default is
             `sys.maxsize` (no limit).
+
+        maxcall_per_iter : int, optional
+            Maximum number of likelihood evaluations allowed in an iteration.
+            Exits from any run (initialization or batch) if more calls 
+            are required for any iteration.
+            Default is `sys.maxsize` (no limit).
 
         save_bounds : bool, optional
             Whether or not to save past distributions used to bound
@@ -713,6 +719,8 @@ class DynamicSampler(object):
             maxcall = sys.maxsize
         if maxiter is None:
             maxiter = sys.maxsize
+        if maxcall_per_iter is None:
+            maxcall_per_iter = sys.maxsize
         if nlive <= 2 * self.npdim:
             warnings.warn("Beware: `nlive_init <= 2 * ndim`!")
 
@@ -782,9 +790,11 @@ class DynamicSampler(object):
         # Run the sampler internally as a generator.
         for i in range(1):
             for it, results in enumerate(self.sampler.sample(maxiter=maxiter,
-                                         save_samples=False,
-                                         save_bounds=save_bounds,
-                                         maxcall=maxcall, dlogz=dlogz)):
+                                                             save_samples=False,
+                                                             save_bounds=save_bounds,
+                                                             maxcall=maxcall,
+                                                             maxcall_per_iter=maxcall_per_iter,
+                                                             dlogz=dlogz)):
                 # Grab results.
                 (worst, ustar, vstar, loglstar, logvol, logwt,
                  logz, logzvar, h, nc, worst_it, boundidx, bounditer,
@@ -888,7 +898,7 @@ class DynamicSampler(object):
 
     def sample_batch(self, nlive_new=500, update_interval=None,
                      logl_bounds=None, maxiter=None, maxcall=None,
-                     save_bounds=True):
+                     maxcall_per_iter=None, save_bounds=True):
         """
         Generate an additional series of nested samples that will be combined
         with the previous set of dead points. Works by hacking the internal
@@ -922,6 +932,12 @@ class DynamicSampler(object):
             Maximum number of likelihood evaluations. Iteration may stop
             earlier if termination condition is reached. Default is
             `sys.maxsize` (no limit).
+
+        maxcall_per_iter : int, optional
+            Maximum number of likelihood evaluations allowed in an iteration.
+            Exits from any run (initialization or batch) if more calls 
+            are required for any iteration.
+            Default is `sys.maxsize` (no limit).
 
         save_bounds : bool, optional
             Whether or not to save past distributions used to bound
@@ -966,6 +982,8 @@ class DynamicSampler(object):
             maxcall = sys.maxsize
         if maxiter is None:
             maxiter = sys.maxsize
+        if maxcall_per_iter is None:
+            maxcall_per_iter = sys.maxsize
         if nlive_new <= 2 * self.npdim:
             warnings.warn("Beware: `nlive_batch <= 2 * ndim`!")
         self.sampler.save_bounds = save_bounds
@@ -1159,11 +1177,12 @@ class DynamicSampler(object):
         # sample past the original bounds "for free".
         for i in range(1):
             for it, results in enumerate(self.sampler.sample(dlogz=0.,
-                                         logl_max=logl_max,
-                                         maxiter=maxiter-nlive_new-1,
-                                         maxcall=maxcall-sum(live_nc),
-                                         save_samples=False,
-                                         save_bounds=save_bounds)):
+                                                             logl_max=logl_max,
+                                                             maxiter=maxiter-nlive_new-1,
+                                                             maxcall=maxcall-sum(live_nc),
+                                                             maxcall_per_iter=maxcall_per_iter,
+                                                             save_samples=False,
+                                                             save_bounds=save_bounds)):
 
                 # Grab results.
                 (worst, ustar, vstar, loglstar, logvol, logwt,
@@ -1390,7 +1409,7 @@ class DynamicSampler(object):
                    nlive_batch=500, wt_function=None, wt_kwargs=None,
                    maxiter_batch=None, maxcall_batch=None,
                    maxiter=None, maxcall=None, maxbatch=None,
-                   maxcall_per_it=None, stop_function=None, stop_kwargs=None,
+                   maxcall_per_iter=None, stop_function=None, stop_kwargs=None,
                    use_stop=True, save_bounds=True, print_progress=True,
                    print_func=None, live_points=None):
         """
@@ -1470,7 +1489,7 @@ class DynamicSampler(object):
             Maximum number of batches allowed. Default is `sys.maxsize`
             (no limit).
 
-        maxcall_per_it : int, optional
+        maxcall_per_iter : int, optional
             Maximum number of likelihood evaluations allowed in an iteration.
             Exits from any run (initialization or batch) if more calls 
             are required for any iteration.
@@ -1529,8 +1548,8 @@ class DynamicSampler(object):
             maxiter_init = sys.maxsize
         if maxcall_init is None:
             maxcall_init = sys.maxsize
-        if maxcall_per_it is None:
-            maxcall_per_it = sys.maxsize
+        if maxcall_per_iter is None:
+            maxcall_per_iter = sys.maxsize
         if wt_function is None:
             wt_function = weight_function
         if wt_kwargs is None:
@@ -1555,6 +1574,7 @@ class DynamicSampler(object):
                                                dlogz=dlogz_init,
                                                maxcall=maxcall_init,
                                                maxiter=maxiter_init,
+                                               maxcall_per_iter=maxcall_per_iter,
                                                save_bounds=save_bounds,
                                                logl_max=logl_max_init,
                                                live_points=live_points):
@@ -1568,16 +1588,6 @@ class DynamicSampler(object):
                 if print_progress:
                     print_func(results, niter, ncall, nbatch=0,
                                dlogz=dlogz_init, logl_max=logl_max_init)
-
-                # Check if surpassed maxcall_per_it
-                if nc > maxcall_per_it:
-                    # we are shortcutting the final steps in sample_initial
-                    self.base = True  # baseline run complete
-                    self.saved_batch = np.zeros(len(self.saved_id),
-                                                dtype='int')  # batch
-                    self.saved_batch_nlive.append(self.nlive_init)
-                    self.saved_batch_bounds.append((-np.inf, np.inf))
-                    break
 
         # Add points in batches.
         for n in range(self.batch, maxbatch):
@@ -1610,7 +1620,7 @@ class DynamicSampler(object):
                                           maxcall=mcall,
                                           save_bounds=save_bounds,
                                           print_progress=print_progress,
-                                          maxcall_per_it=maxcall_per_it,
+                                          maxcall_per_iter=maxcall_per_iter,
                                           print_func=print_func,
                                           stop_val=stop_val)
                 ncall, niter, logl_bounds, results = passback
@@ -1631,7 +1641,7 @@ class DynamicSampler(object):
 
     def add_batch(self, nlive=500, wt_function=None, wt_kwargs=None,
                   maxiter=None, maxcall=None, save_bounds=True,
-                  print_progress=True, print_func=None, maxcall_per_it=None,
+                  print_progress=True, print_func=None, maxcall_per_iter=None,
                   stop_val=None):
         """
         Allocate an additional batch of (nested) samples based on
@@ -1677,7 +1687,7 @@ class DynamicSampler(object):
             A function that prints out the current state of the sampler.
             If not provided, the default :meth:`results.print_fn` is used.
 
-        maxcall_per_it : int, optional
+        maxcall_per_iter : int, optional
             Maximum number of likelihood evaluations allowed in an iteration.
             Default is `sys.maxsize` (no limit).
 
@@ -1699,8 +1709,8 @@ class DynamicSampler(object):
             wt_kwargs = dict()
         if print_func is None:
             print_func = print_fn
-        if maxcall_per_it is None:
-            maxcall_per_it = sys.maxsize
+        if maxcall_per_iter is None:
+            maxcall_per_iter = sys.maxsize
 
         # If we have either likelihood calls or iterations remaining,
         # add our new batch of live points.
@@ -1715,6 +1725,7 @@ class DynamicSampler(object):
                                              logl_bounds=logl_bounds,
                                              maxiter=maxiter,
                                              maxcall=maxcall,
+                                             maxcall_per_iter=maxcall_per_iter,
                                              save_bounds=save_bounds):
                 (worst, ustar, vstar, loglstar, nc,
                  worst_it, boundidx, bounditer, eff) = results
@@ -1737,10 +1748,6 @@ class DynamicSampler(object):
                                stop_val=stop_val,
                                logl_min=logl_bounds[0],
                                logl_max=logl_bounds[1])
-
-                # Check if surpassed maxcall_per_it
-                if nc > maxcall_per_it:
-                    break
 
             # Combine batch with previous runs.
             self.combine_runs()

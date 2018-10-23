@@ -592,6 +592,7 @@ class DynamicSampler(object):
 
     def sample_initial(self, nlive=500, update_interval=None,
                        first_update=None, maxiter=None, maxcall=None,
+                       save_bounds=True,
                        logl_max=np.inf, dlogz=0.01, live_points=None):
         """
         Generate a series of initial samples from a nested sampling
@@ -627,6 +628,10 @@ class DynamicSampler(object):
             Maximum number of likelihood evaluations. Iteration may stop
             earlier if termination condition is reached. Default is
             `sys.maxsize` (no limit).
+
+        save_bounds : bool, optional
+            Whether or not to save past distributions used to bound
+            the live points internally. Default is `True`.
 
         dlogz : float, optional
             Iteration will stop when the estimated contribution of the
@@ -778,6 +783,7 @@ class DynamicSampler(object):
         for i in range(1):
             for it, results in enumerate(self.sampler.sample(maxiter=maxiter,
                                          save_samples=False,
+                                         save_bounds=save_bounds,
                                          maxcall=maxcall, dlogz=dlogz)):
                 # Grab results.
                 (worst, ustar, vstar, loglstar, logvol, logwt,
@@ -1541,6 +1547,7 @@ class DynamicSampler(object):
                                                dlogz=dlogz_init,
                                                maxcall=maxcall_init,
                                                maxiter=maxiter_init,
+                                               save_bounds=save_bounds,
                                                logl_max=logl_max_init,
                                                live_points=live_points):
                 (worst, ustar, vstar, loglstar, logvol,

@@ -1390,9 +1390,9 @@ class DynamicSampler(object):
                    nlive_batch=500, wt_function=None, wt_kwargs=None,
                    maxiter_batch=None, maxcall_batch=None,
                    maxiter=None, maxcall=None, maxbatch=None,
-                   stop_function=None, stop_kwargs=None, use_stop=True,
-                   save_bounds=True, print_progress=True, print_func=None,
-                   live_points=None):
+                   maxcall_per_it=None, stop_function=None, stop_kwargs=None,
+                   use_stop=True, save_bounds=True, print_progress=True,
+                   print_func=None, live_points=None):
         """
         **The main dynamic nested sampling loop.** After an initial "baseline"
         run using a constant number of live points, dynamically allocates
@@ -1470,6 +1470,12 @@ class DynamicSampler(object):
             Maximum number of batches allowed. Default is `sys.maxsize`
             (no limit).
 
+        maxcall_per_it : int, optional
+            Maximum number of likelihood evaluations allowed in an iteration.
+            Exits from any run (initialization or batch) if more calls 
+            are required for any iteration.
+            Default is `sys.maxsize` (no limit).
+
         stop_function : func, optional
             A function that takes a :class:`Results` instance and
             returns a boolean indicating that we should terminate the run
@@ -1523,6 +1529,8 @@ class DynamicSampler(object):
             maxiter_init = sys.maxsize
         if maxcall_init is None:
             maxcall_init = sys.maxsize
+        if maxcall_per_it is None:
+            maxcall_per_it = sys.maxsize
         if wt_function is None:
             wt_function = weight_function
         if wt_kwargs is None:
@@ -1561,6 +1569,16 @@ class DynamicSampler(object):
                     print_func(results, niter, ncall, nbatch=0,
                                dlogz=dlogz_init, logl_max=logl_max_init)
 
+                # Check if surpassed maxcall_per_it
+                if nc > maxcall_per_it:
+                    # we are shortcutting the final steps in sample_initial
+                    self.base = True  # baseline run complete
+                    self.saved_batch = np.zeros(len(self.saved_id),
+                                                dtype='int')  # batch
+                    self.saved_batch_nlive.append(self.nlive_init)
+                    self.saved_batch_bounds.append((-np.inf, np.inf))
+                    break
+
         # Add points in batches.
         for n in range(self.batch, maxbatch):
             # Update stopping criteria.
@@ -1592,6 +1610,7 @@ class DynamicSampler(object):
                                           maxcall=mcall,
                                           save_bounds=save_bounds,
                                           print_progress=print_progress,
+                                          maxcall_per_it=maxcall_per_it,
                                           print_func=print_func,
                                           stop_val=stop_val)
                 ncall, niter, logl_bounds, results = passback
@@ -1612,7 +1631,8 @@ class DynamicSampler(object):
 
     def add_batch(self, nlive=500, wt_function=None, wt_kwargs=None,
                   maxiter=None, maxcall=None, save_bounds=True,
-                  print_progress=True, print_func=None, stop_val=None):
+                  print_progress=True, print_func=None, maxcall_per_it=None,
+                  stop_val=None):
         """
         Allocate an additional batch of (nested) samples based on
         the combined set of previous samples using the specified
@@ -1657,6 +1677,10 @@ class DynamicSampler(object):
             A function that prints out the current state of the sampler.
             If not provided, the default :meth:`results.print_fn` is used.
 
+        maxcall_per_it : int, optional
+            Maximum number of likelihood evaluations allowed in an iteration.
+            Default is `sys.maxsize` (no limit).
+
         stop_val : float, optional
             The value of the stopping criteria to be passed to
             :meth:`print_func`. Used internally within :meth:`run_nested` to
@@ -1675,6 +1699,8 @@ class DynamicSampler(object):
             wt_kwargs = dict()
         if print_func is None:
             print_func = print_fn
+        if maxcall_per_it is None:
+            maxcall_per_it = sys.maxsize
 
         # If we have either likelihood calls or iterations remaining,
         # add our new batch of live points.
@@ -1711,6 +1737,10 @@ class DynamicSampler(object):
                                stop_val=stop_val,
                                logl_min=logl_bounds[0],
                                logl_max=logl_bounds[1])
+
+                # Check if surpassed maxcall_per_it
+                if nc > maxcall_per_it:
+                    break
 
             # Combine batch with previous runs.
             self.combine_runs()

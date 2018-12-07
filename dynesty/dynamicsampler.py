@@ -1069,9 +1069,9 @@ class DynamicSampler(object):
             # Hack the internal sampler by overwriting the live points
             # and scale factor.
             self.sampler.nlive = nblive
-            self.sampler.live_u = np.array(live_u)
-            self.sampler.live_v = np.array(live_v)
-            self.sampler.live_logl = np.array(live_logl)
+            self.sampler.live_u = self.live_u = np.array(live_u)
+            self.sampler.live_v = self.live_v = np.array(live_v)
+            self.sampler.live_logl = self.live_logl = np.array(live_logl)
             self.sampler.scale = live_scale
 
             # Trigger an update of the internal bounding distribution based
@@ -1107,11 +1107,11 @@ class DynamicSampler(object):
         # Overwrite the previous set of live points in our internal sampler
         # with the new batch of points we just generated.
         self.sampler.nlive = nlive_new
-        self.sampler.live_u = np.array(live_u)
-        self.sampler.live_v = np.array(live_v)
-        self.sampler.live_logl = np.array(live_logl)
-        self.sampler.live_bound = np.array(live_bound)
-        self.sampler.live_it = np.array(live_it)
+        self.sampler.live_u = self.live_u = np.array(live_u)
+        self.sampler.live_v = self.live_v = np.array(live_v)
+        self.sampler.live_logl = self.live_logl = np.array(live_logl)
+        self.sampler.live_bound = self.live_bound = np.array(live_bound)
+        self.sampler.live_it = self.live_it = np.array(live_it)
 
         # Trigger an update of the internal bounding distribution (again).
         loglmin = min(live_logl)

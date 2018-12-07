@@ -555,6 +555,49 @@ class DynamicSampler(object):
         self.new_logl_min, self.new_logl_max = -np.inf, np.inf
 
     @property
+    def live_u(self):
+        if self.sampler is None:
+            return []
+        else:
+            return self.sampler.live_u
+
+    @property
+    def live_v(self):
+        if self.sampler is None:
+            return []
+        else:
+            return self.sampler.live_v
+
+    @property
+    def live_logl(self):
+        if self.sampler is None:
+            return []
+        else:
+            return self.sampler.live_logl
+
+    @property
+    def live_bound(self):
+        if self.sampler is None:
+            return []
+        else:
+            return self.sampler.live_bound
+
+    @property
+    def live_it(self):
+        if self.sampler is None:
+            return []
+        else:
+            return self.sampler.live_it
+
+    @property
+    def nlive(self):
+        if self.sampler is None:
+            return []
+        else:
+            return self.sampler.nlive
+        
+        
+    @property
     def results(self):
         """Saved results from the dynamic nested sampling run. All saved
         bounds are also returned."""
@@ -717,42 +760,40 @@ class DynamicSampler(object):
         # Initialize the first set of live points.
         if live_points is None:
             self.nlive_init = nlive
-            self.live_u = self.rstate.rand(self.nlive_init, self.npdim)
+            live_u = self.rstate.rand(self.nlive_init, self.npdim)
             if self.use_pool_ptform:
-                self.live_v = np.array(list(self.M(self.prior_transform,
-                                                   np.array(self.live_u))))
+                live_v = np.array(list(self.M(self.prior_transform,
+                                              np.array(live_u))))
             else:
-                self.live_v = np.array(list(map(self.prior_transform,
-                                                np.array(self.live_u))))
+                live_v = np.array(list(map(self.prior_transform,
+                                           np.array(live_u))))
             if self.use_pool_logl:
-                self.live_logl = np.array(list(self.M(self.loglikelihood,
-                                                      np.array(self.live_v))))
+                live_logl = np.array(list(self.M(self.loglikelihood,
+                                                 np.array(live_v))))
             else:
-                self.live_logl = np.array(list(map(self.loglikelihood,
-                                                   np.array(self.live_v))))
+                live_logl = np.array(list(map(self.loglikelihood,
+                                                   np.array(live_v))))
         else:
-            self.live_u, self.live_v, self.live_logl = live_points
-            self.nlive_init = len(self.live_u)
+            live_u, live_v, live_logl = live_points
+            self.nlive_init = len(live_u)
 
         # Convert all `-np.inf` log-likelihoods to finite large numbers.
         # Necessary to keep estimators in our sampler from breaking.
-        for i, logl in enumerate(self.live_logl):
+        for i, logl in enumerate(live_logl):
             if not np.isfinite(logl):
                 if np.sign(logl) < 0:
-                    self.live_logl[i] = -1e300
+                    live_logl[i] = -1e300
                 else:
                     raise ValueError("The log-likelihood ({0}) of live "
                                      "point {1} located at u={2} v={3} "
                                      " is invalid."
-                                     .format(logl, i, self.live_u[i],
-                                             self.live_v[i]))
+                                     .format(logl, i, live_u[i],
+                                             live_v[i]))
 
         # (Re-)bundle live points.
-        live_points = [self.live_u, self.live_v, self.live_logl]
+        live_points = [live_u, live_v, live_logl]
         self.live_init = [np.array(l) for l in live_points]
         self.ncall += self.nlive_init
-        self.live_bound = np.zeros(self.nlive_init, dtype='int')
-        self.live_it = np.zeros(self.nlive_init, dtype='int')
 
         # Initialize the internal `sampler` object.
         if update_interval is None:
@@ -1069,9 +1110,9 @@ class DynamicSampler(object):
             # Hack the internal sampler by overwriting the live points
             # and scale factor.
             self.sampler.nlive = nblive
-            self.sampler.live_u = self.live_u = np.array(live_u)
-            self.sampler.live_v = self.live_v = np.array(live_v)
-            self.sampler.live_logl = self.live_logl = np.array(live_logl)
+            self.sampler.live_u = np.array(live_u)
+            self.sampler.live_v = np.array(live_v)
+            self.sampler.live_logl = np.array(live_logl)
             self.sampler.scale = live_scale
 
             # Trigger an update of the internal bounding distribution based
@@ -1107,11 +1148,11 @@ class DynamicSampler(object):
         # Overwrite the previous set of live points in our internal sampler
         # with the new batch of points we just generated.
         self.sampler.nlive = nlive_new
-        self.sampler.live_u = self.live_u = np.array(live_u)
-        self.sampler.live_v = self.live_v = np.array(live_v)
-        self.sampler.live_logl = self.live_logl = np.array(live_logl)
-        self.sampler.live_bound = self.live_bound = np.array(live_bound)
-        self.sampler.live_it = self.live_it = np.array(live_it)
+        self.sampler.live_u = np.array(live_u)
+        self.sampler.live_v = np.array(live_v)
+        self.sampler.live_logl = np.array(live_logl)
+        self.sampler.live_bound = np.array(live_bound)
+        self.sampler.live_it = np.array(live_it)
 
         # Trigger an update of the internal bounding distribution (again).
         loglmin = min(live_logl)

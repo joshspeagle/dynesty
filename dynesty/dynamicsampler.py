@@ -814,10 +814,6 @@ class DynamicSampler(object):
                                            self.pool, self.use_pool,
                                            self.kwargs)
         self.bound = self.sampler.bound
-        # Keep these in track with the internal sampler
-        self.live_u = self.sampler.live_u
-        self.live_v = self.sampler.live_v
-        self.live_logl = self.sampler.live_logl
 
         # Run the sampler internally as a generator.
         for i in range(1):

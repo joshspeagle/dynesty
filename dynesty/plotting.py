@@ -224,11 +224,11 @@ def runplot(results, span=None, logplot=False, kde=True, nkde=1000,
         yspan = [t if t != (0., 1.) else (None, None) for t in yspan]
 
     # Set up bounds for plotting.
-    [axes[i].set_xlim([np.min(0., xspan[i][0]),
-                       np.max(-min(logvol), xspan[i][1])])
+    [axes[i].set_xlim([min(0., xspan[i][0]),
+                       max(-min(logvol), xspan[i][1])])
      for i in range(4)]
-    [axes[i].set_ylim([np.min(span[i][0], yspan[i][0]),
-                       np.max(span[i][1], yspan[i][1])])
+    [axes[i].set_ylim([min(span[i][0], yspan[i][0]),
+                       max(span[i][1], yspan[i][1])])
      for i in range(4)]
 
     # Plotting.

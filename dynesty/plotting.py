@@ -923,7 +923,8 @@ def cornerpoints(results, thin=1, span=None, cmap='plasma', color=None,
 
 
 def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
-               color='black', smooth=0.02, hist_kwargs=None,
+               color='black', smooth=0.02, density_smooth=None,
+               hist_kwargs=None,
                hist2d_kwargs=None, labels=None, label_kwargs=None,
                show_titles=False, title_fmt=".2f", title_kwargs=None,
                truths=None, truth_color='red', truth_kwargs=None,
@@ -966,6 +967,10 @@ def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
         Default is `0.02` (2% smoothing). If an integer is provided instead,
         this will instead default to a simple (weighted) histogram with
         `bins=smooth`.
+
+    density_smooth : If not None, an alternative smoothing scale
+        to use for plotting the density map (can be extremely expensive
+        with default smoothing for contours)
 
     hist_kwargs : dict, optional
         Extra keyword arguments to send to the 1-D (smoothed) histograms.
@@ -1102,8 +1107,12 @@ def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
         labels = [r"$x_{"+str(i+1)+"}$" for i in range(ndim)]
 
     # Setting up smoothing.
+    if density_smooth is None:
+        density_smooth = smooth
     if (isinstance(smooth, int_type) or isinstance(smooth, float_type)):
         smooth = [smooth for i in range(ndim)]
+    if (isinstance(density_smooth, int_type) or isinstance(density_smooth, float_type)):
+        density_smooth = [density_smooth for i in range(ndim)]
 
     # Setup axis layout (from `corner.py`).
     factor = 2.0  # size of side of one panel
@@ -1162,6 +1171,7 @@ def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
             ax.xaxis.set_label_coords(0.5, -0.3)
         # Generate distribution.
         sx = smooth[i]
+        dsx = density_smooth[i]
         if isinstance(sx, int_type):
             # If `sx` is an integer, plot a weighted histogram with
             # `sx` bins within the provided bounds.
@@ -1250,6 +1260,7 @@ def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
                 ax.yaxis.set_label_coords(-0.3, 0.5)
             # Generate distribution.
             sy = smooth[j]
+            dsy = density_smooth[j]
             check_ix = isinstance(sx, int_type)
             check_iy = isinstance(sy, int_type)
             if check_ix and check_iy:
@@ -1264,6 +1275,7 @@ def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
                                                                plot_contours)
             _hist2d(y, x, ax=ax, span=[span[j], span[i]],
                     weights=weights, color=color, smooth=[sy, sx],
+                    density_smooth=[dsy, dsx],
                     **hist2d_kwargs)
             # Add truth values
             if truths is not None:
@@ -1912,7 +1924,7 @@ def cornerbound(results, it=None, idx=None, prior_transform=None,
     return (fig, axes)
 
 
-def _hist2d(x, y, smooth=0.02, span=None, weights=None, levels=None,
+def _hist2d(x, y, smooth=0.02, density_smooth=None, span=None, weights=None, levels=None,
             ax=None, color='gray', plot_datapoints=False, plot_density=True,
             plot_contours=True, no_fill_contours=False, fill_contours=True,
             contour_kwargs=None, contourf_kwargs=None, data_kwargs=None,
@@ -2020,8 +2032,12 @@ def _hist2d(x, y, smooth=0.02, span=None, weights=None, levels=None,
         contour_cmap[i][-1] *= float(i) / (len(levels)+1)
 
     # Initialize smoothing.
+    if density_smooth is None:
+        density_smooth = smooth
     if (isinstance(smooth, int_type) or isinstance(smooth, float_type)):
         smooth = [smooth, smooth]
+    if (isinstance(density_smooth, int_type) or isinstance(density_smooth, float_type)):
+        density_smooth = [density_smooth, density_smooth]
     bins = []
     svalues = []
     for s in smooth:
@@ -2036,12 +2052,29 @@ def _hist2d(x, y, smooth=0.02, span=None, weights=None, levels=None,
             # filter to smooth the results.
             bins.append(int(round(2. / s)))
             svalues.append(2.)
+    dbins = []
+    dsvalues = []
+    for ds in density_smooth:
+        if isinstance(ds, int_type):
+            # If `s` is an integer, the weighted histogram has
+            # `s` bins within the provided bounds.
+            dbins.append(ds)
+            dsvalues.append(0.)
+        else:
+            # If `s` is a float, oversample the data relative to the
+            # smoothing filter by a factor of 2, then use a Gaussian
+            # filter to smooth the results.
+            dbins.append(int(round(2. / ds)))
+            dsvalues.append(2.)
 
     # We'll make the 2D histogram to directly estimate the density.
     try:
         H, X, Y = np.histogram2d(x.flatten(), y.flatten(), bins=bins,
                                  range=list(map(np.sort, span)),
                                  weights=weights)
+        dH, dX, dY = np.histogram2d(x.flatten(), y.flatten(), bins=dbins,
+                                    range=list(map(np.sort, span)),
+                                    weights=weights)
     except ValueError:
         raise ValueError("It looks like at least one of your sample columns "
                          "have no dynamic range.")
@@ -2049,7 +2082,8 @@ def _hist2d(x, y, smooth=0.02, span=None, weights=None, levels=None,
     # Smooth the results.
     if not np.all(svalues == 0.):
         H = norm_kde(H, svalues)
-
+    if not np.all(dsvalues == 0.):
+        dH = norm_kde(dH, dsvalues)
     # Compute the density levels.
     Hflat = H.flatten()
     inds = np.argsort(Hflat)[::-1]
@@ -2117,7 +2151,7 @@ def _hist2d(x, y, smooth=0.02, span=None, weights=None, levels=None,
     # Plot the density map. This can't be plotted at the same time as the
     # contour fills.
     elif plot_density:
-        ax.pcolor(X, Y, H.max() - H.T, cmap=density_cmap)
+        ax.pcolormesh(dX, dY, dH.max() - dH.T, cmap=density_cmap)
 
     # Plot the contour edge colors.
     if plot_contours:

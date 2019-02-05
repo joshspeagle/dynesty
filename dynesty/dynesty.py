@@ -26,7 +26,7 @@ __all__ = ["NestedSampler", "DynamicNestedSampler", "_function_wrapper"]
 _SAMPLERS = {'none': UnitCubeSampler,
              'single': SingleEllipsoidSampler,
              'multi': MultiEllipsoidSampler,
-             'balls': RadFriendsSampler,
+             'balls': MLFriendsSampler,
              'cubes': SupFriendsSampler}
 _SAMPLING = {'unif': sample_unif,
              'rwalk': sample_rwalk,

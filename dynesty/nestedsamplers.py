@@ -22,6 +22,9 @@ Includes:
         Uses an N-cube of fixed length centered on each
         live point to bound the set of live points.
 
+    MLFriendsSampler:
+        Same as RadFriends, but learns the relative length of the space axes.
+
 """
 
 from __future__ import (print_function, division)
@@ -40,7 +43,8 @@ from .bounding import *
 from .sampling import *
 
 __all__ = ["UnitCubeSampler", "SingleEllipsoidSampler",
-           "MultiEllipsoidSampler", "RadFriendsSampler", "SupFriendsSampler"]
+           "MultiEllipsoidSampler", "MLFriendsSampler", 
+           "RadFriendsSampler", "SupFriendsSampler"]
 
 _SAMPLING = {'unif': sample_unif,
              'rwalk': sample_rwalk,
@@ -1101,3 +1105,232 @@ class SupFriendsSampler(Sampler):
 
         fscale = blob['fscale']
         self.scale *= fscale
+
+from .radfriends import MetricLearningFriendsConstrainer
+
+class MLFriendsSampler(Sampler):
+    """
+    Samples conditioned on the union of (possibly overlapping) N-spheres
+    centered on the current set of live points.
+
+    Parameters
+    ----------
+    loglikelihood : function
+        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
+        array of length `ndim`.
+
+    prior_transform : function
+        Function transforming a sample from the a unit cube to the parameter
+        space of interest according to the prior.
+
+    npdim : int
+        Number of parameters accepted by `prior_transform`.
+
+    live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
+        Initial set of "live" points. Contains `live_u`, the coordinates
+        on the unit cube, `live_v`, the transformed variables, and
+        `live_logl`, the associated loglikelihoods.
+
+    update_interval : int
+        Only update the bounding distribution every `update_interval`-th
+        likelihood call.
+
+    first_update : dict
+        A dictionary containing parameters governing when the sampler should
+        first update the bounding distribution from the unit cube to the one
+        specified by the user.
+
+    rstate : `~numpy.random.RandomState`
+        `~numpy.random.RandomState` instance.
+
+    queue_size: int
+        Carry out likelihood evaluations in parallel by queueing up new live
+        point proposals using (at most) this many threads/members.
+
+    pool: pool
+        Use this pool of workers to execute operations in parallel.
+
+    use_pool : dict, optional
+        A dictionary containing flags indicating where the provided `pool`
+        should be used to execute operations in parallel.
+
+    kwargs : dict, optional
+        A dictionary of additional parameters (described below).
+
+    Other Parameters
+    ----------------
+    bootstrap : int, optional
+        Compute this many bootstrapped realizations of the bounding
+        objects. Use the maximum distance found to the set of points left
+        out during each iteration to enlarge the resulting volumes.
+        Default is `20`
+
+    force_shrink : bool, optional (True by default)
+        Ensure the radius only shrinks between updates.
+    
+    metriclearner : str, optional
+        What technique to use to infer covariances: 
+        'none': use identity matrix
+        'simplescaling': use standard deviations to scale dimensions
+        'truncatedscaling': same as simplescaling, but discretized to work
+             with force_shrink=True. (default)
+
+    walks : int, optional
+        For the `'rwalk'` sampling option, the minimum number of steps
+        (minimum 2) before proposing a new live point. Default is `25`.
+
+    facc : float, optional
+        The target acceptance fraction for the `'rwalk'` sampling option.
+        Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
+
+    slices : int, optional
+        For the `'slice'`, `'rslice'`, and `'hslice'` sampling options, the
+        number of times to execute a "slice update" before proposing a new
+        live point. Default is `5`. Note that `'slice'` cycles through
+        **all dimensions** when executing a "slice update".
+
+    """
+
+    def __init__(self, loglikelihood, prior_transform, npdim, live_points,
+                 method, update_interval, first_update, rstate,
+                 queue_size, pool, use_pool, kwargs={}):
+
+        # Initialize method to propose a new starting point.
+        self._PROPOSE = {'unif': self.propose_unif,
+                         'rwalk': self.propose_live,
+                         'slice': self.propose_live,
+                         'rslice': self.propose_live,
+                         'hslice': self.propose_live}
+        self.propose_point = self._PROPOSE[method]
+
+        # Initialize method to "evolve" a point to a new position.
+        self.sampling, self.evolve_point = method, _SAMPLING[method]
+
+        # Initialize heuristic used to update our sampling method.
+        self._UPDATE = {'unif': self.update_unif,
+                        'rwalk': self.update_rwalk,
+                        'slice': self.update_slice,
+                        'rslice': self.update_slice,
+                        'hslice': self.update_unif}
+        self.update_proposal = self._UPDATE[method]
+
+        # Initialize other arguments.
+        self.kwargs = kwargs
+        self.scale = 1.
+        self.bootstrap = kwargs.get('bootstrap', 20)
+        force_shrink = kwargs.get('force_shrink', True)
+        metriclearner = kwargs.get('metriclearner', 'truncatedscaling')
+
+        # Initialize sampler.
+        super(MLFriendsSampler,
+              self).__init__(loglikelihood, prior_transform, npdim,
+                             live_points, update_interval, first_update,
+                             rstate, queue_size, pool, use_pool)
+        self.mlfriends = MetricLearningFriendsConstrainer(
+               metriclearner = metriclearner,
+               rebuild_every = update_interval, 
+               metric_rebuild_every = update_interval, 
+               force_shrink = force_shrink,
+               verbose = False)
+        
+        self.bounding = 'mlfriends'
+        self.method = method
+
+        # Initialize random walk parameters.
+        self.walks = max(2, self.kwargs.get('walks', 25))
+        self.facc = self.kwargs.get('facc', 0.5)
+        self.facc = min(1., max(1. / self.walks, self.facc))
+
+        # Initialize slice parameters.
+        self.slices = self.kwargs.get('slices', 5)
+
+    def update(self, pointvol):
+        """Update the N-sphere radii using the current set of live points."""
+
+        #print('update called')
+        #self.mlfriends.rebuild(self.live_u, self.npdim, keepMetric=False)
+        self.mlfriends.cluster(self.live_u, ndim=self.npdim, keepMetric=False)
+        self.generator = self.mlfriends.generate(self.npdim)
+        return []
+    
+    def get_axes(self):
+        # Define the axes of the N-sphere.
+        if hasattr(self.mlfriends.region.metric, 'scale'):
+             ax = np.diag(self.mlfriends.region.scale)
+        else:
+             ax = np.identity(self.npdim)
+        
+        return ax * self.mlfriends.region.maxdistance
+
+    def propose_unif(self):
+        """Propose a new live point by sampling *uniformly* within
+        the union of N-spheres defined by our live points."""
+
+        u, ntotal = next(self.generator)
+        ax = self.get_axes()        
+        return u, ax
+
+    def within(self, x, ctrs):
+        """Check which balls `x` falls within."""
+        idxs, = np.where(self.mlfriends.region.metric.are_near_members(x))
+        return idxs
+
+    def contains(self, x, ctrs):
+        """Check if the set of balls contains `x`."""
+        return self.mlfriends.is_inside(x)
+
+    #def sample(self, ctrs, rstate=None, return_q=False):
+    #    u, ntotal = self.generator.next()
+    #    return u, 1
+
+    def samples(self, nsamples, ctrs, rstate=None):
+        """
+        Draw `nsamples` samples uniformly distributed within the *union* of
+        balls. Uses a K-D Tree to accelerate the search if provided.
+
+        Returns
+        -------
+        xs : `~numpy.ndarray` with shape (nsamples, ndim)
+            A collection of coordinates within the set of balls.
+
+        """
+
+        if rstate is None:
+            rstate = np.random
+
+        xs = np.array([self.sample(ctrs, rstate=rstate)
+                       for i in range(nsamples)])
+
+        return xs
+
+    def propose_live(self):
+        """Propose a live point/axes to be used by other sampling methods."""
+
+        i = self.rstate.randint(self.nlive)
+        u = self.live_u[i, :]
+        ax = self.get_axes()
+        return u, ax
+
+    def update_unif(self, blob):
+        """Filler function."""
+        pass
+
+    def update_rwalk(self, blob):
+        """Update the random walk proposal scale based on the current
+        number of accepted/rejected steps."""
+
+        self.scale = blob['scale']
+        accept, reject = blob['accept'], blob['reject']
+        facc = (1. * accept) / (accept + reject)
+        norm = max(self.facc, 1. - self.facc) * self.npdim
+        self.scale *= math.exp((facc - self.facc) / norm)
+        self.scale = min(self.scale, math.sqrt(self.npdim))
+
+    def update_slice(self, blob):
+        """Update the slice proposal scale based on the relative
+        size of the slices compared to our initial guess."""
+
+        fscale = blob['fscale']
+        self.scale *= fscale
+
+

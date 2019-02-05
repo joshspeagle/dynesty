@@ -38,7 +38,7 @@ __all__ = ["DynamicSampler", "weight_function", "stopping_function",
 _SAMPLERS = {'none': UnitCubeSampler,
              'single': SingleEllipsoidSampler,
              'multi': MultiEllipsoidSampler,
-             'balls': RadFriendsSampler,
+             'balls': MLFriendsSampler,
              'cubes': SupFriendsSampler}
 _SAMPLING = {'unif': sample_unif,
              'rwalk': sample_rwalk,

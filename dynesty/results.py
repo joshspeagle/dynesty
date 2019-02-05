@@ -12,6 +12,7 @@ import sys
 import warnings
 import math
 import numpy as np
+import shutil
 
 __all__ = ["Results", "print_fn"]
 
@@ -93,29 +94,41 @@ def print_fn(results, niter, ncall, add_live_it=None,
         loglstar = -np.inf
 
     # Constructing output.
-    print_str = "\r"  # overwrite previous output
-    print_str += "iter: {:d}".format(niter)
+    long_str = []
+    long_str.append("iter: {:d}".format(niter))
     if add_live_it is not None:
-        print_str += "+{:d}".format(add_live_it)
-    print_str += " | "
+        long_str.append("+{:d}".format(add_live_it))
+    short_str = list(long_str)
     if nbatch is not None:
-        print_str += "batch: {:d} | ".format(nbatch)
-    print_str += "bound: {:d} | ".format(bounditer)
-    print_str += "nc: {:d} | ".format(nc)
-    print_str += "ncall: {:d} | ".format(ncall)
-    print_str += "eff(%): {:6.3f} | ".format(eff)
-    print_str += "loglstar: {:6.3f} < {:6.3f} < {:6.3f} | ".format(logl_min,
+        long_str.append("batch: {:d}".format(nbatch))
+    long_str.append("bound: {:d}".format(bounditer))
+    long_str.append("nc: {:d}".format(nc))
+    long_str.append("ncall: {:d}".format(ncall))
+    long_str.append("eff(%): {:6.3f}".format(eff))
+    short_str.append(long_str[-1])
+    long_str.append("loglstar: {:6.3f} < {:6.3f} < {:6.3f}".format(logl_min,
                                                                    loglstar,
-                                                                   logl_max)
-    print_str += "logz: {:6.3f} +/- {:6.3f} | ".format(logz, logzerr)
+                                                                   logl_max))
+    short_str.append("logl*: {:6.1f}<{:6.1f}<{:6.1f}".format(logl_min,
+                                                             loglstar,
+                                                             logl_max))
+    long_str.append("logz: {:6.3f} +/- {:6.3f}".format(logz, logzerr))
+    short_str.append("logz: {:6.1f} +/- {:6.1f}".format(logz, logzerr))
     if dlogz is not None:
-        print_str += "dlogz: {:6.3f} > {:6.3f}".format(delta_logz, dlogz)
+        long_str.append("dlogz: {:6.3f} > {:6.3f}".format(delta_logz, dlogz))
     else:
-        print_str += "stop: {:6.3f}".format(stop_val)
-    print_str += "            "  # clear previous output
+        long_str.append("stop: {:6.3f}".format(stop_val))
+    #long_str.append("            ")  # clear previous output
+    #short_str.append("  ".format(logz, logzerr))
 
     # Printing.
-    sys.stderr.write(print_str)
+    long_str = ' | '.join(long_str)
+    short_str = '|'.join(short_str)
+    columns, rows = shutil.get_terminal_size(fallback=(80, 25))
+    if columns > len(long_str):
+        sys.stderr.write("\r" + long_str + ' '*(columns-len(long_str)-2) + '\r')
+    else:
+        sys.stderr.write("\r" + short_str + ' '*(columns-len(short_str)-2) + '\r')
     sys.stderr.flush()
 
 

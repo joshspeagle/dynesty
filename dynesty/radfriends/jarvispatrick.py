@@ -40,7 +40,7 @@ SOFTWARE.
 """
 from collections import defaultdict
 import numpy
-import numba
+#import numba
 
 def jarvis_patrick_clustering(dists, number_of_neighbors, threshold_number_of_common_neighbors):
 	"""

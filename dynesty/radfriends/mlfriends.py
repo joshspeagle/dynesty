@@ -23,7 +23,7 @@ import numpy
 import scipy.spatial, scipy.cluster
 import matplotlib.pyplot as plt
 from collections import defaultdict
-from .jarvispatrick import jarvis_patrick_clustering, jarvis_patrick_clustering_iterative
+#from .jarvispatrick import jarvis_patrick_clustering, jarvis_patrick_clustering_iterative
 from .metric import IdentityMetric, SimpleScaling, TruncatedScaling
 from .region import ClusterResult, RadFriendsRegion
 

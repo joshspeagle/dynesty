@@ -5,6 +5,7 @@ Author:
 Contributors:
 
 - [Kyle Barbary](https://github.com/kbarbary/)
+- [Johannes Buchner](https://github.com/JohannesBuchner)
 - [Ben Johnson](https://github.com/bd-j)
 - [Ben Cook](https://github.com/bacook17)
 - [James Guillochon](https://github.com/guillochon)

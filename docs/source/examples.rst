@@ -103,25 +103,30 @@ initial delay before our first update.
 
 Out::
 
-    iter: 5477+1000 | bound: 1 | nc: 1 | ncall: 256453 | eff(%):  2.526 | 
-    logz: -1.738 +/-  0.048 | dlogz:  0.000 <  0.100    
-    15.0276789665s
+iter: 5477+1000 | bound: 1 | nc: 1 | ncall: 256453 | 
+eff(%):  2.526 | loglstar:   -inf <  1.384 <    inf | 
+logz: -1.738 +/-  0.048 | dlogz:  0.000 >  0.100
+19.5403659344s
 
-    iter: 5561+1000 | bound: 153 | nc: 1 | ncall: 100603 | eff(%):  6.522 | 
-    logz: -1.822 +/-  0.049 | dlogz:  0.000 <  0.100    
-    17.8634729385s
+iter: 5561+1000 | bound: 117 | nc: 1 | ncall: 99674 | 
+eff(%):  6.582 | loglstar:   -inf <  1.384 <    inf | 
+logz: -1.822 +/-  0.049 | dlogz:  0.000 >  0.100
+20.2487127781s
 
-    iter: 5480+1000 | bound: 42 | nc: 1 | ncall: 26204 | eff(%): 24.729 | 
-    logz: -1.742 +/-  0.048 | dlogz:  0.000 <  0.100    
-    120.610301018s
+iter: 5455+1000 | bound: 49 | nc: 1 | ncall: 40062 | 
+eff(%): 16.113 | loglstar:   -inf <  1.384 <    inf | 
+logz: -1.716 +/-  0.048 | dlogz:  0.000 >  0.100
+219.791846037s
 
-    iter: 5419+1000 | bound: 34 | nc: 1 | ncall: 21095 | eff(%): 30.429 | 
-    logz: -1.680 +/-  0.048 | dlogz:  0.000 <  0.100    
-    292.094324112s
+iter: 5553+1000 | bound: 24 | nc: 1 | ncall: 20198 | 
+eff(%): 32.444 | loglstar:   -inf <  1.384 <    inf | 
+logz: -1.814 +/-  0.049 | dlogz:  0.000 >  0.100
+277.40710187s
 
-    iter: 5484+1000 | bound: 34 | nc: 1 | ncall: 21406 | eff(%): 30.291 | 
-    logz: -1.745 +/-  0.048 | dlogz:  0.000 <  0.100    
-    258.388988972s
+iter: 5444+1000 | bound: 27 | nc: 1 | ncall: 22526 | 
+eff(%): 28.607 | loglstar:   -inf <  1.384 <    inf | 
+logz: -1.705 +/-  0.048 | dlogz:  0.000 >  0.100
+271.2707901s
 
 We can see the amount of overhead associated with `'multi'`, `'cubes'`, and
 `'balls'` is non-trivial in this case. For `'multi'`, most of this overhead
@@ -311,17 +316,15 @@ A few small notes:
 .. code-block:: python
 
     # bounding methods
-    sampling = ['unif', 'rwalk', 'slice']
-    updating = [0.6, 5., 5.]
+    sampling = ['unif', 'rwalk', 'slice', 'rslice', 'hslice']
+    updating = [1.5, 2., 5., 2., 15.]
 
     # run over each method and collect our results
     sampling_res = []
     for s, u in zip(sampling, updating):
         sampler = dynesty.NestedSampler(loglike, prior_transform, ndim=2,
                                         bound='multi', sample=s, nlive=1000,
-                                        update_interval=u, 
-                                        first_update={'min_ncall': -np.inf,
-                                                      'min_eff': np.inf})
+                                        update_interval=u)
         sys.stderr.flush()
         t0 = time.time()
         sampler.run_nested(dlogz=0.1)
@@ -332,19 +335,33 @@ A few small notes:
         sys.stderr.write('{0}s\n'.format(res['time']))
         sampling_res.append(sampler.results)
 
+
 Out::
 
-    iter: 5564+1000 | nc: 1 | ncall: 28169 | eff(%): 23.302 | 
-    logz: -1.826 +/-  0.049 | dlogz:  0.000 <  0.100    
-    129.18839407s
+    iter: 5549+1000 | bound: 22 | nc: 1 | ncall: 68928 | 
+    eff(%):  9.501 | loglstar:   -inf <  1.384 <    inf | 
+    logz: -1.810 +/-  0.049 | dlogz:  0.000 >  0.100
+    134.603189945s
 
-    iter: 5442+1000 | nc: 1 | ncall: 137050 | eff(%):  4.700 | 
-    logz: -1.704 +/-  0.048 | dlogz:  0.000 <  0.100    
-    18.3823149204s
+    iter: 5549+1000 | bound: 24 | nc: 1 | ncall: 84096 | 
+    eff(%):  7.788 | loglstar:   -inf <  1.384 <    inf | 
+    logz: -1.811 +/-  0.049 | dlogz:  0.000 >  0.100
+    17.88113904s
 
-    iter: 5523+1000 | nc: 1 | ncall: 170433 | eff(%):  3.827 | 
-    logz: -1.784 +/-  0.049 | dlogz:  0.000 <  0.100    
-    18.1685750484s
+    iter: 5432+1000 | bound: 22 | nc: 1 | ncall: 140527 | 
+    eff(%):  4.577 | loglstar:   -inf <  1.384 <    inf | 
+    logz: -1.693 +/-  0.048 | dlogz:  0.000 >  0.100
+    22.1188690662s
+
+    iter: 5472+1000 | bound: 26 | nc: 1 | ncall: 86934 | 
+    eff(%):  7.445 | loglstar:   -inf <  1.384 <    inf | 
+    logz: -1.734 +/-  0.048 | dlogz:  0.000 >  0.100
+    17.1812961102s
+
+    iter: 5428+1000 | bound: 27 | nc: 1 | ncall: 430557 | 
+    eff(%):  1.493 | loglstar:   -inf <  1.384 <    inf | 
+    logz: -1.689 +/-  0.048 | dlogz:  0.000 >  0.100
+    40.3820550442s
 
 As expected, uniform sampling in 2-D is substantially more efficient that other
 more complex alternatives available in ``dynesty``. Regardless of runtime,
@@ -540,32 +557,67 @@ distribution with a uniform prior::
 For slice sampling, we want to scale both the number of live points and the
 update interval for our bounding distributions based on the number of
 dimensions. Since we know this is a unimodal case, we'll initialize our 
-`~dynesty.dynamicsampler.DynamicSampler` using the `'single'` bounding mode::
+`~dynesty.dynamicsampler.DynamicSampler` using the `'single'` bounding mode.
+We'll also compare against `'rslice'` and `'hslice'` for good measure::
 
     import dynesty
 
+    # multivariate slice sampling ('slice')
     sampler = dynesty.NestedSampler(loglikelihood, prior_transform, ndim, 
-                                    update_interval=5.*ndim, bound='single',
-                                    sample='slice', nlive=5*ndim)
-
-Let's see how well we do on a first pass::
-
-    # sample from the distribution
+                                    update_interval=ndim*5.,
+                                    bound='single', sample='slice', 
+                                    nlive=200, slices=5)
     sampler.run_nested(dlogz=0.01)
     res = sampler.results
 
-    # plot results
-    from dynesty import plotting as dyplot
+    # random slice sampling ('rslice')
+    sampler = dynesty.NestedSampler(loglikelihood, prior_transform, ndim, 
+                                    update_interval=20.,
+                                    bound='none', sample='rslice', 
+                                    nlive=200, slices=15)
+    sampler.run_nested(dlogz=0.01)
+    res2 = sampler.results
 
-    fig, axes = dyplot.runplot(res, lnz_truth=lnz_truth, logplot=True)
-    fig.tight_layout()
+    # hamiltonian slice sampling ('hslice')
+    sampler = dynesty.NestedSampler(loglikelihood, prior_transform, ndim, 
+                                    update_interval=150.,
+                                    bound='none', sample='hslice', 
+                                    nlive=200, slices=10)
+    sampler.run_nested(dlogz=0.01)
+    res3 = sampler.results
 
 .. rst-class:: sphx-glr-script-out
 
 Out::
 
-    iter: 42184+250 | bound: 499 | nc: 1 | ncall: 31404439 | eff(%):  0.135 | 
-    logz: -149.195 +/-  0.775 | dlogz:  0.000 <  0.010  
+    iter: 27188+200 | bound: 662 | nc: 1 | ncall: 33594655 | 
+    eff(%):  0.082 | loglstar:   -inf < 16.328 <    inf | 
+    logz: -114.671 +/-  0.759 | dlogz:  0.000 >  0.010              
+
+    iter: 26969+200 | bound: 0 | nc: 1 | ncall: 1992958 | 
+    eff(%):  1.363 | loglstar:   -inf < 14.482 <    inf | 
+    logz: -115.422 +/-  0.759 | dlogz:  0.000 >  0.010             
+
+    iter: 27282+200 | bound: 0 | nc: 1 | ncall: 14403065 | 
+    eff(%):  0.191 | loglstar:   -inf < 15.268 <    inf | 
+    logz: -116.196 +/-  0.763 | dlogz:  0.000 >  0.010      
+
+Let's see how well we do::
+
+    from dynesty import plotting as dyplot
+
+    # ln(evidence)
+    lnz_truth = -ndim * np.log(10. * 0.999999426697)
+    print(lnz_truth)
+
+    # plot comparison
+    fig, axes = dyplot.runplot(res, color='blue', logplot=True,
+                               lnz_truth=lnz_truth, truth_color='black')
+    fig, axes = dyplot.runplot(res2, color='red', logplot=True,
+                               fig=(fig, axes))
+    fig, axes = dyplot.runplot(res3, color='limegreen', logplot=True,
+                               fig=(fig, axes))
+    fig.tight_layout()
 
 .. image:: ../images/examples_50dmvn_001.png
     :align: center
@@ -625,9 +677,9 @@ Let's first start by sampling with a focus on deriving the evidence::
 
 Out::
 
-    iter: 7262 | batch: 3 | bound: 55 | nc: 1 | ncall: 36646 | 
-    eff(%): 19.817 | loglstar:   -inf < 242.998 < 242.068 | 
-    logz: 235.942 +/-  0.100 | stop:  1.165      
+    iter: 13953 | batch: 3 | bound: 50 | nc: 1 | ncall: 71213 | 
+    eff(%): 19.593 | loglstar:   -inf < 242.999 < 241.379 | 
+    logz: 235.941 +/-  0.078 | stop:  0.863     
 
 Now let's try sampling with a focus on estimating the posterior::
 
@@ -640,9 +692,9 @@ Now let's try sampling with a focus on estimating the posterior::
 
 Out::
 
-    iter: 15678 | batch: 21 | bound: 207 | nc: 1 | ncall: 38024 | 
-    eff(%): 41.232 | loglstar: 237.173 < 242.998 < 242.602 | 
-    logz: 236.008 +/-  0.175 | stop:  1.413  
+    iter: 20837 | batch: 12 | bound: 103 | nc: 1 | ncall: 65196 | 
+    eff(%): 31.961 | loglstar: 238.023 < 242.999 < 242.667 | 
+    logz: 235.778 +/-  0.111 | stop:  0.973                  
 
 Finally, let's switch to deriving the evidence using `'balls'`::
 
@@ -656,9 +708,9 @@ Finally, let's switch to deriving the evidence using `'balls'`::
 
 Out::
 
-    iter: 11857 | batch: 6 | bound: 194 | nc: 1 | ncall: 81549 | 
-    eff(%): 14.540 | loglstar:   -inf < 242.998 < 241.408 | 
-    logz: 235.940 +/-  0.071 | stop:  1.093     
+    iter: 14135 | batch: 3 | bound: 55 | nc: 1 | ncall: 74499 | 
+    eff(%): 18.973 | loglstar:   -inf < 242.999 < 241.886 | 
+    logz: 235.814 +/-  0.079 | stop:  0.971      
 
 Note that the difference in the total number of samples between the original
 `'multi'` case and `'balls'` is due to noise in the stopping criterion based
@@ -763,9 +815,9 @@ random walks::
 
 Out::
 
-    iter: 13944 | batch: 29 | bound: 857 | nc: 25 | ncall: 324277 | 
-    eff(%):  4.300 | loglstar: -44.021 < -39.931 < -40.311 | 
-    logz: -50.297 +/-  0.165 | stop:  1.615    
+    iter: 23001 | batch: 11 | bound: 278 | nc: 25 | ncall: 535805 | 
+    eff(%):  4.293 | loglstar: -47.125 < -39.922 < -40.612 | 
+    logz: -50.140 +/-  0.127 | stop:  0.947                     
 
 Let's see how we did::
 
@@ -857,7 +909,8 @@ To start, let's sample from this distribution using `'multi'` bounds::
     sampler = dynesty.NestedSampler(loglike, prior_transform, ndim=ndim, 
                                     first_update={'min_ncall': -np.inf,
                                                   'min_eff': np.inf},
-                                    bound='multi', sample='unif', nlive=nlive)
+                                    bound='multi', sample='unif', nlive=nlive,
+                                    bootstrap=20)
     sampler.run_nested(dlogz=0.01, maxiter=3500, add_live=False)
     res = sampler.results
 
@@ -865,8 +918,9 @@ To start, let's sample from this distribution using `'multi'` bounds::
 
 Out::
 
-    iter: 3501 | bound: 11 | nc: 1 | ncall: 7414 | eff(%): 47.221 | 
-    logz: -1.020 +/-  0.006 | dlogz:  0.032 >  0.010     
+    iter: 1501 | bound: 116 | nc: 1 | ncall: 2887 | 
+    eff(%): 51.992 | loglstar:   -inf < -0.979 <    inf | 
+    logz: -1.041 +/-  0.010 | dlogz:  0.053 >  0.010            
 
 Let's now compare the set of samples with the expected theoretical shrinkage
 using a `Kolmogorov-Smirnov (KS) Test 
@@ -961,13 +1015,15 @@ which is a bit easier to visualize.
 .. image:: ../images/examples_pyramid_002.png
     :align: center
 
-Now let's turn bootstrapping off::
+Now let's turn bootstrapping off and use more aggressive ellipsoid
+decomposition settings::
 
     ndim = 2
     sampler = dynesty.NestedSampler(loglike, prior_transform, ndim=ndim, 
                                     first_update={'min_ncall': -np.inf,
                                                   'min_eff': np.inf},
                                     bound='multi', sample='unif', nlive=nlive,
+                                    enlarge=1.0, vol_dec=0.8, vol_check=1.0,
                                     bootstrap=0)
     sampler.run_nested(dlogz=0.01, maxiter=3500, add_live=False)
     res = sampler.results
@@ -976,8 +1032,9 @@ Now let's turn bootstrapping off::
 
 Out::
 
-    iter: 3501 | bound: 13 | nc: 1 | ncall: 8294 | eff(%): 42.211 | 
-    logz: -1.020 +/-  0.006 | dlogz:  0.032 >  0.010     
+    iter: 1501 | bound: 109 | nc: 3 | ncall: 2744 | 
+    eff(%): 54.701 | loglstar:   -inf < -0.979 <    inf | 
+    logz: -1.041 +/-  0.010 | dlogz:  0.053 >  0.010
 
 .. image:: ../images/examples_pyramid_003.png
     :align: center
@@ -991,7 +1048,8 @@ the number of dimensions though?
     sampler = dynesty.NestedSampler(loglike, prior_transform, ndim=ndim, 
                                     first_update={'min_ncall': -np.inf,
                                                   'min_eff': np.inf},
-                                    bound='multi', sample='unif', nlive=nlive)
+                                    bound='multi', sample='unif', nlive=nlive,
+                                    bootstrap=20)
     sampler.run_nested(dlogz=0.01, maxiter=3500, add_live=False)
     res = sampler.results
 
@@ -999,16 +1057,48 @@ the number of dimensions though?
 
 Out::
 
-    iter: 3501 | bound: 42 | nc: 9 | ncall: 26613 | eff(%): 13.155 | 
-    logz: -1.023 +/-  0.006 | dlogz:  0.031 >  0.010  
+    iter: 1501 | bound: 272 | nc: 2 | ncall: 6831 | 
+    eff(%): 21.973 | loglstar:   -inf < -0.989 <    inf | 
+    logz: -1.044 +/-  0.010 | dlogz:  0.052 >  0.010
 
 .. image:: ../images/examples_pyramid_004.png
     :align: center
 
-And again let's turn bootstrapping off to see what happens::
+And again let's turn bootstrapping off and use our more aggressive settings
+to see what happens::
 
     ndim = 7
     sampler = dynesty.NestedSampler(loglike, prior_transform, ndim=ndim, 
+                                    first_update={'min_ncall': -np.inf,
+                                                  'min_eff': np.inf},
+                                    bound='multi', sample='unif', nlive=nlive,
+                                    enlarge=1.0, vol_dec=0.8, vol_check=1.0,
+                                    bootstrap=0)
+    sampler.run_nested(dlogz=0.01, maxiter=3500, add_live=False)
+    res = sampler.results
+
+.. rst-class:: sphx-glr-script-out
+
+Out::
+
+    iter: 1501 | bound: 194 | nc: 2 | ncall: 4832 | 
+    eff(%): 31.064 | loglstar:   -inf < -0.989 <    inf | 
+    logz: -1.044 +/-  0.010 | dlogz:  0.052 >  0.010
+
+.. image:: ../images/examples_pyramid_005.png
+    :align: center
+
+We see that without incorporating the bootstrap expansion factors
+the ellipsoids have a tendency to over-constrain the remaining prior
+volume and shrink too quickly as we move to higher dimensions.
+The defaults enabled in `dynesty`, which include a built-in enlargement factor
+to increase the size of the bounding ellipsoids as well as a more conservative
+approach to generating bounding ellipsoids, help to guard against this.
+Putting those back in gives::
+
+
+    ndim = 7
+    sampler = dynesty.NestedSampler(loglike, prior_transform, ndim=ndim,
                                     first_update={'min_ncall': -np.inf,
                                                   'min_eff': np.inf},
                                     bound='multi', sample='unif', nlive=nlive,
@@ -1020,10 +1110,11 @@ And again let's turn bootstrapping off to see what happens::
 
 Out::
 
-    iter: 3501 | bound: 21 | nc: 9 | ncall: 13664 | eff(%): 25.622 | 
-    logz: -1.023 +/-  0.006 | dlogz:  0.031 >  0.010  
+    iter: 1501 | bound: 17 | nc: 6 | ncall: 7091 | 
+    eff(%): 21.168 | loglstar:   -inf < -0.989 <    inf | 
+    logz: -1.044 +/-  0.010 | dlogz:  0.052 >  0.010
 
-.. image:: ../images/examples_pyramid_005.png
+.. image:: ../images/examples_pyramid_006.png
     :align: center
 
 LogGamma
@@ -1104,7 +1195,7 @@ coupled with long tails. It is defined as:
 .. image:: ../images/examples_loggamma_001.png
     :align: center
 
-We will now sample from this distribution using `'multi'` and `'slice'` in 
+We will now sample from this distribution using `'multi'` and `'rwalk'` in 
 :math:`d=2` and :math:`d=10` dimensions:
 
 .. code-block:: python
@@ -1114,7 +1205,8 @@ We will now sample from this distribution using `'multi'` and `'slice'` in
     ndim = 2
     nlive = 200
     sampler = dynesty.NestedSampler(loglike, prior_transform, ndim=ndim, 
-                                    bound='multi', sample='slice', nlive=nlive)
+                                    bound='multi', sample='rwalk', walks=50,
+                                    nlive=nlive)
     sampler.run_nested(dlogz=0.01)
     res = sampler.results
 
@@ -1122,15 +1214,17 @@ We will now sample from this distribution using `'multi'` and `'slice'` in
 
 Out::
 
-    iter: 1638+200 | bound: 202 | nc: 1 | ncall: 34590 | eff(%):  5.314 | 
-    logz: -0.057 +/-    nan | dlogz:  0.000 <  0.010  
+    iter: 2027+250 | bound: 78 | nc: 1 | ncall: 66554 | 
+    eff(%):  3.421 | loglstar:   -inf <  3.497 <    inf | 
+    logz:  0.019 +/-    nan | dlogz:  0.000 >  0.010
 
 .. code-block:: python
 
     ndim = 10
     nlive = 200
     sampler = dynesty.NestedSampler(loglike, prior_transform, ndim=ndim, 
-                                    bound='multi', sample='slice', nlive=nlive)
+                                    bound='multi', sample='rwalk', walks=50,
+                                    nlive=nlive)
     sampler.run_nested(dlogz=0.01)
     res2 = sampler.results
 
@@ -1138,8 +1232,9 @@ Out::
 
 Out::
 
-    iter: 4978+200 | bound: 143 | nc: 1 | ncall: 676567 | eff(%):  0.765 | 
-    logz:  0.198 +/-    nan | dlogz:  0.000 <  0.010    
+    iter: 6062+250 | bound: 350 | nc: 1 | ncall: 269834 | 
+    eff(%):  2.339 | loglstar:   -inf < 20.332 <    inf | 
+    logz:  0.741 +/-    nan | dlogz:  0.000 >  0.010
 
 Our analytic approximations to the error appear to have diverged, so let's 
 compute them numerically::
@@ -1167,10 +1262,10 @@ Now let's see how we did::
     from dynesty import plotting as dyplot
 
     # summary plot comparison
-    fig, axes = dyplot.runplot(res, color='blue')
-    fig, axes = dyplot.runplot(res2, color='red', 
-                               lnz_truth=0., truth_color='black',
-                               fig=(fig, axes))
+    fig, axes = dyplot.runplot(res, color='blue', 
+                               lnz_truth=0., truth_color='black')  # d=2
+    fig, axes = dyplot.runplot(res2, color='red',
+                               lnz_truth=0., truth_color='black')  # d=10
     fig.tight_layout()
 
     # d=2 trace plot
@@ -1185,6 +1280,9 @@ Now let's see how we did::
                                   quantiles=None, fig=(fig, axes))
 
 .. image:: ../images/examples_loggamma_002.png
+    :align: center
+
+.. image:: ../images/examples_loggamma_005.png
     :align: center
 
 .. image:: ../images/examples_loggamma_003.png

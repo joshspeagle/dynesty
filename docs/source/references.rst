@@ -7,7 +7,9 @@ Code
 
 ``dynesty`` is the spiritual successor to Nested Sampling package `nestle 
 <http://kylebarbary.com/nestle/>`_ and has benefited enormously from the work
-put in by `Kyle Barbary <http://kylebarbary.com/>`_ and other contributors.
+put in by `Kyle Barbary <http://kylebarbary.com/>`_ and 
+`other contributors 
+<https://github.com/joshspeagle/dynesty/blob/master/AUTHORS.md>`_.
 
 Much of the API is inspired by the ensemble MCMC package
 `emcee <http://dan.iel.fm/emcee/current/>`_ as well as other work by
@@ -52,6 +54,11 @@ are based on:
 
 Slice sampling and its implementations in nested sampling are based on:
 
+    `Bloem-Reddy & Cunningham 2016
+    <http://proceedings.mlr.press/v48/bloem-reddy16.html>`_.
+    *Slice Sampling on Hamiltonian Trajectories.*
+    PMLR, 48, 3050.
+
     `Handley, Hobson & Lasenby 2015b
     <http://adsabs.harvard.edu/abs/2015MNRAS.453.4384H>`_.
     *POLYCHORD: next-generation nested sampling.*
@@ -78,6 +85,16 @@ The implementation of multi-ellipsoidal decomposition are based in part on:
     MNRAS, 398, 1601.
 
 Several useful reference texts include:
+
+    `Salomone et al. 2018
+    <https://arxiv.org/abs/1805.03924>`_.
+    *Unbiased and Consistent Nested Sampling via Sequential Monte Carlo.*
+    ArXiv e-prints, 1805.03924.
+
+    `Walter 2015
+    <https://arxiv.org/abs/1412.6368>`_.
+    *Point Process-based Monte Carlo estimation.*
+    ArXiv e-prints, 1412.6368.
 
     `Shaw, Bridges & Hobson 2007
     <http://adsabs.harvard.edu/abs/2007MNRAS.378.1365S>`_.

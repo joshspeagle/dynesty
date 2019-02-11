@@ -298,6 +298,9 @@ contour :math:`\mathcal{L}(X)` to the integral depends both on its
 "amplitude" :math:`\mathcal{L}(X)` along with the (differential) prior volume
 :math:`dX` it occupies. This is maximized when both these quantities are
 jointly maximized, which occurs over points that represent the typical set.
+Because of the contribution from the "density" and "volume" terms
+are clearly seen here, this is sometimes also referred to as
+the **posterior mass**.
 Since the posterior importance weights
 
 .. math::
@@ -343,7 +346,9 @@ the overall expected runtime. Since, in general, the posterior
 :math:`P(\boldsymbol{\Theta})` is (much) more localized that the prior
 :math:`\pi(\boldsymbol{\Theta})`, the "information" we gain from updating
 from the prior to the posterior can be characterized by the
-`KL divergence <https://en.wikipedia.org/wiki/Kullback-Leibler_divergence>`_:
+**Kullback-Leibler (KL) divergence** (see 
+`here <https://en.wikipedia.org/wiki/Kullback-Leibler_divergence>`_ 
+for more information):
 
 .. math::
 
@@ -391,29 +396,79 @@ The prior transform for this distribution would be::
 Example: Non-uniform priors
 ---------------------------
 
-Suppose we instead want our prior to be standard Normal. Using the
-inverse CDF for the normal distribution `scipy.special.ndtri`, we can transform
-our i.i.d. Uniform samples to a set of Normal samples via::
-
-    from scipy.special import ndtri
-
-    prior_transform = ndtri
-
-If we're instead interested in a Multivariate Normal prior with mean vector
-:math:`\boldsymbol{\mu}` and covariance matrix :math:`\mathbf{C}`, we can
-simply transform the output as follows::
+Suppose we instead have a more complicated prior in 5 variables.
+The first 2 are drawn from a 
+`bivariate Normal <https://en.wikipedia.org/wiki/MVN>`_ distribution, 
+the third is drawn from a 
+`Beta <https://en.wikipedia.org/wiki/Beta_distribution>`_ distribution,
+the fourth from a
+`Gamma <https://en.wikipedia.org/wiki/Gamma_distribution>`_ distribution,
+and the fifth from a truncated normal distribution.
+To handle more complicated functions like these, we can use the built-in
+`functions <https://docs.scipy.org/doc/scipy/reference/stats.html>`_
+in `scipy.stats`, which include a **percent point function (ppf)** that
+is analagous to our prior transform. Using those, our above examples
+would look like::
 
     def prior_transform(u):
-        """Transforms the uniform random variable `u ~ Unif[0., 1.)`
-        to the parameter of interest `x ~ Normal(mu, C)`."""
+        """Transforms the uniform random variables `u ~ Unif[0., 1.)`
+        to the parameters of interest."""
 
-        z = ndtri(u)  # transform to `z ~ Normal(0., 1.)`
-        x = mu + Csqrt * z  # transform to `x ~ Normal(mu, C)`
+        x = np.array(u)  # copy u
+
+        # Bivariate Normal
+        t = scipy.stats.norm.ppf(u[0:2])  # convert to standard normal
+        Csqrt = np.array([[2., 1.],
+                          [1., 2.]])  # C^1/2 for C=((5, 4), (4, 5))
+        x[0:2] = np.dot(Csqrt, t)  # correlate with appropriate covariance
+        mu = np.array([5., 2.])  # mean
+        x[0:2] += mu  # add mean
+
+        # Beta
+        a, b = 2.31, 0.627  # shape parameters
+        x[2] = scipy.stats.norm.ppf(u[2], a, b)
+
+        # Gamma
+        alpha = 5.  # shape parameter
+        x[3] = scipy.stats.norm.ppf(u[3], alpha)
+
+        # Truncated Normal
+        m, s = 5, 2  # mean and standard deviation
+        low, high = 2., 10.  # lower and upper bounds
+        low_n, high_n = (low - m) / s, (high - m) / s  # standardize
+        x[4] = scipy.stats.norm.ppf(u[4], low_n, high_n, loc=m, scale=s)
 
         return x
 
-where `mu` is the mean vector and `Csqrt` is the matrix square root of the
-covariance matrix :math:`\mathbf{C}^{1/2}`.
+Example: Conditional priors
+---------------------------
 
-For constructing prior transforms for more complex priors, the distributions in
-`scipy.stats` often are quite useful.
+This procedure can be generalized to construct priors that only can be
+expressed in conditional form. As an example, let's assume we have
+a three-parameter model where the prior for the third parameter depends
+on the values for the first two. This might be the case in, e.g., a
+`hierarchical <https://en.wikipedia.org/wiki/Bayesian_hierarchical_modeling>`_
+model where the prior over `c` is a Normal distribution whose mean 
+`m` and standard deviation `s` are determined by a corressponding
+"hyper-prior". We can easily set up a prior transform for this model 
+by just going through the variables in order. This would look like::
+
+    def prior_transform(u):
+        """Transforms the uniform random variables `u ~ Unif[0., 1.)`
+        to the parameters of interest."""
+
+        x = np.array(u)  # copy u
+
+        # Mean hyper-prior.
+        mu, sigma = 5., 1.  # mean, standard deviation
+        x[0] = scipy.stats.norm.ppf(u[0], loc=mu, scale=sigma)
+
+        # Standard deviation hyper-prior
+        x[1] = 10. ** (u[1] * 2. - 1.)  # log10(std) ~ Uniform[-1, 1]
+
+        # Prior.
+        x[2] = scipy.stats.norm.ppf(u[2], loc=x[0], scale=x[1])
+
+        return x
+
+More complicated dependencies can be constructed using similar approaches.

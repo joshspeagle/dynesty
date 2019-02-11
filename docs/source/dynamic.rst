@@ -65,8 +65,9 @@ We can illustrate this directly using the same example from
 
 Out::
 
-    iter: 13139+1000 | bound: 25 | nc: 1 | ncall: 49499 | eff(%): 28.564 | 
-    logz: -8.818 +/-  0.084 | dlogz:  0.000 <  0.010
+    iter: 13375+1000 | bound: 19 | nc: 1 | ncall: 51548 | 
+    eff(%): 27.887 | loglstar:   -inf < -0.294 <    inf | 
+    logz: -9.052 +/-  0.086 | dlogz:  0.000 >  0.010    
 
 .. image:: ../images/quickstart_002.png
     :align: center
@@ -124,7 +125,7 @@ an initial **"baseline" run**. The basic algorithm is:
    :math:`\mathcal{L}_{\textrm{high}}^{(b)}` to the new batch of samples.
 
 #. "Combine" the new batch of samples with the set of previous set of samples
-   and return to (2).
+   and return to step (2).
 
 Weight Function
 ---------------
@@ -160,7 +161,12 @@ is the posterior importance weight,
 is the (normalized) evidence weight, :math:`\hat{\mathcal{Z}}_{\textrm{upper}}
 = \hat{\mathcal{Z}} + \Delta\hat{\mathcal{Z}}` is the estimated upper limit
 on the total evidence, and :math:`K_i` is the number of live points at
-:math:`X_i`.
+:math:`X_i`. In other words, the importantance of a given point for estimating
+the posterior is just proportional to the amount that a 
+given sample contributes to our estimate of the posterior at the current
+iteration, while the importance of a given point for estimating the
+evidence is proportional to the amount of the posterior interior to
+the log-volume probed by that point.
 
 The likelihood ranges
 :math:`\left[ \mathcal{L}_{\textrm{low}}^{(b)}, 
@@ -188,8 +194,8 @@ should stop sampling. The default
 .. math::
 
     S(f_p, s_p, s_{\mathcal{Z}}, n) \equiv 
-    f_p \times \frac{S_p(n)}{s_{p, \max}} + 
-    (1 - f_p) \times \frac{S_\mathcal{Z}(n)}{s_{p, \max}} < 1
+    f_p \times \frac{S_p(n)}{s_p} + 
+    (1 - f_p) \times \frac{S_\mathcal{Z}(n)}{s_{\mathcal{Z}}} < 1
 
 where :math:`f_p` is the fractional importance we place on posterior
 estimation, :math:`S_p` is the posterior stopping function,
@@ -200,7 +206,7 @@ used to generate the posterior/evidence stopping values.
 
 
 The default values of these are :math:`f_p = 1` (100% posterior/0% evidence),
-:math:`s_p = 0.02`, :math:`s_{\mathcal{Z}} = 0.1`, and :math:`n=32`. 
+:math:`s_p = 0.02`, :math:`s_{\mathcal{Z}} = 0.1`, and :math:`n=128`. 
 More details on :math:`S_p(n)` and :math:`S_\mathcal{Z}(n)` are outlined below.
 
 How Many Samples are Enough?
@@ -209,7 +215,7 @@ How Many Samples are Enough?
 In any sampling-based approach to estimating the posterior density, it is 
 difficult to determine how many samples are sufficient to estimate the 
 posterior "well". Part of this is because the question itself is often
-ill-defined: what, exactly, does "well" mean?
+ill-defined: what, exactly, does "well" *mean*?
 
 The typical response to this question is that it depends on what
 the samples will be used for. For instance, let's assume we are specifically
@@ -342,7 +348,7 @@ or externally as a generator::
             break
 
 Since the number of live points that will be used during a run 
-are not declared upon initialization, they can instead be
+are not declared upon initialization, they must instead be
 declared during runtime via
 :meth:`~dynesty.dynamicsampler.DynamicSampler.run_nested` using the
 `nlive_init` and `nlive_batch` keywords. Similarly, the `dlogz` tolerance used
@@ -359,8 +365,9 @@ to specify a range of hard stopping criteria based on:
 * the maximum number of iterations and log-likelihood calls made during the
   course of the entire run (`maxiter`, `maxcall`),
 
-* the maximum number of iterations and log-likelihood calls made during the
-  course of the initial run (`maxiter_init`, `maxcall_init`),
+* the maximum number of iterations, log-likelihood calls, or
+  log-likelihood value made during the course of the initial run 
+  (`maxiter_init`, `maxcall_init`, `logl_max_init`),
 
 * the maximum number of iterations and log-likelihood calls made while adding
   batches (`maxiter_batch`, `maxcall_batch`), and
@@ -618,10 +625,11 @@ orange contour is the scale posterior weight distribution shown in
 
 We can see that the general shape of the dynamic runs traces the overall shape
 of the weights: our posterior-based samples are concentrated around the bulk
-of the posterior mass (the typical set) while the evidence-based samples are
-concentrated away from the typical set towards the prior. The general skewness
-to the distribution is primarily because we recycle live points sampled past
-the log-likelihood bounds set during each batch. This allows us to get more
+of the posterior mass (see :ref:`Typical Sets`) while the evidence-based 
+samples are concentrated away from the typical set towards the prior. 
+The general skewness to the distribution is primarily because 
+we recycle live points sampled past the log-likelihood bounds 
+set during each batch. This allows us to get more
 information "inward" of the bounds whenever we add a batch, so as a result new
 samples tend to be systematically allocated "outward".
 
@@ -702,15 +710,15 @@ and on a (sub-)corner plot of the samples::
 
     # plot static run (left)
     fg, ax = dyplot.cornerpoints(res, cmap='plasma', truths=np.zeros(ndim),
-                                 fig=(fig, axes[:, 0:2]))
+                                 kde=False, fig=(fig, axes[:, 0:2]))
 
     # plot posterior-oriented dynamic run (middle)
     fg, ax = dyplot.cornerpoints(dres_p, cmap='viridis', truths=np.zeros(ndim),
-                                 fig=(fig, axes[:, 3:5]))
+                                 kde=False, fig=(fig, axes[:, 3:5]))
 
     # plot evidence-oriented dynamic run (right)
     fg, ax = dyplot.cornerpoints(dres_z, cmap='inferno', truths=np.zeros(ndim),
-                                 fig=(fig, axes[:, 6:8]))
+                                 kde=False, fig=(fig, axes[:, 6:8]))
 
 .. image:: ../images/dynamic_006.png
     :align: center

@@ -65,6 +65,16 @@ chosen bounds by an enlargement factor to ensure they effectively bound the
 iso-likelihood contours. These bounds become more robust the more live points
 are used, leading to more efficient proposals.
 
+It is important to note that running with too few live points can lead to
+mode "die off". When there are multiple modes with live points distributed
+between them, live points can randomly "jump" between them at any given
+iteration. If there are only a handful of live points at a particular mode,
+it is possible that, entirely by chance, all of them could transfer
+completely to the other mode even as both remain equally likely,
+leading it to "die off" and likely never be located again. As a rule-of-thumb,
+you should allocate around 50 live points per possible mode to guard against
+this.
+
 The number of live points can be specified upon initialization via the 
 `nlive` argument. For example, if we want to run with 1000 live points rather
 than the default 250, we would use::
@@ -106,16 +116,17 @@ than multiple bounding ellipsoids, for instance, we would use::
 
 As mentioned in :ref:`Live Points`, bounding distributions in ``dynesty`` are
 enlarged in an attempt to conservatively encompass the iso-likelihood contour
-associated with each dead point. By default, this is done in real-time using
-bootstrapping methods. This procedure can lead to some instability in the size
-of the bounds if only a few number of live points are used 
-(see the :ref:`FAQ`). In addition, the *volumes* of all bounding objects can
-also be enlarged by a constant factor (applied after any bootstrapping). The
-number of bootstrap realizations used and the volume enlargement factor can be
-specified using the `bootstrap` and `enlarge` arguments. 
+associated with each dead point. The default behavior increases the
+volume by 25%, although this can also be done in real-time using
+bootstrapping methods (this procedure can lead to some instability in the size
+of the bounds if fewer than the optimal number of live points are being used;
+see the :ref:`FAQ` for additional details). 
+The volume enlargement factor and/or the number of 
+bootstrap realizations used can be specified using the `enlarge` 
+and `bootstrap` arguments. 
 
 For instance, if we want to use 50 bootstraps to determine expansion factors
-with an additional fixed volume enlargement factor of 1.10, we would specify::
+with an additional fixed volume enlargement factor of 10%, we would specify::
     
     NestedSampler(loglike, ptform, ndim, nlive=1000, bound='balls',
                   bootstrap=50, enlarge=1.10)
@@ -127,35 +138,48 @@ To avoid excessive overhead spent constructing bounding
 distributions, ``dynesty`` only updates bounding distributions after a fixed
 number of likelihood calls specified by the `update_interval` argument. Larger
 values generally decrease the sampling efficiency but can improve overall
-performance. This value by default is set to be `round(0.6 * nlive)`, but if
-we wanted to instead use a larger value we could just specify that via::
+performance. This value by default is set to different values for different
+sampling methods (see the :ref:`API` for additional details), but if
+we wanted to instead use a particular value we could just specify that via::
 
     NestedSampler(loglike, ptform, ndim, nlive=1000, bound='balls',
                   bootstrap=50, enlarge=1.10, update_interval=1.2)
 
-We could also pass an integer if we'd like to specify the number of function
-calls directly::
+Passing a float like `1.2` sets the update interval to be after 
+`round(1.2 * nlive)` functional calls so that it scales based on the
+number of live points (and thus the speed at which we expect to traverse
+the prior volume). If we'd like to specific the number of function calls
+directly, however, we can instead pass an integer::
 
     NestedSampler(loglike, ptform, ndim, nlive=1000, bound='balls',
                   bootstrap=50, enlarge=1.10, update_interval=600)
 
-Finally, ``dynesty`` tries to avoid constructing bounding distributions too
+This now specifies that we will update our bounds after `600` function
+calls.
+
+Finally, ``dynesty`` tries to avoid constructing bounding distributions
 early in the run to avoid issues where the bounds can significantly exceed the
-unit cube. For instance, the bounding distribution of the initial set of points
-*by construction* exceeds the bounds of the unit cube. This can lead to a 
+unit cube. For instance, in most cases the bounding distribution 
+of the initial set of points *by construction* will exceed
+the bounds of the unit cube when `enlarge > 1`. This can lead to a 
 variety of problems associated with each method, especially in higher
 dimensions (since volume scales as :math:`\propto r^D`).
 
 To avoid this behavior, ``dynesty`` deliberately delays the first bounding
-update until some heuristics are satisfied. If we wanted to adjust this
-behavior, such as disabling the delay altogether,
+update until at least `2 * nlive` function calls have been made *and* the
+efficiency has fallen to 10%. This generally assumes that the overall
+efficiency will be below 10%, which is the case for almost all sampling
+methods (see below). If we wanted to adjust this behavior so
+that we construct our first bounding distributions much earlier,
 we could do so by passing some parameters using the `first_update`
 argument::
 
     NestedSampler(loglike, ptform, ndim, nlive=1000, bound='balls',
                   bootstrap=50, enlarge=1.10, update_interval=600,
-                  first_update={'min_ncall': 0, 'min_eff': 100.})
+                  first_update={'min_ncall': 100, 'min_eff': 50.})
 
+This will now trigger an update when 100 log-likelihood function calls have
+been made and the effiency drops below 50%. 
 See :ref:`Top-Level Interface` for more information.
 
 Sampling Options
@@ -166,32 +190,40 @@ the provided bounds which can be passed via the `sample` argument:
 
 * **uniform** sampling (`'unif'`),
 
-* **random walks** away from a current live point (`'rwalk'`), and
+* **random walks** away from a current live point (`'rwalk'`),
 
-* **slice sampling** away from a current live point (`'slice'`).
+* **multivariate slice sampling** away from a current live point (`'slice'`),
 
-By default, `dynesty` samples uniformly within the bounding distribution
-(`'unif'`). In low dimensions (:math:`D \lesssim 10`), uniform sampling is in
-general quite efficient at generating new live point proposals **assuming the
-bounding distributions are relatively stable**. In moderate dimensions
-(:math:`D \sim 5-20`), random walks (`'rwalk'`) often can become similarly
-efficient. In moderate-to-high dimensions (:math:`D \gtrsim 20`), sampling
-techniques that do not rely on rejecting new proposed points such as
-multivariate slice sampling (`'slice'`) become progressively more efficient.
+* **random slice sampling** away from a current live point (`'rslice'`), and
+
+* **hamiltonian slice sampling** away from a current live point (`'hslice'`).
+
+By default, `dynesty` automatically picks a sampling method 
+based on the dimensionality of the problem via the `'auto'` argument. This
+selects `'unif'` if :math:`D < 10` since uniform proposals can
+be quite efficient in low dimensions, `'rwalk'` if :math:`10 \leq D \geq 20`
+since random walks are more robust to overestimated bounding
+distributions in higher dimensions, and `'slice'` if :math:`D > 20`
+since non-rejection sampling methods scale in 
+polynomial (rather than exponential) time as the dimensionality increases.
+`'rslice'` and `'hslice'` can be quite effective for particular problems,
+but currently are not as robust as the previously-described 
+approaches and therefore not implemented by default. 
+**Use them at your own risk.**
 
 One benefit to using random walks or slice sampling is that they require many
 fewer live points to adapt to structure in higher dimensions (since they only
-sample *conditioned* on the bounds). They also do not require bootstrap-style
-corrections since they contain built-in methods to tune their step sizes.
+sample *conditioned* on the bounds, rather than **within** them). 
+They also do not require any sort of bootstrap-style corrections 
+since they contain built-in methods to tune their step sizes. This, however,
+does not mean that they are immune to issues that arise when running with
+fewer live points such as mode "die-off" (see :ref:`Live Points`).
 
 Following the example above, let's say we wanted to combine the flexibility of
-multiple bounding ellipsoids and slice sampling. Since slice sampling is
-less efficient than uniform sampling, we would also like to increase the
-relevant `update_interval` as well to avoid constructing new bounding
-distributions too frequently. This might look something like:: 
+multiple bounding ellipsoids and slice sampling.
+This might look something like:: 
 
-    NestedSampler(loglike, ptform, ndim, bound='multi', sample='slice',
-                  update_interval=float(ndim))
+    NestedSampler(loglike, ptform, ndim, bound='multi', sample='slice')
 
 Running  Internally
 -------------------
@@ -208,7 +240,9 @@ real time. The stopping criteria can be any combination of:
 
 * a fixed number of iterations (`maxiter`),
 
-* a fixed number of likelihood calls (`maxcall`), and
+* a fixed number of likelihood calls (`maxcall`),
+
+* a maximum log-likelihood `(logl_max`), and
 
 * a specified :math:`\Delta \ln \hat{\mathcal{Z}}_i` tolerance (`dlogz`).
 
@@ -218,36 +252,42 @@ For instance, the code above would produce output like:
 
 Out::
 
-    iter: 6718+1000 | bound: 9 | nc: 1 | ncall: 39582 | eff(%): 19.499 | 
-    logz: -8.832 +/-  0.132 | dlogz:  0.006 <  5.005    
+    iter: 11103+1000 | bound: 15 | nc: 1 | ncall: 48121 | 
+    eff(%): 25.151 | loglstar:   -inf < -0.294 <    inf | 
+    logz: -9.052 +/-  0.087 | dlogz:  0.000 >  0.100
 
 From left to right, this records: the current iteration (plus the number of
 live points added after stopping), the current bound being used, the number
-of likelihood calls made before accepting the last sample, the total number
-of likelihood calls, the overall sampling efficiency, the current estimated
-evidence, and the remaining `dlogz` (plus the stopping criterion).
+of log-likelihood calls made before accepting the last sample, the total number
+of log-likelihood calls, the overall sampling efficiency, 
+the current log-likelihood and log-likelihood bounds (`-inf` and `inf`
+because we began sampling from the prior and didn't declare a `logl_max`),
+the current estimated evidence, and the remaining `dlogz` relative
+to the stopping criterion.
 
 By default, the stopping criteria are optimized for evidence estimation, with
-posteriors treated as a nice byproduct. This works by scaling `dlogz` based on
-the provided number of live points to try and avoid spending excessive amounts
-of time sampling over the bulk of the posterior mass. If we were much more
-interested in having more robust posterior estimates, or in
-setting bounds for the amount of samples and function calls allows, we could
-override this behavior. This would look something like::
+posteriors treated as a nice byproduct. We can modify this
+by passing in something like::
 
-    sampler.run_nested(dlogz=0.01, maxiter=15000, maxcall=50000)
+    sampler.run_nested(dlogz=0.5, maxiter=10000, maxcall=50000)
 
 Since sampling is done through the `sampler` objects, users can also continue
 to add new samples based on where they left off. This is as easy as::
 
+    # initialize our sampler
     sampler = NestedSampler(loglike, ptform, ndim, nlive=1000)
 
-    sampler.run_nested()  # first run
+    # start our run
+    sampler.run_nested(dlogz=0.5)
     res1 = sampler.results
 
-    sampler.run_nested(maxcall=10000)  # (possibly) adding more samples
-    sampler.run_nested(dlogz=0.01)  # (possibly) adding more samples
+    # (possibly) add more samples
+    sampler.run_nested(maxcall=10000)
     res2 = sampler.results
+
+    # (possibly) add more samples again
+    sampler.run_nested(dlogz=0.01)
+    res3 = sampler.results
 
 Running Externally
 ------------------
@@ -308,7 +348,7 @@ While a number of quantities are contained in the `Results` instance,
 the relevant quantities for most users will be the collection
 of samples from the run (`samples`), their corresponding (unnormalized) 
 log-weights (`logwt`), the cumulative log-evidence (`logz`), and the
-approximate error on the evidence (`logzerr`). The remaining quantities are
+*approximate* error on the evidence (`logzerr`). The remaining quantities are
 used to help visualize the output (see :ref:`Visualizing Results`) and might
 also be useful for more advanced users who want additional information about
 the nested sampling run.
@@ -506,7 +546,9 @@ is using **corner plots** (also called "triangle plots"), which show a
 combination of 1-D and 2-D marginalized posteriors. ``dynesty`` supports
 several corner plotting functions. The most straightforward is
 :meth:`~dynesty.plotting.cornerpoints`, which simply plots the sample positions
-colored according to their importance weights::
+colored according to their estimated posterior mass if `kde=True` and
+raw importance weights if `kde=False`. An example highlighting the
+difference between the two runs is shown below::
 
     # initialize figure
     fig, axes = plt.subplots(2, 5, figsize=(25, 10))
@@ -519,11 +561,11 @@ colored according to their importance weights::
 
     # plot initial run (res1; left)
     fg, ax = dyplot.cornerpoints(res1, cmap='plasma', truths=np.zeros(ndim),
-                                 fig=(fig, axes[:, :2]))
+                                 kde=False, fig=(fig, axes[:, :2]))
 
     # plot extended run (res2; right)
     fg, ax = dyplot.cornerpoints(res2, cmap='viridis', truths=np.zeros(ndim),
-                                 fig=(fig, axes[:, 3:]))
+                                 kde=False, fig=(fig, axes[:, 3:]))
 
 .. image:: ../images/quickstart_004.png
     :align: center

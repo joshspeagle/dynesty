@@ -58,8 +58,9 @@ where :math:`\mathcal{Z}` is the again the Bayesian evidence.
 
 As such, the number of steps :math:`N` needed to integrate over the majority
 of the posterior starting from the prior subject to some 
-`\Delta \ln \hat{\mathcal{Z}}` (see :ref:`Stopping Criteria`) must scale with
-:math:`H`. We also know that :math:`N` should scale inversely with the typical
+:math:`\Delta \ln \hat{\mathcal{Z}}` (see :ref:`Stopping Criteria`)
+must scale with :math:`H`. We also know that :math:`N` 
+should scale inversely with the typical
 :math:`\Delta \ln X`. This gives us that the expected number of steps 
 :math:`\mathbb{E}[N]` goes as
 
@@ -92,10 +93,10 @@ exploiting the fact that
 .. math::
 
     \mathbb{V}[\ln \hat{\mathcal{Z}}] = 
-    \mathbb{V}[\sum_{i=1}^{N} \ln \hat{\mathcal{Z}}_i -
-    \ln \hat{\mathcal{Z}}_{i-1}] \equiv
-    \mathbb{V}[\sum_{i=1}^{N} \Delta \ln \hat{\mathcal{Z}}_i] \approx
-    \sum_{i=1}^{N} \mathbb{V}[\Delta \ln \hat{\mathcal{Z}}_i]
+    \mathbb{V} \left[ \sum_{i=1}^{N} \left( \ln \hat{\mathcal{Z}}_i -
+    \ln \hat{\mathcal{Z}}_{i-1} \right) \right] \equiv
+    \mathbb{V} \left[ \sum_{i=1}^{N} \Delta \ln \hat{\mathcal{Z}}_i \right] 
+    \approx \sum_{i=1}^{N} \mathbb{V}[\Delta \ln \hat{\mathcal{Z}}_i]
 
 where we take :math:`\ln \hat{\mathcal{Z}}_0 = 0`. Approximating 
 :math:`\mathbb{V}[\Delta \ln \hat{\mathcal{Z}_i}]` as
@@ -123,7 +124,7 @@ These are the errors that are returned by default in the output `~sys.stderr`
 statements and output `~dynesty.results.Results` instances and used in
 plotting functions.
 
-As an example, here's a comparison among three different runs to showcase
+As an example, here's a comparison among two different runs to showcase
 how the approximate errors take into account varying numbers of live points
 (and the associated changes in prior volume) throughout a given Nested Sampling
 run::
@@ -134,13 +135,9 @@ run::
     sampler.run_nested()
     res = sampler.results
 
-    sampler.reset()
-    sampler.run_nested(dlogz=0.01)
-    res2 = sampler.results
-
     # dynamic nested sampling
     dsampler = dynesty.DynamicNestedSampler(loglikelihood, prior_transform,
-                                            ndim,  bound='single',
+                                            ndim, bound='single',
                                             sample='unif')
     dsampler.run_nested(nlive_init=100, nlive_batch=100,
                         maxiter=res2.niter+res2.nlive, use_stop=False)
@@ -150,39 +147,17 @@ run::
 
 Out::
 
-    iter: 6718+1000 | bound: 9 | nc: 1 | ncall: 39582 | eff(%): 19.499 | 
-    logz: -8.832 +/-  0.132 | dlogz:  0.006 <  5.005    
+    iter: 13375+1000 | bound: 19 | nc: 1 | ncall: 51548 | 
+    eff(%): 27.887 | loglstar:   -inf < -0.294 <    inf | 
+    logz: -9.052 +/-  0.086 | dlogz:  0.000 >  0.010       
 
-    iter: 13502+1000 | bound: 24 | nc: 1 | ncall: 49568 | eff(%): 29.257 | 
-    logz: -9.179 +/-  0.086 | dlogz:  0.000 <  0.010    
+    iter: 14375 | batch: 32 | bound: 345 | nc: 1 | ncall: 43554 | 
+    eff(%): 33.005 | loglstar:   -inf < -0.438 < -0.559 | 
+    logz: -8.878 +/-  0.146 | stop:    nan                     
 
-    iter: 14529 | batch: 31 | bound: 375 | nc: 1 | ncall: 41884 | 
-    eff(%): 34.689 | loglstar: -3.006 < -0.518 < -1.095 | 
-    logz: -9.135 +/-  0.130 | stop:    nan      
-
-.. code-block:: python
-
-    from dynesty import plotting as dyplot
-
-    # analytic evidence solution
-    lnz_truth = ndim * -np.log(2 * 10.)
-
-    # plotting results
-    fig, axes = dyplot.runplot(res, color='orange', mark_final_live=False)
-    fig, axes = dyplot.runplot(res2, color='red', mark_final_live=False,
-                               fig=(fig, axes))
-    fig, axes = dyplot.runplot(dres, color='blue', fig=(fig, axes),
-                               lnz_truth=lnz_truth, truth_color='black')
-    fig.tight_layout()
-
-.. image:: ../images/errors_001.png
-    :align: center
-
-The increase in error for the initial run reflects the increasing uncertainty
-in :math:`\ln X_i` at a given iteration after terminating, which contribute
-significantly to the error budget since we terminated relatively early. The
-differences among the latter two results illustrate how the location where
-samples are allocated can significantly affect the error budget.
+The differences among the two results illustrate how the location where
+samples are allocated can significantly affect the error budget, as discussed
+in :ref:`Dynamic Nested Sampling`.
 
 Statistical Uncertainties
 =========================
@@ -195,8 +170,9 @@ and iso-likelihood contour :math:`\mathcal{L}_i`.
 Order Statistics
 ----------------
 
-Nested Sampling works thanks to the magic of **order statistics**. At the start
-of a Nested Sampling run, we sample :math:`K` points from the prior 
+Nested Sampling works thanks to the "magic" of **order statistics**.
+At the start of a Nested Sampling run, we sample :math:`K` 
+points from the prior 
 :math:`\pi(\boldsymbol{\Theta})` with likelihoods 
 :math:`\lbrace \mathcal{L}_1, \dots, \mathcal{L}_{K} \rbrace` and associated 
 prior volumes :math:`\lbrace X_1, \dots, X_K \rbrace`. We then want to pick the
@@ -208,7 +184,7 @@ likelihoods and prior volumes are inversely ordered such that
 :math:`\mathcal{L}_{(i)} \leftrightarrow X_{(K-i+1)}`.
 
 What is this prior volume? Since all the points were drawn from the prior,
-the `**probability integral transform (PIT)** 
+the `probability integral transform (PIT)
 <https://en.wikipedia.org/wiki/Probability_integral_transform>`_ tells us that
 the corresponding prior volumes are uniformly distributed **random variables**
 such that
@@ -291,7 +267,7 @@ sampling "down" the set of order statistics
 :math:`\lbrace X_{(1)}, \dots, X_{(K_j)} \rbrace` described above. If at
 iteration :math:`i > j` we have :math:`K_i < K_{i+1} < \dots < K_j` live
 points, then the prior volume is the :math:`X_{(K_i)}`-th order statistic.
-Relative to :math:`X_j`, have an expectation value of:
+Relative to :math:`X_j`, these have an expectation value of:
 
 .. math::
 
@@ -302,8 +278,8 @@ This leads to the prior volume changing in discrete "chunks" of
 :math:`X_j/(K_j+1)`. In the :ref:`Static Nested Sampling` case, this only
 occurs at the end when adding the final set of live points. In the 
 :ref:`Dynamic Nested Sampling` case, however, the changes in prior volume from
-iteration to iteration can swap back and forth between exponential and
-uniform shrinkage.
+iteration to iteration can swap back and forth between **exponential**
+and **uniform** shrinkage.
 
 We can simulate the joint distribution of these prior volumes by identifying
 continguous sequences of strictly decreasing live points and then simulating
@@ -459,8 +435,8 @@ usage is straightforward::
     res_list = dyfunc.unravel_run(res)  # unravel run into strands
     res_merge = dyfunc.merge_runs(res_list)  # merge strands
 
-**Note that these functions are mostly included for illustrative purposes
-and are not intended for heavy use.**
+**Note that these functions are mostly included for completeness
+and are not intended for heavy use in most practical applications.**
 
 Bootstrapping Runs
 ------------------
@@ -600,6 +576,8 @@ shown in :ref:`Jittering Runs` and :ref:`Bootstrapping Runs`.
 .. image:: ../images/errors_008.png
 
 We see that the final errors are about 50% larger than our approximation.
+This is quite typical, and reflects uncertainties that we ignored when
+deriving our approximation above.
 
 Validation Against Repeated Runs
 ================================

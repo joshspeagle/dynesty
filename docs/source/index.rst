@@ -12,9 +12,11 @@ Installation
 ============
 
 ``dynesty`` is compatible with both Python 2.7 and Python 3.6. It requires
-``numpy``, ``scipy``, ``matplotlib``, and ``six``; ``sklearn`` is also
-recommended but not required. Installing the most recent stable version
-of the package is as easy as::
+``numpy`` (for arithmetic), 
+``scipy`` (for special functions), 
+``matplotlib`` (for plotting), and 
+``six`` (to enforce Python 2/3 compliance). 
+Installing the most recent stable version of the package is as easy as::
 
     pip install dynesty
 
@@ -25,6 +27,19 @@ be installed directly from a local copy of the repository by running::
 
 Changelog
 =========
+
+0.9.3 (2019-02-10)
+-------------------
+* Updated documentation.
+
+* Modified re-scaling behavior to better deal with inefficient proposals.
+
+* Improved stability of the current ellipsoid decomposition algorithm.
+
+* Added new `'auto'` options and changed a number of defaults to make things
+  easier for general users.
+
+* Plotting now defaults to 95% credible intervals instead of 68%.
 
 0.9.2 (2018-03-17)
 ------------------

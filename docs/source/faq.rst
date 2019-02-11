@@ -2,121 +2,69 @@
 FAQ
 ===
 
-Bounding Questions
-------------------
-
-**Sometimes during a run a bound will be excessively large, requiring a large
-number of log-likelihood evaluation before moving onwards. Why is this
-happening? Is this a bug?**
-
-This isn't a bug! It's Monte Carlo noise associated with the
-bootstrapping process used when constructing new bounding distributions.
-Depending on the chosen method, sometimes bounds can be unstable, leading
-to large variations between bootstraps and subsequently large expansions
-factors. If you'd instead like to take your chances by enlarging bounding 
-objects manually, you can do so using the `enlarge` argument (and setting
-`bootstrap=0`). Some of this is also discussed in the
-:ref:`Gaussian Shells` and :ref:`Hyper-Pyramid` examples.
-
-**During a run I sometimes see the bound index jump forward several places.
-Is this normal?**
-
-To avoid getting stuck sampling from bad bounding distributions (see above),
-``dynesty`` automatically triggers a bounding update whenever the number of 
-likelihood calls exceeds `update_interval` while sampling from a particular
-bound. This can lead to multiple bounds being constructed before the sample
-is accepted.
-
-**How many bootstrap realizations do I need?**
-
-Sec. 6.1 of `Buchner (2014) <https://arxiv.org/abs/1407.5459>`_ discusses
-the basic behavior of bootstrapping and how many iterations are needed to
-ensure that realizations do not include the same live point over some number
-of realizations. By default, ``dynesty`` uses `bootstrap = 20`. This is more
-aggressive than the `bootstrap = 50` recommended by Buchner (2014) but in 
-general works reasonably well in practice.
-
-**No matter what bounds, options, etc. I pick, the initial samples all
-come from `bound = 0` and continue until the overall efficiency is quite low.
-What's going on here?**
-
-By default, ``dynesty`` opts to wait until some time has passed until
-constructing the first bounding distribution and sampling conditioned on it.
-This behavior is designed to avoid constructing overly large bounds that
-significantly exceed the confines of the unit cube, which can lead to excessive
-time spent generating random numbers. Prior to constructing the initial bound,
-samples are proposed from the unit cube. The options that control these
-heuristics can be modified using the `first_update` argument.
-
-**What are the differences between** `'multi'` **and MultiNest?**
-
-The multi-ellipsoid decomposition/bounding method implemented in ``dynesty``
-is entirely based on the algorithm implemented in `nestle 
-<http://kylebarbary.com/nestle/>`_ which itself is based on the algorithm
-*described* in `Feroz, Hobson & Bridges (2009) 
-<https://arxiv.org/abs/0809.3437>`_. As such, it doesn't include any
-improvements, changes, etc. that may or may not be included in 
-`MultiNest <https://ccpforge.cse.rl.ac.uk/gf/project/multinest/>`_.
-
-In addition, there are a few differences in the portion of the algorithm that
-decides when to split an ellipsoid into multiple ellipsoids. As with
-``nestle``, the implementation in ``dynesty`` is more conservative about
-splitting ellipsoids to avoid over-constraining the remaining prior volume and
-also enlarges all the resulting ellipsoids by a constant volume prefactor.
-In general this results in a slightly lower sampling efficiency but greater
-overall robustness.
-
-These defaults can be changed through the :ref:`Top-Level Interface` via the
-`enlarge`, `vol_dec` and `vol_check` keywords if you would like to experiment
-with more conservative/aggressive behavior.
-
-Live Point Questions
---------------------
-
-**How many live points should I use?**
-
-It depends. Increasing the number of live points helps establish more
-flexible and robust bounds, improving the overall sampling efficiency and
-prior volume resolution. However, it simultaneously increases the runtime.
-These competing behaviors mean that compromises need to be made which are
-problem-dependent.
-
-In general, for ellipsoid-based bounds an absolute minimum of `ndim + 1`
-live points is required, with `2 * ndim` being a (roughly) "safe" threshold.
-If bootstraps are used to establish bounds while sampling uniformly, however,
-many more live poits should be used. Around `25 * ndim` points are recommended
-*for each expected mode* (when using `'multi'`).
-
-Methods that do not depend on the absolute size of the bounds (but instead rely
-on their shape) can use less live points. Their main restriction is
-that new live point proposals (which "evolve" a copy of an existing live point
-to a new position) must be independent of their starting point. Using too
-few points can require excessive thinning, negating the benefit of using fewer
-points. `5 * ndim` per mode seems to work reasonably well (see, e.g., the
-:ref:`LogGamma` and :ref:`50-D Multivariate Normal` examples).
+This page contains a collection of frequently asked questions 
+from ``dynesty`` users, along with some answers that hopefully are helpful to
+you. If you don't see your particular issue addressed here, feel free to 
+`open an issue <https://github.com/joshspeagle/dynesty/issues>`_.
 
 Sampling Questions
 ------------------
 
-**Sometimes while sampling I get sqrt errors and my estimated evidence
-errors become undefined. Should I be concerned?**
+**There are inf values in my lower/upper log-likelihood bounds!
+Should I be concerned?**
 
-Most often this is not a cause for concern. As mentioned in
+In most cases no. As mentioned in :ref:`Running Internally`, these values
+are just the lower and upper limits of the log-likelihood used to limit
+your sampling. If you're sampling starting from the prior, 
+you're starting out from a likelihood of 0 and therefore a 
+log-likelihoof of `-inf`. If you haven't specified a particular `logl_max`
+to terminate sampling, the default value is set to be `+inf` so it will
+never prematurely terminante sampling. These values can change during
+Dynamic Nested Sampling, at which point they serve as the endpoints between
+which a new batch of live points is allocated.
+
+In rare cases, errors in these bounds can be signs of Bad Things that may
+have happened while sampling. This is often the case if the 
+log-likelihood values being sampled (and displayed) are also 
+are non-sensical (e.g., involve `nan` or `inf` values, etc.).
+In that case, it is often useful to terminate the run early 
+and examine the set of samples to see if there are any possible issues.
+
+**Sometimes while sampling my estimated evidence
+errors become undefined! Should I be concerned?**
+
+Most often this is *not* a cause for concern. As mentioned in
 :ref:`Approximate Evidence Errors`, `dynesty` uses an approximate method to
-estimate evidence errors in real time based on the KL divergence and the
-current number of live points. Sometimes this approximation can lead to
+estimate evidence errors in real time based on the KL divergence
+("information gain") and the current number of live points.
+Sometimes this approximation can lead to
 improper results (i.e. negative variances), which can often occur
-early in the run when there is a lot of variation. While this often "corrects"
-itself later in the run, sometimes the effect can persist. Regardless of
+early in the run when there is a lot of uncertainty in the prior volume.
+While this often "corrects" itself later in the run, 
+sometimes the effect can persist. Regardless of
 whether the approximation converges, however, errors can still be computed
 using the functions described in :ref:`Nested Sampling Errors` as normal.
+I am currently working on developing a more robust approximation that
+avoids some of these issues.
 
 In rare cases, issues with the evidence error approximation can be a sign
-that something has gone wrong during the sampling phase. In that case, it is
-often useful to terminate the run early and examine the set of samples to see
-if there are any possible issues.
+that something has gone Terribly Wrong during the sampling phase. This
+is often the case if the log-likelihood values being output also
+are non-sensical (e.g., involve `nan` or `inf` values).
+In that case, it is often useful to terminate the run early 
+and examine the set of samples to see if there are any possible issues.
 
-**Sampling is taking a long time. What should I do?!**
+**When adding batches of live points sometimes the log-likelihoods being
+displayed don't monotonically increase as I expect. What's going on?**
+
+When points are added in each batch, they are allocated randomly between
+the lower and upper log-likelihood bounds (since they are being sampled
+randomly). These values are the ones being output to the terminal.
+Once all the points have been allocated, then nested sampling
+can begin by replacing each of the lowest log-likelihood values with a better
+one.
+
+**Sampling is taking much longer than I'd like. What should I do?!**
 
 Unfortunately, there's no catch-all solution to this. The most important
 first step is to make sure you're examining real-time outputs using the
@@ -129,14 +77,22 @@ computationally intensive methods such as `'multi'`, some of this might be
 due to excessive overhead associated with constructing the bounds. This can
 be reduced by increasing `update_interval`.
 
-If the overall sampling efficiency is low (*relative to what is expected*), it
+If the overall sampling efficiency is low (*relative to what you'd expect*), it
 might indicate that the distribution used (e.g., `'single'`) isn't effective
 and more complex ones such as `'multi'` should be used instead. If you're
 already using those but still getting inefficient proposals, that might
-indicate that the bootstrapping updates (and/or enlargement factors) are 
-unstable and giving excessively large bounds. You could either
-use more live points or switch to an alternate sampling method less sensitive
-to the size of the bounding distributions.
+indicate that the bounding distribution are struggling to capture the
+target distribution. This can happen if, e.g., the posterior occupies a thin,
+strongly-curved manifold in several dimensions, which is hard to model with
+a series of overlapping ellipsoids or other similar distributions.
+
+Another possible culprit might be the enlargement factors. While the default
+25% value usually doesn't significantly decrease the efficiency, there some
+exceptions. If you are instead deriving expansion factors from bootstrapping,
+it's possible you're experiencing severe Monte Carlo noise (see 
+:ref:`Bounding Questions`). You could try to resolve this by either using
+more live points or switching to an alternate sampling method less sensitive
+to the size of the bounding distributions such as `'rwalk'` or `'slice'`.
 
 If sampling progresses efficiently after the first bounding update (i.e. when
 `bound > 0`) for the majority of the run but becomes substantially less
@@ -165,30 +121,40 @@ individual ball/cube need to be accepted with probability :math:`1/q`, proposed
 points both require frequent nearest neighbor searches and are rarely 
 accepted. Although the implementation in ``dynesty`` already uses K-D trees via
 `scipy.spatial.KDTree` to make this process quite efficient the overhead
-associated with this process still remains substantial.
+associated with this process still remains substantial. I hope to remedy some
+of these issues in a future update.
 
 **I noticed that the number of iterations and/or function calls during a run
 don't exactly match up with the limits I specify using, 
 e.g.,** `maxiter` **or** `maxcall` **. Is this a bug?**
 
-No, this is not a bug. When proposing a new point, ``dynesty`` currently only
+No, this is not a bug (i.e. this behavior is not unintended). 
+When proposing a new point, ``dynesty`` currently only
 checks the stopping criterion specified (whether iterations or function calls)
-after that point has been accepted. This can also happen when using the 
+*after* that point has been accepted. This can also happen when using the 
 `~dynesty.dynamicsampler.DynamicSampler` to propose a new batch of points,
 since the first batch of points need to be allocated before checking the
 stopping criterion.
 
-**Why are** `'rwalk'` **and** `'slice'` **so inefficient?**
+**Why are** `'rwalk'` **and** `'slice'` **so inefficient relative to `'unif'`
+**? Why would I want to use them?**
 
-The main issue is that sampling in moderate and high-dimensional spaces is
-inherently challenging due to the behavior of :ref:`Typical Sets`. Broadly
-speaking, `'rwalk'` and `'slice'` are actually reasonably efficient when
-compared to other (non-gradient) sampling methods on similar problems. 
+The main reason these methods are more inefficient than uniform sampling
+is that they are designed to sample from higher-dimensional (and somewhat
+more "difficult") distributions. And sampling in moderate and high-dimensional
+spaces is inherently challenging due to the behavior of :ref:`Typical Sets`.
+Broadly speaking, `'rwalk'` and `'slice'` are actually reasonably efficient
+when compared to other (non-gradient) sampling methods on similar problems
+(see, e.g., `here <https://arxiv.org/pdf/1502.01856.pdf>`_).
 
 In addition, it is also important to keep in mind that samples from ``dynesty``
-are nominally independent (i.e. "pre-thinned"). For instance, for an MCMC
-method with a sampling efficiency of 20% but requires thinning the resulting
-chain by a factor of 10, the sampling efficiency is actually 2%.
+are nominally *independent* (i.e. already "thinned"). As a reference point,
+consider an MCMC algorithm with a sampling efficiency of 20%. While this
+might seem more efficient than the 4% default target efficiency of `'rwalk'`
+in ``dynesty``, the output samples from MCMC are (by design) correlated.
+If the resulting MCMC chain needs to be thinned by more than a factor of 5
+to ensure independent samples, its "real" sampling efficiency is actually
+then below the 4% nominally achieved by ``dynesty``.
 
 **How many walks (steps) do you need to use for** `'rwalk'` **?**
 
@@ -221,25 +187,143 @@ a multi-modal context. For PolyChord, mode identification works using a
 slightly different clustering algorithm and sampling takes place in a 
 "pre-whitened" space based on the derived orthogonal basis.
 
+Our implementation of `'rslice'` more closely follows the similar method
+employed in PolyChord, except that we sample in the "native" space to again
+rigorously enforce detailed balance. This makes `'rslice'` more sensitive to
+strong correlations between many parameters as it is currently implemented.
+
 **How many slices ("repeats") do you need to use for** `'slice'` **?**
 
-Since slice sampling is a non-rejection for of sampling, the number of "slices"
-requires for Nested Sampling in theory is independent of dimensionality
-and can remain relatively constant. This is especially true if there are a set
-of local principle axes that can be effectively captured by the bounding
-distributions (e.g., `'multi'`). There are more pathological cases, however,
+Since slice sampling is a form of non-rejection sampling, 
+the number of "slices" requires for Nested Sampling is
+(in theory) independent of dimensionality and can remain relatively constant. 
+This is especially true if there are a set of local principle axes 
+that can be effectively captured by the bounding distributions 
+(e.g., `'multi'`). There are more pathological cases, however,
 where the number of slices can weakly scale with dimensionality. In general
-we find that the default `slices=3` is robust under a wide variety of
-circumstances.
+we find that the default (and conservative) `slices=5` 
+is robust under a wide variety of circumstances.
 
 **The stopping criterion for Dynamic Nested Sampling is taking a long
 time to evaluate. Is that normal?**
 
-For large numbers of samples with a large number of varying live points, yes
+For large numbers of samples with a large number of varying live points, 
 this is normal. Every new particle increases the complexity of
 simulating the errors used in the stopping criterion (see :ref:`Nested
 Sampling Errors`), so the time required tends to scale with the number of
-batches added.
+batches added. This is especially true if the "full" live point simulation
+is being used (via the `error = 'simulate'` argument) rather than the
+approximation enabled by default (`error = 'sim_approx'`).
+
+Live Point Questions
+--------------------
+
+**How many live points should I use?**
+
+Unfortunately, there's no easy answer here: *it depends*.
+Increasing the number of live points helps establish more
+flexible and robust bounds, improving the overall sampling efficiency and
+prior volume resolution. However, it simultaneously increases the runtime.
+These competing behaviors mean that compromises need to be made which are
+problem-dependent.
+
+In general, for ellipsoid-based bounds an absolute minimum of `ndim + 1`
+live points is required, with `2 * ndim` being a (roughly) "safe" threshold.
+If bootstraps are used to establish bounds while sampling uniformly, however,
+many (many) more live poits should be used. 
+Around `50 * ndim` points are recommended *for each expected mode*.
+
+Methods that do not depend on the absolute size of the bounds (but instead rely
+on their shape) can use fewer live points. Their main restriction is
+that new live point proposals (which "evolve" a copy of an existing live point
+to a new position) must be independent of their starting point. Using too
+few points can require excessive thinning, which quickly negates
+the benefit of using fewer points if speed is an issue.
+`10 * ndim` per mode seems to work reasonably well, although
+this depends sensitively on the amount of prior volume that has to be
+traversed: if the likelihood is a set of tiny islands in an ocean of
+prior volume, then you'll need to use more live points to avoid missing them.
+See :ref:`LogGamma` and :ref:`50-D Multivariate Normal` for
+some examples of this in practice.
+
+Bounding Questions
+------------------
+
+**What are the differences between** `'multi'` **and MultiNest?**
+
+The multi-ellipsoid decomposition/bounding method implemented in ``dynesty``
+is entirely based on the algorithm implemented in `nestle 
+<http://kylebarbary.com/nestle/>`_ which itself is based on the algorithm
+*described* in `Feroz, Hobson & Bridges (2009) 
+<https://arxiv.org/abs/0809.3437>`_. As such, it doesn't include any
+improvements, changes, etc. that may or may not be included in 
+`MultiNest <https://ccpforge.cse.rl.ac.uk/gf/project/multinest/>`_.
+
+In addition, there are a few differences in the portion of the algorithm that
+decides when to split an ellipsoid into multiple ellipsoids. As with
+``nestle``, the implementation in ``dynesty`` is more conservative about
+splitting ellipsoids to avoid over-constraining the remaining prior volume and
+also enlarges all the resulting ellipsoids by a constant volume prefactor.
+In general this results in a slightly lower sampling efficiency but greater
+overall robustness. These defaults can be changed 
+through the :ref:`Top-Level Interface` via the
+`enlarge`, `vol_dec` and `vol_check` keywords if you would like to experiment
+with more conservative/aggressive behavior.
+
+``dynesty`` also uses different heuristics than ``MultiNest`` when deciding,
+e.g., when to first construct bounds. See :ref:`Bounding Options` for
+additional details.
+
+**No matter what bounds, options, etc. I pick, the initial samples all
+come from `bound = 0` and continue until the overall efficiency is quite low.
+What's going on here?**
+
+By default, ``dynesty`` opts to wait until some time has passed until
+constructing the first bounding distribution.
+This behavior is designed to avoid constructing overly large bounds that often
+significantly exceed the confines of the unit cube, which can lead to excessive
+time spent generating random numbers early in a given run. 
+Prior to constructing the initial bound,
+samples are proposed from the unit cube, which is taken to be `bound = 0`. 
+The options that control these
+heuristics can be modified using the `first_update` argument.
+
+**During a run I sometimes see the bound index jump forward several places.
+Is this normal?**
+
+To avoid getting stuck sampling from bad bounding distributions (see above),
+``dynesty`` automatically triggers a bounding update whenever the number of 
+likelihood calls exceeds `update_interval` while sampling from a particular
+bound. This can lead to multiple bounds being constructed before the sample
+is accepted.
+
+**A constant expansion factor seems arbitrary and I want to try 
+out bootstrapping. How many bootstrap realizations do I need?**
+
+Sec. 6.1 of `Buchner (2014) <https://arxiv.org/abs/1407.5459>`_ discusses
+the basic behavior of bootstrapping and how many iterations are needed to
+ensure that realizations do not include the same live point over some number
+of realizations. By default, ``dynesty`` uses `bootstrap = 20`. This is more
+aggressive than the `bootstrap = 50` recommended by Buchner (2014) but in 
+general works reasonably well in practice.
+
+**When bootstrapping is on, sometimes during a run a bound 
+will be really large. This then leads to a large number of log-likelihood calls
+before the bound shrinks back to a reasonable size again. 
+Why is this happening? Is this a bug?**
+
+This isn't (technically) a bug, but rather Monte Carlo noise
+associated with the bootstrapping process.
+Depending on the chosen method, sometimes bounds can be unstable, leading
+to large variations between bootstraps and subsequently large expansions
+factors. Some of this is explored in the
+:ref:`Gaussian Shells` and :ref:`Hyper-Pyramid` examples. In general,
+this is a sign that you don't have enough live points to robustly determine
+your log-likelihood bounds at a given iteration, and should likely be running
+with more. Note that "robustly" is the key word here, since it can often
+take a (some might find "excessively") large number of live points 
+to confidently determine that you aren't missing any 
+hidden prior volume.
 
 Pool Questions
 --------------
@@ -247,9 +331,16 @@ Pool Questions
 **My provided** `pool` **is crashing. What do I do?**
 
 First, check that all relevant variables, functions, etc. are properly
-accessible and that the `pool.map` function is working as intended. Second,
-check if your pool has issues pickling some types of functions or evaluating
-some of the functions in :mod:`~dynesty.sampling`. If those quick fixes don't
-work, feel free to raise an issue. Multi-threading and multi-processing are
-notoriously difficult to debug, however, especially on a problem I'm not
-familiar with, so I might not be able to help all that much.
+accessible and that the `pool.map` function is working as intended. Sometimes
+pools can have issues passing variables to/from members or executing tasks
+(a)synchronously depending on the setup.
+
+Second, check if your pool has issues pickling some types of functions 
+or evaluating some of the functions in :mod:`~dynesty.sampling`. In general,
+nested functions require more advanced pickling (e.g., ``dill``), 
+which is not enabled with some pools by default.
+
+If those quick fixes don't work, feel free to raise an issue. 
+However, as Multi-threading and multi-processing are notoriously 
+difficult to debug, especially on a problem I'm not familiar with, 
+it's likely that I might not be able to help all that much.

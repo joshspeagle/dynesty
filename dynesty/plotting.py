@@ -286,7 +286,7 @@ def runplot(results, span=None, logplot=False, kde=True, nkde=1000,
     return fig, axes
 
 
-def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
+def traceplot(results, span=None, quantiles=[0.025, 0.5, 0.975], smooth=0.02,
               post_color='blue', post_kwargs=None, kde=True, nkde=1000,
               trace_cmap='plasma', trace_color=None, trace_kwargs=None,
               connect=False, connect_highlight=10, connect_color='red',
@@ -318,8 +318,8 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
 
     quantiles : iterable, optional
         A list of fractional quantiles to overplot on the 1-D marginalized
-        posteriors as vertical dashed lines. Default is `[0.16, 0.5, 0.84]`
-        (the 68%/1-sigma credible interval).
+        posteriors as vertical dashed lines. Default is `[0.025, 0.5, 0.975]`
+        (the 95%/2-sigma credible interval).
 
     smooth : float or iterable with shape (ndim,), optional
         The standard deviation (either a single value or a different value for
@@ -399,7 +399,7 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
     show_titles : bool, optional
         Whether to display a title above each 1-D marginalized posterior
         showing the 0.5 quantile along with the upper/lower bounds associated
-        with the 0.16 and 0.84 (68%/1-sigma credible interval) quantiles.
+        with the 0.025 and 0.975 (95%/2-sigma credible interval) quantiles.
         Default is `True`.
 
     title_fmt : str, optional
@@ -663,7 +663,7 @@ def traceplot(results, span=None, quantiles=[0.16, 0.5, 0.84], smooth=0.02,
         if show_titles:
             title = None
             if title_fmt is not None:
-                ql, qm, qh = _quantile(x, [0.16, 0.5, 0.84], weights=weights)
+                ql, qm, qh = _quantile(x, [0.025, 0.5, 0.975], weights=weights)
                 q_minus, q_plus = qm - ql, qh - qm
                 fmt = "{{0:{0}}}".format(title_fmt).format
                 title = r"${{{0}}}_{{-{1}}}^{{+{2}}}$"
@@ -922,7 +922,7 @@ def cornerpoints(results, thin=1, span=None, cmap='plasma', color=None,
     return (fig, axes)
 
 
-def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
+def cornerplot(results, span=None, quantiles=[0.025, 0.5, 0.975],
                color='black', smooth=0.02, hist_kwargs=None,
                hist2d_kwargs=None, labels=None, label_kwargs=None,
                show_titles=False, title_fmt=".2f", title_kwargs=None,
@@ -951,8 +951,8 @@ def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
 
     quantiles : iterable, optional
         A list of fractional quantiles to overplot on the 1-D marginalized
-        posteriors as vertical dashed lines. Default is `[0.16, 0.5, 0.84]`
-        (spanning the 68%/1-sigma credible interval).
+        posteriors as vertical dashed lines. Default is `[0.025, 0.5, 0.975]`
+        (spanning the 95%/2-sigma credible interval).
 
     color : str or iterable with shape (ndim,), optional
         A `~matplotlib`-style color (either a single color or a different
@@ -985,7 +985,7 @@ def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
     show_titles : bool, optional
         Whether to display a title above each 1-D marginalized posterior
         showing the 0.5 quantile along with the upper/lower bounds associated
-        with the 0.16 and 0.84 (68%/1-sigma credible interval) quantiles.
+        with the 0.025 and 0.975 (95%/2-sigma credible interval) quantiles.
         Default is `True`.
 
     title_fmt : str, optional
@@ -1199,7 +1199,7 @@ def cornerplot(results, span=None, quantiles=[0.16, 0.5, 0.84],
         if show_titles:
             title = None
             if title_fmt is not None:
-                ql, qm, qh = _quantile(x, [0.16, 0.5, 0.84], weights=weights)
+                ql, qm, qh = _quantile(x, [0.025, 0.5, 0.975], weights=weights)
                 q_minus, q_plus = qm - ql, qh - qm
                 fmt = "{{0:{0}}}".format(title_fmt).format
                 title = r"${{{0}}}_{{-{1}}}^{{+{2}}}$"

@@ -104,8 +104,8 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         when the likelihood function is quick to evaluate. Default behavior
         is to target a roughly constant change in prior volume, with
         `1.5` for `'unif'`, `0.15 * walks` for `'rwalk'`,
-        `0.9 * ndim * slices` for `'slice'`, and `sys.maxsize` for `'rslice'` and
-        `'hslice'` which don't utilize bounding distributions.
+        `0.9 * ndim * slices` for `'slice'`, and `sys.maxsize` for `'rslice'`
+        and `'hslice'` which don't utilize bounding distributions.
 
     first_update : dict, optional
         A dictionary containing parameters governing when the sampler should
@@ -419,8 +419,8 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         when the likelihood function is quick to evaluate. Default behavior
         is to target a roughly constant change in prior volume, with
         `1.5` for `'unif'`, `0.15 * walks` for `'rwalk'`,
-        `0.9 * ndim * slices` for `'slice'`, and `sys.maxsize` for `'rslice'` and
-        `'hslice'` which don't utilize bounding distributions.
+        `0.9 * ndim * slices` for `'slice'`, and `sys.maxsize` for `'rslice'`
+        and `'hslice'` which don't utilize bounding distributions.
 
     first_update : dict, optional
         A dictionary containing parameters governing when the sampler should

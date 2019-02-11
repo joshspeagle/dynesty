@@ -6,7 +6,6 @@ evidences. Pure Python. MIT license. **Beta release.**
 
 ### Documentation
 Documentation can be found [here](https://dynesty.readthedocs.io).
-**Warning: The documentation is currently somewhat out of date.**
 
 ### Installation
 `dynesty` can be installed through [pip](https://pip.pypa.io/en/stable) via

@@ -65,9 +65,9 @@ We can illustrate this directly using the same example from
 
 Out::
 
-    iter: 13375+1000 | bound: 19 | nc: 1 | ncall: 51548 | 
-    eff(%): 27.887 | loglstar:   -inf < -0.294 <    inf | 
-    logz: -9.052 +/-  0.086 | dlogz:  0.000 >  0.010    
+    iter: 13301 | +1000 | bound: 14 | nc: 1 | ncall: 56724 | eff(%): 25.212 |
+    loglstar:   -inf < -0.294 <    inf | logz: -8.978 +/-  0.085 |
+    dlogz:  0.000 >  0.010
 
 .. image:: ../images/quickstart_002.png
     :align: center
@@ -296,8 +296,10 @@ adding new samples is the fractional sample standard deviation in
 
 .. math::
 
-    S_{p}(n) = \sigma(\lbrace H(\hat{P}^\prime_1|\hat{P}),
-    \dots, H(\hat{P}^\prime_n|\hat{P}) \rbrace)
+    S_{p}(n) = \frac{\sigma(\lbrace H(\hat{P}^\prime_1|\hat{P}),
+    \dots, H(\hat{P}^\prime_n|\hat{P}) \rbrace)}{
+    \mathbb{E}(\lbrace H(\hat{P}^\prime_1|\hat{P}),
+    \dots, H(\hat{P}^\prime_n|\hat{P}) \rbrace)}
 
 More discussion can be found in :ref:`Nested Sampling Errors`.
 
@@ -439,9 +441,9 @@ a 80%/20% posterior/evidence split::
 
 Out::
 
-    iter: 14139 | batch: 31 | bound: 407 | nc: 1 | ncall: 43492 | 
-    eff(%): 32.509 | loglstar:   -inf < -0.664 < -1.104 | 
-    logz: -8.937 +/-  0.146 | stop:    nan    
+    iter: 14301 | batch: 62 | bound: 392 | nc: 1 | ncall: 37803 | 
+    eff(%): 37.830 | loglstar: -6.195 < -0.351 < -1.108 | 
+    logz: -8.877 +/-  0.137 | stop:    nan
 
 Since `dsampler` is by default optimized for posterior estimation over 
 evidence estimation (via the default values assigned in
@@ -504,9 +506,9 @@ function via `wt_kwargs`. In the first case, we will allocate samples with
 
 Out::
 
-    iter: 14139 | batch: 33 | bound: 406 | nc: 1 | ncall: 31293 | 
-    eff(%): 45.183 | loglstar: -7.952 < -0.669 < -1.052 | 
-    logz: -9.173 +/-  0.257 | stop:    nan     
+    iter: 14316 | batch: 71 | bound: 412 | nc: 3 | ncall: 30890 | 
+    eff(%): 46.345 | loglstar: -8.855 < -0.817 < -1.129 | 
+    logz: -9.267 +/-  0.374 | stop:    nan
 
 In the second case, we will allocate samples with 100% of the weight
 placed on the evidence (:math:`f_p=0`)::
@@ -521,9 +523,9 @@ placed on the evidence (:math:`f_p=0`)::
 
 Out::
 
-    iter: 14139 | batch: 14 | bound: 234 | nc: 1 | ncall: 89924 | 
-    eff(%): 15.723 | loglstar:   -inf < -0.609 < -2.167 | 
-    logz: -8.956 +/-  0.076 | stop:    nan      
+    iter: 14301 | batch: 30 | bound: 0 | nc: 1 | ncall: 68940 | 
+    eff(%): 20.744 | loglstar:   -inf < -40.112 < -2.295 | 
+    logz: -9.007 +/-  0.075 | stop:    nan
 
 Here we see that there are some significant differences in behavior.
 
@@ -553,86 +555,23 @@ default automated stopping criteria from
 
 Out::
 
-    iter: 15137 | batch: 33 | bound: 397 | nc: 2 | ncall: 41550 | 
-    eff(%): 36.431 | loglstar: -3.030 < -0.315 < -1.092 | 
-    logz: -9.039 +/-  0.130 | stop:  1.014      
+    iter: 22165 | batch: 10 | bound: 56 | nc: 1 | ncall: 55509 | 
+    eff(%): 39.930 | loglstar: -7.838 < -0.298 < -0.789 | 
+    logz: -9.115 +/-  0.116 | stop:  0.970 
 
-    iter: 16912 | batch: 39 | bound: 505 | nc: 3 | ncall: 38268 | 
-    eff(%): 44.194 | loglstar: -2.950 < -0.307 < -0.688 | 
-    logz: -8.702 +/-  0.248 | stop:  1.023     
+    iter: 21597 | batch: 10 | bound: 56 | nc: 1 | ncall: 55058 | 
+    eff(%): 39.226 | loglstar: -6.004 < -0.299 < -0.854 | 
+    logz: -8.995 +/-  0.116 | stop:  0.923
 
-    iter: 10763 | batch: 10 | bound: 203 | nc: 1 | ncall: 49564 | 
-    eff(%): 21.715 | loglstar:   -inf < -0.553 < -2.503 | 
-    logz: -9.014 +/-  0.089 | stop:  1.162      
+    iter: 16031 | batch: 2 | bound: 29 | nc: 1 | ncall: 77598 | 
+    eff(%): 20.659 | loglstar:   -inf < -0.346 < -1.851 | 
+    logz: -8.812 +/-  0.085 | stop:  0.990      
 
 These contain a similar number of samples and give similar answers to
 the previous cases shown above.
 
 Visualizing the Results
 -----------------------
-
-The first thing we can do is plot the number of live points allocated
-as a function of :math:`\ln X`::
-
-    from matplotlib import pyplot as plt
-
-    # set up figure
-    plt.figure(figsize=(16, 8))
-    plt.xlabel(r'$-\ln X$')
-    plt.ylabel(r'$K_i$')
-
-    # plot scaled posterior mass
-    pweight = np.exp(res.logwt) / max(np.exp(res.logwt))
-    pweight *= max(pdres_p.samples_n)
-    plt.plot(-res.logvol, pweight, color='orange', lw=6, alpha=0.4, 
-             label='posterior weight')
-
-    # "static" run
-    nlive =  np.append(np.ones(res.niter) * res.nlive, 
-                       np.arange(1, res.nlive + 1)[::-1])
-    plt.plot(-res.logvol, nlive, lw=5, color='black', alpha=0.6,
-             label='static run')
-
-    # default dynamic run
-    plt.plot(-dres.logvol, dres.samples_n, lw=5, color='red', alpha=0.6,
-             label='dynamic (default)')
-    plt.plot(-pdres.logvol, pdres.samples_n, lw=3, ls='--', color='red',
-             alpha=0.6)
-
-    # posterior-oriented dynamic run
-    plt.plot(-dres_p.logvol, dres_p.samples_n, lw=5, color='blue', alpha=0.6,
-             label='dynamic (posterior)')
-    plt.plot(-pdres_p.logvol, pdres_p.samples_n, lw=3, ls='--', color='blue',
-             alpha=0.6)
-
-    # evidence-oriented dynamic run
-    plt.plot(-dres_z.logvol, dres_z.samples_n, lw=5, color='limegreen',
-             alpha=0.6, label='dynamic (evidence)')
-    plt.plot(-pdres_z.logvol, pdres_z.samples_n, lw=3, ls='--',
-             color='limegreen', alpha=0.6)
-
-    # add legend
-    plt.legend(loc='best', fontsize=26);
-
-.. image:: ../images/dynamic_001.png
-    :align: center
-
-Here, the solid lines are from the runs with the same number of samples as the 
-Static Nested Sampling case while the dashed lines are from the runs where the
-automated stopping criterion discussed in :ref:`Stopping Function` is used. The
-orange contour is the scale posterior weight distribution shown in
-:ref:`Static Nested Sampling`.
-
-We can see that the general shape of the dynamic runs traces the overall shape
-of the weights: our posterior-based samples are concentrated around the bulk
-of the posterior mass (see :ref:`Typical Sets`) while the evidence-based 
-samples are concentrated away from the typical set towards the prior. 
-The general skewness to the distribution is primarily because 
-we recycle live points sampled past the log-likelihood bounds 
-set during each batch. This allows us to get more
-information "inward" of the bounds whenever we add a batch, so as a result new
-samples tend to be systematically allocated "outward".
-
 We can get a better sense of how these different strategies affect our results
 using the :ref:`Plotting Utilities` demonstrated previously. The first thing
 we can examine is the different behaviors shown on summary plots::
@@ -651,7 +590,17 @@ we can examine is the different behaviors shown on summary plots::
 .. image:: ../images/dynamic_002.png
     :align: center
 
-We see that `dsampler` is doing exactly what we want: although each run uses
+We can see that the general shape of the dynamic runs traces the overall shape
+of the weights: our posterior-based samples are concentrated around the bulk
+of the posterior mass (see :ref:`Typical Sets`) while the evidence-based 
+samples are concentrated away from the typical set towards the prior. 
+The general skewness to the distribution is primarily because 
+we recycle live points sampled past the log-likelihood bounds 
+set during each batch. This allows us to get more
+information "inward" of the bounds whenever we add a batch, so as a result new
+samples tend to be systematically allocated "outward".
+
+In other words, `dsampler` is doing exactly what we want: although each run has
 the same amount of samples, the places where they are located differs
 dramatically among our runs. For the posterior-oriented case, we spend
 (significantly) less time sampling regions with little posterior weight and

@@ -350,7 +350,9 @@ def jitter_run(res, rstate=None, approx=False):
     new_res.logvol = np.array(logvol)
     new_res.logwt = np.array(saved_logwt)
     new_res.logz = np.array(saved_logz)
-    new_res.logzerr = np.sqrt(np.array(saved_logzvar))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        new_res.logzerr = np.sqrt(np.array(saved_logzvar))
     new_res.h = np.array(saved_h)
 
     return new_res
@@ -547,7 +549,9 @@ def resample_run(res, rstate=None, return_idx=False):
     new_res.logl = logl
     new_res.logvol = logvol
     new_res.logz = np.array(saved_logz)
-    new_res.logzerr = np.sqrt(np.array(saved_logzvar))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        new_res.logzerr = np.sqrt(np.array(saved_logzvar))
     new_res.h = np.array(saved_h)
 
     if return_idx:

@@ -2,10 +2,133 @@
 Getting Started
 ===============
 
+Prior Transforms
+================
+
+The **prior transform** function is used to implicitly specify the Bayesian
+prior :math:`\pi(\boldsymbol{\Theta})` for Nested Sampling. It functions as
+a transformation from a space where variables are i.i.d. within the
+:math:`D`-dimensional unit cube (i.e. uniformly distributed from 0 to 1)
+to the parameter space of interest. For independent
+parameters, this would be the product of the `inverse cumulative distribution
+function (CDF) <https://en.wikipedia.org/wiki/Quantile_function>`_ (also
+known as the "percent point function" or "quantile function") associated with
+each parameter.
+
+It is crucial to note that increasing the size of the prior *directly*
+impacts the amount of time needed to integrate over the posterior.
+We highlight some examples of prior transforms below.
+
+Example: Uniform Priors
+-----------------------
+
+Suppose we want our prior to be Uniform from [-10, 10) for all variables:
+
+.. math::
+
+   p(x) \propto \left\{
+                \begin{array}{ll}
+                  1 \quad -10 \le x < 10\\
+                  0 \quad {\rm otherwise}
+                \end{array}
+              \right.
+
+The prior transform for this distribution would be::
+
+    def prior_transform(u):
+        """Transforms the uniform random variable `u ~ Unif[0., 1.)`
+        to the parameter of interest `x ~ Unif[-10., 10.)`."""
+
+        x = 2. * u - 1.  # scale and shift to [-1., 1.)
+        x *= 10.  # scale to [-10., 10.)
+
+        return x
+
+Example: Non-uniform priors
+---------------------------
+
+Suppose we instead have a more complicated prior in 5 variables.
+The first 2 are drawn from a 
+`bivariate Normal <https://en.wikipedia.org/wiki/MVN>`_ distribution, 
+the third is drawn from a 
+`Beta <https://en.wikipedia.org/wiki/Beta_distribution>`_ distribution,
+the fourth from a
+`Gamma <https://en.wikipedia.org/wiki/Gamma_distribution>`_ distribution,
+and the fifth from a truncated normal distribution.
+To handle more complicated functions like these, we can use the built-in
+`functions <https://docs.scipy.org/doc/scipy/reference/stats.html>`_
+in `scipy.stats`, which include a **percent point function (ppf)** that
+is analagous to our prior transform. Using those, our above examples
+would look like::
+
+    def prior_transform(u):
+        """Transforms the uniform random variables `u ~ Unif[0., 1.)`
+        to the parameters of interest."""
+
+        x = np.array(u)  # copy u
+
+        # Bivariate Normal
+        t = scipy.stats.norm.ppf(u[0:2])  # convert to standard normal
+        Csqrt = np.array([[2., 1.],
+                          [1., 2.]])  # C^1/2 for C=((5, 4), (4, 5))
+        x[0:2] = np.dot(Csqrt, t)  # correlate with appropriate covariance
+        mu = np.array([5., 2.])  # mean
+        x[0:2] += mu  # add mean
+
+        # Beta
+        a, b = 2.31, 0.627  # shape parameters
+        x[2] = scipy.stats.norm.ppf(u[2], a, b)
+
+        # Gamma
+        alpha = 5.  # shape parameter
+        x[3] = scipy.stats.norm.ppf(u[3], alpha)
+
+        # Truncated Normal
+        m, s = 5, 2  # mean and standard deviation
+        low, high = 2., 10.  # lower and upper bounds
+        low_n, high_n = (low - m) / s, (high - m) / s  # standardize
+        x[4] = scipy.stats.norm.ppf(u[4], low_n, high_n, loc=m, scale=s)
+
+        return x
+
+Example: Conditional priors
+---------------------------
+
+This procedure can be generalized to construct priors that only can be
+expressed in conditional form. As an example, let's assume we have
+a three-parameter model where the prior for the third parameter depends
+on the values for the first two. This might be the case in, e.g., a
+`hierarchical <https://en.wikipedia.org/wiki/Bayesian_hierarchical_modeling>`_
+model where the prior over `c` is a Normal distribution whose mean 
+`m` and standard deviation `s` are determined by a corressponding
+"hyper-prior". We can easily set up a prior transform for this model 
+by just going through the variables in order. This would look like::
+
+    def prior_transform(u):
+        """Transforms the uniform random variables `u ~ Unif[0., 1.)`
+        to the parameters of interest."""
+
+        x = np.array(u)  # copy u
+
+        # Mean hyper-prior.
+        mu, sigma = 5., 1.  # mean, standard deviation
+        x[0] = scipy.stats.norm.ppf(u[0], loc=mu, scale=sigma)
+
+        # Standard deviation hyper-prior
+        x[1] = 10. ** (u[1] * 2. - 1.)  # log10(std) ~ Uniform[-1, 1]
+
+        # Prior.
+        x[2] = scipy.stats.norm.ppf(u[2], loc=x[0], scale=x[1])
+
+        return x
+
+More complicated dependencies can be constructed using similar approaches.
+
 Nested Sampling with dynesty
 ============================
 
-To give a concrete example, let's return to the simple 3-D multivariate normal
+To give a concrete example of running ``dynesty`` on a real problem,
+let's return to the simple 3-D multivariate normal
 likelihood and uniform prior from [-10, 10) used in :ref:`Crash Course` to
 define the :meth:`loglikelihood` and :meth:`prior_transform` functions::
 
@@ -79,7 +202,7 @@ The number of live points can be specified upon initialization via the
 `nlive` argument. For example, if we want to run with 1000 live points rather
 than the default 250, we would use::
 
-    NestedSampler(loglike, ptform, ndim, nlive=1000)
+    NestedSampler(loglike, ptform, ndim, nlive=1500)
 
 Bounding Options
 ----------------
@@ -112,7 +235,7 @@ Specifying the particular bounding distribution can be done upon initialization
 via the `bound` argument. If we wanted to sample using overlapping balls rather
 than multiple bounding ellipsoids, for instance, we would use::
 
-    NestedSampler(loglike, ptform, ndim, nlive=1000, bound='balls')
+    NestedSampler(loglike, ptform, ndim, nlive=1500, bound='balls')
 
 As mentioned in :ref:`Live Points`, bounding distributions in ``dynesty`` are
 enlarged in an attempt to conservatively encompass the iso-likelihood contour
@@ -128,7 +251,7 @@ and `bootstrap` arguments.
 For instance, if we want to use 50 bootstraps to determine expansion factors
 with an additional fixed volume enlargement factor of 10%, we would specify::
     
-    NestedSampler(loglike, ptform, ndim, nlive=1000, bound='balls',
+    NestedSampler(loglike, ptform, ndim, nlive=1500, bound='balls',
                   bootstrap=50, enlarge=1.10)
 
 Additional information on the bounding objects can be found under
@@ -142,7 +265,7 @@ performance. This value by default is set to different values for different
 sampling methods (see the :ref:`API` for additional details), but if
 we wanted to instead use a particular value we could just specify that via::
 
-    NestedSampler(loglike, ptform, ndim, nlive=1000, bound='balls',
+    NestedSampler(loglike, ptform, ndim, nlive=1500, bound='balls',
                   bootstrap=50, enlarge=1.10, update_interval=1.2)
 
 Passing a float like `1.2` sets the update interval to be after 
@@ -151,7 +274,7 @@ number of live points (and thus the speed at which we expect to traverse
 the prior volume). If we'd like to specific the number of function calls
 directly, however, we can instead pass an integer::
 
-    NestedSampler(loglike, ptform, ndim, nlive=1000, bound='balls',
+    NestedSampler(loglike, ptform, ndim, nlive=1500, bound='balls',
                   bootstrap=50, enlarge=1.10, update_interval=600)
 
 This now specifies that we will update our bounds after `600` function
@@ -174,7 +297,7 @@ that we construct our first bounding distributions much earlier,
 we could do so by passing some parameters using the `first_update`
 argument::
 
-    NestedSampler(loglike, ptform, ndim, nlive=1000, bound='balls',
+    NestedSampler(loglike, ptform, ndim, nlive=1500, bound='balls',
                   bootstrap=50, enlarge=1.10, update_interval=600,
                   first_update={'min_ncall': 100, 'min_eff': 50.})
 
@@ -192,23 +315,36 @@ the provided bounds which can be passed via the `sample` argument:
 
 * **random walks** away from a current live point (`'rwalk'`),
 
+* **random "staggering"** away from a current live point (`'rstagger'`),
+
 * **multivariate slice sampling** away from a current live point (`'slice'`),
 
 * **random slice sampling** away from a current live point (`'rslice'`), and
 
-* **hamiltonian slice sampling** away from a current live point (`'hslice'`).
+* **"Hamiltonian" slice sampling** away from a current live point (`'hslice'`).
 
 By default, `dynesty` automatically picks a sampling method 
-based on the dimensionality of the problem via the `'auto'` argument. This
-selects `'unif'` if :math:`D < 10` since uniform proposals can
-be quite efficient in low dimensions, `'rwalk'` if :math:`10 \leq D \geq 20`
-since random walks are more robust to overestimated bounding
-distributions in higher dimensions, and `'slice'` if :math:`D > 20`
-since non-rejection sampling methods scale in 
-polynomial (rather than exponential) time as the dimensionality increases.
-`'rslice'` and `'hslice'` can be quite effective for particular problems,
-but currently are not as robust as the previously-described 
-approaches and therefore not implemented by default. 
+based on the dimensionality of the problem via the `'auto'` argument, which
+uses the following logic:
+
+* If :math:`D < 10`, `'unif'` is chosen since uniform proposals can
+  be quite efficient in low dimensions.
+
+* If :math:`10 \leq D \geq 20`, `'rwalk'` is chosen
+  since random walks are more robust to underestimated bounding
+  distributions in higher dimensions,
+
+* If :math:`D > 20` and a gradient is not provided,
+  `'slice'` is chosen since non-rejection sampling
+  methods scale in polynomial (rather than exponential) time as the
+  dimensionality increases.
+
+* If :math:`D > 20` and a gradient *is* provided, `'hslice'` is chosen
+  to take advantage of Hamiltonian dynamics, which scale better than `'slice'`
+  as the dimensionality increases.
+
+`'rslice'` and `'rstagger'` can be quite effective for particular problems
+but currently are not considered as "robust" as the approaches above.
 **Use them at your own risk.**
 
 One benefit to using random walks or slice sampling is that they require many
@@ -225,8 +361,8 @@ This might look something like::
 
     NestedSampler(loglike, ptform, ndim, bound='multi', sample='slice')
 
-Running  Internally
--------------------
+Running Internally
+------------------
 
 Sampling from our target distribution can be done using the
 :meth:`~dynesty.sampler.Sampler.run_nested` function in the provided
@@ -246,15 +382,15 @@ real time. The stopping criteria can be any combination of:
 
 * a specified :math:`\Delta \ln \hat{\mathcal{Z}}_i` tolerance (`dlogz`).
 
-For instance, the code above would produce output like:
+For instance, running one of the examples above would produce output like:
 
 .. rst-class:: sphx-glr-script-out
 
 Out::
 
-    iter: 11103+1000 | bound: 15 | nc: 1 | ncall: 48121 | 
-    eff(%): 25.151 | loglstar:   -inf < -0.294 <    inf | 
-    logz: -9.052 +/-  0.087 | dlogz:  0.000 >  0.100
+    iter: 12521 | +1500 | bound: 7 | nc: 1 | ncall: 66884 | eff(%): 20.963 |
+    loglstar:   -inf < -0.301 <    inf | logz: -8.960 +/-  0.082 |
+    dlogz:  0.001 >  1.509                                        
 
 From left to right, this records: the current iteration (plus the number of
 live points added after stopping), the current bound being used, the number
@@ -304,6 +440,104 @@ like::
     # Adding the final set of live points.
     for it_final, res in enumerate(sampler.add_live_points()):
         pass
+
+as opposed to::
+
+    # The main nested sampling loop.
+    sampler.run_nested(dlogz=0.5, add_live=False)
+
+    # Adding the final set of live points.
+    sampler.add_final_live()
+
+This can be extremely useful if you would like to manipulate the results
+in real-time, generate plots, save intermediate outputs, etc.
+
+Sampling with Gradients
+-----------------------
+
+As mentioned in :ref:`Sampling Options`,
+``dynesty`` can utilize log-likelihood gradients :math:`\nabla \ln \mathcal{L}`
+by proposing new samples using Hamiltonian dynamics
+(often referred to as **reflective slice sampling**). However, because
+sampling in ``dynesty`` occurs on the *unit cube* (:math:`\mathbf{u}`) rather
+than in the target space of our original variables (:math:`\mathbf{x}`),
+these gradients have to be defined with respect to :math:`\mathbf{u}` rather
+than :math:`\mathbf{x}` even though they are evaluated at :math:`\mathbf{x}`.
+This requires computing the Jacobian matrix
+:math:`\mathbf{J}` from :math:`\mathbf{x}` to :math:`\mathbf{u}`.
+
+While this Jacobian might seem difficult to derive, it can be shown that
+given independent priors on each parameter
+
+.. math::
+
+    \pi(\mathbf{x}) = \prod_i \pi_i(x_i)
+
+where :math:`\pi_i(x_i)` is the prior for the :math:`i`th parameter :math:`x_i`
+that the Jacobian is diagonal where each diagonal element is simply
+
+.. math::
+
+    J_ii = 1 / \pi_i(x_i)
+
+By default, ``dynesty`` assumes that any gradient you pass in
+**already has the appropriate Jacobian applied**. If not, you can tell
+``dynesty`` to numerically estimate the Jacobian by setting
+`compute_jac=True`.
+
+For the simple 3-D multivariate normal likelihood and uniform prior
+from [-10, 10) used in :ref:`Crash Course`, sampling with gradients
+would look something like::
+
+    import numpy as np
+    import dynesty
+
+    # Define the dimensionality of our problem.
+    ndim = 3
+
+    # Define our 3-D correlated multivariate normal log-likelihood.
+    C = np.identity(ndim)
+    C[C==0] = 0.95
+    Cinv = linalg.inv(C)
+    lnorm = -0.5 * (np.log(2 * np.pi) * ndim +
+                    np.log(np.linalg.det(C)))
+
+    def loglike(x):
+        return -0.5 * np.dot(x, np.dot(Cinv, x)) + lnorm
+
+    # Define our uniform prior via the prior transform.
+    def ptform(u):
+        return 20. * u - 10.
+
+    # Define our gradient with and without the Jacobian applied.
+    def grad_x(x):
+        return -np.dot(Cinv, x)  # without Jacobian
+
+    def grad_u(x):
+        return -np.dot(Cinv, x) * 20.  # with Jacobian for uniform [-10, 10)
+
+    # Sample with `grad_u` (including Jacobian).
+    sampler = dynesty.NestedSampler(loglike, ptform, ndim, sample='hslice',
+                                    gradient=grad_u)
+    sampler.run_nested()
+    results_with_jac = sampler.results
+
+    # Sample with `grad_x` (compute Jacobian numerically).
+    sampler = dynesty.NestedSampler(loglike, ptform, ndim, sample='hslice',
+                                    gradient=grad_x, compute_jac=True)
+    sampler.run_nested()
+    results_without_jac = sampler.results
+
+For other independent priors discussed in :ref:`Prior Transforms`,
+we can use the built-in
+`functions <https://docs.scipy.org/doc/scipy/reference/stats.html>`_
+in `scipy.stats`, which include a **probability density function (pdf)** that
+is exactly our desired :math:`\pi_i(v_i)` function. These then enable us to
+compute and apply the (diagonal) Jacobian matrix directly.
+In more complex cases such as the simple hierarchical model in
+:ref:`Example: Conditional priors`, however, we may need to resort to
+estimating the Jacobian numerically to deal with the expected
+off-diagonal terms.
 
 Results
 =======
@@ -410,25 +644,7 @@ Visualizing Results
 
 Assuming we've completed a run and stored the resulting `res1` and `res2`
 `~dynesty.results.Results` dictionaries as defined above, we can compare what
-their relative weights by comparing them directly using some simple code like::
-
-    from matplotlib import pyplot as plt
-    from mpl_toolkits.mplot3d import Axes3D
-
-    # initialize 3-D plots of position and likelihood, colored by weight
-    fig = plt.figure(figsize=(30, 10))
-
-    # plotting the initial run
-    ax = fig.add_subplot(121, projection='3d')
-    p = ax.scatter(res1.samples[:, 0], res1.samples[:, 1], res1.samples[:, 2],
-                   marker='o', c=np.exp(res1.logwt) * 1e7, linewidths=(0.,),
-                   cmap='coolwarm')
-
-    # plotting the extended run
-    ax = fig.add_subplot(122, projection='3d')
-    p = ax.scatter(res2.samples[:, 0], res2.samples[:, 1], res2.samples[:, 2],
-                   marker='o', c=np.exp(res2.logwt) * 1e8, linewidths=(0.,),
-                   cmap='coolwarm')
+their relative weights by comparing them directly, as shown below::
 
 .. image:: ../images/quickstart_001.png
     :align: center
@@ -468,6 +684,12 @@ The `dyplot` alias will be used for convenient shorthand throughout the
 remainded of the documentation. While some basic usage will be demonstrated
 below, please see the :ref:`API` for additional details.
 
+One important note is that **the default credible intervals in all plotting
+utilities are defined to be 95% (2-sigma) rather than 68% (1-sigma)**.
+This is a deliberate choice meant to highlight more realistic uncertainties
+(1-in-3 vs 1-in-20 chances) and better capture possible secondary solutions
+at the 2.5% level rather than the roughly 16% level.
+
 Summary Plots
 -------------
 
@@ -488,7 +710,7 @@ the *evidence* is by examining the relationship between the prior volume
 #. the evidence :math:`\hat{\mathcal{Z}}_i`, to see where most of the contribution
    to the evidence (and its respective errors) are coming from.
 
-A **summary plot** showcasing these features can be generated using
+A **summary (run) plot** showcasing these features can be generated using
 :func:`~dynesty.plotting.runplot`. As an example, a summary plot for `res2`
 comparing it to the actual analytic :math:`\ln \mathcal{Z}` evidence solution
 can be generated using::
@@ -499,10 +721,10 @@ can be generated using::
 .. image:: ../images/quickstart_002.png
     :align: center
 
-We see that up until we recycle our final set of live points (see 
+Up until we recycle our final set of live points (see 
 :ref:`Basic Algorithm`), as indicated by the dashed lines, the relationship
 between :math:`\ln X_i` and :math:`i` is linear (i.e. prior volume compression
-is exponential). Afterwards, however, it flattens out, rapidly traversing the
+is exponential). Afterwards, however, it stretches out, rapidly traversing the
 remaining prior volume in linear fashion. Comparing the general shape of the
 likelihood and importance weights subplots also highlight how the typical set
 is as much a function of :math:`\Delta X_i` as :math:`\mathcal{L}_i`: although
@@ -528,15 +750,14 @@ weight) and the corresponding 1-D marginalized posterior::
     :align: center
 
 By default, :meth:`~dynesty.plotting.traceplot` returns the samples color-coded
-by their relative weight and the 1-D marginalized posteriors smoothed by a
-Normal (Gaussian) kernel with a standard deviation set to ~2% of the provided
-range (which defaults to the 5-sigma bounds computed from the set of weighted
+by their relative posterior mass and the 1-D marginalized
+posteriors smoothed by a Normal (Gaussian) kernel 
+with a standard deviation set to ~2% of the provided range
+(which defaults to the 5-sigma bounds computed from the set of weighted
 samples). It also can overplot input truth vectors as well as highlight
 specific particle paths (shown above) to inspect the behavior of individual
-particles. These can be useful to qualitatively identify problematic behavior.
-For instance, while the particle paths shown above support the assumption
-that our samples are i.i.d. within the likelihood constraints 
-at a particular iteration.
+particles. These can be useful to qualitatively identify problematic behavior
+such as strongly correlated samples.
 
 Corner Plots
 ------------
@@ -593,7 +814,7 @@ density estimates using :meth:`~dynesty.plotting.cornerplot` as::
                                fig=(fig, axes[:, :3]))
 
     # plot extended run (res2; right)
-    fg, ax = dyplot.cornerplot(res2, color='red', truths=np.zeros(ndim), 
+    fg, ax = dyplot.cornerplot(res2, color='dodgerblue', truths=np.zeros(ndim), 
                                truth_color='black', show_titles=True,
                                quantiles=None, max_n_ticks=3,
                                fig=(fig, axes[:, 4:]))
@@ -604,8 +825,8 @@ density estimates using :meth:`~dynesty.plotting.cornerplot` as::
 Similar to :meth:`~dynesty.plotting.runplot`, the marginal distributions shown
 are by default smoothed by 2% in the specified range using a Normal (Gaussian)
 kernel. Notice that even though our original run `res1` gave 
-similar evidence estimates to the extended run `res2`, it gives significantly
-more "noisy" estimates of the posterior.
+similar evidence estimates to the extended run `res2`, it gives somewhat
+"noisier" estimates of the posterior.
 
 Bounding Distribution Plots
 ---------------------------
@@ -627,15 +848,17 @@ bounding distributions over a given run via::
     # initialize figure
     fig, axes = plt.subplots(2, 3, figsize=(15, 10))
 
-    # plot several snapshots over the course of the run
+    # plot 6 snapshots over the course of the run
     for i, a in enumerate(axes.flatten()):
-        it = int((i+1) * res2.niter / 8.)
+        it = int((i+1)*res2.niter/8.)
         # overplot the result onto each subplot
-        temp = dyplot.bountplot(res2, dims=(0, 1), it=it, 
+        temp = dyplot.boundplot(res2, dims=(0, 1), it=it,
                                 prior_transform=prior_transform,
-                                show_live=True, max_n_ticks=3,
-                                span=[(-10, 10), (-10, 10)], fig=(fig, a))
-        a.set_title('Iteration {0}'.format(it))
+                                max_n_ticks=3, show_live=True,
+                                span=[(-10, 10), (-10, 10)],
+                                fig=(fig, a))
+        a.set_title('Iteration {0}'.format(it), fontsize=26)
+    fig.tight_layout()
 
 .. image:: ../images/quickstart_006.png
     :align: center

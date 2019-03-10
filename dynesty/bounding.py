@@ -368,9 +368,9 @@ class MultiEllipsoid(object):
                 self.ams = np.array([ell.am for ell in self.ells])
             else:
                 raise ValueError("You cannot specific both `ells` and "
-                                 "(`ctrs`, `ams`)!")
+                                 "(`ctrs`, `covs`)!")
         else:
-            # Try to initialize quantities using provided `ctrs` and `ams`.
+            # Try to initialize quantities using provided `ctrs` and `covs`.
             if (ctrs is None) and (covs is None):
                 raise ValueError("You must specify either `ells` or "
                                  "(`ctrs`, `covs`).")
@@ -409,9 +409,9 @@ class MultiEllipsoid(object):
         """Checks which ellipsoid(s) `x` falls within, skipping the `j`-th
         ellipsoid."""
 
-        within = np.array([self.ells[i].contains(x) if i != j else True
-                           for i in range(self.nells)], dtype='bool')
-        idxs = np.arange(self.nells)[within]
+        # Loop through distance calculations if there aren't too many.
+        idxs = np.where([self.ells[i].contains(x) if i != j else True
+                         for i in range(self.nells)])[0]
 
         return idxs
 
@@ -667,15 +667,13 @@ class RadFriends(object):
 
     def within(self, x, ctrs, kdtree=None):
         """Check which balls `x` falls within. Uses a K-D Tree to
-        accelerate the search if provided."""
+        perform the search if provided."""
 
         if kdtree is None:
             # If no K-D Tree is provided, execute a brute-force
             # search over all balls.
             nctrs = len(ctrs)
-            within = np.array([lalg.norm(ctrs[i] - x) <= self.radius
-                               for i in range(nctrs)], dtype='bool')
-            idxs = np.arange(nctrs)[within]
+            idxs = np.where(lalg.norm(ctrs - x, axis=1) <= self.radius)[0]
         else:
             # If a K-D Tree is provided, find all points within `self.radius`.
             idxs = kdtree.query_ball_point(x, self.radius, p=2.0, eps=0)
@@ -684,7 +682,7 @@ class RadFriends(object):
 
     def overlap(self, x, ctrs, kdtree=None):
         """Check how many balls `x` falls within. Uses a K-D Tree to
-        accelerate the search if provided."""
+        perform the search if provided."""
 
         q = len(self.within(x, ctrs, kdtree=kdtree))
 
@@ -692,14 +690,14 @@ class RadFriends(object):
 
     def contains(self, x, ctrs, kdtree=None):
         """Check if the set of balls contains `x`. Uses a K-D Tree to
-        accelerate the search if provided."""
+        perform the search if provided."""
 
         return self.overlap(x, ctrs, kdtree=kdtree) > 0
 
     def sample(self, ctrs, rstate=None, return_q=False, kdtree=None):
         """
         Sample a point uniformly distributed within the *union* of balls.
-        Uses a K-D Tree to accelerate the search if provided.
+        Uses a K-D Tree to perform the search if provided.
 
         Returns
         -------
@@ -754,7 +752,7 @@ class RadFriends(object):
     def samples(self, nsamples, ctrs, rstate=None, kdtree=None):
         """
         Draw `nsamples` samples uniformly distributed within the *union* of
-        balls. Uses a K-D Tree to accelerate the search if provided.
+        balls. Uses a K-D Tree to perform the search if provided.
 
         Returns
         -------
@@ -776,7 +774,7 @@ class RadFriends(object):
         """Using `ndraws` Monte Carlo draws, estimate the volume of the
         *union* of balls. If `return_overlap=True`, also returns the
         estimated fractional overlap with the unit cube. Uses a K-D Tree
-        to accelerate the search if provided."""
+        to perform the search if provided."""
 
         if rstate is None:
             rstate = np.random
@@ -824,7 +822,7 @@ class RadFriends(object):
             Use this pool of workers to execute operations in parallel.
 
         kdtree : `~scipy.spatial.KDTree`, optional
-            K-D Tree used to accelerate nearest neighbor searches.
+            K-D Tree used to perform nearest neighbor searches.
 
         mc_integrate : bool, optional
             Whether to use Monte Carlo methods to compute the effective
@@ -898,15 +896,13 @@ class SupFriends(object):
 
     def within(self, x, ctrs, kdtree=None):
         """Checks which cubes `x` falls within. Uses a K-D Tree to
-        accelerate the search if provided."""
+        perform the search if provided."""
 
         if kdtree is None:
             # If no KDTree is provided, execute a brute-force search
             # over all cubes.
             nctrs = len(ctrs)
-            within = np.array([max(abs(ctrs[i] - x)) <= self.hside
-                               for i in range(nctrs)], dtype='bool')
-            idxs = np.arange(nctrs)[within]
+            idxs = np.where(np.max(np.abs(ctrs - x), axis=1) <= self.hside)[0]
         else:
             # If a KDTree is provided, find all points within r (`hside`).
             idxs = kdtree.query_ball_point(x, self.hside, p=np.inf, eps=0)
@@ -915,7 +911,7 @@ class SupFriends(object):
 
     def overlap(self, x, ctrs, kdtree=None):
         """Checks how many cubes `x` falls within, skipping the `j`-th
-        cube. Uses a K-D Tree to accelerate the search if provided."""
+        cube. Uses a K-D Tree to perform the search if provided."""
 
         q = len(self.within(x, ctrs, kdtree=kdtree))
 
@@ -923,14 +919,14 @@ class SupFriends(object):
 
     def contains(self, x, ctrs, kdtree=None):
         """Checks if the set of cubes contains `x`. Uses a K-D Tree to
-        accelerate the search if provided."""
+        perform the search if provided."""
 
         return self.overlap(x, ctrs, kdtree=kdtree) > 0
 
     def sample(self, ctrs, rstate=None, return_q=False, kdtree=None):
         """
         Sample a point uniformly distributed within the *union* of cubes.
-        Uses a K-D Tree to accelerate the search if provided.
+        Uses a K-D Tree to perform the search if provided.
 
         Returns
         -------
@@ -985,7 +981,7 @@ class SupFriends(object):
     def samples(self, nsamples, ctrs, rstate=None, kdtree=None):
         """
         Draw `nsamples` samples uniformly distributed within the *union* of
-        cubes. Uses a K-D Tree to accelerate the search if provided.
+        cubes. Uses a K-D Tree to perform the search if provided.
 
         Returns
         -------
@@ -1007,7 +1003,7 @@ class SupFriends(object):
         """Using `ndraws` Monte Carlo draws, estimate the volume of the
         *union* of cubes. If `return_overlap=True`, also returns the
         estimated fractional overlap with the unit cube. Uses a K-D Tree
-        to accelerate the search if provided."""
+        to perform the search if provided."""
 
         if rstate is None:
             rstate = np.random
@@ -1055,7 +1051,7 @@ class SupFriends(object):
             Use this pool of workers to execute operations in parallel.
 
         kdtree : `~scipy.spatial.KDTree`, optional
-            K-D Tree used to accelerate nearest neighbor searches.
+            K-D Tree used to perform nearest neighbor searches.
 
         mc_integrate : bool, optional
             Whether to use Monte Carlo methods to compute the effective
@@ -1457,7 +1453,7 @@ def _ellipsoids_bootstrap_expand(args):
     idx_in = np.unique(idxs)  # selected objects
     sel = np.ones(npoints, dtype='bool')
     sel[idx_in] = False
-    idx_out = np.arange(npoints)[sel]  # "missing" objects
+    idx_out = np.where(sel)[0]  # "missing" objects
     if len(idx_out) < 2:  # edge case
         idx_out = np.append(idx_out, [0, 1])
     points_in, points_out = points[idx_in], points[idx_out]
@@ -1491,7 +1487,7 @@ def _friends_bootstrap_radius(args):
     idx_in = np.unique(idxs)  # selected objects
     sel = np.ones(npoints, dtype='bool')
     sel[idx_in] = False
-    idx_out = np.arange(npoints)[sel]  # "missing" objects
+    idx_out = np.where(sel)[0]  # "missing" objects
     if len(idx_out) < 2:  # edge case
         idx_out = np.append(idx_out, [0, 1])
     points_in, points_out = points[idx_in], points[idx_out]

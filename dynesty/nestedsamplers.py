@@ -34,6 +34,7 @@ import numpy as np
 import copy
 from numpy import linalg
 from scipy import spatial
+import heapq
 
 from .sampler import *
 from .bounding import *
@@ -44,6 +45,7 @@ __all__ = ["UnitCubeSampler", "SingleEllipsoidSampler",
 
 _SAMPLING = {'unif': sample_unif,
              'rwalk': sample_rwalk,
+             'rstagger': sample_rstagger,
              'slice': sample_slice,
              'rslice': sample_rslice,
              'hslice': sample_hslice}
@@ -95,23 +97,7 @@ class UnitCubeSampler(Sampler):
         should be used to execute operations in parallel.
 
     kwargs : dict, optional
-        A dictionary of additional parameters (described below).
-
-    Other Parameters
-    ----------------
-    walks : int, optional
-        For the `'rwalk'` sampling option, the minimum number of steps (minimum
-        2) to take before proposing a new live point. Default is `25`.
-
-    facc : float, optional
-        The target acceptance fraction for the `'rwalk'` sampling option.
-        Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
-
-    slices : int, optional
-        For the `'slice'`, `'rslice'`, and `'hslice'` sampling options, the
-        number of times to execute a "slice update" before proposing a new
-        live point. Default is `5`. Note that `'slice'` cycles through
-        **all dimensions** when executing a "slice update".
+        A dictionary of additional parameters.
 
     """
 
@@ -122,6 +108,7 @@ class UnitCubeSampler(Sampler):
         # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
+                         'rstagger': self.propose_live,
                          'slice': self.propose_live,
                          'rslice': self.propose_live,
                          'hslice': self.propose_live}
@@ -133,9 +120,10 @@ class UnitCubeSampler(Sampler):
         # Initialize heuristic used to update our sampling method.
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
+                        'rstagger': self.update_rwalk,
                         'slice': self.update_slice,
                         'rslice': self.update_slice,
-                        'hslice': self.update_unif}
+                        'hslice': self.update_hslice}
         self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.
@@ -160,6 +148,8 @@ class UnitCubeSampler(Sampler):
         self.unitcube = UnitCube(self.npdim)
         self.bounding = 'none'
         self.method = method
+        self.grad = self.kwargs.get('grad', None)
+        self.compute_jac = self.kwargs.get('compute_jac', False)
 
         # Initialize random walk parameters.
         self.walks = max(2, self.kwargs.get('walks', 25))
@@ -168,6 +158,8 @@ class UnitCubeSampler(Sampler):
 
         # Initialize slice parameters.
         self.slices = self.kwargs.get('slices', 5)
+        self.fmove = self.kwargs.get('fmove', 0.9)
+        self.max_move = self.kwargs.get('max_move', 100)
 
     def update(self, pointvol):
         """Update the unit cube bound."""
@@ -213,7 +205,18 @@ class UnitCubeSampler(Sampler):
         size of the slices compared to our initial guess."""
 
         fscale = blob['fscale']
-        self.scale *= fscale
+        nexpand, ncontract = blob['nexpand'], blob['ncontract']
+        self.scale *= nexpand / (2. * ncontract)
+
+    def update_hslice(self, blob):
+        """Update the Hamiltonian slice proposal scale based
+        on the relative amount of time spent moving vs reflecting."""
+
+        nmove, nreflect = blob['nmove'], blob['nreflect']
+        ncontract = blob.get('ncontract', 0)
+        fmove = (1. * nmove) / (nmove + nreflect + ncontract + 2)
+        norm = max(self.fmove, 1. - self.fmove)
+        self.scale *= math.exp((fmove - self.fmove) / norm)
 
 
 class SingleEllipsoidSampler(Sampler):
@@ -263,35 +266,7 @@ class SingleEllipsoidSampler(Sampler):
         should be used to execute operations in parallel.
 
     kwargs : dict, optional
-        A dictionary of additional parameters (described below).
-
-    Other Parameters
-    ----------------
-    enlarge : float, optional
-        Enlarge the volumes of the ellipsoids by this fraction. The preferred
-        method is to determine this organically using bootstrapping. If
-        `bootstrap > 0`, this defaults to `1.0`. If `bootstrap = 0`,
-        this instead defaults to `1.25`.
-
-    bootstrap : int, optional
-        Compute this many bootstrapped realizations of the bounding
-        objects. Use the maximum distance found to the set of points left
-        out during each iteration to enlarge the resulting volumes.
-        Default is `20` for uniform sampling (`'unif'`) and `0` otherwise.
-
-    walks : int, optional
-        For the `'rwalk'` sampling option, the minimum number of steps
-        (minimum 2) before proposing a new live point. Default is `25`.
-
-    facc : float, optional
-        The target acceptance fraction for the `'rwalk'` sampling option.
-        Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
-
-    slices : int, optional
-        For the `'slice'`, `'rslice'`, and `'hslice'` sampling options, the
-        number of times to execute a "slice update" before proposing a new
-        live point. Default is `5`. Note that `'slice'` cycles through
-        **all dimensions** when executing a "slice update".
+        A dictionary of additional parameters.
 
     """
 
@@ -302,6 +277,7 @@ class SingleEllipsoidSampler(Sampler):
         # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
+                         'rstagger': self.propose_live,
                          'slice': self.propose_live,
                          'rslice': self.propose_live,
                          'hslice': self.propose_live}
@@ -313,9 +289,10 @@ class SingleEllipsoidSampler(Sampler):
         # Initialize heuristic used to update our sampling method.
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
+                        'rstagger': self.update_rwalk,
                         'slice': self.update_slice,
                         'rslice': self.update_slice,
-                        'hslice': self.update_unif}
+                        'hslice': self.update_hslice}
         self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.
@@ -340,6 +317,8 @@ class SingleEllipsoidSampler(Sampler):
         self.ell = Ellipsoid(np.zeros(self.npdim), np.identity(self.npdim))
         self.bounding = 'single'
         self.method = method
+        self.grad = self.kwargs.get('grad', None)
+        self.compute_jac = self.kwargs.get('compute_jac', False)
 
         # Initialize random walk parameters.
         self.walks = max(2, self.kwargs.get('walks', 25))
@@ -348,6 +327,8 @@ class SingleEllipsoidSampler(Sampler):
 
         # Initialize slice parameters.
         self.slices = self.kwargs.get('slices', 5)
+        self.fmove = self.kwargs.get('fmove', 0.9)
+        self.max_move = self.kwargs.get('max_move', 100)
 
     def update(self, pointvol):
         """Update the bounding ellipsoid using the current set of
@@ -388,7 +369,7 @@ class SingleEllipsoidSampler(Sampler):
         u = self.live_u[i, :]
 
         # Choose axes.
-        if self.sampling == 'rwalk':
+        if self.sampling in ['rwalk', 'rstagger', 'rslice']:
             ax = self.ell.axes
         elif self.sampling == 'slice':
             ax = self.ell.paxes
@@ -418,7 +399,18 @@ class SingleEllipsoidSampler(Sampler):
         size of the slices compared to our initial guess."""
 
         fscale = blob['fscale']
-        self.scale *= fscale
+        nexpand, ncontract = blob['nexpand'], blob['ncontract']
+        self.scale *= nexpand / (2. * ncontract)
+
+    def update_hslice(self, blob):
+        """Update the Hamiltonian slice proposal scale based
+        on the relative amount of time spent moving vs reflecting."""
+
+        nmove, nreflect = blob['nmove'], blob['nreflect']
+        ncontract = blob.get('ncontract', 0)
+        fmove = (1. * nmove) / (nmove + nreflect + ncontract + 2)
+        norm = max(self.fmove, 1. - self.fmove)
+        self.scale *= math.exp((fmove - self.fmove) / norm)
 
 
 class MultiEllipsoidSampler(Sampler):
@@ -468,46 +460,7 @@ class MultiEllipsoidSampler(Sampler):
         should be used to execute operations in parallel.
 
     kwargs : dict, optional
-        A dictionary of additional parameters (described below).
-
-    Other Parameters
-    ----------------
-    enlarge : float, optional
-        Enlarge the volumes of the ellipsoids by this fraction. The preferred
-        method is to determine this organically using bootstrapping. If
-        `bootstrap > 0`, this defaults to `1.0`. If `bootstrap = 0`,
-        this instead defaults to `1.25`.
-
-    bootstrap : int, optional
-        Compute this many bootstrapped realizations of the bounding
-        objects. Use the maximum distance found to the set of points left
-        out during each iteration to enlarge the resulting volumes.
-        Default is `20` for uniform sampling (`'unif'`) and `0` otherwise.
-
-    vol_dec : float, optional
-        For the `'multi'` bounding option, the required fractional reduction
-        in volume after splitting an ellipsoid in order to to accept the split.
-        Default is `0.5`.
-
-    vol_check : float, optional
-        For the `'multi'` bounding option, the factor used when checking if
-        the volume of the original bounding ellipsoid is large enough to
-        warrant `> 2` splits via `ell.vol > vol_check * nlive * pointvol`.
-        Default is `2.0`.
-
-    walks : int, optional
-        For the `'rwalk'` sampling option, the minimum number of steps
-        (minimum 2) before proposing a new live point. Default is `25`.
-
-    facc : float, optional
-        The target acceptance fraction for the `'rwalk'` sampling option.
-        Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
-
-    slices : int, optional
-        For the `'slice'`, `'rslice'`, and `'hslice'` sampling options, the
-        number of times to execute a "slice update" before proposing a new
-        live point. Default is `5`. Note that `'slice'` cycles through
-        **all dimensions** when executing a "slice update".
+        A dictionary of additional parameters.
 
     """
 
@@ -518,6 +471,7 @@ class MultiEllipsoidSampler(Sampler):
         # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
+                         'rstagger': self.propose_live,
                          'slice': self.propose_live,
                          'rslice': self.propose_live,
                          'hslice': self.propose_live}
@@ -529,9 +483,10 @@ class MultiEllipsoidSampler(Sampler):
         # Initialize heuristic used to update our sampling method.
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
+                        'rstagger': self.update_rwalk,
                         'slice': self.update_slice,
                         'rslice': self.update_slice,
-                        'hslice': self.update_unif}
+                        'hslice': self.update_hslice}
         self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.
@@ -559,6 +514,8 @@ class MultiEllipsoidSampler(Sampler):
                                    covs=[np.identity(self.npdim)])
         self.bounding = 'multi'
         self.method = method
+        self.grad = self.kwargs.get('grad', None)
+        self.compute_jac = self.kwargs.get('compute_jac', False)
 
         # Initialize random walk parameters.
         self.walks = max(2, self.kwargs.get('walks', 25))
@@ -567,6 +524,8 @@ class MultiEllipsoidSampler(Sampler):
 
         # Initialize slice parameters.
         self.slices = self.kwargs.get('slices', 5)
+        self.fmove = self.kwargs.get('fmove', 0.9)
+        self.max_move = self.kwargs.get('max_move', 100)
 
     def update(self, pointvol):
         """Update the bounding ellipsoids using the current set of
@@ -643,7 +602,7 @@ class MultiEllipsoidSampler(Sampler):
         ell_idx = ell_idxs[self.rstate.randint(nidx)]
 
         # Choose axes.
-        if self.sampling == 'rwalk':
+        if self.sampling in ['rwalk', 'rstagger', 'rslice']:
             ax = self.mell.ells[ell_idx].axes
         elif self.sampling == 'slice':
             ax = self.mell.ells[ell_idx].paxes
@@ -673,7 +632,18 @@ class MultiEllipsoidSampler(Sampler):
         size of the slices compared to our initial guess."""
 
         fscale = blob['fscale']
-        self.scale *= fscale
+        nexpand, ncontract = blob['nexpand'], blob['ncontract']
+        self.scale *= nexpand / (2. * ncontract)
+
+    def update_hslice(self, blob):
+        """Update the Hamiltonian slice proposal scale based
+        on the relative amount of time spent moving vs reflecting."""
+
+        nmove, nreflect = blob['nmove'], blob['nreflect']
+        ncontract = blob.get('ncontract', 0)
+        fmove = (1. * nmove) / (nmove + nreflect + ncontract + 2)
+        norm = max(self.fmove, 1. - self.fmove)
+        self.scale *= math.exp((fmove - self.fmove) / norm)
 
 
 class RadFriendsSampler(Sampler):
@@ -723,35 +693,7 @@ class RadFriendsSampler(Sampler):
         should be used to execute operations in parallel.
 
     kwargs : dict, optional
-        A dictionary of additional parameters (described below).
-
-    Other Parameters
-    ----------------
-    enlarge : float, optional
-        Enlarge the volumes of the N-spheres by this fraction. The preferred
-        method is to determine this organically using bootstrapping. If
-        `bootstrap > 0`, this defaults to `1.0`. If `bootstrap = 0`,
-        this instead defaults to `1.25`.
-
-    bootstrap : int, optional
-        Compute this many bootstrapped realizations of the bounding
-        objects. Use the maximum distance found to the set of points left
-        out during each iteration to enlarge the resulting volumes.
-        Default is `20` for uniform sampling (`'unif'`) and `0` otherwise.
-
-    walks : int, optional
-        For the `'rwalk'` sampling option, the minimum number of steps
-        (minimum 2) before proposing a new live point. Default is `25`.
-
-    facc : float, optional
-        The target acceptance fraction for the `'rwalk'` sampling option.
-        Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
-
-    slices : int, optional
-        For the `'slice'`, `'rslice'`, and `'hslice'` sampling options, the
-        number of times to execute a "slice update" before proposing a new
-        live point. Default is `5`. Note that `'slice'` cycles through
-        **all dimensions** when executing a "slice update".
+        A dictionary of additional parameters.
 
     """
 
@@ -762,6 +704,7 @@ class RadFriendsSampler(Sampler):
         # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
+                         'rstagger': self.propose_live,
                          'slice': self.propose_live,
                          'rslice': self.propose_live,
                          'hslice': self.propose_live}
@@ -773,9 +716,10 @@ class RadFriendsSampler(Sampler):
         # Initialize heuristic used to update our sampling method.
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
+                        'rstagger': self.update_rwalk,
                         'slice': self.update_slice,
                         'rslice': self.update_slice,
-                        'hslice': self.update_unif}
+                        'hslice': self.update_hslice}
         self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.
@@ -800,6 +744,9 @@ class RadFriendsSampler(Sampler):
         self.radfriends = RadFriends(self.npdim, 0.)
         self.bounding = 'balls'
         self.method = method
+        self.use_kdtree = self.kwargs.get('use_kdtree', False)
+        self.grad = self.kwargs.get('grad', None)
+        self.compute_jac = self.kwargs.get('compute_jac', False)
 
         # Initialize random walk parameters.
         self.walks = max(2, self.kwargs.get('walks', 25))
@@ -808,12 +755,17 @@ class RadFriendsSampler(Sampler):
 
         # Initialize slice parameters.
         self.slices = self.kwargs.get('slices', 5)
+        self.fmove = self.kwargs.get('fmove', 0.9)
+        self.max_move = self.kwargs.get('max_move', 100)
 
     def update(self, pointvol):
         """Update the N-sphere radii using the current set of live points."""
 
         # Initialize a K-D Tree to assist nearest neighbor searches.
-        kdtree = spatial.KDTree(self.live_u)
+        if self.use_kdtree:
+            kdtree = spatial.KDTree(self.live_u)
+        else:
+            kdtree = None
 
         # Check if we should use the provided pool for updating.
         if self.use_pool_update:
@@ -836,7 +788,10 @@ class RadFriendsSampler(Sampler):
         the union of N-spheres defined by our live points."""
 
         # Initialize a K-D Tree to assist nearest neighbor searches.
-        kdtree = spatial.KDTree(self.live_u)
+        if self.use_kdtree:
+            kdtree = spatial.KDTree(self.live_u)
+        else:
+            kdtree = None
 
         while True:
             # Sample a point `u` from the union of N-spheres along with the
@@ -886,7 +841,18 @@ class RadFriendsSampler(Sampler):
         size of the slices compared to our initial guess."""
 
         fscale = blob['fscale']
-        self.scale *= fscale
+        nexpand, ncontract = blob['nexpand'], blob['ncontract']
+        self.scale *= nexpand / (2. * ncontract)
+
+    def update_hslice(self, blob):
+        """Update the Hamiltonian slice proposal scale based
+        on the relative amount of time spent moving vs reflecting."""
+
+        nmove, nreflect = blob['nmove'], blob['nreflect']
+        ncontract = blob.get('ncontract', 0)
+        fmove = (1. * nmove) / (nmove + nreflect + ncontract + 2)
+        norm = max(self.fmove, 1. - self.fmove)
+        self.scale *= math.exp((fmove - self.fmove) / norm)
 
 
 class SupFriendsSampler(Sampler):
@@ -936,35 +902,7 @@ class SupFriendsSampler(Sampler):
         should be used to execute operations in parallel.
 
     kwargs : dict, optional
-        A dictionary of additional parameters (described below).
-
-    Other Parameters
-    ----------------
-    enlarge : float, optional
-        Enlarge the volumes of the N-cubes by this fraction. The preferred
-        method is to determine this organically using bootstrapping. If
-        `bootstrap > 0`, this defaults to `1.0`. If `bootstrap = 0`,
-        this instead defaults to `1.25`.
-
-    bootstrap : int, optional
-        Compute this many bootstrapped realizations of the bounding
-        objects. Use the maximum distance found to the set of points left
-        out during each iteration to enlarge the resulting volumes.
-        Default is `20` for uniform sampling (`'unif'`) and `0` otherwise.
-
-    walks : int, optional
-        For the `'rwalk'` sampling option, the minimum number of steps
-        (minimum 2) before proposing a new live point. Default is `25`.
-
-    facc : float, optional
-        The target acceptance fraction for the `'rwalk'` sampling option.
-        Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
-
-    slices : int, optional
-        For the `'slice'`, `'rslice'`, and `'hslice'` sampling options, the
-        number of times to execute a "slice update" before proposing a new
-        live point. Default is `5`. Note that `'slice'` cycles through
-        **all dimensions** when executing a "slice update".
+        A dictionary of additional parameters.
 
     """
 
@@ -975,6 +913,7 @@ class SupFriendsSampler(Sampler):
         # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
+                         'rstagger': self.propose_live,
                          'slice': self.propose_live,
                          'rslice': self.propose_live,
                          'hslice': self.propose_live}
@@ -986,9 +925,10 @@ class SupFriendsSampler(Sampler):
         # Initialize heuristic used to update our sampling method.
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
+                        'rstagger': self.update_rwalk,
                         'slice': self.update_slice,
                         'rslice': self.update_slice,
-                        'hslice': self.update_unif}
+                        'hslice': self.update_hslice}
         self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.
@@ -1013,6 +953,9 @@ class SupFriendsSampler(Sampler):
         self.supfriends = SupFriends(self.npdim, 0.)
         self.bounding = 'cubes'
         self.method = method
+        self.use_kdtree = self.kwargs.get('use_kdtree', False)
+        self.grad = self.kwargs.get('grad', None)
+        self.compute_jac = self.kwargs.get('compute_jac', False)
 
         # Initialize random walk parameters.
         self.walks = max(2, self.kwargs.get('walks', 25))
@@ -1021,13 +964,18 @@ class SupFriendsSampler(Sampler):
 
         # Initialize slice parameters.
         self.slices = self.kwargs.get('slices', 5)
+        self.fmove = self.kwargs.get('fmove', 0.9)
+        self.max_move = self.kwargs.get('max_move', 100)
 
     def update(self, pointvol):
         """Update the N-cube side-lengths using the current set of
         live points."""
 
         # Initialize a K-D Tree to assist nearest neighbor searches.
-        kdtree = spatial.KDTree(self.live_u)
+        if self.use_kdtree:
+            kdtree = spatial.KDTree(self.live_u)
+        else:
+            kdtree = None
 
         # Check if we should use the provided pool for updating.
         if self.use_pool_update:
@@ -1050,7 +998,10 @@ class SupFriendsSampler(Sampler):
         the collection of N-cubes defined by our live points."""
 
         # Initialize a K-D Tree to assist nearest neighbor searches.
-        kdtree = spatial.KDTree(self.live_u)
+        if self.use_kdtree:
+            kdtree = spatial.KDTree(self.live_u)
+        else:
+            kdtree = None
 
         while True:
             # Sample a point `u` from the union of N-cubes along with the
@@ -1100,4 +1051,15 @@ class SupFriendsSampler(Sampler):
         size of the slices compared to our initial guess."""
 
         fscale = blob['fscale']
-        self.scale *= fscale
+        nexpand, ncontract = blob['nexpand'], blob['ncontract']
+        self.scale *= nexpand / (2. * ncontract)
+
+    def update_hslice(self, blob):
+        """Update the Hamiltonian slice proposal scale based
+        on the relative amount of time spent moving vs reflecting."""
+
+        nmove, nreflect = blob['nmove'], blob['nreflect']
+        ncontract = blob.get('ncontract', 0)
+        fmove = (1. * nmove) / (nmove + nreflect + ncontract + 2)
+        norm = max(self.fmove, 1. - self.fmove)
+        self.scale *= math.exp((fmove - self.fmove) / norm)

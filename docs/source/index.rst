@@ -2,6 +2,9 @@
 dynesty
 =======
 
+.. image:: ../images/logo.png
+    :align: center
+
 ``dynesty`` is a Pure Python, MIT-licensed `Dynamic Nested Sampling
 <https://arxiv.org/abs/1704.03459>`_ package for estimating Bayesian posteriors
 and evidences. See :ref:`Crash Course` and :ref:`Getting Started`
@@ -27,6 +30,16 @@ be installed directly from a local copy of the repository by running::
 
 Changelog
 =========
+
+0.9.4 (2019-03-07)
+-------------------
+* Added a logo!
+
+* Updated and reorganized documentation and demos.
+
+* Added proper support for gradients.
+
+* Changed defaults and added several "quality of life" improvements.
 
 0.9.3 (2019-02-10)
 -------------------

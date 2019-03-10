@@ -121,8 +121,6 @@ def print_fn(results, niter, ncall, add_live_it=None,
     else:
         long_str.append("stop: {:6.3f}".format(stop_val))
         mid_str.append("stop: {:6.3f}".format(stop_val))
-    #long_str.append("            ")  # clear previous output
-    #short_str.append("  ".format(logz, logzerr))
 
     # Printing.
     long_str = ' | '.join(long_str)
@@ -131,13 +129,13 @@ def print_fn(results, niter, ncall, add_live_it=None,
     if sys.stderr.isatty() and hasattr(shutil, 'get_terminal_size'):
         columns, rows = shutil.get_terminal_size(fallback=(80, 25))
     else:
-        columns, rows = 1000, 25
+        columns, rows = 200, 25
     if columns > len(long_str):
-        sys.stderr.write("\r" + long_str + ' '*(columns-len(long_str)-2) + '\r')
+        sys.stderr.write("\r" + long_str + ' '*(columns-len(long_str)-2))
     elif columns > len(mid_str):
-        sys.stderr.write("\r" + mid_str + ' '*(columns-len(mid_str)-2) + '\r')
+        sys.stderr.write("\r" + mid_str + ' '*(columns-len(mid_str)-2))
     else:
-        sys.stderr.write("\r" + short_str + ' '*(columns-len(short_str)-2) + '\r')
+        sys.stderr.write("\r" + short_str + ' '*(columns-len(short_str)-2))
     sys.stderr.flush()
 
 

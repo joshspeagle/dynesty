@@ -560,24 +560,27 @@ class DynamicSampler(object):
         bounds are also returned."""
 
         # Add all saved samples (and ancillary quantities) to the results.
-        results = [('niter', self.it - 1),
-                   ('ncall', np.array(self.saved_nc)),
-                   ('eff', self.eff),
-                   ('samples', np.array(self.saved_v)),
-                   ('samples_id', np.array(self.saved_id)),
-                   ('samples_batch', np.array(self.saved_batch, dtype='int')),
-                   ('samples_it', np.array(self.saved_it)),
-                   ('samples_u', np.array(self.saved_u)),
-                   ('samples_n', np.array(self.saved_n)),
-                   ('logwt', np.array(self.saved_logwt)),
-                   ('logl', np.array(self.saved_logl)),
-                   ('logvol', np.array(self.saved_logvol)),
-                   ('logz', np.array(self.saved_logz)),
-                   ('logzerr', np.sqrt(np.array(self.saved_logzvar))),
-                   ('information', np.array(self.saved_h)),
-                   ('batch_nlive', np.array(self.saved_batch_nlive,
-                                            dtype='int')),
-                   ('batch_bounds', np.array(self.saved_batch_bounds))]
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            results = [('niter', self.it - 1),
+                       ('ncall', np.array(self.saved_nc)),
+                       ('eff', self.eff),
+                       ('samples', np.array(self.saved_v)),
+                       ('samples_id', np.array(self.saved_id)),
+                       ('samples_batch', np.array(self.saved_batch,
+                                                  dtype='int')),
+                       ('samples_it', np.array(self.saved_it)),
+                       ('samples_u', np.array(self.saved_u)),
+                       ('samples_n', np.array(self.saved_n)),
+                       ('logwt', np.array(self.saved_logwt)),
+                       ('logl', np.array(self.saved_logl)),
+                       ('logvol', np.array(self.saved_logvol)),
+                       ('logz', np.array(self.saved_logz)),
+                       ('logzerr', np.sqrt(np.array(self.saved_logzvar))),
+                       ('information', np.array(self.saved_h)),
+                       ('batch_nlive', np.array(self.saved_batch_nlive,
+                                                dtype='int')),
+                       ('batch_bounds', np.array(self.saved_batch_bounds))]
 
         # Add any saved bounds (and ancillary quantities) to the results.
         if self.sampler.save_bounds:

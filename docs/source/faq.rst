@@ -215,6 +215,38 @@ batches added. This is especially true if the "full" live point simulation
 is being used (via the `error = 'simulate'` argument) rather than the
 approximation enabled by default (`error = 'sim_approx'`).
 
+**I'm trying to sample using gradients but getting extremely poor performance.
+I thought gradients were supposed to make sampling more efficient!
+What gives?**
+
+While gradients are extremely useful in terms of substantially improving
+the scaling of most sampling methods with dimensionality (gradient-based
+methods have better polynomial scaling than non-gradient slice sampling, both
+of which are *substantially* better over the runaway exponential scaling
+of random walks), it can take a while for these benefits to really kick in.
+These scaling arguments generally ignore the constant prefactor, which
+can be quite large for many gradient-based approaches which require
+integrating along some trajectory requiring (at least) dozens of
+function calls per sample. This often makes it more efficient to run simpler
+sampling techniques on lower-dimensional problems.
+
+If you feel like your performance is poorer than expected even given this,
+or if you notice other results that make you highly suspicious of the
+resulting samples, please double-check the :ref:`Sampling with Gradients`
+page to make sure you've passed in the correct log-likelihood gradient and are
+dealing with the unit cube Jacobian properly. Failing
+to apply this (or applying it twice) violates conservation of energy and
+momentum and leads to the integration timesteps along the trajectories
+changing in undesirable ways. 
+It's also possible the numerical errors in the Jacobian (if you've set
+`compute_jac=True`) might be propagating through to the computed trajectories.
+If so, consider trying to compute the analytic Jacobian by hand to cut down
+on possible numerical errors.
+
+If you still find subpar performance, please feel free to 
+`open an issue <https://github.com/joshspeagle/dynesty/issues>`_.
+
+
 Live Point Questions
 --------------------
 

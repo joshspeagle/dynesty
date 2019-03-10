@@ -224,12 +224,25 @@ def runplot(results, span=None, logplot=False, kde=True, nkde=1000,
         yspan = [t if t != (0., 1.) else (None, None) for t in yspan]
 
     # Set up bounds for plotting.
-    [axes[i].set_xlim([min(0., xspan[i][0]),
-                       max(-min(logvol), xspan[i][1])])
-     for i in range(4)]
-    [axes[i].set_ylim([min(span[i][0], yspan[i][0]),
-                       max(span[i][1], yspan[i][1])])
-     for i in range(4)]
+    for i in range(4):
+        if xspan[i][0] is None:
+            xmin = None
+        else:
+            xmin = min(0., xspan[i][0])
+        if xspan[i][1] is None:
+            xmax = -min(logvol)
+        else:
+            xmax = max(-min(logvol), xspan[i][1])
+        if yspan[i][0] is None:
+            ymin = None
+        else:
+            ymin = min(span[i][0], yspan[i][0])
+        if yspan[i][1] is None:
+            ymax = span[i][1]
+        else:
+            ymax = max(span[i][1], yspan[i][1])
+        axes[i].set_xlim([xmin, xmax])
+        axes[i].set_ylim([ymin, ymax])
 
     # Plotting.
     labels = ['Live Points', 'Likelihood\n(normalized)',
@@ -860,7 +873,10 @@ def cornerpoints(results, thin=1, span=None, cmap='plasma', color=None,
     # Plot the 2-D projected samples.
     for i, x in enumerate(samples[1:]):
         for j, y in enumerate(samples[:-1]):
-            ax = axes[i, j]
+            try:
+                ax = axes[i, j]
+            except:
+                ax = axes
             # Setup axes.
             if span is not None:
                 ax.set_xlim(span[j])
@@ -1869,7 +1885,10 @@ def cornerbound(results, it=None, idx=None, prior_transform=None,
     # Plot the 2-D projected samples.
     for i, x in enumerate(psamps[1:]):
         for j, y in enumerate(psamps[:-1]):
-            ax = axes[i, j]
+            try:
+                ax = axes[i, j]
+            except:
+                ax = axes
             # Setup axes.
             if span is not None:
                 ax.set_xlim(span[j])

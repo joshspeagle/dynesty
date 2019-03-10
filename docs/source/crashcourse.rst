@@ -67,3 +67,24 @@ For instance::
 
     # Plot the 2-D marginalized posteriors.
     cfig, caxes = dyplot.cornerplot(results)
+
+We can post-process these results using some built-in utilities.
+For instance::
+
+    from dynesty import utils as dyfunc
+
+    # Extract sampling results.
+    samples = results.samples  # samples
+    weights = np.exp(results.logwt - results.logz[-1])  # normalized weights
+
+    # Compute 5%-95% quantiles.
+    quantiles = dyfunc.quantile(samples, [0.05, 0.95], weights=weights)
+
+    # Compute weighted mean and covariance.
+    mean, cov = dyfunc.mean_and_cov(samples, weights)
+
+    # Resample weighted samples.
+    samples_equal = dyfunc.resample_equal(samples, weights)
+
+    # Generate a new set of results with statistical+sampling uncertainties.
+    results_sim = dyfunc.simulate_run(results)

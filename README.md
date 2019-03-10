@@ -1,6 +1,8 @@
 dynesty
 =======
 
+![dynesty in action](https://github.com/joshspeagle/dynesty/blob/master/docs/images/logo.png)
+
 A Dynamic Nested Sampling package for computing Bayesian posteriors and
 evidences. Pure Python. MIT license. **Beta release.**
 
@@ -8,11 +10,12 @@ evidences. Pure Python. MIT license. **Beta release.**
 Documentation can be found [here](https://dynesty.readthedocs.io).
 
 ### Installation
-`dynesty` can be installed through [pip](https://pip.pypa.io/en/stable) via
+The most stable release of `dynesty` can be installed
+through [pip](https://pip.pypa.io/en/stable) via
 ```
 pip install dynesty
 ```
-It can also be installed by running
+The current (less stable) development version can be installed by running
 ```
 python setup.py install
 ```

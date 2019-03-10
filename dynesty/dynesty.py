@@ -30,6 +30,7 @@ _SAMPLERS = {'none': UnitCubeSampler,
              'cubes': SupFriendsSampler}
 _SAMPLING = {'unif': sample_unif,
              'rwalk': sample_rwalk,
+             'rstagger': sample_rstagger,
              'slice': sample_slice,
              'rslice': sample_rslice,
              'hslice': sample_hslice}
@@ -44,8 +45,10 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
                   use_pool=None, live_points=None,
                   logl_args=None, logl_kwargs=None,
                   ptform_args=None, ptform_kwargs=None,
+                  gradient=None, grad_args=None, grad_kwargs=None,
+                  compute_jac=False,
                   enlarge=None, bootstrap=0, vol_dec=0.5, vol_check=2.0,
-                  walks=25, facc=0.5, slices=5,
+                  walks=25, facc=0.5, slices=5, fmove=0.9, max_move=100,
                   **kwargs):
     """
     Initializes and returns a sampler object for Static Nested Sampling.
@@ -75,7 +78,7 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
     nlive : int, optional
         Number of "live" points. Larger numbers result in a more finely
         sampled posterior (more accurate evidence), but also a larger
-        number of iterations required to converge. Default is `250`.
+        number of iterations required to converge. Default is `500`.
 
     bound : {`'none'`, `'single'`, `'multi'`, `'balls'`, `'cubes'`}, optional
         Method used to approximately bound the prior using the current
@@ -85,15 +88,23 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         (`'multi'`), balls centered on each live point (`'balls'`), and
         cubes centered on each live point (`'cubes'`). Default is `'multi'`.
 
-    sample : {`'auto'`, `'unif'`, `'rwalk'`, `'slice'`, `'rslice'`,
-              `'hslice'`}, optional
+    sample : {`'auto'`, `'unif'`, `'rwalk'`, `'rstagger'`,
+              `'slice'`, `'rslice'`, `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
-        conditioned on the provided bounds. Methods available include uniform
-        (`'unif'`), random walks (`'rwalk'`), multivariate slices (`'slice'`),
-        random slices (`'rslice'`), and random trajectories ("Hamiltonian
-        slices"; `'hslice'`). `'auto'` selects the sampling
-        method based on the provided `ndim`: `'unif'` if `ndim < 10`,
-        `'rwalk'` if `10 <= ndim <= 20`, and `'slice'` if `ndim > 20`.
+        conditioned on the provided bounds. Unique methods available are:
+        uniform sampling within the bounds(`'unif'`),
+        random walks with fixed proposals (`'rwalk'`),
+        random walks with variable ("staggering") proposals (`'rstagger'`),
+        multivariate slice sampling along preferred orientations (`'slice'`),
+        "random" slice sampling along all orientations (`'rslice'`), and
+        "Hamiltonian" slices along random trajectories (`'hslice'`).
+        `'auto'` selects the sampling method based on the dimensionality
+        of the problem (from `ndim`).
+        When `ndim < 10`, this defaults to `'unif'`.
+        When `10 <= ndim <= 20`, this defaults to `'rwalk'`.
+        When `ndim > 20`, this defaults to `'hslice'` if a `gradient` is
+        provided and `'slice'` otherwise. `'rstagger'` and `'rslice'`
+        are provided as alternatives for `'rwalk'` and `'slice'`, respectively.
         Default is `'auto'`.
 
     update_interval : int or float, optional
@@ -103,9 +114,9 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         call. Larger update intervals larger can be more efficient
         when the likelihood function is quick to evaluate. Default behavior
         is to target a roughly constant change in prior volume, with
-        `1.5` for `'unif'`, `0.15 * walks` for `'rwalk'`,
-        `0.9 * ndim * slices` for `'slice'`, and `sys.maxsize` for `'rslice'`
-        and `'hslice'` which don't utilize bounding distributions.
+        `1.5` for `'unif'`, `0.15 * walks` for `'rwalk'` and `'rstagger'`,
+        `0.9 * ndim * slices` for `'slice'`, `2.0 * slices` for `'rslice'`,
+        and `25.0 * slices` for `'hslice'`.
 
     first_update : dict, optional
         A dictionary containing parameters governing when the sampler should
@@ -167,6 +178,28 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
     ptform_kwargs : dict, optional
         Additional keyword arguments that can be passed to `prior_transform`.
 
+    gradient : function, optional
+        A function which returns the gradient corresponding to
+        the provided `loglikelihood` *with respect to the unit cube*.
+        If provided, this will be used when computing reflections
+        when sampling with `'hslice'`. If not provided, gradients are
+        approximated numerically using 2-sided differencing.
+
+    grad_args : dict, optional
+        Additional arguments that can be passed to `gradient`.
+
+    grad_kwargs : dict, optional
+        Additional keyword arguments that can be passed to `gradient`.
+
+    compute_jac : bool, optional
+        Whether to compute and apply the Jacobian `dv/du`
+        from the target space `v` to the unit cube `u` when evaluating the
+        `gradient`. If `False`, the gradient provided is assumed to be
+        already defined with respect to the unit cube. If `True`, the gradient
+        provided is assumed to be defined with respect to the target space
+        so the Jacobian needs to be numerically computed and applied. Default
+        is `False`.
+
     enlarge : float, optional
         Enlarge the volumes of the specified bounding object(s) by this
         fraction. The preferred method is to determine this organically
@@ -199,10 +232,20 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
 
     slices : int, optional
-        For the `'slice'`, `'rslice'`, and `'hslice'` sampling options, the
-        number of times to execute a "slice update" before proposing a new
-        live point. Default is `5`. Note that `'slice'` cycles through
-        **all dimensions** when executing a "slice update".
+        For the `'slice'`, `'rslice'`, and `'hslice'` sampling
+        options, the number of times to execute a "slice update"
+        before proposing a new live point. Default is `5`.
+        Note that `'slice'` cycles through **all dimensions**
+        when executing a "slice update".
+
+    fmove : float, optional
+        The target fraction of samples that are proposed along a trajectory
+        (i.e. not reflecting) for the `'hslice'` sampling option.
+        Default is `0.9`.
+
+    max_move : int, optional
+        The maximum number of timesteps allowed for `'hslice'`
+        per proposal forwards and backwards in time. Default is `100`.
 
     Returns
     -------
@@ -226,24 +269,35 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         elif 10 <= npdim <= 20:
             sample = 'rwalk'
         else:
-            sample = 'slice'
+            if gradient is None:
+                sample = 'slice'
+            else:
+                sample = 'hslice'
     if sample not in _SAMPLING:
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
 
     # Dimensional warning check.
     if nlive <= 2 * ndim:
-        warnings.warn("Beware: `nlive <= 2 * ndim`!")
+        warnings.warn("Beware! Having `nlive <= 2 * ndim` is extremely risky!")
+    elif nlive < ndim * (ndim + 1) // 2 and bound in ['single', 'multi']:
+        warnings.warn("A note of caution: "
+                      "having `nlive < ndim * (ndim + 1) // 2` may result in "
+                      "unconstrained bounding distributions.")
 
     # Update interval for bounds.
     if update_interval is None:
         if sample == 'unif':
             update_interval = 1.5
-        elif sample == 'rwalk':
+        elif sample == 'rwalk' or sample == 'rstagger':
             update_interval = 0.15 * walks
         elif sample == 'slice':
             update_interval = 0.9 * npdim * slices
+        elif sample == 'rslice':
+            update_interval = 2.0 * slices
+        elif sample == 'hslice':
+            update_interval = 25.0 * slices
         else:
-            update_interval = sys.maxsize  # no bounds needed
+            raise ValueError("Unknown sampling method: '{0}'".format(sample))
     if bound == 'none':
         update_interval = sys.maxsize  # no need to update with no bounds
     if isinstance(update_interval, float):
@@ -259,15 +313,21 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
 
     # Log-likelihood.
     if logl_args is None:
-        logl_args = dict()
+        logl_args = []
     if logl_kwargs is None:
-        logl_kwargs = dict()
+        logl_kwargs = {}
 
     # Prior transform.
     if ptform_args is None:
-        ptform_args = dict()
+        ptform_args = []
     if ptform_kwargs is None:
-        ptform_kwargs = dict()
+        ptform_kwargs = {}
+
+    # gradient
+    if grad_args is None:
+        grad_args = []
+    if grad_kwargs is None:
+        grad_kwargs = {}
 
     # Bounding distribution modifications.
     if enlarge is not None:
@@ -286,6 +346,10 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         kwargs['facc'] = facc
     if slices is not None:
         kwargs['slices'] = slices
+    if fmove is not None:
+        kwargs['fmove'] = fmove
+    if max_move is not None:
+        kwargs['max_move'] = max_move
 
     # Set up parallel (or serial) evaluation.
     if queue_size is not None and queue_size < 1:
@@ -313,6 +377,13 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
                                name='prior_transform')
     loglike = _function_wrapper(loglikelihood, logl_args, logl_kwargs,
                                 name='loglikelihood')
+
+    # Add in gradient.
+    if gradient is not None:
+        grad = _function_wrapper(gradient, grad_args, grad_kwargs,
+                                 name='gradient')
+        kwargs['grad'] = grad
+        kwargs['compute_jac'] = compute_jac
 
     # Initialize live points and calculate log-likelihoods.
     if live_points is None:
@@ -358,9 +429,12 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
                          npdim=None, rstate=None, queue_size=None, pool=None,
                          use_pool=None, logl_args=None, logl_kwargs=None,
                          ptform_args=None, ptform_kwargs=None,
+                         gradient=None, grad_args=None, grad_kwargs=None,
+                         compute_jac=False,
                          enlarge=None, bootstrap=0,
                          vol_dec=0.5, vol_check=2.0,
-                         walks=25, facc=0.5, slices=5,
+                         walks=25, facc=0.5,
+                         slices=5, fmove=0.9, max_move=100,
                          **kwargs):
     """
     Initializes and returns a sampler object for Dynamic Nested Sampling.
@@ -387,11 +461,6 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         Number of parameters returned by `prior_transform` and accepted by
         `loglikelihood`.
 
-    nlive : int, optional
-        Number of "live" points. Larger numbers result in a more finely
-        sampled posterior (more accurate evidence), but also a larger
-        number of iterations required to converge. Default is `250`.
-
     bound : {`'none'`, `'single'`, `'multi'`, `'balls'`, `'cubes'`}, optional
         Method used to approximately bound the prior using the current
         set of live points. Conditions the sampling methods used to
@@ -400,15 +469,23 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         (`'multi'`), balls centered on each live point (`'balls'`), and
         cubes centered on each live point (`'cubes'`). Default is `'multi'`.
 
-    sample : {`'auto'`, `'unif'`, `'rwalk'`, `'slice'`, `'rslice'`,
-              `'hslice'`}, optional
+    sample : {`'auto'`, `'unif'`, `'rwalk'`, `'rstagger'`,
+              `'slice'`, `'rslice'`, `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
-        conditioned on the provided bounds. Methods available include uniform
-        (`'unif'`), random walks (`'rwalk'`), multivariate slices (`'slice'`),
-        random slices (`'rslice'`), and random trajectories ("Hamiltonian
-        slices"; `'hslice'`). `'auto'` selects the sampling
-        method based on the provided `ndim`: `'unif'` if `ndim < 10`,
-        `'rwalk'` if `10 <= ndim <= 20`, and `'slice'` if `ndim > 20`.
+        conditioned on the provided bounds. Unique methods available are:
+        uniform sampling within the bounds(`'unif'`),
+        random walks with fixed proposals (`'rwalk'`),
+        random walks with variable ("staggering") proposals (`'rstagger'`),
+        multivariate slice sampling along preferred orientations (`'slice'`),
+        "random" slice sampling along all orientations (`'rslice'`), and
+        "Hamiltonian" slices along random trajectories (`'hslice'`).
+        `'auto'` selects the sampling method based on the dimensionality
+        of the problem (from `ndim`).
+        When `ndim < 10`, this defaults to `'unif'`.
+        When `10 <= ndim <= 20`, this defaults to `'rwalk'`.
+        When `ndim > 20`, this defaults to `'hslice'` if a `gradient` is
+        provided and `'slice'` otherwise. `'rstagger'` and `'rslice'`
+        are provided as alternatives for `'rwalk'` and `'slice'`, respectively.
         Default is `'auto'`.
 
     update_interval : int or float, optional
@@ -418,9 +495,9 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         call. Larger update intervals larger can be more efficient
         when the likelihood function is quick to evaluate. Default behavior
         is to target a roughly constant change in prior volume, with
-        `1.5` for `'unif'`, `0.15 * walks` for `'rwalk'`,
-        `0.9 * ndim * slices` for `'slice'`, and `sys.maxsize` for `'rslice'`
-        and `'hslice'` which don't utilize bounding distributions.
+        `1.5` for `'unif'`, `0.15 * walks` for `'rwalk'` and `'rstagger'`,
+        `0.9 * ndim * slices` for `'slice'`, `2.0 * slices` for `'rslice'`,
+        and `25.0 * slices` for `'hslice'`.
 
     first_update : dict, optional
         A dictionary containing parameters governing when the sampler should
@@ -456,9 +533,10 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         is executed in parallel during initialization (`'prior_transform'`),
         `loglikelihood` is executed in parallel during initialization
         (`'loglikelihood'`), live points are proposed in parallel during a run
-        (`'propose_point'`), and bounding distributions are updated in
-        parallel during a run (`'update_bound'`). Default is `True` for all
-        options.
+        (`'propose_point'`), bounding distributions are updated in
+        parallel during a run (`'update_bound'`), and the stopping criteria
+        is evaluated in parallel during a run (`'stop_function'`).
+        Default is `True` for all options.
 
     logl_args : dict, optional
         Additional arguments that can be passed to `loglikelihood`.
@@ -471,6 +549,28 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
 
     ptform_kwargs : dict, optional
         Additional keyword arguments that can be passed to `prior_transform`.
+
+    gradient : function, optional
+        A function which returns the gradient corresponding to
+        the provided `loglikelihood` *with respect to the unit cube*.
+        If provided, this will be used when computing reflections
+        when sampling with `'hslice'`. If not provided, gradients are
+        approximated numerically using 2-sided differencing.
+
+    grad_args : dict, optional
+        Additional arguments that can be passed to `gradient`.
+
+    grad_kwargs : dict, optional
+        Additional keyword arguments that can be passed to `gradient`.
+
+    compute_jac : bool, optional
+        Whether to compute and apply the Jacobian `dv/du`
+        from the target space `v` to the unit cube `u` when evaluating the
+        `gradient`. If `False`, the gradient provided is assumed to be
+        already defined with respect to the unit cube. If `True`, the gradient
+        provided is assumed to be defined with respect to the target space
+        so the Jacobian needs to be numerically computed and applied. Default
+        is `False`.
 
     enlarge : float, optional
         Enlarge the volumes of the specified bounding object(s) by this
@@ -504,10 +604,20 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
 
     slices : int, optional
-        For the `'slice'`, `'rslice'`, and `'hslice'` sampling options, the
-        number of times to execute a "slice update" before proposing a new
-        live point. Default is `5`. Note that `'slice'` cycles through
-        **all dimensions** when executing a "slice update".
+        For the `'slice'`, `'rslice'`, and `'hslice'` sampling
+        options, the number of times to execute a "slice update"
+        before proposing a new live point. Default is `5`.
+        Note that `'slice'` cycles through **all dimensions**
+        when executing a "slice update".
+
+    fmove : float, optional
+        The target fraction of samples that are proposed along a trajectory
+        (i.e. not reflecting) for the `'hslice'` sampling option.
+        Default is `0.9`.
+
+    max_move : int, optional
+        The maximum number of timesteps allowed for `'hslice'`
+        per proposal forwards and backwards in time. Default is `100`.
 
     Returns
     -------
@@ -531,7 +641,10 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         elif 10 <= npdim <= 20:
             sample = 'rwalk'
         else:
-            sample = 'slice'
+            if gradient is None:
+                sample = 'slice'
+            else:
+                sample = 'hslice'
     if sample not in _SAMPLING:
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
 
@@ -539,12 +652,16 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
     if update_interval is None:
         if sample == 'unif':
             update_interval = 1.5
-        elif sample == 'rwalk':
+        elif sample == 'rwalk' or sample == 'rstagger':
             update_interval = 0.15 * walks
         elif sample == 'slice':
             update_interval = 0.9 * npdim * slices
+        elif sample == 'rslice':
+            update_interval = 2.0 * slices
+        elif sample == 'hslice':
+            update_interval = 25.0 * slices
         else:
-            update_interval = sys.maxsize  # no bounds needed
+            raise ValueError("Unknown sampling method: '{0}'".format(sample))
     if bound == 'none':
         update_interval = sys.maxsize  # no need to update with no bounds
 
@@ -558,15 +675,21 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
 
     # Log-likelihood.
     if logl_args is None:
-        logl_args = dict()
+        logl_args = []
     if logl_kwargs is None:
-        logl_kwargs = dict()
+        logl_kwargs = {}
 
     # Prior transform.
     if ptform_args is None:
-        ptform_args = dict()
+        ptform_args = []
     if ptform_kwargs is None:
         ptform_kwargs = dict()
+
+    # gradient
+    if grad_args is None:
+        grad_args = []
+    if grad_kwargs is None:
+        grad_kwargs = {}
 
     # Bounding distribution modifications.
     if enlarge is not None:
@@ -585,6 +708,10 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         kwargs['facc'] = facc
     if slices is not None:
         kwargs['slices'] = slices
+    if fmove is not None:
+        kwargs['fmove'] = fmove
+    if max_move is not None:
+        kwargs['max_move'] = max_move
 
     # Set up parallel (or serial) evaluation.
     if queue_size is not None and queue_size < 1:
@@ -612,6 +739,13 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
                                name='prior_transform')
     loglike = _function_wrapper(loglikelihood, logl_args, logl_kwargs,
                                 name='loglikelihood')
+
+    # Add in gradient.
+    if gradient is not None:
+        grad = _function_wrapper(gradient, grad_args, grad_kwargs,
+                                 name='gradient')
+        kwargs['grad'] = grad
+        kwargs['compute_jac'] = compute_jac
 
     # Initialize our nested sampler.
     sampler = DynamicSampler(loglike, ptform, npdim,

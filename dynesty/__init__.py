@@ -10,4 +10,4 @@ from . import sampling
 from . import utils
 
 
-__version__ = "0.9.3"
+__version__ = "0.9.4"

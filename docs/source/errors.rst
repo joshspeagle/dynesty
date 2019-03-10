@@ -131,31 +131,37 @@ run::
 
     # static nested sampling
     sampler = dynesty.NestedSampler(loglikelihood, prior_transform, ndim,
-                                    bound='single', sample='unif', nlive=1000)
+                                    bound='single', nlive=1000)
     sampler.run_nested()
     res = sampler.results
+    sys.stderr.write('\n')
+
+    sampler.reset()
+    sampler.run_nested(dlogz=0.01)
+    res2 = sampler.results
+    sys.stderr.write('\n')
 
     # dynamic nested sampling
     dsampler = dynesty.DynamicNestedSampler(loglikelihood, prior_transform,
-                                            ndim, bound='single',
-                                            sample='unif')
-    dsampler.run_nested(nlive_init=100, nlive_batch=100,
-                        maxiter=res2.niter+res2.nlive, use_stop=False)
+                                            ndim, bound='single')
+    dsampler.run_nested(maxiter=res2.niter+res2.nlive, use_stop=False)
     dres = dsampler.results
 
 .. rst-class:: sphx-glr-script-out
 
 Out::
 
-    iter: 13375+1000 | bound: 19 | nc: 1 | ncall: 51548 | 
-    eff(%): 27.887 | loglstar:   -inf < -0.294 <    inf | 
-    logz: -9.052 +/-  0.086 | dlogz:  0.000 >  0.010       
+    iter: 8973 | +1000 | bound: 8 | nc: 1 | ncall: 47632 | eff(%): 20.938 | 
+    loglstar:   -inf < -0.300 <    inf | logz: -9.169 +/-  0.097 | 
+    dlogz:  0.001 >  1.009
+    iter: 13175 | +1000 | bound: 14 | nc: 1 | ncall: 54140 | eff(%): 26.182 | 
+    loglstar:   -inf < -0.294 <    inf | logz: -8.852 +/-  0.084 | 
+    dlogz:  0.000 >  0.010
+    iter: 14175 | batch: 7 | bound: 35 | nc: 1 | ncall: 39494 | 
+    eff(%): 35.892 | loglstar: -5.792 < -0.329 < -0.645 | 
+    logz: -8.930 +/-  0.116 | stop:    nan
 
-    iter: 14375 | batch: 32 | bound: 345 | nc: 1 | ncall: 43554 | 
-    eff(%): 33.005 | loglstar:   -inf < -0.438 < -0.559 | 
-    logz: -8.878 +/-  0.146 | stop:    nan                     
-
-The differences among the two results illustrate how the location where
+The differences among the results illustrate how the location where
 samples are allocated can significantly affect the error budget, as discussed
 in :ref:`Dynamic Nested Sampling`.
 
@@ -660,12 +666,12 @@ from each set of runs:
 
 Out::
 
-    Approx.:     -8.920 +/-  0.251
-    Sim.:        -8.930 +/-  0.256
-    Resamp.:     -8.930 +/-  0.253
-    Rep. (mean): -8.977 +/-  0.226
-    Comb.:       -8.943 +/-  0.348
-    Rep. (sim.): -8.971 +/-  0.348
+    Approx.:     -8.670 +/-  0.207
+    Sim.:        -8.696 +/-  0.192
+    Resamp.:     -8.676 +/-  0.180
+    Rep. (mean): -8.912 +/-  0.211
+    Comb.:       -8.699 +/-  0.262
+    Rep. (sim.): -8.946 +/-  0.289
 
 We can also compare the first and second moments of the posterior:
 
@@ -717,11 +723,11 @@ We can also compare the first and second moments of the posterior:
 
 Out::
 
-    Sim.:        [-0.019 -0.018 -0.019] +/- [ 0.015  0.015  0.016]
-    Resamp.:     [-0.018 -0.017 -0.017] +/- [ 0.015  0.015  0.014]
-    Rep. (mean): [-0.    -0.001 -0.   ] +/- [ 0.015  0.015  0.015]
-    Comb.:       [-0.018 -0.017 -0.018] +/- [ 0.019  0.019  0.019]
-    Rep. (sim.): [-0.002 -0.002 -0.002] +/- [ 0.021  0.021  0.022]
+    Sim.:        [-0.022 -0.022 -0.021] +/- [0.016 0.016 0.016]
+    Resamp.:     [-0.023 -0.023 -0.022] +/- [0.016 0.017 0.017]
+    Rep. (mean): [0.002 0.002 0.002] +/- [0.016 0.016 0.016]
+    Comb.:       [-0.022 -0.022 -0.021] +/- [0.021 0.021 0.022]
+    Rep. (sim.): [0.003 0.003 0.002] +/- [0.023 0.023 0.023]
 
 .. code-block:: python
 
@@ -776,11 +782,11 @@ Out::
 
 Out::
 
-    Sim.:        [ 0.939  0.945  0.942] +/- [ 0.021  0.021  0.021]
-    Resamp.:     [ 0.937  0.943  0.939] +/- [ 0.021  0.02   0.02 ]
-    Rep. (mean): [ 1.001  1.001  1.   ] +/- [ 0.022  0.022  0.022]
-    Comb.:       [ 0.939  0.945  0.941] +/- [ 0.029  0.029  0.029]
-    Rep. (sim.): [ 1.001  1.001  1.001] +/- [ 0.031  0.03   0.031]
+    Sim.:        [1.041 1.038 1.046] +/- [0.026 0.026 0.026]
+    Resamp.:     [1.039 1.035 1.044] +/- [0.026 0.026 0.027]
+    Rep. (mean): [0.994 0.994 0.993] +/- [0.026 0.026 0.026]
+    Comb.:       [1.041 1.037 1.045] +/- [0.035 0.036 0.037]
+    Rep. (sim.): [0.993 0.993 0.992] +/- [0.035 0.034 0.035]
 
 Our simulated uncertainties seem to do an excellent job of capturing the
 intrinsic combined statistical and sampling uncertainties.
@@ -867,9 +873,9 @@ below::
 
 Out::
 
-    Mean:    0.424
-    Std:     0.017
-    Std(%):  3.983
+    Mean:    0.425
+    Std:     0.016
+    Std(%):  3.833
 
 .. image:: ../images/errors_010.png
 
@@ -905,8 +911,8 @@ estimation. The corresponding results are shown below for comparison::
 Out::
 
     Mean:    0.423
-    Std:     0.011
-    Std(%):  2.516
+    Std:     0.012
+    Std(%):  2.909
 
 .. image:: ../images/errors_011.png
 

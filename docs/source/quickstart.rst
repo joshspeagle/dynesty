@@ -473,7 +473,7 @@ given independent priors on each parameter
 
     \pi(\mathbf{x}) = \prod_i \pi_i(x_i)
 
-where :math:`\pi_i(x_i)` is the prior for the :math:`i`th parameter :math:`x_i`
+where :math:`\pi_i(x_i)` is the prior for the i-th parameter :math:`x_i`
 that the Jacobian is diagonal where each diagonal element is simply
 
 .. math::
@@ -644,7 +644,7 @@ Visualizing Results
 
 Assuming we've completed a run and stored the resulting `res1` and `res2`
 `~dynesty.results.Results` dictionaries as defined above, we can compare what
-their relative weights by comparing them directly, as shown below::
+their relative weights by comparing them directly, as shown below.
 
 .. image:: ../images/quickstart_001.png
     :align: center

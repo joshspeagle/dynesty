@@ -136,7 +136,7 @@ checks the stopping criterion specified (whether iterations or function calls)
 since the first batch of points need to be allocated before checking the
 stopping criterion.
 
-**Why are** `'rwalk'` **and** `'slice'` **so inefficient relative to `'unif'`
+**Why are** `'rwalk'` **and** `'slice'` **so inefficient relative to `'unif'`**
 **? Why would I want to use them?**
 
 The main reason these methods are more inefficient than uniform sampling
@@ -252,7 +252,9 @@ Live Point Questions
 
 **How many live points should I use?**
 
-Unfortunately, there's no easy answer here: *it depends*.
+Short answer: **it depends**.
+
+Longer answer: Unfortunately, there's no easy answer here.
 Increasing the number of live points helps establish more
 flexible and robust bounds, improving the overall sampling efficiency and
 prior volume resolution. However, it simultaneously increases the runtime.
@@ -260,7 +262,7 @@ These competing behaviors mean that compromises need to be made which are
 problem-dependent.
 
 In general, for ellipsoid-based bounds an absolute minimum of `ndim + 1`
-live points is required, with `2 * ndim` being a (roughly) "safe" threshold.
+live points is "required", with `2 * ndim` being a (roughly) "safe" threshold.
 If bootstraps are used to establish bounds while sampling uniformly, however,
 many (many) more live poits should be used. 
 Around `50 * ndim` points are recommended *for each expected mode*.
@@ -275,7 +277,7 @@ the benefit of using fewer points if speed is an issue.
 this depends sensitively on the amount of prior volume that has to be
 traversed: if the likelihood is a set of tiny islands in an ocean of
 prior volume, then you'll need to use more live points to avoid missing them.
-See :ref:`LogGamma` and :ref:`50-D Multivariate Normal` for
+See :ref:`LogGamma`, :ref:`Eggbox`, or :ref:`Exponential Wave` for
 some examples of this in practice.
 
 Bounding Questions
@@ -335,9 +337,9 @@ out bootstrapping. How many bootstrap realizations do I need?**
 Sec. 6.1 of `Buchner (2014) <https://arxiv.org/abs/1407.5459>`_ discusses
 the basic behavior of bootstrapping and how many iterations are needed to
 ensure that realizations do not include the same live point over some number
-of realizations. By default, ``dynesty`` uses `bootstrap = 20`. This is more
-aggressive than the `bootstrap = 50` recommended by Buchner (2014) but in 
-general works reasonably well in practice.
+of realizations. `bootstrap = 20` appears to work well in practice, although
+this is more aggressive than the `bootstrap = 50` recommended by
+Buchner.
 
 **When bootstrapping is on, sometimes during a run a bound 
 will be really large. This then leads to a large number of log-likelihood calls

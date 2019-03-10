@@ -112,7 +112,7 @@ solutions. We are interested in modeling periodic data of the form:
 
     y(x) = \exp\left[ n_a \sin(f_a x + p_a) + n_b \sin(f_b x + p_b) \right]
 
-where :math:`x` goes from $0$ to $2\pi$.
+where :math:`x` goes from :math:`0` to :math:`2\pi`.
 
 .. image:: ../images/examples_expwave_001.png
     :align: center
@@ -222,7 +222,7 @@ without too much difficulty:
     :align: center
 
 Although the analytic estimate of the evidence error diverges (requiring us
-to compute it numerically following :ref:`Nested Sampling Errors`,
+to compute it numerically following :ref:`Nested Sampling Errors`),
 we are able to recover the evidence and the shape of the posterior quite well:
 
 .. image:: ../images/examples_loggamma_002.png
@@ -314,7 +314,7 @@ broader due to the impact of these positive fluctuations.
     :align: center
 
 If we know the "true" underlying likelihood, it is straightforward to
-use ref:`Importance Reweighting` to adjust the distribution to match:
+use :ref:`Importance Reweighting` to adjust the distribution to match:
 
 .. image:: ../images/examples_noisy_003.png
     :align: center

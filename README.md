@@ -1,7 +1,7 @@
 dynesty
 =======
 
-![dynesty in action](https://github.com/joshspeagle/dynesty/blob/master/docs/images/logo.png)
+![dynesty in action](https://github.com/joshspeagle/dynesty/blob/master/docs/images/title.gif)
 
 A Dynamic Nested Sampling package for computing Bayesian posteriors and
 evidences. Pure Python. MIT license. **Beta release.**

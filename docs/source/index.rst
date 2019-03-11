@@ -2,7 +2,7 @@
 dynesty
 =======
 
-.. image:: ../images/logo.png
+.. image:: ../images/title.gif
     :align: center
 
 ``dynesty`` is a Pure Python, MIT-licensed `Dynamic Nested Sampling
@@ -30,6 +30,9 @@ be installed directly from a local copy of the repository by running::
 
 Changelog
 =========
+
+.. image:: ../images/logo.gif
+    :align: center
 
 0.9.4 (2019-03-07)
 -------------------

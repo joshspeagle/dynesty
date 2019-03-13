@@ -84,19 +84,18 @@ def grad_u(x):
 sys.stderr.write('\nDefault run\n')
 sampler = dynesty.NestedSampler(loglikelihood, prior_transform, ndim,
                                 nlive=500)
-sampler.run_nested(print_progress=True)
+sampler.run_nested(print_progress=False)
 
 # add samples
 sys.stderr.write('\n\nExtra samples\n')
-sampler.run_nested(dlogz=0.1, print_progress=True)
+sampler.run_nested(dlogz=0.1, print_progress=False)
 
 
 # get errors
-sys.stderr.write('\n\n')
+sys.stderr.write('\n\nDeriving Errors\n')
 means, covs, logzs = [], [], []
 nerr = 50
 for i in range(nerr):
-    sys.stderr.write('\rRepeat {}/{}'.format(i+1, nerr))
     sampler.reset()
     sampler.run_nested(print_progress=False)
     results = sampler.results
@@ -109,7 +108,6 @@ for i in range(nerr):
     logzs.append(logz)
 lz_tol, m_tol, c_tol = (np.std(logzs), np.std(means, axis=0),
                         np.std(covs, axis=0))
-sys.stderr.write('\n')
 sys.stderr.write('logz_tol: {}\n'.format(lz_tol))
 sys.stderr.write('mean_tol: {}\n'.format(m_tol))
 sys.stderr.write('cov_tol: {}\n'.format(c_tol))
@@ -148,7 +146,7 @@ for bound in ['none', 'single', 'multi', 'balls', 'cubes']:
     sys.stderr.write('\n'+bound+'\n')
     sampler = dynesty.NestedSampler(loglikelihood, prior_transform, ndim,
                                     nlive=500, bound=bound, sample='unif')
-    sampler.run_nested(print_progress=True)
+    sampler.run_nested(print_progress=False)
     check_results(sampler.results, lz_tol, m_tol, c_tol)
 
 # check various sampling methods
@@ -156,33 +154,33 @@ for sample in ['unif', 'rwalk', 'rstagger', 'slice', 'rslice']:
     sys.stderr.write('\n'+sample+'\n')
     sampler = dynesty.NestedSampler(loglikelihood, prior_transform, ndim,
                                     nlive=500, sample=sample)
-    sampler.run_nested(print_progress=True)
+    sampler.run_nested(print_progress=False)
     check_results(sampler.results, lz_tol, m_tol, c_tol)
 
 # extra checks for gradients
 sys.stderr.write('\nhslice (no grad)\n')
 sampler = dynesty.NestedSampler(loglikelihood, prior_transform, ndim,
                                 nlive=500, sample='hslice')
-sampler.run_nested(print_progress=True)
+sampler.run_nested(print_progress=False)
 check_results(sampler.results, lz_tol, m_tol, c_tol)
 
 sys.stderr.write('\nhslice (grad w/o jac)\n')
 sampler = dynesty.NestedSampler(loglikelihood, prior_transform, ndim,
                                 nlive=500, sample='hslice', gradient=grad_x,
                                 compute_jac=True)
-sampler.run_nested(print_progress=True)
+sampler.run_nested(print_progress=False)
 check_results(sampler.results, lz_tol, m_tol, c_tol)
 
 sys.stderr.write('\nhslice (grad w/ jac)\n')
 sampler = dynesty.NestedSampler(loglikelihood, prior_transform, ndim,
                                 nlive=500, sample='hslice', gradient=grad_u)
-sampler.run_nested(print_progress=True)
+sampler.run_nested(print_progress=False)
 check_results(sampler.results, lz_tol, m_tol, c_tol)
 
 # dynamic nested sampling
 sys.stderr.write('\nDynamic Nested Sampling\n')
 dsampler = dynesty.DynamicNestedSampler(loglikelihood, prior_transform, ndim)
-dsampler.run_nested(print_progress=True)
+dsampler.run_nested(print_progress=False)
 check_results(dsampler.results, lz_tol, m_tol, c_tol)
 
 # check error analysis functions

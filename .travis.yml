@@ -1,8 +1,5 @@
 language: python
 
-# Setting sudo to false opts in to Travis-CI container-based builds.
-sudo: false
-
 python:
     - 2.7
     - 3.6
@@ -22,6 +19,7 @@ install:
     - conda create --yes -n test python=$TRAVIS_PYTHON_VERSION
     - source activate test
     - pip install coveralls
+    - pip install -U pip
     - python setup.py install
 
 script: $CMD

@@ -1,0 +1,202 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""
+Run a series of basic tests to check whether anything huge is broken.
+
+"""
+
+# compatibility
+from __future__ import (print_function, division)
+from six.moves import range
+
+# system functions that are always useful to have
+import time
+import sys
+import os
+
+# basic numeric setup
+import numpy as np
+from numpy import linalg
+
+# plotting
+import matplotlib
+from matplotlib import pyplot as plt
+
+# dynesty
+import dynesty
+from dynesty import plotting as dyplot
+from dynesty import utils as dyfunc
+
+# seed the random number generator
+np.random.seed(5647)
+
+
+# basic checks
+def check_results(results, lz_tol, m_tol, c_tol, sig=5):
+    pos = results.samples
+    wts = np.exp(results.logwt - results.logz[-1])
+    mean, cov = dyfunc.mean_and_cov(pos, wts)
+    logz, logzerr = results.logz[-1], sampler.results.logzerr[-1]
+    mean_check = np.all(np.abs(mean) < sig * m_tol)
+    cov_check = np.all(np.abs(cov - C) < sig * c_tol)
+    logz_check = abs((lnz_truth - logz)) < sig * lz_tol
+    sys.stderr.write('\nlogz: {} | mean: {} | cov: {}\n'
+                     .format(logz_check, mean_check, cov_check))
+
+
+# GAUSSIAN TEST
+
+ndim = 3  # number of dimensions
+C = np.identity(ndim)  # set covariance to identity matrix
+C[C == 0] = 0.95  # set off-diagonal terms (strongly correlated)
+Cinv = linalg.inv(C)  # precision matrix
+lnorm = -0.5 * (np.log(2 * np.pi) * ndim + np.log(linalg.det(C)))  # ln(norm)
+
+lnz_truth = ndim * -np.log(2 * 10.)
+
+
+# 3-D correlated multivariate normal log-likelihood
+def loglikelihood(x):
+    """Multivariate normal log-likelihood."""
+    return -0.5 * np.dot(x, np.dot(Cinv, x)) + lnorm
+
+
+# prior transform
+def prior_transform(u):
+    """Flat prior between -10. and 10."""
+    return 10. * (2. * u - 1.)
+
+
+# gradient (no jacobian)
+def grad_x(x):
+    """Multivariate normal log-likelihood gradient."""
+    return -np.dot(Cinv, x)
+
+
+# gradient (with jacobian)
+def grad_u(x):
+    """Multivariate normal log-likelihood gradient."""
+    return -np.dot(Cinv, x) * 20.
+
+
+# run sampling
+sys.stderr.write('\nDefault run\n')
+sampler = dynesty.NestedSampler(loglikelihood, prior_transform, ndim,
+                                nlive=500)
+sampler.run_nested(print_progress=True)
+
+# add samples
+sys.stderr.write('\n\nExtra samples\n')
+sampler.run_nested(dlogz=0.1, print_progress=True)
+
+
+# get errors
+sys.stderr.write('\n\n')
+means, covs, logzs = [], [], []
+nerr = 50
+for i in range(nerr):
+    sys.stderr.write('\rRepeat {}/{}'.format(i+1, nerr))
+    sampler.reset()
+    sampler.run_nested(print_progress=False)
+    results = sampler.results
+    pos = results.samples
+    wts = np.exp(results.logwt - results.logz[-1])
+    mean, cov = dyfunc.mean_and_cov(pos, wts)
+    logz = results.logz[-1]
+    means.append(mean)
+    covs.append(cov)
+    logzs.append(logz)
+lz_tol, m_tol, c_tol = (np.std(logzs), np.std(means, axis=0),
+                        np.std(covs, axis=0))
+sys.stderr.write('\n')
+sys.stderr.write('logz_tol: {}\n'.format(lz_tol))
+sys.stderr.write('mean_tol: {}\n'.format(m_tol))
+sys.stderr.write('cov_tol: {}\n'.format(c_tol))
+
+# check summary
+sys.stderr.write('\nResults\n')
+res = sampler.results
+res.summary()
+
+# check plots
+sys.stderr.write('\nPlotting\n')
+sys.stderr.write('Summary/Run Plot\n')
+dyplot.runplot(sampler.results)
+plt.close()
+sys.stderr.write('Trace Plot\n')
+dyplot.traceplot(sampler.results)
+plt.close()
+sys.stderr.write('Sub-Corner Plot (Points)\n')
+dyplot.cornerpoints(sampler.results)
+plt.close()
+sys.stderr.write('Corner Plot (Contours)\n')
+dyplot.cornerplot(sampler.results)
+plt.close()
+sys.stderr.write('2-D Bound Plot\n')
+dyplot.boundplot(sampler.results, dims=(0, 1), it=3000,
+                 prior_transform=prior_transform, show_live=True,
+                 span=[(-10, 10), (-10, 10)])
+plt.close()
+sys.stderr.write('Sub-Corner Plot (Bounds)\n')
+dyplot.cornerbound(sampler.results, it=3500, prior_transform=prior_transform,
+                   show_live=True, span=[(-10, 10), (-10, 10)])
+plt.close()
+
+# check various bounding methods
+for bound in ['none', 'single', 'multi', 'balls', 'cubes']:
+    sys.stderr.write('\n'+bound+'\n')
+    sampler = dynesty.NestedSampler(loglikelihood, prior_transform, ndim,
+                                    nlive=500, bound=bound, sample='unif')
+    sampler.run_nested(print_progress=True)
+    check_results(sampler.results, lz_tol, m_tol, c_tol)
+
+# check various sampling methods
+for sample in ['unif', 'rwalk', 'rstagger', 'slice', 'rslice']:
+    sys.stderr.write('\n'+sample+'\n')
+    sampler = dynesty.NestedSampler(loglikelihood, prior_transform, ndim,
+                                    nlive=500, sample=sample)
+    sampler.run_nested(print_progress=True)
+    check_results(sampler.results, lz_tol, m_tol, c_tol)
+
+# extra checks for gradients
+sys.stderr.write('\nhslice (no grad)\n')
+sampler = dynesty.NestedSampler(loglikelihood, prior_transform, ndim,
+                                nlive=500, sample='hslice')
+sampler.run_nested(print_progress=True)
+check_results(sampler.results, lz_tol, m_tol, c_tol)
+
+sys.stderr.write('\nhslice (grad w/o jac)\n')
+sampler = dynesty.NestedSampler(loglikelihood, prior_transform, ndim,
+                                nlive=500, sample='hslice', gradient=grad_x,
+                                compute_jac=True)
+sampler.run_nested(print_progress=True)
+check_results(sampler.results, lz_tol, m_tol, c_tol)
+
+sys.stderr.write('\nhslice (grad w/ jac)\n')
+sampler = dynesty.NestedSampler(loglikelihood, prior_transform, ndim,
+                                nlive=500, sample='hslice', gradient=grad_u)
+sampler.run_nested(print_progress=True)
+check_results(sampler.results, lz_tol, m_tol, c_tol)
+
+# dynamic nested sampling
+sys.stderr.write('\nDynamic Nested Sampling\n')
+dsampler = dynesty.DynamicNestedSampler(loglikelihood, prior_transform, ndim)
+dsampler.run_nested(print_progress=True)
+check_results(dsampler.results, lz_tol, m_tol, c_tol)
+
+# check error analysis functions
+sys.stderr.write('\nError Analysis\n')
+sys.stderr.write('Jittering')
+dres = dyfunc.jitter_run(dsampler.results)
+check_results(dres, lz_tol, m_tol, c_tol)
+sys.stderr.write('Resampling')
+dres = dyfunc.resample_run(dsampler.results)
+check_results(dres, lz_tol, m_tol, c_tol)
+sys.stderr.write('Combined')
+dres = dyfunc.simulate_run(dsampler.results)
+check_results(dres, lz_tol, m_tol, c_tol)
+sys.stderr.write('KLD Error\n')
+dyfunc.kld_error(dsampler.results)
+
+# if we got to the end, then we know things at least aren't totally broken!

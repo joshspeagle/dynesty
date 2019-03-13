@@ -21,6 +21,9 @@ from numpy import linalg
 
 # plotting
 import matplotlib
+if os.environ.get('DISPLAY','') == '':
+    print('No display found. Using non-interactive Agg backend.')
+    matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 
 # dynesty

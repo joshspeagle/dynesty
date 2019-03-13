@@ -15,10 +15,11 @@ before_install:
     - conda update --yes conda
 
 install:
-    - conda create --yes -n test python=$TRAVIS_PYTHON_VERSION matplotlib=2.2.4
+    - conda create --yes -n test python=$TRAVIS_PYTHON_VERSION
     - source activate test
-    - pip install coveralls
     - pip install -U pip
+    - pip install coveralls
+    - pip install matplotlib==2.2.4
     - python setup.py install
 
 script: python runtests.py

@@ -4,10 +4,6 @@ python:
     - 2.7
     - 3.6
 
-env:
-    global:
-        - CMD='./runtests.py'
-
 before_install:
     - wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh -O miniconda.sh
     - chmod +x miniconda.sh
@@ -22,6 +18,6 @@ install:
     - pip install -U pip
     - python setup.py install
 
-script: $CMD
+script: python runtests.py
 
 after_success: coveralls

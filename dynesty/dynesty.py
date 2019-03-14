@@ -39,7 +39,7 @@ SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
 def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
-                  bound='multi', sample='auto',
+                  bound='multi', sample='auto', periodic=None,
                   update_interval=None, first_update=None,
                   npdim=None, rstate=None, queue_size=None, pool=None,
                   use_pool=None, live_points=None,
@@ -106,6 +106,14 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         provided and `'slice'` otherwise. `'rstagger'` and `'rslice'`
         are provided as alternatives for `'rwalk'` and `'slice'`, respectively.
         Default is `'auto'`.
+
+    periodic : iterable, optional
+        A list of indices for parameters with periodic boundary conditions.
+        These parameters *will not* have their positions constrained to be
+        within the unit cube, enabling smooth behavior for parameters
+        that may wrap around the edge. It is assumed that their periodicity
+        is dealt with in the `prior_transform` and/or `loglikelihood`
+        functions. Default is `None` (i.e. no periodic boundary conditions).
 
     update_interval : int or float, optional
         If an integer is passed, only update the proposal distribution every
@@ -284,6 +292,14 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
                       "having `nlive < ndim * (ndim + 1) // 2` may result in "
                       "unconstrained bounding distributions.")
 
+    # Gather non-periodic boundary conditions.
+    if periodic is not None:
+        nonperiodic = np.ones(npdim, dtype='bool')
+        nonperiodic[periodic] = False
+    else:
+        nonperiodic = None
+    kwargs['nonperiodic'] = nonperiodic
+
     # Update interval for bounds.
     if update_interval is None:
         if sample == 'unif':
@@ -424,7 +440,7 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
 
 
 def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
-                         bound='multi', sample='auto',
+                         bound='multi', sample='auto', periodic=None,
                          update_interval=None, first_update=None,
                          npdim=None, rstate=None, queue_size=None, pool=None,
                          use_pool=None, logl_args=None, logl_kwargs=None,
@@ -487,6 +503,14 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         provided and `'slice'` otherwise. `'rstagger'` and `'rslice'`
         are provided as alternatives for `'rwalk'` and `'slice'`, respectively.
         Default is `'auto'`.
+
+    periodic : iterable, optional
+        A list of indices for parameters with periodic boundary conditions.
+        These parameters *will not* have their positions constrained to be
+        within the unit cube, enabling smooth behavior for parameters
+        that may wrap around the edge. It is assumed that their periodicity
+        is dealt with in the `prior_transform` and/or `loglikelihood`
+        functions. Default is `None` (i.e. no periodic boundary conditions).
 
     update_interval : int or float, optional
         If an integer is passed, only update the proposal distribution every
@@ -647,6 +671,14 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
                 sample = 'hslice'
     if sample not in _SAMPLING:
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
+
+    # Gather non-periodic boundary conditions.
+    if periodic is not None:
+        nonperiodic = np.ones(npdim, dtype='bool')
+        nonperiodic[periodic] = False
+    else:
+        nonperiodic = None
+    kwargs['nonperiodic'] = nonperiodic
 
     # Update interval for bounds.
     if update_interval is None:

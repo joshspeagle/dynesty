@@ -18,7 +18,7 @@ import copy
 
 from .results import *
 
-__all__ = ["random_choice", "resample_equal", "mean_and_cov", "quantile",
+__all__ = ["unitcheck", "resample_equal", "mean_and_cov", "quantile",
            "jitter_run", "resample_run", "simulate_run", "reweight_run",
            "unravel_run", "merge_runs", "kl_divergence", "kld_error",
            "_merge_two"]
@@ -26,24 +26,20 @@ __all__ = ["random_choice", "resample_equal", "mean_and_cov", "quantile",
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
-def random_choice(a, p, rstate=None):
-    """Built-in replacement for `~numpy.random.choice`."""
+def unitcheck(u, nonperiodic=None):
+    """Check whether `u` is inside the unit cube. Given a masked array
+    `nonperiodic`, also allows periodic boundaries conditions to exceed
+    the unit cube."""
 
-    if rstate is None:
-        rstate = np.random
-
-    if abs(np.sum(p) - 1.) > SQRTEPS:  # same tol as in np.random.choice.
-        raise ValueError("probabilities do not sum to 1")
-
-    # Randomly sample an index.
-    r = rstate.rand()
-    i = 0
-    t = p[i]
-    while t < r:
-        i += 1
-        t += p[i]
-
-    return i
+    if nonperiodic is None:
+        # No periodic boundary conditions provided.
+        return np.all(u > 0.) and np.all(u < 1.)
+    else:
+        # Alternating periodic and non-periodic boundary conditions.
+        return (np.all(u[nonperiodic] > 0.) and
+                np.all(u[nonperiodic] < 1.) and
+                np.all(u[~nonperiodic] > -0.5) and
+                np.all(u[~nonperiodic] < 1.5))
 
 
 def mean_and_cov(samples, weights):

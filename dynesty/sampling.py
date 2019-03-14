@@ -19,6 +19,8 @@ import numpy as np
 from numpy import linalg
 from scipy import misc
 
+from .utils import unitcheck
+
 
 __all__ = ["sample_unif", "sample_rwalk", "sample_rstagger",
            "sample_slice", "sample_rslice", "sample_hslice"]
@@ -85,6 +87,7 @@ def sample_unif(args):
     (u, loglstar, axes, scale,
      prior_transform, loglikelihood, kwargs) = args
 
+    # Evaluate.
     v = prior_transform(np.array(u))
     logl = loglikelihood(np.array(v))
     nc = 1
@@ -150,6 +153,10 @@ def sample_rwalk(args):
      prior_transform, loglikelihood, kwargs) = args
     rstate = np.random
 
+    # Periodicity.
+    nonperiodic = kwargs.get('nonperiodic', None)
+
+    # Setup.
     n = len(u)
     walks = kwargs.get('walks', 25)  # number of steps
     accept = 0
@@ -191,7 +198,7 @@ def sample_rwalk(args):
             u_prop = u + scale * du
 
             # Check unit cube constraints.
-            if np.all(u_prop > 0.) and np.all(u_prop < 1.):
+            if unitcheck(u_prop, nonperiodic):
                 break
             else:
                 fail += 1
@@ -290,6 +297,10 @@ def sample_rstagger(args):
      prior_transform, loglikelihood, kwargs) = args
     rstate = np.random
 
+    # Periodicity.
+    nonperiodic = kwargs.get('nonperiodic', None)
+
+    # Setup.
     n = len(u)
     walks = kwargs.get('walks', 25)  # number of steps
     facc_target = kwargs.get('facc', 0.5)  # acceptance fraction
@@ -333,7 +344,7 @@ def sample_rstagger(args):
             u_prop = u + scale * stagger * du
 
             # Check unit cube constraints.
-            if np.all(u_prop > 0.) and np.all(u_prop < 1.):
+            if unitcheck(u_prop, nonperiodic):
                 break
             else:
                 fail += 1
@@ -438,6 +449,10 @@ def sample_slice(args):
      prior_transform, loglikelihood, kwargs) = args
     rstate = np.random
 
+    # Periodicity.
+    nonperiodic = kwargs.get('nonperiodic', None)
+
+    # Setup.
     n = len(u)
     slices = kwargs.get('slices', 5)  # number of slices
     nc = 0
@@ -466,7 +481,7 @@ def sample_slice(args):
             # Define starting "window".
             r = rstate.rand()  # initial scale/offset
             u_l = u - r * axis  # left bound
-            if np.all(u_l > 0.) and np.all(u_l < 1.):
+            if unitcheck(u_l, nonperiodic):
                 v_l = prior_transform(np.array(u_l))
                 logl_l = loglikelihood(np.array(v_l))
             else:
@@ -474,7 +489,7 @@ def sample_slice(args):
             nc += 1
             nexpand += 1
             u_r = u + (1 - r) * axis  # right bound
-            if np.all(u_r > 0.) and np.all(u_r < 1.):
+            if unitcheck(u_r, nonperiodic):
                 v_r = prior_transform(np.array(u_r))
                 logl_r = loglikelihood(np.array(v_r))
             else:
@@ -485,7 +500,7 @@ def sample_slice(args):
             # "Stepping out" the left and right bounds.
             while logl_l >= loglstar:
                 u_l -= axis
-                if np.all(u_l > 0.) and np.all(u_l < 1.):
+                if unitcheck(u_l, nonperiodic):
                     v_l = prior_transform(np.array(u_l))
                     logl_l = loglikelihood(np.array(v_l))
                 else:
@@ -494,7 +509,7 @@ def sample_slice(args):
                 nexpand += 1
             while logl_r >= loglstar:
                 u_r += axis
-                if np.all(u_r > 0.) and np.all(u_r < 1.):
+                if unitcheck(u_r, nonperiodic):
                     v_r = prior_transform(np.array(u_r))
                     logl_r = loglikelihood(np.array(v_r))
                 else:
@@ -507,7 +522,7 @@ def sample_slice(args):
             while True:
                 u_hat = u_r - u_l
                 u_prop = u_l + rstate.rand() * u_hat  # scale from left
-                if np.all(u_prop > 0.) and np.all(u_prop < 1.):
+                if unitcheck(u_prop, nonperiodic):
                     v_prop = prior_transform(np.array(u_prop))
                     logl_prop = loglikelihood(np.array(v_prop))
                 else:
@@ -609,6 +624,10 @@ def sample_rslice(args):
      prior_transform, loglikelihood, kwargs) = args
     rstate = np.random
 
+    # Periodicity.
+    nonperiodic = kwargs.get('nonperiodic', None)
+
+    # Setup.
     n = len(u)
     slices = kwargs.get('slices', 5)  # number of slices
     nc = 0
@@ -630,7 +649,7 @@ def sample_rslice(args):
         # Define starting "window".
         r = rstate.rand()  # initial scale/offset
         u_l = u - r * axis  # left bound
-        if np.all(u_l > 0.) and np.all(u_l < 1.):
+        if unitcheck(u_l, nonperiodic):
             v_l = prior_transform(np.array(u_l))
             logl_l = loglikelihood(np.array(v_l))
         else:
@@ -638,7 +657,7 @@ def sample_rslice(args):
         nc += 1
         nexpand += 1
         u_r = u + (1 - r) * axis  # right bound
-        if np.all(u_r > 0.) and np.all(u_r < 1.):
+        if unitcheck(u_r, nonperiodic):
             v_r = prior_transform(np.array(u_r))
             logl_r = loglikelihood(np.array(v_r))
         else:
@@ -649,7 +668,7 @@ def sample_rslice(args):
         # "Stepping out" the left and right bounds.
         while logl_l >= loglstar:
             u_l -= axis
-            if np.all(u_l > 0.) and np.all(u_l < 1.):
+            if unitcheck(u_l, nonperiodic):
                 v_l = prior_transform(np.array(u_l))
                 logl_l = loglikelihood(np.array(v_l))
             else:
@@ -658,7 +677,7 @@ def sample_rslice(args):
             nexpand += 1
         while logl_r >= loglstar:
             u_r += axis
-            if np.all(u_r > 0.) and np.all(u_r < 1.):
+            if unitcheck(u_r, nonperiodic):
                 v_r = prior_transform(np.array(u_r))
                 logl_r = loglikelihood(np.array(v_r))
             else:
@@ -671,7 +690,7 @@ def sample_rslice(args):
         while True:
             u_hat = u_r - u_l
             u_prop = u_l + rstate.rand() * u_hat  # scale from left
-            if np.all(u_prop > 0.) and np.all(u_prop < 1.):
+            if unitcheck(u_prop, nonperiodic):
                 v_prop = prior_transform(np.array(u_prop))
                 logl_prop = loglikelihood(np.array(v_prop))
             else:
@@ -777,6 +796,10 @@ def sample_hslice(args):
      prior_transform, loglikelihood, kwargs) = args
     rstate = np.random
 
+    # Periodicity.
+    nonperiodic = kwargs.get('nonperiodic', None)
+
+    # Setup.
     n = len(u)
     slices = kwargs.get('slices', 5)  # number of slices
     grad = kwargs.get('grad', None)  # gradient of log-likelihood
@@ -826,7 +849,7 @@ def sample_hslice(args):
                 # Step forward.
                 u_r += rstate.uniform(1. - jitter, 1. + jitter) * vel
                 # Evaluate point.
-                if np.all(u_r > 0.) and np.all(u_r < 1.):
+                if unitcheck(u_r, nonperiodic):
                     v_r = prior_transform(np.array(u_r))
                     logl_r = loglikelihood(np.array(v_r))
                     nc += 1
@@ -882,7 +905,7 @@ def sample_hslice(args):
                     u_r_l, u_r_r = np.array(u_r), np.array(u_r)
                     # right side
                     u_r_r[i] += 1e-10
-                    if np.all(u_r_r > 0.) and np.all(u_r_r < 1.):
+                    if unitcheck(u_r_r, nonperiodic):
                         v_r_r = prior_transform(np.array(u_r_r))
                         logl_r_r = loglikelihood(np.array(v_r_r))
                     else:
@@ -891,7 +914,7 @@ def sample_hslice(args):
                     nc += 1
                     # left side
                     u_r_l[i] -= 1e-10
-                    if np.all(u_r_l > 0.) and np.all(u_r_l < 1.):
+                    if unitcheck(u_r_l, nonperiodic):
                         v_r_l = prior_transform(np.array(u_r_l))
                         logl_r_l = loglikelihood(np.array(v_r_l))
                     else:
@@ -913,14 +936,14 @@ def sample_hslice(args):
                         u_r_l, u_r_r = np.array(u_r), np.array(u_r)
                         # right side
                         u_r_r[i] += 1e-10
-                        if np.all(u_r_r > 0.) and np.all(u_r_r < 1.):
+                        if unitcheck(u_r_r, nonperiodic):
                             v_r_r = prior_transform(np.array(u_r_r))
                         else:
                             reverse = True  # can't compute Jacobian
                             v_r_r = np.array(v_r)  # assume no movement
                         # left side
                         u_r_l[i] -= 1e-10
-                        if np.all(u_r_l > 0.) and np.all(u_r_l < 1.):
+                        if unitcheck(u_r_l, nonperiodic):
                             v_r_l = prior_transform(np.array(u_r_l))
                         else:
                             reverse = True  # can't compute Jacobian
@@ -964,7 +987,7 @@ def sample_hslice(args):
                 # Step forward.
                 u_l += rstate.uniform(1. - jitter, 1. + jitter) * vel
                 # Evaluate point.
-                if np.all(u_l > 0.) and np.all(u_l < 1.):
+                if unitcheck(u_l, nonperiodic):
                     v_l = prior_transform(np.array(u_l))
                     logl_l = loglikelihood(np.array(v_l))
                     nc += 1
@@ -1020,7 +1043,7 @@ def sample_hslice(args):
                     u_l_l, u_l_r = np.array(u_l), np.array(u_l)
                     # right side
                     u_l_r[i] += 1e-10
-                    if np.all(u_l_r > 0.) and np.all(u_l_r < 1.):
+                    if unitcheck(u_l_r, nonperiodic):
                         v_l_r = prior_transform(np.array(u_l_r))
                         logl_l_r = loglikelihood(np.array(v_l_r))
                     else:
@@ -1029,7 +1052,7 @@ def sample_hslice(args):
                     nc += 1
                     # left side
                     u_l_l[i] -= 1e-10
-                    if np.all(u_l_l > 0.) and np.all(u_l_l < 1.):
+                    if unitcheck(u_l_l, nonperiodic):
                         v_l_l = prior_transform(np.array(u_l_l))
                         logl_l_l = loglikelihood(np.array(v_l_l))
                     else:
@@ -1051,14 +1074,14 @@ def sample_hslice(args):
                         u_l_l, u_l_r = np.array(u_l), np.array(u_l)
                         # right side
                         u_l_r[i] += 1e-10
-                        if np.all(u_l_r > 0.) and np.all(u_l_r < 1.):
+                        if unitcheck(u_l_r, nonperiodic):
                             v_l_r = prior_transform(np.array(u_l_r))
                         else:
                             reverse = True  # can't compute Jacobian
                             v_l_r = np.array(v_l)  # assume no movement
                         # left side
                         u_l_l[i] -= 1e-10
-                        if np.all(u_l_l > 0.) and np.all(u_l_l < 1.):
+                        if unitcheck(u_l_l, nonperiodic):
                             v_l_l = prior_transform(np.array(u_l_l))
                         else:
                             reverse = True  # can't compute Jacobian
@@ -1111,7 +1134,7 @@ def sample_hslice(args):
             u_hat = u_r - u_l
             rprop = rstate.rand()
             u_prop = u_l + rprop * u_hat  # scale from left
-            if np.all(u_prop > 0.) and np.all(u_prop < 1.):
+            if unitcheck(u_prop, nonperiodic):
                 v_prop = prior_transform(np.array(u_prop))
                 logl_prop = loglikelihood(np.array(v_prop))
             else:

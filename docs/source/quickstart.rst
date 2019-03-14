@@ -280,7 +280,7 @@ directly, however, we can instead pass an integer::
 This now specifies that we will update our bounds after `600` function
 calls.
 
-Finally, ``dynesty`` tries to avoid constructing bounding distributions
+``dynesty`` tries to avoid constructing bounding distributions
 early in the run to avoid issues where the bounds can significantly exceed the
 unit cube. For instance, in most cases the bounding distribution 
 of the initial set of points *by construction* will exceed
@@ -302,7 +302,19 @@ argument::
                   first_update={'min_ncall': 100, 'min_eff': 50.})
 
 This will now trigger an update when 100 log-likelihood function calls have
-been made and the effiency drops below 50%. 
+been made and the effiency drops below 50%.
+
+For specific problems, ``dynesty`` also enables the use of
+**periodic boundary conditions**. This allows points to wrap around the
+unit cube (once), which can help with sampling parameters with periodic
+boundary conditions whose solutions end up near the bounds (e.g., :math:`0` or
+:math:`2\pi` for phases). These can be enabled by just
+specifying the indices of the relevant periodic parameters, as shown below::
+
+    NestedSampler(loglike, ptform, ndim, nlive=1500, bound='balls',
+                  periodic=[0, 2], bootstrap=50, enlarge=1.10,
+                  update_interval=600, first_update={'min_eff': 25.})
+
 See :ref:`Top-Level Interface` for more information.
 
 Sampling Options
@@ -360,6 +372,8 @@ multiple bounding ellipsoids and slice sampling.
 This might look something like:: 
 
     NestedSampler(loglike, ptform, ndim, bound='multi', sample='slice')
+
+See :ref:`Top-Level Interface` for additional information.
 
 Running Internally
 ------------------

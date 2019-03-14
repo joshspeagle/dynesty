@@ -21,7 +21,7 @@ from scipy import spatial
 from scipy.ndimage import gaussian_filter as norm_kde
 from scipy.stats import gaussian_kde
 import warnings
-from .utils import resample_equal
+from .utils import resample_equal, unitcheck
 from .utils import quantile as _quantile
 
 try:
@@ -1302,10 +1302,10 @@ def cornerplot(results, span=None, quantiles=[0.025, 0.5, 0.975],
 
 
 def boundplot(results, dims, it=None, idx=None, prior_transform=None,
-              ndraws=5000, color='gray', plot_kwargs=None, labels=None,
-              label_kwargs=None, max_n_ticks=5, use_math_text=False,
-              show_live=False, live_color='darkviolet', live_kwargs=None,
-              span=None, fig=None):
+              periodic=None, ndraws=5000, color='gray', plot_kwargs=None,
+              labels=None, label_kwargs=None, max_n_ticks=5,
+              use_math_text=False, show_live=False, live_color='darkviolet',
+              live_kwargs=None, span=None, fig=None):
     """
     Return the bounding distribution used to propose either (1) live points
     at a given iteration or (2) a specific dead point during
@@ -1335,6 +1335,14 @@ def boundplot(results, dims, it=None, idx=None, prior_transform=None,
         The function transforming samples within the unit cube back to samples
         in the native model space. If provided, the transformed bounding
         distribution will be plotted in the native model space.
+
+    periodic : iterable, optional
+        A list of indices for parameters with periodic boundary conditions.
+        These parameters *will not* have their positions constrained to be
+        within the unit cube, enabling smooth behavior for parameters
+        that may wrap around the edge. It is assumed that their periodicity
+        is dealt with in the `prior_transform`.
+        Default is `None` (i.e. no periodic boundary conditions).
 
     ndraws : int, optional
         The number of random samples to draw from the bounding distribution
@@ -1402,6 +1410,13 @@ def boundplot(results, dims, it=None, idx=None, prior_transform=None,
     # Check that either `idx` or `it` has been specified.
     if (it is None and idx is None) or (it is not None and idx is not None):
         raise ValueError("You must specify either an iteration or an index!")
+
+    # Gather non-periodic boundary conditions.
+    if periodic is not None:
+        nonperiodic = np.ones(npdim, dtype='bool')
+        nonperiodic[periodic] = False
+    else:
+        nonperiodic = None
 
     # Set defaults.
     plot_kwargs['marker'] = plot_kwargs.get('marker', 'o')
@@ -1550,9 +1565,8 @@ def boundplot(results, dims, it=None, idx=None, prior_transform=None,
         if show_live:
             l1, l2 = live_u[:, dims].T
     else:
-        # Remove points outside of the unit cube.
-        sel = [np.all(point > 0.) and np.all(point < 1.)
-               for point in psamps]
+        # Remove points outside of the unit cube as appropriate.
+        sel = [unitcheck(point, nonperiodic) for point in psamps]
         vsamps = np.array(list(map(prior_transform, psamps[sel])))
         x1, x2 = vsamps[:, dims].T
         if show_live:
@@ -1600,10 +1614,10 @@ def boundplot(results, dims, it=None, idx=None, prior_transform=None,
 
 
 def cornerbound(results, it=None, idx=None, prior_transform=None,
-                ndraws=5000, color='gray', plot_kwargs=None, labels=None,
-                label_kwargs=None, max_n_ticks=5, use_math_text=False,
-                show_live=False, live_color='darkviolet', live_kwargs=None,
-                span=None, fig=None):
+                periodic=None, ndraws=5000, color='gray', plot_kwargs=None,
+                labels=None, label_kwargs=None, max_n_ticks=5,
+                use_math_text=False, show_live=False, live_color='darkviolet',
+                live_kwargs=None, span=None, fig=None):
     """
     Return the bounding distribution used to propose either (1) live points
     at a given iteration or (2) a specific dead point during
@@ -1629,6 +1643,14 @@ def cornerbound(results, it=None, idx=None, prior_transform=None,
         The function transforming samples within the unit cube back to samples
         in the native model space. If provided, the transformed bounding
         distribution will be plotted in the native model space.
+
+    periodic : iterable, optional
+        A list of indices for parameters with periodic boundary conditions.
+        These parameters *will not* have their positions constrained to be
+        within the unit cube, enabling smooth behavior for parameters
+        that may wrap around the edge. It is assumed that their periodicity
+        is dealt with in the `prior_transform`.
+        Default is `None` (i.e. no periodic boundary conditions).
 
     ndraws : int, optional
         The number of random samples to draw from the bounding distribution
@@ -1697,6 +1719,13 @@ def cornerbound(results, it=None, idx=None, prior_transform=None,
     # Check that either `idx` or `it` is specified.
     if (it is None and idx is None) or (it is not None and idx is not None):
         raise ValueError("You must specify either an iteration or an index!")
+
+    # Gather non-periodic boundary conditions.
+    if periodic is not None:
+        nonperiodic = np.ones(npdim, dtype='bool')
+        nonperiodic[periodic] = False
+    else:
+        nonperiodic = None
 
     # Set defaults.
     plot_kwargs['marker'] = plot_kwargs.get('marker', 'o')
@@ -1845,8 +1874,7 @@ def cornerbound(results, it=None, idx=None, prior_transform=None,
             lsamps = live_u.T
     else:
         # Remove points outside of the unit cube.
-        sel = [np.all(point > 0.) and np.all(point < 1.)
-               for point in psamps]
+        sel = [unitcheck(point, nonperiodic) for point in psamps]
         psamps = np.array(list(map(prior_transform, psamps[sel])))
         psamps = psamps.T
         if show_live:

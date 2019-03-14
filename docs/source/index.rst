@@ -34,6 +34,12 @@ Changelog
 .. image:: ../images/logo.gif
     :align: center
 
+0.9.5 (2019-03-14)
+-------------------
+* Added support for periodic boundary conditions.
+
+* Set up basic tests for continuous integration.
+
 0.9.4 (2019-03-07)
 -------------------
 * Added a logo!

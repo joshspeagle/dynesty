@@ -39,6 +39,7 @@ import heapq
 from .sampler import *
 from .bounding import *
 from .sampling import *
+from .utils import unitcheck
 
 __all__ = ["UnitCubeSampler", "SingleEllipsoidSampler",
            "MultiEllipsoidSampler", "RadFriendsSampler", "SupFriendsSampler"]
@@ -72,6 +73,11 @@ class UnitCubeSampler(Sampler):
         Initial set of "live" points. Contains `live_u`, the coordinates
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
+
+    method : {`'unif'`, `'rwalk'`, `'rstagger'`,
+              `'slice'`, `'rslice'`, `'hslice'`}, optional
+        Method used to sample uniformly within the likelihood constraint,
+        conditioned on the provided bounds.
 
     update_interval : int
         Only update the bounding distribution every `update_interval`-th
@@ -148,6 +154,9 @@ class UnitCubeSampler(Sampler):
         self.unitcube = UnitCube(self.npdim)
         self.bounding = 'none'
         self.method = method
+        self.nonperiodic = self.kwargs.get('nonperiodic', None)
+
+        # Gradient.
         self.grad = self.kwargs.get('grad', None)
         self.compute_jac = self.kwargs.get('compute_jac', False)
 
@@ -242,6 +251,11 @@ class SingleEllipsoidSampler(Sampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
+    method : {`'unif'`, `'rwalk'`, `'rstagger'`,
+              `'slice'`, `'rslice'`, `'hslice'`}, optional
+        Method used to sample uniformly within the likelihood constraint,
+        conditioned on the provided bounds.
+
     update_interval : int
         Only update the bounding distribution every `update_interval`-th
         likelihood call.
@@ -317,6 +331,9 @@ class SingleEllipsoidSampler(Sampler):
         self.ell = Ellipsoid(np.zeros(self.npdim), np.identity(self.npdim))
         self.bounding = 'single'
         self.method = method
+        self.nonperiodic = self.kwargs.get('nonperiodic', None)
+
+        # Gradient.
         self.grad = self.kwargs.get('grad', None)
         self.compute_jac = self.kwargs.get('compute_jac', False)
 
@@ -357,7 +374,7 @@ class SingleEllipsoidSampler(Sampler):
             u = self.ell.sample(rstate=self.rstate)
 
             # Check if `u` is within the unit cube.
-            if self._check_unit_cube(u):
+            if unitcheck(u, self.nonperiodic):
                 break  # if it is, we're done!
 
         return u, self.ell.axes
@@ -435,6 +452,11 @@ class MultiEllipsoidSampler(Sampler):
         Initial set of "live" points. Contains `live_u`, the coordinates
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
+
+    method : {`'unif'`, `'rwalk'`, `'rstagger'`,
+              `'slice'`, `'rslice'`, `'hslice'`}, optional
+        Method used to sample uniformly within the likelihood constraint,
+        conditioned on the provided bounds.
 
     update_interval : int
         Only update the bounding distribution every `update_interval`-th
@@ -514,6 +536,9 @@ class MultiEllipsoidSampler(Sampler):
                                    covs=[np.identity(self.npdim)])
         self.bounding = 'multi'
         self.method = method
+        self.nonperiodic = self.kwargs.get('nonperiodic', None)
+
+        # Gradient.
         self.grad = self.kwargs.get('grad', None)
         self.compute_jac = self.kwargs.get('compute_jac', False)
 
@@ -558,7 +583,7 @@ class MultiEllipsoidSampler(Sampler):
             u, idx, q = self.mell.sample(rstate=self.rstate, return_q=True)
 
             # Check if the point is within the unit cube.
-            if self._check_unit_cube(u):
+            if unitcheck(u, self.nonperiodic):
                 # Accept the point with probability 1/q to account for
                 # overlapping ellipsoids.
                 if q == 1 or self.rstate.rand() < 1.0 / q:
@@ -669,6 +694,11 @@ class RadFriendsSampler(Sampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
+    method : {`'unif'`, `'rwalk'`, `'rstagger'`,
+              `'slice'`, `'rslice'`, `'hslice'`}, optional
+        Method used to sample uniformly within the likelihood constraint,
+        conditioned on the provided bounds.
+
     update_interval : int
         Only update the bounding distribution every `update_interval`-th
         likelihood call.
@@ -745,6 +775,9 @@ class RadFriendsSampler(Sampler):
         self.bounding = 'balls'
         self.method = method
         self.use_kdtree = self.kwargs.get('use_kdtree', False)
+        self.nonperiodic = self.kwargs.get('nonperiodic', None)
+
+        # Gradient.
         self.grad = self.kwargs.get('grad', None)
         self.compute_jac = self.kwargs.get('compute_jac', False)
 
@@ -800,7 +833,7 @@ class RadFriendsSampler(Sampler):
                                           return_q=True, kdtree=kdtree)
 
             # Check if our sample is within the unit cube.
-            if self._check_unit_cube(u):
+            if unitcheck(u, self.nonperiodic):
                 # Accept the point with probability 1/q to account for
                 # overlapping balls.
                 if q == 1 or self.rstate.rand() < 1.0 / q:
@@ -878,6 +911,11 @@ class SupFriendsSampler(Sampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
+    method : {`'unif'`, `'rwalk'`, `'rstagger'`,
+              `'slice'`, `'rslice'`, `'hslice'`}, optional
+        Method used to sample uniformly within the likelihood constraint,
+        conditioned on the provided bounds.
+
     update_interval : int
         Only update the bounding distribution every `update_interval`-th
         likelihood call.
@@ -954,6 +992,9 @@ class SupFriendsSampler(Sampler):
         self.bounding = 'cubes'
         self.method = method
         self.use_kdtree = self.kwargs.get('use_kdtree', False)
+        self.nonperiodic = self.kwargs.get('nonperiodic', None)
+
+        # Gradient.
         self.grad = self.kwargs.get('grad', None)
         self.compute_jac = self.kwargs.get('compute_jac', False)
 
@@ -1010,7 +1051,7 @@ class SupFriendsSampler(Sampler):
                                           return_q=True, kdtree=kdtree)
 
             # Check if our point is within the unit cube.
-            if self._check_unit_cube(u):
+            if unitcheck(u, self.nonperiodic):
                 # Accept the point with probability 1/q to account for
                 # overlapping cubes.
                 if q == 1 or self.rstate.rand() < 1.0 / q:

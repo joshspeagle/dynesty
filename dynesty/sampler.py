@@ -239,11 +239,6 @@ class Sampler(object):
 
         return Results(results)
 
-    def _check_unit_cube(self, point):
-        """Check whether a point falls within the unit cube."""
-
-        return np.all(point > 0.) and np.all(point < 1.)
-
     def _beyond_unit_bound(self, loglstar):
         """Check whether we should update our bound beyond the initial
         unit cube."""

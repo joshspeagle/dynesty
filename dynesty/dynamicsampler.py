@@ -304,16 +304,12 @@ class DynamicSampler(object):
     bound : {`'none'`, `'single'`, `'multi'`, `'balls'`, `'cubes'`}, optional
         Method used to approximately bound the prior using the current
         set of live points. Conditions the sampling methods used to
-        propose new live points. Choices are no bound (`'none'`), a single
-        bounding ellipsoid (`'single'`), multiple bounding ellipsoids
-        (`'multi'`), balls centered on each live point (`'balls'`), and
-        cubes centered on each live point (`'cubes'`). Default is `'multi'`.
+        propose new live points.
 
-    method : {`'unif'`, `'rwalk'`, `'slice'`}, optional
+    method : {`'unif'`, `'rwalk'`, `'rstagger'`,
+              `'slice'`, `'rslice'`, `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
-        conditioned on the provided bounds. Choices are uniform
-        (`'unif'`), random walks (`'rwalk'`), and slices (`'slice'`).
-        Default is `'unif'`.
+        conditioned on the provided bounds.
 
     update_interval : int
         Only update the bounding distribution every `update_interval`-th
@@ -340,46 +336,6 @@ class DynamicSampler(object):
 
     kwargs : dict, optional
         A dictionary of additional parameters (described below).
-
-    Other Parameters
-    ----------------
-    enlarge : float, optional
-        Enlarge the volumes of the ellipsoids by this fraction. The preferred
-        method is to determine this organically using bootstrapping. If
-        `bootstrap > 0`, this defaults to `1.0`. If `bootstrap = 0`,
-        this instead defaults to `1.25`.
-
-    bootstrap : int, optional
-        Compute this many bootstrapped realizations of the bounding
-        objects. Use the maximum distance found to the set of points left
-        out during each iteration to enlarge the resulting volumes.
-        Default is `20` for uniform sampling (`'unif'`) and `0` for random
-        walks (`'rwalk'`) and slice sampling (`'slice'`).
-
-    vol_dec : float, optional
-        For the `'multi'` bounding option, the required fractional reduction
-        in volume after splitting an ellipsoid in order to to accept the split.
-        Default is `0.5`.
-
-    vol_check : float, optional
-        For the `'multi'` bounding option, the factor used when checking if
-        the volume of the original bounding ellipsoid is large enough to
-        warrant `> 2` splits via `ell.vol > vol_check * nlive * pointvol`.
-        Default is `2.0`.
-
-    walks : int, optional
-        For the `'rwalk'` sampling option, the minimum number of steps
-        (minimum 2) before proposing a new live point. Default is `25`.
-
-    facc : float, optional
-        The target acceptance fraction for the `'rwalk'` sampling option.
-        Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
-
-    slices : int, optional
-        For the `'slice'` sampling option, the number of times to "slice"
-        through **all dimensions** before proposing a new live point.
-        Default is `3`.
-
 
     """
 

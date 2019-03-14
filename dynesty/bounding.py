@@ -33,8 +33,9 @@ from numpy import linalg
 from scipy import special
 from scipy import spatial
 from scipy import linalg as lalg
-from .utils import random_choice
 from numpy import cov as mle_cov
+
+from .utils import unitcheck
 
 __all__ = ["UnitCube", "Ellipsoid", "MultiEllipsoid",
            "RadFriends", "SupFriends",
@@ -71,9 +72,9 @@ class UnitCube(object):
         self.funit = 1.  # overlap with the unit cube
 
     def contains(self, x):
-        """Checks if ellipsoid contains the point `x`."""
+        """Checks if unit cube contains the point `x`."""
 
-        return np.all(point > 0.) and np.all(point < 1.)
+        return unitcheck(point)
 
     def randoffset(self, rstate=None):
         """Draw a random offset from the center of the unit cube."""
@@ -258,7 +259,7 @@ class Ellipsoid(object):
             rstate = np.random
 
         samples = [self.sample(rstate=rstate) for i in range(ndraws)]
-        nin = sum([np.all(x > 0.) and np.all(x < 1.) for x in samples])
+        nin = sum([unitcheck(x) for x in samples])
 
         return 1. * nin / ndraws
 
@@ -459,8 +460,7 @@ class MultiEllipsoid(object):
                 return x, idx
 
         # Select an ellipsoid at random proportional to its volume.
-        idx = random_choice(self.nells, self.vols / self.vol_tot,
-                            rstate=rstate)
+        idx = rstate.random.choice(self.nells, p=self.vols/self.vol_tot)
 
         # Select a point from the chosen ellipsoid.
         x = self.ells[idx].sample(rstate=rstate)
@@ -478,8 +478,8 @@ class MultiEllipsoid(object):
             # If `q` is not being returned, assume the user wants this
             # done internally.
             while rstate.rand() > (1. / q):
-                idx = random_choice(self.nells, self.vols / self.vol_tot,
-                                    rstate=rstate)
+                idx = rstate.random.choice(self.nells,
+                                           p=self.vols/self.vol_tot)
                 x = self.ells[idx].sample(rstate=rstate)
                 q = self.overlap(x, j=idx) + 1
 
@@ -523,8 +523,7 @@ class MultiEllipsoid(object):
         if return_overlap:
             # Estimate the fractional amount of overlap with the
             # unit cube using the same set of samples.
-            qin = sum([q * (np.all(x > 0.) and np.all(x < 1.))
-                       for (x, idx, q) in samples])
+            qin = sum([q * unitcheck(x) for (x, idx, q) in samples])
             overlap = 1. * qin / qsum
             return vol, overlap
         else:
@@ -789,8 +788,7 @@ class RadFriends(object):
         if return_overlap:
             # Estimate the fractional amount of overlap with the
             # unit cube using the same set of samples.
-            nin = sum([q * (np.all(x > 0.) and np.all(x < 1.))
-                       for (x, q) in samples])
+            nin = sum([q * unitcheck(x) for (x, q) in samples])
             overlap = 1. * qin / qsum
             return vol, overlap
         else:
@@ -1018,8 +1016,7 @@ class SupFriends(object):
         if return_overlap:
             # Estimate the fractional overlap with the unit cube using
             # the same set of samples.
-            qin = sum([q * (np.all(x > 0.) and np.all(x < 1.))
-                       for (x, q) in samples])
+            qin = sum([q * unitcheck(x) for (x, q) in samples])
             overlap = 1. * qin / qsum
             return vol, overlap
         else:

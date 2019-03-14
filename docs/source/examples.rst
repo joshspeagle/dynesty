@@ -103,7 +103,7 @@ The posterior estimate also looks quite good:
 Exponential Wave
 ================
 
-This toy problem was
+This toy problem was originally suggested by
 `suggested <https://github.com/joshspeagle/dynesty/issues/111>`_ 
 by Johannes Buchner for being multimodal with two roughly equal-amplitude
 solutions. We are interested in modeling periodic data of the form:
@@ -118,15 +118,10 @@ where :math:`x` goes from :math:`0` to :math:`2\pi`.
     :align: center
 
 This model has six free parameters controling the relevant amplitude,
-period, and phase of each component. 
+period, and phase of each component (which have periodic boundary conditions). 
 We also have a seventh, :math:`\sigma`, corresponding to the amount of scatter.
 
-Due to the extended nature of the distribution and the fact that the
-multimodality emerges slowly, sampling uniformly tends to become
-quite inefficient as the run progresses due to frequent "misfires" outside
-of the unit cube and parameter space. Slice sampling generally has lower
-effiencies but for this problem actually performs quite well since it is
-quite insensitive to the bounding ellipsoids. The results are shown below.
+The results are shown below.
 
 .. image:: ../images/examples_expwave_002.png
     :align: center

@@ -460,7 +460,7 @@ class MultiEllipsoid(object):
                 return x, idx
 
         # Select an ellipsoid at random proportional to its volume.
-        idx = rstate.random.choice(self.nells, p=self.vols/self.vol_tot)
+        idx = rstate.choice(self.nells, p=self.vols/self.vol_tot)
 
         # Select a point from the chosen ellipsoid.
         x = self.ells[idx].sample(rstate=rstate)
@@ -478,8 +478,7 @@ class MultiEllipsoid(object):
             # If `q` is not being returned, assume the user wants this
             # done internally.
             while rstate.rand() > (1. / q):
-                idx = rstate.random.choice(self.nells,
-                                           p=self.vols/self.vol_tot)
+                idx = rstate.choice(self.nells, p=self.vols/self.vol_tot)
                 x = self.ells[idx].sample(rstate=rstate)
                 q = self.overlap(x, j=idx) + 1
 

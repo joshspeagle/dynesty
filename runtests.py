@@ -37,7 +37,28 @@ np.random.seed(5647)
 # configuration
 printing = False
 nlive = 1000
-ndim = 3
+
+
+# EGGBOX
+def loglike(x):
+    tmax = 5.0 * np.pi
+    t = 2.0 * tmax * x - tmax
+    return (2.0 + np.cos(t[0] / 2.0) * np.cos(t[1] / 2.0)) ** 5.0
+
+
+def prior_transform(x):
+    return x
+
+
+# stress test ellipsoid decompositions
+sys.stderr.write('\nEggbox\n')
+sampler = dynesty.NestedSampler(loglike, prior_transform, 2, nlive=nlive,
+                                bound='multi', sample='unif',
+                                first_update={'min_ncall': 0, 'min_eff': 100})
+sampler.run_nested(dlogz=0.01, print_progress=printing)
+lnz_truth = 235.88
+sys.stderr.write('\nlogz: {}'.format(abs(lnz_truth - sampler.results.logz[-1])
+                                     < 5. * sampler.results.logzerr[-1]))
 
 
 # basic checks
@@ -54,11 +75,11 @@ def check_results(results, lz_tol, m_tol, c_tol, sig=5):
 
 
 # GAUSSIAN TEST
+ndim = 3
 C = np.identity(ndim)  # set covariance to identity matrix
 C[C == 0] = 0.95  # set off-diagonal terms (strongly correlated)
 Cinv = linalg.inv(C)  # precision matrix
 lnorm = -0.5 * (np.log(2 * np.pi) * ndim + np.log(linalg.det(C)))  # ln(norm)
-
 lnz_truth = ndim * -np.log(2 * 10.)
 
 
@@ -87,17 +108,20 @@ def grad_u(x):
 
 
 # run sampling
-sys.stderr.write('\nDefault run\n')
+# check default behavior
+sys.stderr.write('\n\nDefault MVN\n')
 sampler = dynesty.NestedSampler(loglikelihood, prior_transform, ndim,
                                 nlive=nlive)
 sampler.run_nested(print_progress=printing)
 
 # add samples
+# check continuation behavior
 sys.stderr.write('\n\nExtra samples\n')
 sampler.run_nested(dlogz=0.1, print_progress=printing)
 
 
 # get errors
+# check resets and repeated runs
 sys.stderr.write('\n\nDeriving Errors\n')
 means, covs, logzs = [], [], []
 nerr = 50
@@ -187,7 +211,7 @@ sampler = dynesty.NestedSampler(loglikelihood, prior_transform, ndim,
 sampler.run_nested(print_progress=printing)
 check_results(sampler.results, lz_tol, m_tol, c_tol)
 
-# dynamic nested sampling
+# check dynamic nested sampling behavior
 sys.stderr.write('\nDynamic Nested Sampling\n')
 dsampler = dynesty.DynamicNestedSampler(loglikelihood, prior_transform, ndim)
 dsampler.run_nested(print_progress=printing)

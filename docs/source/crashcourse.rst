@@ -44,15 +44,22 @@ Estimating the evidence and posterior is as simple as::
 
     import dynesty
 
-    # "Standard" nested sampling.
+    # "Static" nested sampling.
     sampler = dynesty.NestedSampler(loglike, ptform, ndim)
     sampler.run_nested()
-    results = sampler.results
+    sresults = sampler.results
 
     # "Dynamic" nested sampling.
     dsampler = dynesty.DynamicNestedSampler(loglike, ptform, ndim)
     dsampler.run_nested()
     dresults = dsampler.results
+
+Combining the results from multiple (independent) runs is easy::
+
+    from dynesty import utils as dyfunc
+
+    # Combine results from "Static" and "Dynamic" runs.
+    results = dyfunc.merge_runs([sresults, dresults])
 
 We can visualize our results using several of the built-in plotting utilities.
 For instance::

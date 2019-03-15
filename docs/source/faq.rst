@@ -10,6 +10,25 @@ you. If you don't see your particular issue addressed here, feel free to
 Sampling Questions
 ------------------
 
+**Is there an easy way to add more samples to an existing set of results?**
+
+Yes! There are actually a bunch of ways to do this. If you have the
+`NestedSampler` currently initialized, just executing `run_nested()` will start
+adding samples where you left off. If you're instead interested in adding
+more samples to a previous part of the run, the best strategy is to just
+start a new independent run and then "combine" the old and new runs together
+into a single (improved) run using the :meth:`~dynesty.utils.merge_runs`
+function.
+
+If you're using the `DynamicNestedSampler`, executing `run_nested` will
+automatically add more dynamically-allocated samples based on your
+target weight function as long as the stopping criteria hasn't been met.
+If you would like to add a new batch of samples manually,
+running `add_batch` will assign a new set of samples.
+Finally, :meth:`~dynesty.utils.merge_runs` also works with results generated
+from Dynamic Nested Sampling, so it is just as easy to set off a new run and
+combine it with your original result.
+
 **There are inf values in my lower/upper log-likelihood bounds!
 Should I be concerned?**
 

@@ -466,6 +466,37 @@ as opposed to::
 This can be extremely useful if you would like to manipulate the results
 in real-time, generate plots, save intermediate outputs, etc.
 
+Combining Runs
+--------------
+
+Nested sampling is "trivially parallelizable", which makes it really
+straightforward to combine the results from multiple independent runs.
+``dynesty`` contains built-in utilities for combining results
+from separate runs into a single run with improved posterior/evidence
+estimates. This can be extremely useful if, for instance, you have performed
+multiple independent analyses over the course of a project that you would
+like to combine, or if you want to add additional samples to a
+preliminary analysis (but don't have the `sampler` currently loaded in memory).
+
+``dynesty`` makes this process relatively straightforward. An example is
+shown below::
+
+    from dynesty import utils as dyfunc
+
+    # Create several independent nested sampling runs.
+    sampler = NestedSampler(loglike, ptform, ndim)
+    rlist = []
+    for i in range(10):
+        sampler.run_nested()
+        rlist.append(sampler.results)
+        sampler.reset()
+
+    # Merge into a single run.
+    results = dyfunc.merge_runs(rlist)
+
+This process works with :ref:`Dynamic Nested Sampling` as well. See
+:ref:`Unraveling/Merging Runs` for additional details.
+
 Sampling with Gradients
 -----------------------
 

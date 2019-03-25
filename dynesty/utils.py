@@ -194,6 +194,43 @@ def quantile(x, q, weights=None):
         return quantiles
 
 
+def get_nsamps_samples_n(res):
+    """ Helper function for calculating the number fo samples
+
+    Parameters
+    ----------
+    res : :class:`~dynesty.results.Results` instance
+        The :class:`~dynesty.results.Results` instance taken from a previous
+        nested sampling run.
+
+    Returns
+    -------
+    nsamps: int
+        The total number of samples
+    samples_n: array
+        N / A
+
+    """
+    try:
+        # Check if the number of live points explicitly changes.
+        samples_n = res.samples_n
+        nsamps = len(samples_n)
+    except:
+        # If the number of live points is constant, compute `samples_n`.
+        niter = res.niter
+        nlive = res.nlive
+        nsamps = len(res.logvol)
+        if nsamps == niter:
+            samples_n = np.ones(niter, dtype='int') * nlive
+        elif nsamps == (niter + nlive):
+            samples_n = np.append(np.ones(niter, dtype='int') * nlive,
+                                  np.arange(1, nlive + 1)[::-1])
+        else:
+            raise ValueError("Final number of samples differs from number of "
+                             "iterations and number of live points.")
+    return nsamps, samples_n
+
+
 def jitter_run(res, rstate=None, approx=False):
     """
     Probes **statistical uncertainties** on a nested sampling run by
@@ -226,24 +263,8 @@ def jitter_run(res, rstate=None, approx=False):
         rstate = np.random
 
     # Initialize evolution of live points over the course of the run.
+    nsamps, samples_n = get_nsamps_samples_n(res)
     logl = res.logl
-    try:
-        # Check if the number of live points explicitly changes.
-        samples_n = res.samples_n
-        nsamps = len(samples_n)
-    except:
-        # If the number of live points is constant, compute `samples_n`.
-        niter = res.niter
-        nlive = res.nlive
-        nsamps = len(res.logvol)
-        if nsamps == niter:
-            samples_n = np.ones(niter, dtype='int') * nlive
-        elif nsamps == (niter + nlive):
-            samples_n = np.append(np.ones(niter, dtype='int') * nlive,
-                                  np.arange(1, nlive + 1)[::-1])
-        else:
-            raise ValueError("Final number of samples differs from number of "
-                             "iterations and number of live points.")
 
     # Simulate the prior volume shrinkage associated with our set of "dead"
     # points. At each iteration, if the number of live points is constant or
@@ -909,9 +930,9 @@ def merge_runs(res_list, print_progress=True):
         if print_progress:
             sys.stderr.write('\rMerge: {0}/{1}     '.format(counter, ntot))
 
-    samples_n = res.samples_n
-    niter = res.niter
+    nsamps, samples_n = get_nsamps_samples_n(res)
     nlive = max(samples_n)
+    niter = res.niter
     standard_run = False
 
     # Check if we have a constant number of live points.

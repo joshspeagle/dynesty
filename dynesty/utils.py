@@ -21,7 +21,7 @@ from .results import *
 __all__ = ["unitcheck", "resample_equal", "mean_and_cov", "quantile",
            "jitter_run", "resample_run", "simulate_run", "reweight_run",
            "unravel_run", "merge_runs", "kl_divergence", "kld_error",
-           "_merge_two"]
+           "_merge_two", "_get_nsamps_samples_n"]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
@@ -194,8 +194,8 @@ def quantile(x, q, weights=None):
         return quantiles
 
 
-def get_nsamps_samples_n(res):
-    """ Helper function for calculating the number fo samples
+def _get_nsamps_samples_n(res):
+    """ Helper function for calculating the number of samples
 
     Parameters
     ----------
@@ -208,7 +208,7 @@ def get_nsamps_samples_n(res):
     nsamps: int
         The total number of samples
     samples_n: array
-        N / A
+        Number of live points at a given iteration
 
     """
     try:
@@ -263,7 +263,7 @@ def jitter_run(res, rstate=None, approx=False):
         rstate = np.random
 
     # Initialize evolution of live points over the course of the run.
-    nsamps, samples_n = get_nsamps_samples_n(res)
+    nsamps, samples_n = _get_nsamps_samples_n(res)
     logl = res.logl
 
     # Simulate the prior volume shrinkage associated with our set of "dead"
@@ -930,7 +930,7 @@ def merge_runs(res_list, print_progress=True):
         if print_progress:
             sys.stderr.write('\rMerge: {0}/{1}     '.format(counter, ntot))
 
-    nsamps, samples_n = get_nsamps_samples_n(res)
+    nsamps, samples_n = _get_nsamps_samples_n(res)
     nlive = max(samples_n)
     niter = res.niter
     standard_run = False

@@ -9,8 +9,6 @@ Utilities for handling results.
 from __future__ import (print_function, division)
 
 import sys
-import warnings
-import math
 import numpy as np
 import shutil
 

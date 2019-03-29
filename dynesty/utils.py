@@ -417,7 +417,6 @@ def resample_run(res, rstate=None, return_idx=False):
         # Check if the number of live points explicitly changes.
         samples_n = res.samples_n
         samples_batch = res.samples_batch
-        batch_nlive = res.batch_nlive
         batch_bounds = res.batch_bounds
         added_final_live = True
     except:
@@ -441,7 +440,6 @@ def resample_run(res, rstate=None, return_idx=False):
 
     # Identify unique particles that make up each strand.
     ids = np.unique(res.samples_id)
-    nunique = len(ids)
 
     # Split the set of strands into two groups: a "baseline" group that
     # contains points initially sampled from the prior, which gives information
@@ -1096,11 +1094,6 @@ def kld_error(res, error='simulate', rstate=None, return_new=False,
 
     # Define our new importance weights.
     logp1 = new_res.logwt - new_res.logz[-1]
-
-    # Define the positions where the discrete probability distributions exists.
-    samples1, samples2 = new_res.samples, res.samples
-    samples1_id, samples2_id = new_res.samples_id, res.samples_id
-    nsamps1, nsamps2 = len(samples1), len(samples2)
 
     # Compute the KL divergence.
     kld = np.cumsum(np.exp(logp1) * (logp1 - logp2))

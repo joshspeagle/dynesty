@@ -1410,7 +1410,9 @@ def boundplot(results, dims, it=None, idx=None, prior_transform=None,
     # Check that either `idx` or `it` has been specified.
     if (it is None and idx is None) or (it is not None and idx is not None):
         raise ValueError("You must specify either an iteration or an index!")
-
+	
+	# TODO: npdim and label are undefined here!
+	
     # Gather non-periodic boundary conditions.
     if periodic is not None:
         nonperiodic = np.ones(npdim, dtype='bool')
@@ -1432,7 +1434,6 @@ def boundplot(results, dims, it=None, idx=None, prior_transform=None,
         bounds = results['bound']
     except:
         raise ValueError("No bounds were saved in the results!")
-    nbound = len(bounds)
     nsamps = len(results['samples'])
 
     if it is not None:

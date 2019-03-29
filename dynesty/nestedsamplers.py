@@ -32,9 +32,7 @@ import warnings
 import math
 import numpy as np
 import copy
-from numpy import linalg
 from scipy import spatial
-import heapq
 
 from .sampler import *
 from .bounding import *
@@ -213,7 +211,6 @@ class UnitCubeSampler(Sampler):
         """Update the slice proposal scale based on the relative
         size of the slices compared to our initial guess."""
 
-        fscale = blob['fscale']
         nexpand, ncontract = blob['nexpand'], blob['ncontract']
         self.scale *= nexpand / (2. * ncontract)
 
@@ -415,7 +412,6 @@ class SingleEllipsoidSampler(Sampler):
         """Update the slice proposal scale based on the relative
         size of the slices compared to our initial guess."""
 
-        fscale = blob['fscale']
         nexpand, ncontract = blob['nexpand'], blob['ncontract']
         self.scale *= nexpand / (2. * ncontract)
 
@@ -656,7 +652,6 @@ class MultiEllipsoidSampler(Sampler):
         """Update the slice proposal scale based on the relative
         size of the slices compared to our initial guess."""
 
-        fscale = blob['fscale']
         nexpand, ncontract = blob['nexpand'], blob['ncontract']
         self.scale *= nexpand / (2. * ncontract)
 
@@ -873,7 +868,6 @@ class RadFriendsSampler(Sampler):
         """Update the slice proposal scale based on the relative
         size of the slices compared to our initial guess."""
 
-        fscale = blob['fscale']
         nexpand, ncontract = blob['nexpand'], blob['ncontract']
         self.scale *= nexpand / (2. * ncontract)
 
@@ -1091,7 +1085,6 @@ class SupFriendsSampler(Sampler):
         """Update the slice proposal scale based on the relative
         size of the slices compared to our initial guess."""
 
-        fscale = blob['fscale']
         nexpand, ncontract = blob['nexpand'], blob['ncontract']
         self.scale *= nexpand / (2. * ncontract)
 

@@ -74,7 +74,7 @@ class UnitCube(object):
     def contains(self, x):
         """Checks if unit cube contains the point `x`."""
 
-        return unitcheck(point)
+        return unitcheck(x)
 
     def randoffset(self, rstate=None):
         """Draw a random offset from the center of the unit cube."""
@@ -670,7 +670,6 @@ class RadFriends(object):
         if kdtree is None:
             # If no K-D Tree is provided, execute a brute-force
             # search over all balls.
-            nctrs = len(ctrs)
             idxs = np.where(lalg.norm(ctrs - x, axis=1) <= self.radius)[0]
         else:
             # If a K-D Tree is provided, find all points within `self.radius`.
@@ -787,7 +786,7 @@ class RadFriends(object):
         if return_overlap:
             # Estimate the fractional amount of overlap with the
             # unit cube using the same set of samples.
-            nin = sum([q * unitcheck(x) for (x, q) in samples])
+            qin = sum([q * unitcheck(x) for (x, q) in samples])
             overlap = 1. * qin / qsum
             return vol, overlap
         else:
@@ -898,7 +897,6 @@ class SupFriends(object):
         if kdtree is None:
             # If no KDTree is provided, execute a brute-force search
             # over all cubes.
-            nctrs = len(ctrs)
             idxs = np.where(np.max(np.abs(ctrs - x), axis=1) <= self.hside)[0]
         else:
             # If a KDTree is provided, find all points within r (`hside`).
@@ -1307,7 +1305,6 @@ def _bounding_ellipsoids(points, ell, pointvol=0., vol_dec=0.5,
             warnings.simplefilter("ignore")
             k2_res = kmeans2(points, k=start_ctrs, iter=10, minit='matrix',
                              check_finite=False)
-        centroids = k2_res[0]  # shape is (k, ndim) = (2, ndim)
         labels = k2_res[1]  # cluster identifier ; shape is (npoints,)
 
         # Get points in each cluster.

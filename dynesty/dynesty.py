@@ -749,10 +749,8 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
     if queue_size is not None and queue_size < 1:
         raise ValueError("The queue must contain at least one element!")
     elif (queue_size == 1) or (pool is None and queue_size is None):
-        M = map
         queue_size = 1
     elif pool is not None:
-        M = pool.map
         if queue_size is None:
             try:
                 queue_size = pool.size

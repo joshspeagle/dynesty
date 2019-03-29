@@ -264,7 +264,7 @@ class Sampler(object):
         while True:
             try:
                 # Remove unused points from the queue.
-                f = self.queue.pop()
+                self.queue.pop()
                 self.unused += 1  # add to the total number of unused points
                 self.nqueue -= 1
             except:
@@ -835,10 +835,6 @@ class Sampler(object):
             ncall += nc
             if delta_logz > 1e6:
                 delta_logz = np.inf
-            if logzvar >= 0. and logzvar <= 1e6:
-                logzerr = np.sqrt(logzvar)
-            else:
-                logzerr = np.nan
             if logz <= -1e6:
                 logz = -np.inf
 
@@ -856,10 +852,6 @@ class Sampler(object):
                  eff, delta_logz) = results
                 if delta_logz > 1e6:
                     delta_logz = np.inf
-                if logzvar >= 0. and logzvar <= 1e6:
-                    logzerr = np.sqrt(logzvar)
-                else:
-                    logzerr = np.nan
                 if logz <= -1e6:
                     logz = -np.inf
 
@@ -899,10 +891,6 @@ class Sampler(object):
              eff, delta_logz) = results
             if delta_logz > 1e6:
                 delta_logz = np.inf
-            if logzvar >= 0. and logzvar <= 1e6:
-                logzerr = np.sqrt(logzvar)
-            else:
-                logzerr = np.nan
             if logz <= -1e6:
                 logz = -np.inf
 

@@ -23,7 +23,6 @@ import copy
 from scipy import optimize as opt
 from numpy import linalg
 from scipy import misc
-import warnings
 
 from .nestedsamplers import *
 from .sampler import *
@@ -933,11 +932,7 @@ class DynamicSampler(object):
         base_u = np.array(self.base_u)
         base_v = np.array(self.base_v)
         base_logl = np.array(self.base_logl)
-        base_nc = np.array(self.base_nc)
-        base_boundidx = np.array(self.base_boundidx)
-        base_it = np.array(self.base_it)
         base_n = np.array(self.base_n)
-        base_bounditer = np.array(self.base_bounditer)
         base_scale = np.array(self.base_scale)
         nbase = len(base_n)
         nblive = self.nlive_init

@@ -12,12 +12,10 @@ Functions for proposing new live points used by
 from __future__ import (print_function, division)
 from six.moves import range
 
-import sys
 import warnings
 import math
 import numpy as np
 from numpy import linalg
-from scipy import misc
 
 from .utils import unitcheck
 
@@ -811,9 +809,6 @@ def sample_hslice(args):
     nreflect = 0
     ncontract = 0
 
-    v = prior_transform(u)
-    logl = loglikelihood(v)
-
     # Slice sampling loop.
     for it in range(slices):
         # Define the left, "inner", and right "nodes" for a given chord.
@@ -826,7 +821,6 @@ def sample_hslice(args):
 
         # Transform and scale based on past tuning.
         axis = np.dot(axes, drhat) * scale * 0.01
-        r = rstate.rand()
 
         # Create starting window.
         vel = np.array(axis)  # current velocity

@@ -1410,15 +1410,6 @@ def boundplot(results, dims, it=None, idx=None, prior_transform=None,
     # Check that either `idx` or `it` has been specified.
     if (it is None and idx is None) or (it is not None and idx is not None):
         raise ValueError("You must specify either an iteration or an index!")
-	
-	# TODO: npdim and label are undefined here!
-	
-    # Gather non-periodic boundary conditions.
-    if periodic is not None:
-        nonperiodic = np.ones(npdim, dtype='bool')
-        nonperiodic[periodic] = False
-    else:
-        nonperiodic = None
 
     # Set defaults.
     plot_kwargs['marker'] = plot_kwargs.get('marker', 'o')
@@ -1435,6 +1426,13 @@ def boundplot(results, dims, it=None, idx=None, prior_transform=None,
     except:
         raise ValueError("No bounds were saved in the results!")
     nsamps = len(results['samples'])
+
+    # Gather non-periodic boundary conditions.
+    if periodic is not None:
+        nonperiodic = np.ones(bounds[0].n, dtype='bool')
+        nonperiodic[periodic] = False
+    else:
+        nonperiodic = None
 
     if it is not None:
         if it >= nsamps:
@@ -1606,7 +1604,7 @@ def boundplot(results, dims, it=None, idx=None, prior_transform=None,
     axes.yaxis.set_major_formatter(sf)
     if labels is not None:
         axes.set_xlabel(labels[0], **label_kwargs)
-        axes.set_ylabel(label[1], **label_kwargs)
+        axes.set_ylabel(labels[1], **label_kwargs)
     else:
         axes.set_xlabel(r"$x_{"+str(dims[0]+1)+"}$", **label_kwargs)
         axes.set_ylabel(r"$x_{"+str(dims[1]+1)+"}$", **label_kwargs)
@@ -1721,13 +1719,6 @@ def cornerbound(results, it=None, idx=None, prior_transform=None,
     if (it is None and idx is None) or (it is not None and idx is not None):
         raise ValueError("You must specify either an iteration or an index!")
 
-    # Gather non-periodic boundary conditions.
-    if periodic is not None:
-        nonperiodic = np.ones(npdim, dtype='bool')
-        nonperiodic[periodic] = False
-    else:
-        nonperiodic = None
-
     # Set defaults.
     plot_kwargs['marker'] = plot_kwargs.get('marker', 'o')
     plot_kwargs['linestyle'] = plot_kwargs.get('linestyle', 'None')
@@ -1743,6 +1734,13 @@ def cornerbound(results, it=None, idx=None, prior_transform=None,
     except:
         raise ValueError("No bounds were saved in the results!")
     nsamps = len(results['samples'])
+
+    # Gather non-periodic boundary conditions.
+    if periodic is not None:
+        nonperiodic = np.ones(bounds[0].n, dtype='bool')
+        nonperiodic[periodic] = False
+    else:
+        nonperiodic = None
 
     if it is not None:
         if it >= nsamps:

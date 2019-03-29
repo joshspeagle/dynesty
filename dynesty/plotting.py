@@ -206,7 +206,7 @@ def runplot(results, span=None, logplot=False, kde=True, nkde=1000,
     # Setting up default plot layout.
     if fig is None:
         fig, axes = pl.subplots(4, 1, figsize=(16, 16))
-        xspan = [(0., -min(logvol)) for ax in axes]
+        xspan = [(0., -min(logvol)) for _ax in axes]
         yspan = span
     else:
         fig, axes = fig
@@ -276,7 +276,7 @@ def runplot(results, span=None, logplot=False, kde=True, nkde=1000,
         # Plot run.
         if logplot and i == 3:
             ax.semilogy(-logvol, d, color=c, **plot_kwargs)
-            yspan = [ax.get_ylim() for ax in axes]
+            yspan = [ax.get_ylim() for _ax in axes]
         elif kde and i == 2:
             ax.plot(-logvol_new, d, color=c, **plot_kwargs)
         else:
@@ -1742,7 +1742,6 @@ def cornerbound(results, it=None, idx=None, prior_transform=None,
         bounds = results['bound']
     except:
         raise ValueError("No bounds were saved in the results!")
-    nbound = len(bounds)
     nsamps = len(results['samples'])
 
     if it is not None:

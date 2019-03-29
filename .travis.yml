@@ -20,7 +20,8 @@ install:
     - pip install -U pip
     - pip install coveralls pyflakes
     - pip install matplotlib==2.2.4
-    - ! pyflakes dynesty/*.py | grep -vE '(may be undefined|imported but unused|unable to detect undefined names|local variable ._)'
+    - pyflakes dynesty/*.py | grep -vE '(may be undefined|imported but unused|unable to detect undefined names|local variable ._)' | tee static_errors
+    - test -s static_errors # check if any errors from the above
     - python setup.py install
 
 script: python runtests.py

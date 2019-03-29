@@ -582,12 +582,12 @@ class MultiEllipsoid(object):
 
         # Calculate the bounding ellipsoid for the points, possibly
         # enlarged to a minimum volume.
-        ell = bounding_ellipsoid(points, pointvol=pointvol)
+        firstell = bounding_ellipsoid(points, pointvol=pointvol)
 
         # Recursively split the bounding ellipsoid using `vol_check`
         # until the volume of each split no longer decreases by a
         # factor of `vol_dec`.
-        ells = _bounding_ellipsoids(points, ell, pointvol=pointvol,
+        ells = _bounding_ellipsoids(points, firstell, pointvol=pointvol,
                                     vol_dec=vol_dec, vol_check=vol_check)
 
         # Update the set of ellipsoids.

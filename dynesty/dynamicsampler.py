@@ -23,7 +23,6 @@ import copy
 from scipy import optimize as opt
 from numpy import linalg
 from scipy import misc
-import warnings
 
 from .nestedsamplers import *
 from .sampler import *

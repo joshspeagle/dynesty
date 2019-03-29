@@ -32,13 +32,14 @@ import numpy as np
 from numpy import linalg
 from scipy import special
 from scipy import spatial
+from scipy import cluster
 from scipy import linalg as lalg
 from numpy import cov as mle_cov
 
 from .utils import unitcheck
 
 __all__ = ["UnitCube", "Ellipsoid", "MultiEllipsoid",
-           "RadFriends", "SupFriends",
+           "MLFriends", "RadFriends", "SupFriends",
            "vol_prefactor", "logvol_prefactor", "randsphere",
            "bounding_ellipsoid", "bounding_ellipsoids",
            "_bounding_ellipsoids", "_ellipsoid_bootstrap_expand",
@@ -862,6 +863,256 @@ class RadFriends(object):
                                                         return_overlap=True)
 
 
+class MLFriends(object):
+    """
+    A collection of N-balls of identical size centered on each live point.
+    Their shape can be squashed.
+
+    Parameters
+    ----------
+    ndim : int
+        The number of dimensions of each ball.
+
+    radius : float
+        Radius of each ball.
+
+    """
+
+    def __init__(self, ndim, radius):
+        self.n = ndim
+        self.radius = radius * np.ones(self.n)
+        self.last_axscale = np.ones(self.n)
+        self.vol_ball = vol_prefactor(self.n) * np.product(self.radius)
+        self.expand = 1.
+
+    def scale_to_vol(self, vol):
+        """Scale ball to encompass a target volume."""
+
+        f = (vol / self.vol_ball) ** (1.0 / self.n)  # linear factor
+        self.expand *= f
+        self.radius *= f
+        self.vol_ball = vol
+
+    def within(self, x, ctrs):
+        """Check which balls `x` falls within. Uses a K-D Tree to
+        perform the search if provided."""
+
+        # search over all balls
+        idxs = np.where(lalg.norm((ctrs - x) / self.radius.reshape((1,-1)), axis=1) <= 1)[0]
+
+        return idxs
+
+    def overlap(self, x, ctrs):
+        """Check how many balls `x` falls within. Uses a K-D Tree to
+        perform the search if provided."""
+
+        q = len(self.within(x, ctrs))
+
+        return q
+
+    def contains(self, x, ctrs):
+        """Check if the set of balls contains `x`. Uses a K-D Tree to
+        perform the search if provided."""
+
+        return self.overlap(x, ctrs) > 0
+
+    def sample(self, ctrs, rstate=None, return_q=False, kdtree=None):
+        """
+        Sample a point uniformly distributed within the *union* of balls.
+
+        Returns
+        -------
+        x : `~numpy.ndarray` with shape (ndim,)
+            A coordinate within the set of balls.
+
+        q : int, optional
+            The number of balls `x` falls within.
+
+        """
+
+        if rstate is None:
+            rstate = np.random
+
+        nctrs = len(ctrs)  # number of balls
+
+        # If there is only one ball, sample from it.
+        if nctrs == 1:
+            dx = self.radius * randsphere(self.n, rstate=rstate)
+            x = ctrs[0] + dx
+            if return_q:
+                return x, 1
+            else:
+                return x
+
+        # Select a ball at random.
+        idx = rstate.randint(nctrs)
+
+        # Select a point from the chosen ball.
+        dx = self.radius * randsphere(self.n, rstate=rstate)
+        x = ctrs[idx] + dx
+
+        # Check how many balls the point lies within, passing over
+        # the `idx`-th ball `x` was sampled from.
+        q = self.overlap(x, ctrs)
+
+        if return_q:
+            # If `q` is being returned, assume the user wants to
+            # explicitly apply the `1. / q` acceptance criterion to
+            # properly sample from the union of balls.
+            return x, q
+        else:
+            # If `q` is not being returned, assume the user wants this
+            # done internally.
+            while rstate.rand() > (1. / q):
+                idx = rstate.randint(nctrs)
+                dx = self.radius * randsphere(self.n, rstate=rstate)
+                x = ctrs[idx] + dx
+                q = self.overlap(x, ctrs)
+            return x
+
+    def samples(self, nsamples, ctrs, rstate=None, kdtree=None):
+        """
+        Draw `nsamples` samples uniformly distributed within the *union* of
+        balls. 
+
+        Returns
+        -------
+        xs : `~numpy.ndarray` with shape (nsamples, ndim)
+            A collection of coordinates within the set of balls.
+
+        """
+
+        if rstate is None:
+            rstate = np.random
+
+        xs = np.array([self.sample(ctrs, rstate=rstate)
+                       for i in range(nsamples)])
+
+        return xs
+
+    def monte_carlo_vol(self, ctrs, ndraws=10000, rstate=None,
+                        return_overlap=True):
+        """Using `ndraws` Monte Carlo draws, estimate the volume of the
+        *union* of balls. If `return_overlap=True`, also returns the
+        estimated fractional overlap with the unit cube. Uses a K-D Tree
+        to perform the search if provided."""
+
+        if rstate is None:
+            rstate = np.random
+
+        # Estimate volume using Monte Carlo integration.
+        samples = [self.sample(ctrs, rstate=rstate, return_q=True)
+                   for i in range(ndraws)]
+        qsum = sum([q for (x, q) in samples])
+        vol = 1. * ndraws / qsum * len(ctrs) * self.vol_ball
+
+        if return_overlap:
+            # Estimate the fractional amount of overlap with the
+            # unit cube using the same set of samples.
+            qin = sum([q * unitcheck(x) for (x, q) in samples])
+            overlap = 1. * qin / qsum
+            return vol, overlap
+        else:
+            return vol
+
+    def update(self, points, pointvol=0., rstate=None, bootstrap=0,
+               pool=None, kdtree=None, mc_integrate=False):
+        """
+        Update the radii of our balls.
+
+        Parameters
+        ----------
+        points : `~numpy.ndarray` with shape (npoints, ndim)
+            The set of points to bound.
+
+        pointvol : float, optional
+            The minimum volume associated with each point. Default is `0.`.
+
+        rstate : `~numpy.random.RandomState`, optional
+            `~numpy.random.RandomState` instance.
+
+        bootstrap : int, optional
+            The number of bootstrapped realizations of the ellipsoids. The
+            maximum distance to the set of points "left out" during each
+            iteration is used to enlarge the resulting volumes.
+            Default is `0`.
+
+        pool : user-provided pool, optional
+            Use this pool of workers to execute operations in parallel.
+
+        kdtree : `~scipy.spatial.KDTree`, optional
+            K-D Tree used to perform nearest neighbor searches.
+
+        mc_integrate : bool, optional
+            Whether to use Monte Carlo methods to compute the effective
+            volume and fractional overlap of the final union of balls
+            with the unit cube. Default is `False`.
+
+        """
+
+        # If possible, compute bootstraps in parallel using a pool.
+        if pool is None:
+            M = map
+        else:
+            M = pool.map
+
+        axscale = self.last_axscale
+        zscaled_points = points / axscale
+        if bootstrap == 0.:
+            # Construct radius using leave-one-out if no bootstraps used.
+            radii = _friends_leaveoneout_radius(zscaled_points, 'balls')
+        else:
+            # Bootstrap radius using the set of live points.
+            args = [(zscaled_points, 'balls') for it in range(bootstrap)]
+            radii = list(M(_friends_bootstrap_radius, args))
+
+        # Conservatively set radius to be maximum of the set.
+        rmax = max(radii)
+        self.radius = rmax * axscale
+        self.vol_ball = vol_prefactor(self.n) * np.product(self.radius)
+        self.expand = 1.
+        self.last_axscale = self._get_axscale_from_clusters(points)
+
+        # Expand our ball to encompass a minimum volume.
+        if pointvol > 0.:
+            v = pointvol
+            if self.vol_ball < v:
+                self.scale_to_vol(v)
+
+        # Estimate the volume and fractional overlap with the unit cube
+        # using Monte Carlo integration.
+        if mc_integrate:
+            self.vol, self.funit = self.monte_carlo_vol(points,
+                                                        return_overlap=True)
+
+    def _get_axscale_from_all_points(self, points):
+        return np.std(points, axis=0)
+        
+    def _get_axscale_from_clusters(self, points):
+        # to disable, use: return self._get_axscale_from_all_points(points)
+        
+        # compute pairwise distances
+        distances = spatial.distance.pdist(points, metric='seuclidean', V=self.radius)
+        # identify conglomerates of points by constructing a linkage matrix
+        linkages = cluster.hierarchy.single(distances)
+        # cut when linkage between clusters exceed the radius
+        clusteridxs = cluster.hierarchy.fcluster(linkages, 1.0, criterion='distance')
+        nclusters = np.max(clusteridxs)
+        if nclusters == 1:
+            return self._get_axscale_from_all_points(points)
+        else:
+            #print("Have %d clusters" % nclusters)
+            
+            i = 0
+            overlapped_points = np.empty_like(points)
+            for idx in np.unique(clusteridxs):
+                group_points = points[clusteridxs == idx,:]
+                group_mean = group_points.mean(axis=0).reshape((1,-1))
+                j = i + len(group_points)
+                overlapped_points[i:j,:] = group_points - group_mean
+                i = j
+            return self._get_axscale_from_all_points(overlapped_points)
+        
 class SupFriends(object):
     """
     A collection of N-cubes of identical size centered on each live point.

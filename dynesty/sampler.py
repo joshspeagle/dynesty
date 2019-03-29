@@ -287,6 +287,7 @@ class Sampler(object):
                 # Propose/evaluate points directly from the unit cube.
                 point = self.rstate.rand(self.npdim)
                 axes = np.identity(self.npdim)
+                evolve_point = sample_unif
             point_queue.append(point)
             axes_queue.append(axes)
             self.nqueue += 1

@@ -18,8 +18,9 @@ install:
     - conda create --yes -n test python=$TRAVIS_PYTHON_VERSION
     - source activate test
     - pip install -U pip
-    - pip install coveralls
+    - pip install coveralls pyflakes
     - pip install matplotlib==2.2.4
+    - ! pyflakes dynesty/*.py | grep -vE '(may be undefined|imported but unused|unable to detect undefined names|local variable ._)'
     - python setup.py install
 
 script: python runtests.py

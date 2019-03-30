@@ -84,7 +84,7 @@ rough uncertainty in :math:`\ln \mathcal{Z}` is then:
 .. math::
 
     \sigma[\ln \hat{\mathcal{Z}}] \sim \sigma[\ln \hat{X}] \sim 
-    \frac{\sigma[\ln N]}{\Delta \ln X} = \sqrt{H \Delta \ln X}
+    \sigma[\ln N] \, \Delta \ln X = \sqrt{H \Delta \ln X}
     = \sqrt{\frac{H}{K}}
 
 This approximation can be extended to Dynamic Nested Sampling runs by

@@ -10,6 +10,20 @@ you. If you don't see your particular issue addressed here, feel free to
 Sampling Questions
 ------------------
 
+**What sampling method should I be using?**
+
+This is always problem-dependent, but some general advice is
+to select one based on the dimensionality of your problem. In low dimensions,
+uniform sampling is often quite efficient since the bounding distributions
+can often encompass the majority of the prior volume. In moderate dimensions,
+random walks often can serve as an effective way to propose new points
+without relying on the exact shape/size of the bounds being correct. In
+higher dimensions, we generally need non-rejection methods such as slice
+sampling to generate samples efficiently since the prior volume is so large.
+Using gradients can also help generate efficient proposals in this regime.
+``dynesty`` uses these rules-of-thumb by default to choose a sampling option
+with `'auto'`.
+
 **Is there an easy way to add more samples to an existing set of results?**
 
 Yes! There are actually a bunch of ways to do this. If you have the
@@ -130,19 +144,6 @@ given `dlogz` tolerance scales as the "information" gained by updating from
 the prior to the posterior. Since Nested Sampling starts by sampling from the
 entire prior volume, having overly-broad priors will increase the runtime.
 
-**When using** `'balls'` **and/or** `'cubes'` **function calls take 
-noticeably longer. What gives?**
-
-Because those two methods model the bounding distribution as a *union* of
-balls/cubes centered on each live point, there often are a huge number :math:`q`
-of overlapping balls/cubes at any given point. Points proposed from an
-individual ball/cube need to be accepted with probability :math:`1/q`, proposed
-points both require frequent nearest neighbor searches and are rarely 
-accepted. Although the implementation in ``dynesty`` already uses K-D trees via
-`scipy.spatial.KDTree` to make this process quite efficient the overhead
-associated with this process still remains substantial. I hope to remedy some
-of these issues in a future update.
-
 **I noticed that the number of iterations and/or function calls during a run
 don't exactly match up with the limits I specify using, 
 e.g.,** `maxiter` **or** `maxcall` **. Is this a bug?**
@@ -155,14 +156,14 @@ checks the stopping criterion specified (whether iterations or function calls)
 since the first batch of points need to be allocated before checking the
 stopping criterion.
 
-**Why are** `'rwalk'` **and** `'slice'` **so inefficient relative to `'unif'`**
-**? Why would I want to use them?**
+**I find other sampling are inefficient relative to `'unif'`.**
+**Why would I ever want to use them?**
 
 The main reason these methods are more inefficient than uniform sampling
 is that they are designed to sample from higher-dimensional (and somewhat
-more "difficult") distributions. And sampling in moderate and high-dimensional
-spaces is inherently challenging due to the behavior of :ref:`Typical Sets`.
-Broadly speaking, `'rwalk'` and `'slice'` are actually reasonably efficient
+more "difficult") distributions, which
+is inherently challenging due to the behavior of :ref:`Typical Sets`.
+Broadly speaking, these methods are actually reasonably efficient
 when compared to other (non-gradient) sampling methods on similar problems
 (see, e.g., `here <https://arxiv.org/pdf/1502.01856.pdf>`_).
 
@@ -173,7 +174,9 @@ might seem more efficient than the 4% default target efficiency of `'rwalk'`
 in ``dynesty``, the output samples from MCMC are (by design) correlated.
 If the resulting MCMC chain needs to be thinned by more than a factor of 5
 to ensure independent samples, its "real" sampling efficiency is actually
-then below the 4% nominally achieved by ``dynesty``.
+then below the 4% nominally achieved by ``dynesty``. This is discussed
+further in the `release paper
+<https://github.com/joshspeagle/dynesty/tree/master/paper/dynesty.pdf>`_.
 
 **How many walks (steps) do you need to use for** `'rwalk'` **?**
 
@@ -206,10 +209,8 @@ a multi-modal context. For PolyChord, mode identification works using a
 slightly different clustering algorithm and sampling takes place in a 
 "pre-whitened" space based on the derived orthogonal basis.
 
-Our implementation of `'rslice'` more closely follows the similar method
-employed in PolyChord, except that we sample in the "native" space to again
-rigorously enforce detailed balance. This makes `'rslice'` more sensitive to
-strong correlations between many parameters as it is currently implemented.
+Our implementation of `'rslice'` more closely follows the method
+employed in PolyChord.
 
 **How many slices ("repeats") do you need to use for** `'slice'` **?**
 
@@ -244,8 +245,8 @@ methods have better polynomial scaling than non-gradient slice sampling, both
 of which are *substantially* better over the runaway exponential scaling
 of random walks), it can take a while for these benefits to really kick in.
 These scaling arguments generally ignore the constant prefactor, which
-can be quite large for many gradient-based approaches which require
-integrating along some trajectory requiring (at least) dozens of
+can be quite large for many gradient-based approaches that require
+integrating along some trajectory, often resulting in (at least) dozens of
 function calls per sample. This often makes it more efficient to run simpler
 sampling techniques on lower-dimensional problems.
 
@@ -259,8 +260,8 @@ momentum and leads to the integration timesteps along the trajectories
 changing in undesirable ways. 
 It's also possible the numerical errors in the Jacobian (if you've set
 `compute_jac=True`) might be propagating through to the computed trajectories.
-If so, consider trying to compute the analytic Jacobian by hand to cut down
-on possible numerical errors.
+If so, consider trying to compute the analytic Jacobian by hand to reduce
+the impact of numerical errors.
 
 If you still find subpar performance, please feel free to 
 `open an issue <https://github.com/joshspeagle/dynesty/issues>`_.
@@ -301,6 +302,27 @@ some examples of this in practice.
 
 Bounding Questions
 ------------------
+
+**What bounds should I be using?**
+
+Generally, `'multi'` (multiple ellipsoid decomposition) is the most
+adaptive, being able to model a wide variety of behaviors and complex
+distributions. It is enabled in ``dynesty`` by default.
+
+For simple unimodal problems, `'single'` (a single bounding ellipsoid) 
+can often do quite well. It also helps to guard against cases where
+methods like `'multi'` can accidentally "shred" the posterior into many pieces
+if the ellipsoid decompositions are too aggressive.
+
+For low-dimensional problems, ensemble methods like `'balls'` and `'cubes'` 
+can be quite effective by allowing live points themselves 
+to create "emergent" structure. These can create more flexible shapes than
+`'multi'`, although they have trouble modeling separate structures with
+wildly different shapes.
+
+In almost all cases, using no bound (`'none'`) should be seen as a fallback
+option. It is mostly useful for systematics checks or in cases where the
+number of live points is small relative to the number of dimensions.
 
 **What are the differences between** `'multi'` **and MultiNest?**
 

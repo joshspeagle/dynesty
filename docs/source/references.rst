@@ -2,6 +2,9 @@
 References and Acknowledgements
 ===============================
 
+**The release paper describing the code can be found**
+`**here** <https://github.com/joshspeagle/dynesty/tree/master/paper/dynesty.pdf>`_.
+
 Code
 ====
 

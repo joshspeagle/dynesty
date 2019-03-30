@@ -11,6 +11,9 @@ and evidences. See :ref:`Crash Course` and :ref:`Getting Started`
 for more information. The latest development version can be found `here
 <http://github.com/joshspeagle/dynesty>`_.
 
+**The release paper describing the code can be found**
+`**here** <https://github.com/joshspeagle/dynesty/tree/master/paper/dynesty.pdf>`_.
+
 Installation
 ============
 
@@ -33,6 +36,12 @@ Changelog
 
 .. image:: ../images/logo.gif
     :align: center
+
+0.9.5.3 (2019-03-29)
+-------------------
+* Various small bugfixes, with contributions by
+  `Gregory Ashton <https://github.com/GregoryAshton>`_ and
+  `Johannes Buchner <https://github.com/JohannesBuchner>`_.
 
 0.9.5 (2019-03-14)
 -------------------

@@ -1069,7 +1069,7 @@ class DynamicSampler(object):
         if self.sampler._beyond_unit_bound(loglmin):
             bound = self.sampler.update(vol / nlive_new)
             if save_bounds:
-                    self.sampler.bound.append(copy.deepcopy(bound))
+                self.sampler.bound.append(copy.deepcopy(bound))
             self.sampler.nbound += 1
             self.sampler.since_update = 0
 

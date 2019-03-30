@@ -16,7 +16,7 @@ import scipy.misc as misc
 import numpy as np
 import copy
 
-from .results import *
+from .results import Results
 
 __all__ = ["unitcheck", "resample_equal", "mean_and_cov", "quantile",
            "jitter_run", "resample_run", "simulate_run", "reweight_run",

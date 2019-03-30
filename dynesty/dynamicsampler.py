@@ -20,16 +20,15 @@ import warnings
 import math
 import numpy as np
 import copy
-from scipy import optimize as opt
-from numpy import linalg
 from scipy import misc
 
-from .nestedsamplers import *
-from .sampler import *
-from .bounding import *
-from .sampling import *
-from .results import *
-from .utils import *
+from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
+                             MultiEllipsoidSampler, RadFriendsSampler,
+                             SupFriendsSampler)
+from .sampling import (sample_unif, sample_rwalk, sample_rstagger,
+                       sample_slice, sample_rslice, sample_hslice)
+from .results import Results, print_fn
+from .utils import kld_error
 
 __all__ = ["DynamicSampler", "weight_function", "stopping_function",
            "_kld_error"]
@@ -41,8 +40,10 @@ _SAMPLERS = {'none': UnitCubeSampler,
              'cubes': SupFriendsSampler}
 _SAMPLING = {'unif': sample_unif,
              'rwalk': sample_rwalk,
+             'rstagger': sample_rstagger,
              'slice': sample_slice,
-             'rslice': sample_rslice}
+             'rslice': sample_rslice,
+             'hslice': sample_hslice}
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
@@ -247,7 +248,7 @@ def stopping_function(results, args=None, rstate=None, M=None,
     error = args.get('error', 'sim_approx')
     if error not in {'jitter', 'simulate', 'sim_approx'}:
         raise ValueError("The chosen `'error'` option {0} is not valid."
-                         .format(noise))
+                         .format(error))
     if error == 'sim_approx':
         error = 'jitter'
         boost = 2.

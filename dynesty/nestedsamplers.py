@@ -25,18 +25,17 @@ Includes:
 """
 
 from __future__ import (print_function, division)
-from six.moves import range
 
-import sys
-import warnings
 import math
 import numpy as np
 import copy
 from scipy import spatial
 
-from .sampler import *
-from .bounding import *
-from .sampling import *
+from .sampler import Sampler
+from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid,
+                       RadFriends, SupFriends)
+from .sampling import (sample_unif, sample_rwalk, sample_rstagger,
+                       sample_slice, sample_rslice, sample_hslice)
 from .utils import unitcheck
 
 __all__ = ["UnitCubeSampler", "SingleEllipsoidSampler",

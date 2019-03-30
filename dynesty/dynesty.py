@@ -14,12 +14,13 @@ import sys
 import warnings
 import math
 import numpy as np
-import scipy.misc as misc
 
-from .sampler import *
-from .sampling import *
-from .nestedsamplers import *
-from .dynamicsampler import *
+from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
+                             MultiEllipsoidSampler, RadFriendsSampler,
+                             SupFriendsSampler)
+from .sampling import (sample_unif, sample_rwalk, sample_rstagger,
+                       sample_slice, sample_rslice, sample_hslice)
+from .dynamicsampler import DynamicSampler
 
 __all__ = ["NestedSampler", "DynamicNestedSampler", "_function_wrapper"]
 

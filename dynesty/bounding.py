@@ -25,7 +25,6 @@ useful helper functions. Bounding objects include:
 from __future__ import (print_function, division)
 from six.moves import range
 
-import sys
 import warnings
 import math
 import numpy as np
@@ -393,7 +392,7 @@ class MultiEllipsoid(object):
         """Scale ellipoids to a corresponding set of
         target volumes."""
 
-        _ = [self.ells[i].scale_to_vol(vols[i]) for i in range(self.nells)]
+        [self.ells[i].scale_to_vol(vols[i]) for i in range(self.nells)]
         self.vols = np.array(vols)
         self.expands = np.array([self.ells[i].expand
                                  for i in range(self.nells)])

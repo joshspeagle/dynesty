@@ -1,13 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from __future__ import (division, print_function)
-from six.moves import range
-
-from .dynesty import *
+from .dynesty import NestedSampler, DynamicNestedSampler
 from . import bounding
-from . import sampling
 from . import utils
 
 
-__version__ = "0.9.5.2"
+__version__ = "0.9.5.3"

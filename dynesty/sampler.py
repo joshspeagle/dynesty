@@ -16,9 +16,9 @@ import math
 import copy
 import numpy as np
 
-from .results import *
-from .bounding import *
-from .sampling import *
+from .results import Results, print_fn
+from .bounding import UnitCube
+from .sampling import sample_unif
 
 try:
     from scipy.special import logsumexp

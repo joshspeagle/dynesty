@@ -125,9 +125,9 @@ def print_fn(results, niter, ncall, add_live_it=None,
     mid_str = ' | '.join(mid_str)
     short_str = '|'.join(short_str)
     if sys.stderr.isatty() and hasattr(shutil, 'get_terminal_size'):
-        columns, _rows = shutil.get_terminal_size(fallback=(80, 25))
+        columns = shutil.get_terminal_size(fallback=(80, 25))[0]
     else:
-        columns, _rows = 200, 25
+        columns = 200
     if columns > len(long_str):
         sys.stderr.write("\r" + long_str + ' '*(columns-len(long_str)-2))
     elif columns > len(mid_str):

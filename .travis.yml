@@ -1,6 +1,6 @@
 language: python
 
-sudo: required
+sudo: False
 dist: trusty
 
 python:
@@ -20,9 +20,10 @@ install:
     - pip install -U pip
     - pip install coveralls pyflakes
     - pip install matplotlib==2.2.4
-    - pyflakes dynesty/*.py
     - python setup.py install
 
-script: python runtests.py
+script: 
+    - pyflakes dynesty/*.py
+    - python runtests.py
 
 after_success: coveralls

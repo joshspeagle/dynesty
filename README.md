@@ -25,3 +25,8 @@ from inside the repository.
 Several Jupyter notebooks that demonstrate most of the available features
 of the code can be found 
 [here](https://github.com/joshspeagle/dynesty/tree/master/demos).
+
+### Attribution
+
+Please cite [Speagle (2019)](https://arxiv.org/abs/1904.02180) if you find the 
+package useful in your research.

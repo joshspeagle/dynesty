@@ -148,6 +148,11 @@ class Sampler(object):
         self.saved_bounditer = []  # active bound at a specific iteration
         self.saved_scale = []  # scale factor at each iteration
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['rstate']
+        return state
+
     def reset(self):
         """Re-initialize the sampler."""
 

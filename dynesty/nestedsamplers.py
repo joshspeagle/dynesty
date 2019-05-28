@@ -547,11 +547,6 @@ class MultiEllipsoidSampler(Sampler):
         self.fmove = self.kwargs.get('fmove', 0.9)
         self.max_move = self.kwargs.get('max_move', 100)
 
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        del state['rstate']
-        return state
-
     def update(self, pointvol):
         """Update the bounding ellipsoids using the current set of
         live points."""

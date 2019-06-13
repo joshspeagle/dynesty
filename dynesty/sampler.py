@@ -15,15 +15,16 @@ import warnings
 import math
 import copy
 import numpy as np
+import scipy
+if int(scipy.version.version.split('.')[0]) >= 1:
+    from scipy.special import logsumexp
+else:
+    from scipy.misc import logsumexp
+
 
 from .results import Results, print_fn
 from .bounding import UnitCube
 from .sampling import sample_unif
-
-try:
-    from scipy.special import logsumexp
-except ImportError:
-    from scipy.misc import logsumexp
 
 __all__ = ["Sampler"]
 

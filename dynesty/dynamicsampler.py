@@ -20,7 +20,12 @@ import warnings
 import math
 import numpy as np
 import copy
-from scipy import misc
+import scipy
+if int(scipy.version.version.split('.')[0]) >= 1:
+    from scipy.special import logsumexp
+else:
+    from scipy.misc import logsumexp
+
 
 from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
                              MultiEllipsoidSampler, RadFriendsSampler,
@@ -122,10 +127,10 @@ def weight_function(results, args=None, return_weights=False):
     logz_remain = results.logl[-1] + results.logvol[-1]  # remainder
     logz_tot = np.logaddexp(logz[-1], logz_remain)  # estimated upper bound
     lzones = np.ones_like(logz)
-    logzin = misc.logsumexp([lzones * logz_tot, logz], axis=0,
-                            b=[lzones, -lzones])  # ln(remaining evidence)
+    logzin = logsumexp([lzones * logz_tot, logz], axis=0,
+                       b=[lzones, -lzones])  # ln(remaining evidence)
     logzweight = logzin - np.log(results.samples_n)  # ln(evidence weight)
-    logzweight -= misc.logsumexp(logzweight)  # normalize
+    logzweight -= logsumexp(logzweight)  # normalize
     zweight = np.exp(logzweight)  # convert to linear scale
 
     # Derive posterior weights.
@@ -1289,9 +1294,8 @@ class DynamicSampler(object):
         loglstar = -1.e300
         logzvar = 0.
         logvols_pad = np.concatenate(([0.], self.saved_logvol))
-        logdvols = misc.logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
-                                  axis=1, b=np.c_[np.ones(ntot),
-                                                  -np.ones(ntot)])
+        logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
+                             axis=1, b=np.c_[np.ones(ntot), -np.ones(ntot)])
         logdvols += math.log(0.5)
         dlvs = logvols_pad[:-1] - logvols_pad[1:]
         for i in range(ntot):

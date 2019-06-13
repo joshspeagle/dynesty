@@ -765,7 +765,10 @@ class RadFriendsSampler(Sampler):
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, first_update,
                              rstate, queue_size, pool, use_pool)
-        self.radfriends = RadFriends(self.npdim, 0.)
+        if self.kwargs.get('flexiballs', False):
+            self.radfriends = MLFriends(self.npdim, 0.)
+        else:
+            self.radfriends = RadFriends(self.npdim, 0.)
         self.bounding = 'balls'
         self.method = method
         self.use_kdtree = self.kwargs.get('use_kdtree', False)

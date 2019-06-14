@@ -195,12 +195,13 @@ def sample_rwalk(args):
             du = np.dot(axes, dr)
             u_prop = u + scale * du
 
-            # Wrap periodic parameters and reflect non-perioridc parameters
+            # Wrap periodic parameters and reflect non-perioridc parameters.
             if nonperiodic is not None:
                 u_prop[~nonperiodic] = np.mod(u_prop[~nonperiodic], 1)
                 u_prop_ref = u_prop[nonperiodic]
-                u_prop[nonperiodic] = np.minimum(
-                    np.maximum(u_prop_ref, abs(u_prop_ref)), 2 - u_prop_ref)
+                u_prop[nonperiodic] = np.minimum(np.maximum(u_prop_ref,
+                                                            abs(u_prop_ref)),
+                                                 2 - u_prop_ref)
 
             # Check unit cube constraints.
             if unitcheck(u_prop, nonperiodic):
@@ -347,6 +348,14 @@ def sample_rstagger(args):
             # Transform to proposal distribution.
             du = np.dot(axes, dr)
             u_prop = u + scale * stagger * du
+
+            # Wrap periodic parameters and reflect non-perioridc parameters.
+            if nonperiodic is not None:
+                u_prop[~nonperiodic] = np.mod(u_prop[~nonperiodic], 1)
+                u_prop_ref = u_prop[nonperiodic]
+                u_prop[nonperiodic] = np.minimum(np.maximum(u_prop_ref,
+                                                            abs(u_prop_ref)),
+                                                 2 - u_prop_ref)
 
             # Check unit cube constraints.
             if unitcheck(u_prop, nonperiodic):

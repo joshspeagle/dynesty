@@ -29,7 +29,6 @@ from __future__ import (print_function, division)
 import math
 import numpy as np
 import copy
-from scipy import spatial
 
 from .sampler import Sampler
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid,
@@ -765,13 +764,9 @@ class RadFriendsSampler(Sampler):
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, first_update,
                              rstate, queue_size, pool, use_pool)
-        if self.kwargs.get('flexiballs', False):
-            self.radfriends = MLFriends(self.npdim, 0.)
-        else:
-            self.radfriends = RadFriends(self.npdim, 0.)
+        self.radfriends = RadFriends(self.npdim)
         self.bounding = 'balls'
         self.method = method
-        self.use_kdtree = self.kwargs.get('use_kdtree', False)
         self.nonperiodic = self.kwargs.get('nonperiodic', None)
 
         # Gradient.
@@ -791,12 +786,6 @@ class RadFriendsSampler(Sampler):
     def update(self, pointvol):
         """Update the N-sphere radii using the current set of live points."""
 
-        # Initialize a K-D Tree to assist nearest neighbor searches.
-        if self.use_kdtree:
-            kdtree = spatial.KDTree(self.live_u)
-        else:
-            kdtree = None
-
         # Check if we should use the provided pool for updating.
         if self.use_pool_update:
             pool = self.pool
@@ -806,7 +795,7 @@ class RadFriendsSampler(Sampler):
         # Update the N-spheres.
         self.radfriends.update(self.live_u, pointvol=pointvol,
                                rstate=self.rstate, bootstrap=self.bootstrap,
-                               pool=pool, kdtree=kdtree)
+                               pool=pool)
         if self.enlarge != 1.:
             self.radfriends.scale_to_vol(self.radfriends.vol_ball *
                                          self.enlarge)
@@ -817,17 +806,11 @@ class RadFriendsSampler(Sampler):
         """Propose a new live point by sampling *uniformly* within
         the union of N-spheres defined by our live points."""
 
-        # Initialize a K-D Tree to assist nearest neighbor searches.
-        if self.use_kdtree:
-            kdtree = spatial.KDTree(self.live_u)
-        else:
-            kdtree = None
-
         while True:
             # Sample a point `u` from the union of N-spheres along with the
             # number of overlapping spheres `q` at point `u`.
             u, q = self.radfriends.sample(self.live_u, rstate=self.rstate,
-                                          return_q=True, kdtree=kdtree)
+                                          return_q=True)
 
             # Check if our sample is within the unit cube.
             if unitcheck(u, self.nonperiodic):
@@ -837,7 +820,7 @@ class RadFriendsSampler(Sampler):
                     break  # if successful, we're done!
 
         # Define the axes of the N-sphere.
-        ax = np.identity(self.npdim) * self.radfriends.radius
+        ax = self.radfriends.axes
 
         return u, ax
 
@@ -846,7 +829,7 @@ class RadFriendsSampler(Sampler):
 
         i = self.rstate.randint(self.nlive)
         u = self.live_u[i, :]
-        ax = np.identity(self.npdim) * self.radfriends.radius
+        ax = self.radfriends.axes
 
         return u, ax
 
@@ -984,10 +967,9 @@ class SupFriendsSampler(Sampler):
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, first_update,
                              rstate, queue_size, pool, use_pool)
-        self.supfriends = SupFriends(self.npdim, 0.)
+        self.supfriends = SupFriends(self.npdim)
         self.bounding = 'cubes'
         self.method = method
-        self.use_kdtree = self.kwargs.get('use_kdtree', False)
         self.nonperiodic = self.kwargs.get('nonperiodic', None)
 
         # Gradient.
@@ -1008,12 +990,6 @@ class SupFriendsSampler(Sampler):
         """Update the N-cube side-lengths using the current set of
         live points."""
 
-        # Initialize a K-D Tree to assist nearest neighbor searches.
-        if self.use_kdtree:
-            kdtree = spatial.KDTree(self.live_u)
-        else:
-            kdtree = None
-
         # Check if we should use the provided pool for updating.
         if self.use_pool_update:
             pool = self.pool
@@ -1023,7 +999,7 @@ class SupFriendsSampler(Sampler):
         # Update the N-cubes.
         self.supfriends.update(self.live_u, pointvol=pointvol,
                                rstate=self.rstate, bootstrap=self.bootstrap,
-                               pool=pool, kdtree=kdtree)
+                               pool=pool)
         if self.enlarge != 1.:
             self.supfriends.scale_to_vol(self.supfriends.vol_cube *
                                          self.enlarge)
@@ -1034,17 +1010,11 @@ class SupFriendsSampler(Sampler):
         """Propose a new live point by sampling *uniformly* within
         the collection of N-cubes defined by our live points."""
 
-        # Initialize a K-D Tree to assist nearest neighbor searches.
-        if self.use_kdtree:
-            kdtree = spatial.KDTree(self.live_u)
-        else:
-            kdtree = None
-
         while True:
             # Sample a point `u` from the union of N-cubes along with the
             # number of overlapping cubes `q` at point `u`.
             u, q = self.supfriends.sample(self.live_u, rstate=self.rstate,
-                                          return_q=True, kdtree=kdtree)
+                                          return_q=True)
 
             # Check if our point is within the unit cube.
             if unitcheck(u, self.nonperiodic):
@@ -1054,7 +1024,7 @@ class SupFriendsSampler(Sampler):
                     break  # if successful, we're done!
 
         # Define the axes of our N-cube.
-        ax = np.identity(self.npdim) * self.supfriends.hside
+        ax = self.supfriends.axes
 
         return u, ax
 
@@ -1063,7 +1033,7 @@ class SupFriendsSampler(Sampler):
 
         i = self.rstate.randint(self.nlive)
         u = self.live_u[i, :]
-        ax = np.identity(self.npdim) * self.supfriends.hside
+        ax = self.supfriends.axes
 
         return u, ax
 

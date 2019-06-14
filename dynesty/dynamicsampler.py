@@ -20,10 +20,9 @@ import warnings
 import math
 import numpy as np
 import copy
-import scipy
-if int(scipy.version.version.split('.')[0]) >= 1:
+try:
     from scipy.special import logsumexp
-else:
+except ImportError:
     from scipy.misc import logsumexp
 
 
@@ -1311,7 +1310,7 @@ class DynamicSampler(object):
             dh = h_new - h
             h = h_new
             logz = logz_new
-            logzvar += dh * dlv
+            logzvar += 2. * dh * dlv
             loglstar = loglstar_new
             self.saved_logwt.append(logwt)
             self.saved_logz.append(logz)

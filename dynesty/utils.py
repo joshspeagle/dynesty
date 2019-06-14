@@ -12,10 +12,9 @@ from six.moves import range
 import sys
 import warnings
 import math
-import scipy
-if int(scipy.version.version.split('.')[0]) >= 1:
+try:
     from scipy.special import logsumexp
-else:
+except ImportError:
     from scipy.misc import logsumexp
 
 import numpy as np

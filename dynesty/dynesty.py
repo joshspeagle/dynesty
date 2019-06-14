@@ -175,13 +175,13 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         sampled from the prior. Failure to provide a set of valid live points
         will result in incorrect results.**
 
-    logl_args : dict, optional
+    logl_args : iterable, optional
         Additional arguments that can be passed to `loglikelihood`.
 
     logl_kwargs : dict, optional
         Additional keyword arguments that can be passed to `loglikelihood`.
 
-    ptform_args : dict, optional
+    ptform_args : iterable, optional
         Additional arguments that can be passed to `prior_transform`.
 
     ptform_kwargs : dict, optional
@@ -194,7 +194,7 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         when sampling with `'hslice'`. If not provided, gradients are
         approximated numerically using 2-sided differencing.
 
-    grad_args : dict, optional
+    grad_args : iterable, optional
         Additional arguments that can be passed to `gradient`.
 
     grad_kwargs : dict, optional
@@ -563,13 +563,13 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         is evaluated in parallel during a run (`'stop_function'`).
         Default is `True` for all options.
 
-    logl_args : dict, optional
+    logl_args : iterable, optional
         Additional arguments that can be passed to `loglikelihood`.
 
     logl_kwargs : dict, optional
         Additional keyword arguments that can be passed to `loglikelihood`.
 
-    ptform_args : dict, optional
+    ptform_args : iterable, optional
         Additional arguments that can be passed to `prior_transform`.
 
     ptform_kwargs : dict, optional
@@ -582,7 +582,7 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         when sampling with `'hslice'`. If not provided, gradients are
         approximated numerically using 2-sided differencing.
 
-    grad_args : dict, optional
+    grad_args : iterable, optional
         Additional arguments that can be passed to `gradient`.
 
     grad_kwargs : dict, optional

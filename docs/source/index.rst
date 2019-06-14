@@ -37,6 +37,24 @@ Changelog
 .. image:: ../images/logo.gif
     :align: center
 
+0.9.7 (2019-06-13)
+-------------------
+* Ensemble bounds can now adapt to elongated distributions (with
+  `Johannes Buchner <https://github.com/JohannesBuchner>`_).
+
+* Random walks now behave differently near boundaries (with
+  `Gregory Ashton <https://github.com/GregoryAshton>`_).
+
+* Pickling sampler states should now work better in Python 3 (with
+  `Dustin Lang <https://github.com/dstndstnr>`_.
+
+* Doubled output errors in default approximation in line with theoretical
+  expectations.
+
+* Small bugfixes and docfixes (with
+  `Patricio Cubillos <https://github.com/dstndstnr>`_).
+
+
 0.9.5.3 (2019-03-29)
 -------------------
 * Various small bugfixes, with contributions by

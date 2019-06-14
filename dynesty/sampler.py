@@ -15,10 +15,9 @@ import warnings
 import math
 import copy
 import numpy as np
-import scipy
-if int(scipy.version.version.split('.')[0]) >= 1:
+try:
     from scipy.special import logsumexp
-else:
+except ImportError:
     from scipy.misc import logsumexp
 
 
@@ -432,7 +431,7 @@ class Sampler(object):
             dh = h_new - h
             h = h_new
             logz = logz_new
-            logzvar += dh * dlv  # var[ln(evidence)] estimate
+            logzvar += 2. * dh * dlv  # var[ln(evidence)] estimate
             loglstar = loglstar_new
             logz_remain = loglmax + logvol  # remaining ln(evidence)
             delta_logz = np.logaddexp(logz, logz_remain) - logz  # dlogz
@@ -720,7 +719,7 @@ class Sampler(object):
             dh = h_new - h
             h = h_new
             logz = logz_new
-            logzvar += dh * self.dlv
+            logzvar += 2. * dh * self.dlv
             loglstar = loglstar_new
 
             # Compute bound index at the current iteration.

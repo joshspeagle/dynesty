@@ -485,7 +485,8 @@ class Sampler(object):
                              "list of samples!")
 
     def sample(self, maxiter=None, maxcall=None, dlogz=0.01,
-               logl_max=np.inf, save_bounds=True, save_samples=True):
+               logl_max=np.inf, save_bounds=True, save_samples=True,
+               n_effective=np.inf):
         """
         **The main nested sampling loop.** Iteratively replace the worst live
         point with a sample drawn uniformly from the prior until the
@@ -524,6 +525,12 @@ class Sampler(object):
             Whether or not to save past samples from the nested sampling run
             (along with other ancillary quantities) internally.
             Default is `True`.
+
+        n_effective: int, optional
+            Target number of posterior samples. If the estimated effective
+            sample size exceeds this number, the sampling will stop. Default
+            is `np.inf`.
+
 
         Returns
         -------
@@ -670,6 +677,23 @@ class Sampler(object):
                     self.saved_logl.append(loglstar)
                 break
 
+            # Bonus stopping criterion: the number of effective posterior
+            # samples has been achieved.
+            if n_effective is not None:
+                if self.n_effective > n_effective:
+                    self.add_final_live(print_progress=False)
+                    n_effective_with_live_points = self.n_effective
+                    self._remove_live_points()
+                    self.added_live = False
+                    if n_effective_with_live_points > n_effective:
+                        if not self.save_samples:
+                            self.saved_logz.append(logz)
+                            self.saved_logzvar.append(logzvar)
+                            self.saved_h.append(h)
+                            self.saved_logvol.append(logvol)
+                            self.saved_logl.append(loglstar)
+                        break
+
             # Expected ln(volume) shrinkage.
             logvol -= self.dlv
 
@@ -765,7 +789,7 @@ class Sampler(object):
 
     def run_nested(self, maxiter=None, maxcall=None, dlogz=None,
                    logl_max=np.inf, add_live=True, print_progress=True,
-                   print_func=None, save_bounds=True):
+                   print_func=None, save_bounds=True, n_effective=None):
         """
         **A wrapper that executes the main nested sampling loop.**
         Iteratively replace the worst live point with a sample drawn
@@ -814,6 +838,11 @@ class Sampler(object):
             Whether or not to save past bounding distributions used to bound
             the live points internally. Default is *True*.
 
+        n_effective: int, optional
+            Target number of posterior samples. If the estimated effective
+            sample size exceeds this number, the sampling will stop. Default
+            is `np.inf`.
+
         """
 
         # Initialize quantities/
@@ -833,7 +862,8 @@ class Sampler(object):
                                      maxcall=maxcall, dlogz=dlogz,
                                      logl_max=logl_max,
                                      save_bounds=save_bounds,
-                                     save_samples=True)):
+                                     save_samples=True,
+                                     n_effective=n_effective)):
             (worst, ustar, vstar, loglstar, logvol, logwt,
              logz, logzvar, h, nc, worst_it, boundidx, bounditer,
              eff, delta_logz) = results
@@ -902,3 +932,20 @@ class Sampler(object):
             # Print progress.
             if print_progress:
                 print_func(results, it, ncall, add_live_it=i+1, dlogz=0.01)
+
+    @property
+    def n_effective(self):
+        """
+        Estimate the effective number of posterior samples
+
+        https://en.wikipedia.org/wiki/Effective_sample_size
+
+        n_effective = sum(weights)^2 / sum(weights^2)
+        """
+        if len(self.saved_logwt) == 0:
+            return 0
+        else:
+            ln_weights = np.array(self.saved_logwt)
+            _n_eff = np.exp(
+                logsumexp(ln_weights) * 2 - logsumexp(ln_weights * 2))
+            return _n_eff

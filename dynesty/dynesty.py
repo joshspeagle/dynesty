@@ -403,34 +403,38 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         kwargs['compute_jac'] = compute_jac
 
     # Initialize live points and calculate log-likelihoods.
-    if live_points is None:
-        live_u = rstate.rand(nlive, npdim)  # positions in unit cube
-        if use_pool.get('prior_transform', True):
-            live_v = np.array(list(M(ptform,
-                                     np.array(live_u))))  # real parameters
-        else:
-            live_v = np.array(list(map(ptform,
-                                       np.array(live_u))))
-        if use_pool.get('loglikelihood', True):
-            live_logl = np.array(list(M(loglike,
-                                        np.array(live_v))))  # log likelihood
-        else:
-            live_logl = np.array(list(map(loglike,
-                                          np.array(live_v))))
-        live_points = [live_u, live_v, live_logl]
+    while True:
+      if live_points is None:
+          live_u = rstate.rand(nlive, npdim)  # positions in unit cube
+          if use_pool.get('prior_transform', True):
+              live_v = np.array(list(M(ptform,
+                                       np.array(live_u))))  # real parameters
+          else:
+              live_v = np.array(list(map(ptform,
+                                         np.array(live_u))))
+          if use_pool.get('loglikelihood', True):
+              live_logl = np.array(list(M(loglike,
+                                          np.array(live_v))))  # log likelihood
+          else:
+              live_logl = np.array(list(map(loglike,
+                                            np.array(live_v))))
+          live_points = [live_u, live_v, live_logl]
 
-    # Convert all `-np.inf` log-likelihoods to finite large numbers.
-    # Necessary to keep estimators in our sampler from breaking.
-    for i, logl in enumerate(live_points[2]):
-        if not np.isfinite(logl):
-            if np.sign(logl) < 0:
-                live_points[2][i] = -1e300
-            else:
-                raise ValueError("The log-likelihood ({0}) of live point {1} "
-                                 "located at u={2} v={3} is invalid."
-                                 .format(logl, i, live_points[0][i],
-                                         live_points[1][i]))
-
+      # Convert all `-np.inf` log-likelihoods to finite large numbers.
+      # Necessary to keep estimators in our sampler from breaking.
+      for i, logl in enumerate(live_points[2]):
+          if not np.isfinite(logl):
+              if np.sign(logl) < 0:
+                  live_points[2][i] = -1e300
+              else:
+                  raise ValueError("The log-likelihood ({0}) of live point {1} "
+                                   "located at u={2} v={3} is invalid."
+                                   .format(logl, i, live_points[0][i],
+                                           live_points[1][i]))
+      # check to make sure there is at least one not -inf initial live pt.
+      if any(live_points[2] != -1e300):
+        break
+      
     # Initialize our nested sampler.
     sampler = _SAMPLERS[bound](loglike, ptform, npdim,
                                live_points, sample, update_interval,

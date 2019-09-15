@@ -12,6 +12,7 @@ from six.moves import range
 
 import sys
 import warnings
+from functools import partial
 import math
 import copy
 import numpy as np
@@ -20,6 +21,10 @@ try:
 except ImportError:
     from scipy.misc import logsumexp
 
+try:
+    import tqdm
+except ImportError:
+    tqdm = None
 
 from .results import Results, print_fn
 from .bounding import UnitCube
@@ -787,6 +792,16 @@ class Sampler(object):
                    logz, logzvar, h, nc, worst_it, boundidx, bounditer,
                    self.eff, delta_logz)
 
+    def _get_print_func(self, print_func, print_progress):
+        pbar = None
+        if print_func is None:
+            if tqdm is None or not print_progress:
+                print_func = print_fn
+            else:
+                pbar = tqdm.tqdm()
+                print_func = partial(print_fn, pbar=pbar)
+        return pbar, print_func
+
     def run_nested(self, maxiter=None, maxcall=None, dlogz=None,
                    logl_max=np.inf, add_live=True, print_progress=True,
                    print_func=None, save_bounds=True, n_effective=None):
@@ -845,10 +860,6 @@ class Sampler(object):
 
         """
 
-        # Initialize quantities/
-        if print_func is None:
-            print_func = print_fn
-
         # Define our stopping criteria.
         if dlogz is None:
             if add_live:
@@ -857,34 +868,18 @@ class Sampler(object):
                 dlogz = 0.01
 
         # Run the main nested sampling loop.
-        ncall = self.ncall
-        for it, results in enumerate(self.sample(maxiter=maxiter,
-                                     maxcall=maxcall, dlogz=dlogz,
-                                     logl_max=logl_max,
-                                     save_bounds=save_bounds,
-                                     save_samples=True,
-                                     n_effective=n_effective)):
-            (worst, ustar, vstar, loglstar, logvol, logwt,
-             logz, logzvar, h, nc, worst_it, boundidx, bounditer,
-             eff, delta_logz) = results
-            ncall += nc
-            if delta_logz > 1e6:
-                delta_logz = np.inf
-            if logz <= -1e6:
-                logz = -np.inf
-
-            # Print progress.
-            if print_progress:
-                i = self.it - 1
-                print_func(results, i, ncall, dlogz=dlogz, logl_max=logl_max)
-
-        # Add remaining live points to samples.
-        if add_live:
-            it = self.it - 1
-            for i, results in enumerate(self.add_live_points()):
+        pbar, print_func = self._get_print_func(print_func, print_progress)
+        try:
+            ncall = self.ncall
+            for it, results in enumerate(self.sample(
+                maxiter=maxiter, maxcall=maxcall, dlogz=dlogz,
+                logl_max=logl_max, save_bounds=save_bounds,
+                save_samples=True, n_effective=n_effective
+            )):
                 (worst, ustar, vstar, loglstar, logvol, logwt,
                  logz, logzvar, h, nc, worst_it, boundidx, bounditer,
                  eff, delta_logz) = results
+                ncall += nc
                 if delta_logz > 1e6:
                     delta_logz = np.inf
                 if logz <= -1e6:
@@ -892,8 +887,29 @@ class Sampler(object):
 
                 # Print progress.
                 if print_progress:
-                    print_func(results, it, ncall, add_live_it=i+1,
-                               dlogz=dlogz, logl_max=logl_max)
+                    i = self.it - 1
+                    print_func(results, i, ncall, dlogz=dlogz,
+                               logl_max=logl_max)
+
+            # Add remaining live points to samples.
+            if add_live:
+                it = self.it - 1
+                for i, results in enumerate(self.add_live_points()):
+                    (worst, ustar, vstar, loglstar, logvol, logwt,
+                     logz, logzvar, h, nc, worst_it, boundidx, bounditer,
+                     eff, delta_logz) = results
+                    if delta_logz > 1e6:
+                        delta_logz = np.inf
+                    if logz <= -1e6:
+                        logz = -np.inf
+
+                    # Print progress.
+                    if print_progress:
+                        print_func(results, it, ncall, add_live_it=i+1,
+                                   dlogz=dlogz, logl_max=logl_max)
+        finally:
+            if pbar is not None:
+                pbar.close()
 
     def add_final_live(self, print_progress=True, print_func=None):
         """
@@ -913,25 +929,29 @@ class Sampler(object):
 
         """
 
-        # Initialize quantities/
         if print_func is None:
             print_func = print_fn
 
         # Add remaining live points to samples.
-        ncall = self.ncall
-        it = self.it - 1
-        for i, results in enumerate(self.add_live_points()):
-            (worst, ustar, vstar, loglstar, logvol, logwt,
-             logz, logzvar, h, nc, worst_it, boundidx, bounditer,
-             eff, delta_logz) = results
-            if delta_logz > 1e6:
-                delta_logz = np.inf
-            if logz <= -1e6:
-                logz = -np.inf
+        pbar, print_func = self._get_print_func(print_func, print_progress)
+        try:
+            ncall = self.ncall
+            it = self.it - 1
+            for i, results in enumerate(self.add_live_points()):
+                (worst, ustar, vstar, loglstar, logvol, logwt,
+                 logz, logzvar, h, nc, worst_it, boundidx, bounditer,
+                 eff, delta_logz) = results
+                if delta_logz > 1e6:
+                    delta_logz = np.inf
+                if logz <= -1e6:
+                    logz = -np.inf
 
-            # Print progress.
-            if print_progress:
-                print_func(results, it, ncall, add_live_it=i+1, dlogz=0.01)
+                # Print progress.
+                if print_progress:
+                    print_func(results, it, ncall, add_live_it=i+1, dlogz=0.01)
+        finally:
+            if pbar is not None:
+                pbar.close()
 
     @property
     def n_effective(self):

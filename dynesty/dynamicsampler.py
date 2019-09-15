@@ -17,6 +17,7 @@ from six.moves import range
 
 import sys
 import warnings
+from functools import partial
 import math
 import numpy as np
 import copy
@@ -24,6 +25,11 @@ try:
     from scipy.special import logsumexp
 except ImportError:
     from scipy.misc import logsumexp
+
+try:
+    import tqdm
+except ImportError:
+    tqdm = None
 
 
 from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
@@ -1337,6 +1343,16 @@ class DynamicSampler(object):
         self.saved_batch_nlive.append(max(new_n))
         self.saved_batch_bounds.append((llmin, llmax))
 
+    def _get_print_func(self, print_func, print_progress):
+        pbar = None
+        if print_func is None:
+            if tqdm is None or not print_progress:
+                print_func = print_fn
+            else:
+                pbar = tqdm.tqdm()
+                print_func = partial(print_fn, pbar=pbar)
+        return pbar, print_func
+
     def run_nested(self, nlive_init=500, maxiter_init=None,
                    maxcall_init=None, dlogz_init=0.01, logl_max_init=np.inf,
                    nlive_batch=500, wt_function=None, wt_kwargs=None,
@@ -1483,8 +1499,6 @@ class DynamicSampler(object):
             stop_function = stopping_function
         if stop_kwargs is None:
             stop_kwargs = dict()
-        if print_func is None:
-            print_func = print_fn
 
         # Run the main dynamic nested sampling loop.
         ncall = self.ncall
@@ -1494,72 +1508,74 @@ class DynamicSampler(object):
         maxiter_init = min(maxiter_init, maxiter)  # set max iterations
 
         # Baseline run.
-        if not self.base:
-            for results in self.sample_initial(nlive=nlive_init,
-                                               dlogz=dlogz_init,
-                                               maxcall=maxcall_init,
-                                               maxiter=maxiter_init,
-                                               logl_max=logl_max_init,
-                                               live_points=live_points):
-                (worst, ustar, vstar, loglstar, logvol,
-                 logwt, logz, logzvar, h, nc, worst_it,
-                 boundidx, bounditer, eff, delta_logz) = results
-                ncall += nc
-                niter += 1
+        pbar, print_func = self._get_print_func(print_func, print_progress)
+        try:
+            if not self.base:
+                for results in self.sample_initial(nlive=nlive_init,
+                                                   dlogz=dlogz_init,
+                                                   maxcall=maxcall_init,
+                                                   maxiter=maxiter_init,
+                                                   logl_max=logl_max_init,
+                                                   live_points=live_points):
+                    (worst, ustar, vstar, loglstar, logvol,
+                     logwt, logz, logzvar, h, nc, worst_it,
+                     boundidx, bounditer, eff, delta_logz) = results
+                    ncall += nc
+                    niter += 1
 
-                # Print progress.
-                if print_progress:
-                    print_func(results, niter, ncall, nbatch=0,
-                               dlogz=dlogz_init, logl_max=logl_max_init)
+                    # Print progress.
+                    if print_progress:
+                        print_func(results, niter, ncall, nbatch=0,
+                                   dlogz=dlogz_init, logl_max=logl_max_init)
 
-        # Add points in batches.
-        for n in range(self.batch, maxbatch):
-            # Update stopping criteria.
-            res = self.results
-            mcall = min(maxcall - ncall, maxcall_batch)
-            miter = min(maxiter - niter, maxiter_batch)
-            if mcall > 0 and miter > 0 and use_stop:
-                if self.use_pool_stopfn:
-                    M = self.M
+            # Add points in batches.
+            for n in range(self.batch, maxbatch):
+                # Update stopping criteria.
+                res = self.results
+                mcall = min(maxcall - ncall, maxcall_batch)
+                miter = min(maxiter - niter, maxiter_batch)
+                if mcall > 0 and miter > 0 and use_stop:
+                    if self.use_pool_stopfn:
+                        M = self.M
+                    else:
+                        M = map
+                    stop, stop_vals = stop_function(res, stop_kwargs,
+                                                    rstate=self.rstate, M=M,
+                                                    return_vals=True)
+                    stop_post, stop_evid, stop_val = stop_vals
                 else:
-                    M = map
-                stop, stop_vals = stop_function(res, stop_kwargs,
-                                                rstate=self.rstate, M=M,
-                                                return_vals=True)
-                stop_post, stop_evid, stop_val = stop_vals
-            else:
-                stop = False
-                stop_val = np.NaN
+                    stop = False
+                    stop_val = np.NaN
 
-            # If we have either likelihood calls or iterations remaining,
-            # run our batch.
-            if mcall > 0 and miter > 0 and not stop:
-                # Compute our sampling bounds using the provided
-                # weight function.
-                passback = self.add_batch(nlive=nlive_batch,
-                                          wt_function=wt_function,
-                                          wt_kwargs=wt_kwargs,
-                                          maxiter=miter,
-                                          maxcall=mcall,
-                                          save_bounds=save_bounds,
-                                          print_progress=print_progress,
-                                          print_func=print_func,
-                                          stop_val=stop_val)
-                ncall, niter, logl_bounds, results = passback
-            elif logl_bounds[1] != np.inf:
-                # We ran at least one batch and now we're done!
-                if print_progress:
-                    print_func(results, niter, ncall, nbatch=n,
-                               stop_val=stop_val,
-                               logl_min=logl_bounds[0],
-                               logl_max=logl_bounds[1])
-                break
-            else:
-                # We didn't run a single batch but now we're done!
-                break
-
-        if print_progress:
-            sys.stderr.write("\n")
+                # If we have either likelihood calls or iterations remaining,
+                # run our batch.
+                if mcall > 0 and miter > 0 and not stop:
+                    # Compute our sampling bounds using the provided
+                    # weight function.
+                    passback = self.add_batch(nlive=nlive_batch,
+                                              wt_function=wt_function,
+                                              wt_kwargs=wt_kwargs,
+                                              maxiter=miter,
+                                              maxcall=mcall,
+                                              save_bounds=save_bounds,
+                                              print_progress=print_progress,
+                                              print_func=print_func,
+                                              stop_val=stop_val)
+                    ncall, niter, logl_bounds, results = passback
+                elif logl_bounds[1] != np.inf:
+                    # We ran at least one batch and now we're done!
+                    if print_progress:
+                        print_func(results, niter, ncall, nbatch=n,
+                                   stop_val=stop_val,
+                                   logl_min=logl_bounds[0],
+                                   logl_max=logl_bounds[1])
+                    break
+                else:
+                    # We didn't run a single batch but now we're done!
+                    break
+        finally:
+            if pbar is not None:
+                pbar.close()
 
     def add_batch(self, nlive=500, wt_function=None, wt_kwargs=None,
                   maxiter=None, maxcall=None, save_bounds=True,
@@ -1624,44 +1640,47 @@ class DynamicSampler(object):
             wt_function = weight_function
         if wt_kwargs is None:
             wt_kwargs = dict()
-        if print_func is None:
-            print_func = print_fn
 
         # If we have either likelihood calls or iterations remaining,
         # add our new batch of live points.
         ncall, niter, n = self.ncall, self.it - 1, self.batch
         if maxcall > 0 and maxiter > 0:
-            # Compute our sampling bounds using the provided
-            # weight function.
-            res = self.results
-            lnz, lnzerr = res.logz[-1], res.logzerr[-1]
-            logl_bounds = wt_function(res, wt_kwargs)
-            for results in self.sample_batch(nlive_new=nlive,
-                                             logl_bounds=logl_bounds,
-                                             maxiter=maxiter,
-                                             maxcall=maxcall,
-                                             save_bounds=save_bounds):
-                (worst, ustar, vstar, loglstar, nc,
-                 worst_it, boundidx, bounditer, eff) = results
+            pbar, print_func = self._get_print_func(print_func, print_progress)
+            try:
+                # Compute our sampling bounds using the provided
+                # weight function.
+                res = self.results
+                lnz, lnzerr = res.logz[-1], res.logzerr[-1]
+                logl_bounds = wt_function(res, wt_kwargs)
+                for results in self.sample_batch(nlive_new=nlive,
+                                                 logl_bounds=logl_bounds,
+                                                 maxiter=maxiter,
+                                                 maxcall=maxcall,
+                                                 save_bounds=save_bounds):
+                    (worst, ustar, vstar, loglstar, nc,
+                     worst_it, boundidx, bounditer, eff) = results
 
-                # When initializing a batch (i.e. when `worst < 0`),
-                # don't increment our call counter or our current
-                # number of iterations.
-                if worst >= 0:
-                    ncall += nc
-                    niter += 1
+                    # When initializing a batch (i.e. when `worst < 0`),
+                    # don't increment our call counter or our current
+                    # number of iterations.
+                    if worst >= 0:
+                        ncall += nc
+                        niter += 1
 
-                # Reorganize results.
-                results = (worst, ustar, vstar, loglstar, np.nan, np.nan,
-                           lnz, lnzerr**2, np.nan, nc, worst_it, boundidx,
-                           bounditer, eff, np.nan)
+                    # Reorganize results.
+                    results = (worst, ustar, vstar, loglstar, np.nan, np.nan,
+                               lnz, lnzerr**2, np.nan, nc, worst_it, boundidx,
+                               bounditer, eff, np.nan)
 
-                # Print progress.
-                if print_progress:
-                    print_func(results, niter, ncall, nbatch=n+1,
-                               stop_val=stop_val,
-                               logl_min=logl_bounds[0],
-                               logl_max=logl_bounds[1])
+                    # Print progress.
+                    if print_progress:
+                        print_func(results, niter, ncall, nbatch=n+1,
+                                   stop_val=stop_val,
+                                   logl_min=logl_bounds[0],
+                                   logl_max=logl_bounds[1])
+            finally:
+                if pbar is not None:
+                    pbar.close()
 
             # Combine batch with previous runs.
             self.combine_runs()

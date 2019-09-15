@@ -17,7 +17,7 @@ __all__ = ["Results", "print_fn"]
 
 def print_fn(results, niter, ncall, add_live_it=None,
              dlogz=None, stop_val=None, nbatch=None,
-             logl_min=-np.inf, logl_max=np.inf):
+             logl_min=-np.inf, logl_max=np.inf, pbar=None):
     """
     The default function used to print out results in real time.
 
@@ -73,7 +73,19 @@ def print_fn(results, niter, ncall, add_live_it=None,
         `np.inf`.
 
     """
+    if pbar is None:
+        print_fn_fallback(results, niter, ncall, add_live_it=add_live_it,
+                          dlogz=dlogz, stop_val=stop_val, nbatch=nbatch,
+                          logl_min=logl_min, logl_max=logl_max)
+    else:
+        print_fn_tqdm(pbar, results, niter, ncall, add_live_it=add_live_it,
+                      dlogz=dlogz, stop_val=stop_val, nbatch=nbatch,
+                      logl_min=logl_min, logl_max=logl_max)
 
+
+def get_print_fn_args(results, niter, ncall, add_live_it=None,
+                      dlogz=None, stop_val=None, nbatch=None,
+                      logl_min=-np.inf, logl_max=np.inf):
     # Extract results at the current iteration.
     (worst, ustar, vstar, loglstar, logvol, logwt,
      logz, logzvar, h, nc, worst_it, boundidx, bounditer,
@@ -93,7 +105,7 @@ def print_fn(results, niter, ncall, add_live_it=None,
 
     # Constructing output.
     long_str = []
-    long_str.append("iter: {:d}".format(niter))
+    # long_str.append("iter: {:d}".format(niter))
     if add_live_it is not None:
         long_str.append("+{:d}".format(add_live_it))
     short_str = list(long_str)
@@ -119,6 +131,29 @@ def print_fn(results, niter, ncall, add_live_it=None,
     else:
         long_str.append("stop: {:6.3f}".format(stop_val))
         mid_str.append("stop: {:6.3f}".format(stop_val))
+
+    return niter, short_str, mid_str, long_str
+
+
+def print_fn_tqdm(pbar, results, niter, ncall, add_live_it=None,
+                  dlogz=None, stop_val=None, nbatch=None,
+                  logl_min=-np.inf, logl_max=np.inf):
+    niter, short_str, mid_str, long_str = get_print_fn_args(
+        results, niter, ncall, add_live_it=add_live_it, dlogz=dlogz,
+        stop_val=stop_val, nbatch=nbatch, logl_min=logl_min, logl_max=logl_max)
+
+    pbar.set_postfix_str(" | ".join(long_str), refresh=False)
+    pbar.update(niter - pbar.n)
+
+
+def print_fn_fallback(results, niter, ncall, add_live_it=None,
+                      dlogz=None, stop_val=None, nbatch=None,
+                      logl_min=-np.inf, logl_max=np.inf):
+    niter, short_str, mid_str, long_str = get_print_fn_args(
+        results, niter, ncall, add_live_it=add_live_it, dlogz=dlogz,
+        stop_val=stop_val, nbatch=nbatch, logl_min=logl_min, logl_max=logl_max)
+
+    long_str = ["iter: {:d}".format(niter)] + long_str
 
     # Printing.
     long_str = ' | '.join(long_str)

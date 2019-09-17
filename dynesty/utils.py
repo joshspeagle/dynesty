@@ -30,20 +30,20 @@ __all__ = ["unitcheck", "resample_equal", "mean_and_cov", "quantile",
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
-def unitcheck(u, nonperiodic=None):
+def unitcheck(u, nonbounded=None):
     """Check whether `u` is inside the unit cube. Given a masked array
-    `nonperiodic`, also allows periodic boundaries conditions to exceed
+    `nonbounded`, also allows periodic boundaries conditions to exceed
     the unit cube."""
 
-    if nonperiodic is None:
+    if nonbounded is None:
         # No periodic boundary conditions provided.
         return np.all(u > 0.) and np.all(u < 1.)
     else:
         # Alternating periodic and non-periodic boundary conditions.
-        return (np.all(u[nonperiodic] > 0.) and
-                np.all(u[nonperiodic] < 1.) and
-                np.all(u[~nonperiodic] > -0.5) and
-                np.all(u[~nonperiodic] < 1.5))
+        return (np.all(u[nonbounded] > 0.) and
+                np.all(u[nonbounded] < 1.) and
+                np.all(u[~nonbounded] > -0.5) and
+                np.all(u[~nonbounded] < 1.5))
 
 
 def mean_and_cov(samples, weights):

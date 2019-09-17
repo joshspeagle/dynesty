@@ -300,6 +300,10 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
                       "unconstrained bounding distributions.")
 
     # Gather boundary conditions.
+    if periodic is not None and reflective is not None:
+        if np.intersect1d(periodic, reflective) != 0:
+            raise ValueError(
+                "You have specified a parameter as both periodic and reflective")
     nonbounded = np.ones(npdim, dtype='bool')
     if periodic is not None:
         nonbounded[periodic] = False
@@ -692,6 +696,10 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
 
     # Gather boundary conditions.
+    if periodic is not None and reflective is not None:
+        if np.intersect1d(periodic, reflective) != 0:
+            raise ValueError(
+                "You have specified a parameter as both periodic and reflective")
     nonbounded = np.ones(npdim, dtype='bool')
     if periodic is not None:
         nonbounded[periodic] = False

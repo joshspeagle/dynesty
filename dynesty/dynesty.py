@@ -40,7 +40,7 @@ SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
 def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
-                  bound='multi', sample='auto', periodic=None,
+                  bound='multi', sample='auto', periodic=None, reflective=None,
                   update_interval=None, first_update=None,
                   npdim=None, rstate=None, queue_size=None, pool=None,
                   use_pool=None, live_points=None,
@@ -112,9 +112,15 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         A list of indices for parameters with periodic boundary conditions.
         These parameters *will not* have their positions constrained to be
         within the unit cube, enabling smooth behavior for parameters
-        that may wrap around the edge. It is assumed that their periodicity
-        is dealt with in the `prior_transform` and/or `loglikelihood`
-        functions. Default is `None` (i.e. no periodic boundary conditions).
+        that may wrap around the edge. Default is `None` (i.e. no periodic
+        boundary conditions).
+
+    reflective : iterable, optional
+        A list of indices for parameters with reflective boundary conditions.
+        These parameters *will not* have their positions constrained to be
+        within the unit cube, enabling smooth behavior for parameters
+        that may reflect at the edge. Default is `None` (i.e. no reflective
+        boundary conditions).
 
     update_interval : int or float, optional
         If an integer is passed, only update the proposal distribution every
@@ -293,13 +299,19 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
                       "having `nlive < ndim * (ndim + 1) // 2` may result in "
                       "unconstrained bounding distributions.")
 
-    # Gather non-periodic boundary conditions.
+    # Gather boundary conditions.
+    if periodic is not None and reflective is not None:
+        if np.intersect1d(periodic, reflective) != 0:
+            raise ValueError(
+                "You have specified a parameter as both periodic and reflective")
+    nonbounded = np.ones(npdim, dtype='bool')
     if periodic is not None:
-        nonperiodic = np.ones(npdim, dtype='bool')
-        nonperiodic[periodic] = False
-    else:
-        nonperiodic = None
-    kwargs['nonperiodic'] = nonperiodic
+        nonbounded[periodic] = False
+    if reflective is not None:
+        nonbounded[reflective] = False
+    kwargs['nonbounded'] = nonbounded
+    kwargs['periodic'] = periodic
+    kwargs['reflective'] = reflective
 
     # Update interval for bounds.
     if update_interval is None:
@@ -404,37 +416,37 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
 
     # Initialize live points and calculate log-likelihoods.
     while True:
-      if live_points is None:
-          live_u = rstate.rand(nlive, npdim)  # positions in unit cube
-          if use_pool.get('prior_transform', True):
-              live_v = np.array(list(M(ptform,
-                                       np.array(live_u))))  # real parameters
-          else:
-              live_v = np.array(list(map(ptform,
-                                         np.array(live_u))))
-          if use_pool.get('loglikelihood', True):
-              live_logl = np.array(list(M(loglike,
-                                          np.array(live_v))))  # log likelihood
-          else:
-              live_logl = np.array(list(map(loglike,
-                                            np.array(live_v))))
-          live_points = [live_u, live_v, live_logl]
+        if live_points is None:
+            live_u = rstate.rand(nlive, npdim)  # positions in unit cube
+            if use_pool.get('prior_transform', True):
+                live_v = np.array(list(M(ptform,
+                                         np.array(live_u))))  # real parameters
+            else:
+                live_v = np.array(list(map(ptform,
+                                           np.array(live_u))))
+            if use_pool.get('loglikelihood', True):
+                live_logl = np.array(list(M(loglike,
+                                            np.array(live_v))))  # log likelihood
+            else:
+                live_logl = np.array(list(map(loglike,
+                                              np.array(live_v))))
+            live_points = [live_u, live_v, live_logl]
 
-      # Convert all `-np.inf` log-likelihoods to finite large numbers.
-      # Necessary to keep estimators in our sampler from breaking.
-      for i, logl in enumerate(live_points[2]):
-          if not np.isfinite(logl):
-              if np.sign(logl) < 0:
-                  live_points[2][i] = -1e300
-              else:
-                  raise ValueError("The log-likelihood ({0}) of live point {1} "
-                                   "located at u={2} v={3} is invalid."
-                                   .format(logl, i, live_points[0][i],
-                                           live_points[1][i]))
-      # check to make sure there is at least one not -inf initial live pt.
-      if any(live_points[2] != -1e300):
-        break
-      
+        # Convert all `-np.inf` log-likelihoods to finite large numbers.
+        # Necessary to keep estimators in our sampler from breaking.
+        for i, logl in enumerate(live_points[2]):
+            if not np.isfinite(logl):
+                if np.sign(logl) < 0:
+                    live_points[2][i] = -1e300
+                else:
+                    raise ValueError("The log-likelihood ({0}) of live point {1} "
+                                     "located at u={2} v={3} is invalid."
+                                     .format(logl, i, live_points[0][i],
+                                             live_points[1][i]))
+        # check to make sure there is at least one not -inf initial live pt.
+        if any(live_points[2] != -1e300):
+            break
+
     # Initialize our nested sampler.
     sampler = _SAMPLERS[bound](loglike, ptform, npdim,
                                live_points, sample, update_interval,
@@ -445,7 +457,7 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
 
 
 def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
-                         bound='multi', sample='auto', periodic=None,
+                         bound='multi', sample='auto', periodic=None, reflective=None,
                          update_interval=None, first_update=None,
                          npdim=None, rstate=None, queue_size=None, pool=None,
                          use_pool=None, logl_args=None, logl_kwargs=None,
@@ -513,9 +525,15 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         A list of indices for parameters with periodic boundary conditions.
         These parameters *will not* have their positions constrained to be
         within the unit cube, enabling smooth behavior for parameters
-        that may wrap around the edge. It is assumed that their periodicity
-        is dealt with in the `prior_transform` and/or `loglikelihood`
-        functions. Default is `None` (i.e. no periodic boundary conditions).
+        that may wrap around the edge. Default is `None` (i.e. no periodic
+        boundary conditions).
+
+    reflective : iterable, optional
+        A list of indices for parameters with reflective boundary conditions.
+        These parameters *will not* have their positions constrained to be
+        within the unit cube, enabling smooth behavior for parameters
+        that may reflect at the edge. Default is `None` (i.e. no reflective
+        boundary conditions).
 
     update_interval : int or float, optional
         If an integer is passed, only update the proposal distribution every
@@ -677,13 +695,19 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
     if sample not in _SAMPLING:
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
 
-    # Gather non-periodic boundary conditions.
+    # Gather boundary conditions.
+    if periodic is not None and reflective is not None:
+        if np.intersect1d(periodic, reflective) != 0:
+            raise ValueError(
+                "You have specified a parameter as both periodic and reflective")
+    nonbounded = np.ones(npdim, dtype='bool')
     if periodic is not None:
-        nonperiodic = np.ones(npdim, dtype='bool')
-        nonperiodic[periodic] = False
-    else:
-        nonperiodic = None
-    kwargs['nonperiodic'] = nonperiodic
+        nonbounded[periodic] = False
+    if reflective is not None:
+        nonbounded[reflective] = False
+    kwargs['nonbounded'] = nonbounded
+    kwargs['periodic'] = periodic
+    kwargs['reflective'] = reflective
 
     # Update interval for bounds.
     if update_interval is None:

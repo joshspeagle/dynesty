@@ -150,7 +150,7 @@ class UnitCubeSampler(Sampler):
         self.unitcube = UnitCube(self.npdim)
         self.bounding = 'none'
         self.method = method
-        self.nonperiodic = self.kwargs.get('nonperiodic', None)
+        self.nonbounded = self.kwargs.get('nonbounded', None)
 
         # Gradient.
         self.grad = self.kwargs.get('grad', None)
@@ -326,7 +326,7 @@ class SingleEllipsoidSampler(Sampler):
         self.ell = Ellipsoid(np.zeros(self.npdim), np.identity(self.npdim))
         self.bounding = 'single'
         self.method = method
-        self.nonperiodic = self.kwargs.get('nonperiodic', None)
+        self.nonbounded = self.kwargs.get('nonbounded', None)
 
         # Gradient.
         self.grad = self.kwargs.get('grad', None)
@@ -369,7 +369,7 @@ class SingleEllipsoidSampler(Sampler):
             u = self.ell.sample(rstate=self.rstate)
 
             # Check if `u` is within the unit cube.
-            if unitcheck(u, self.nonperiodic):
+            if unitcheck(u, self.nonbounded):
                 break  # if it is, we're done!
 
         return u, self.ell.axes
@@ -530,7 +530,7 @@ class MultiEllipsoidSampler(Sampler):
                                    covs=[np.identity(self.npdim)])
         self.bounding = 'multi'
         self.method = method
-        self.nonperiodic = self.kwargs.get('nonperiodic', None)
+        self.nonbounded = self.kwargs.get('nonbounded', None)
 
         # Gradient.
         self.grad = self.kwargs.get('grad', None)
@@ -577,7 +577,7 @@ class MultiEllipsoidSampler(Sampler):
             u, idx, q = self.mell.sample(rstate=self.rstate, return_q=True)
 
             # Check if the point is within the unit cube.
-            if unitcheck(u, self.nonperiodic):
+            if unitcheck(u, self.nonbounded):
                 # Accept the point with probability 1/q to account for
                 # overlapping ellipsoids.
                 if q == 1 or self.rstate.rand() < 1.0 / q:
@@ -767,7 +767,7 @@ class RadFriendsSampler(Sampler):
         self.radfriends = RadFriends(self.npdim)
         self.bounding = 'balls'
         self.method = method
-        self.nonperiodic = self.kwargs.get('nonperiodic', None)
+        self.nonbounded = self.kwargs.get('nonbounded', None)
 
         # Gradient.
         self.grad = self.kwargs.get('grad', None)
@@ -813,7 +813,7 @@ class RadFriendsSampler(Sampler):
                                           return_q=True)
 
             # Check if our sample is within the unit cube.
-            if unitcheck(u, self.nonperiodic):
+            if unitcheck(u, self.nonbounded):
                 # Accept the point with probability 1/q to account for
                 # overlapping balls.
                 if q == 1 or self.rstate.rand() < 1.0 / q:
@@ -970,7 +970,7 @@ class SupFriendsSampler(Sampler):
         self.supfriends = SupFriends(self.npdim)
         self.bounding = 'cubes'
         self.method = method
-        self.nonperiodic = self.kwargs.get('nonperiodic', None)
+        self.nonbounded = self.kwargs.get('nonbounded', None)
 
         # Gradient.
         self.grad = self.kwargs.get('grad', None)
@@ -1017,7 +1017,7 @@ class SupFriendsSampler(Sampler):
                                           return_q=True)
 
             # Check if our point is within the unit cube.
-            if unitcheck(u, self.nonperiodic):
+            if unitcheck(u, self.nonbounded):
                 # Accept the point with probability 1/q to account for
                 # overlapping cubes.
                 if q == 1 or self.rstate.rand() < 1.0 / q:

@@ -151,8 +151,10 @@ def sample_rwalk(args):
      prior_transform, loglikelihood, kwargs) = args
     rstate = np.random
 
-    # Periodicity.
-    nonperiodic = kwargs.get('nonperiodic', None)
+    # Bounds
+    nonbounded = kwargs.get('nonbounded', None)
+    periodic = kwargs.get('periodic', None)
+    reflective = kwargs.get('reflective', None)
 
     # Setup.
     n = len(u)
@@ -196,11 +198,17 @@ def sample_rwalk(args):
             u_prop = u + scale * du
 
             # Wrap periodic parameters
-            if nonperiodic is not None:
-                u_prop[~nonperiodic] = np.mod(u_prop[~nonperiodic], 1)
+            if periodic is not None:
+                u_prop[periodic] = np.mod(u_prop[periodic], 1)
+            # Reflect
+            if reflective is not None:
+                u_prop_ref = u_prop[reflective]
+                u_prop[reflective] = np.minimum(
+                    np.maximum(u_prop_ref, abs(u_prop_ref)),
+                    2 - u_prop_ref)
 
             # Check unit cube constraints.
-            if unitcheck(u_prop, nonperiodic):
+            if unitcheck(u_prop, nonbounded):
                 break
             else:
                 fail += 1
@@ -300,7 +308,9 @@ def sample_rstagger(args):
     rstate = np.random
 
     # Periodicity.
-    nonperiodic = kwargs.get('nonperiodic', None)
+    nonbounded = kwargs.get('nonbounded', None)
+    periodic = kwargs.get('periodic', None)
+    reflective = kwargs.get('reflective', None)
 
     # Setup.
     n = len(u)
@@ -346,11 +356,17 @@ def sample_rstagger(args):
             u_prop = u + scale * stagger * du
 
             # Wrap periodic parameters
-            if nonperiodic is not None:
-                u_prop[~nonperiodic] = np.mod(u_prop[~nonperiodic], 1)
+            if periodic is not None:
+                u_prop[periodic] = np.mod(u_prop[periodic], 1)
+            # Reflect
+            if reflective is not None:
+                u_prop_ref = u_prop[reflective]
+                u_prop[reflective] = np.minimum(
+                    np.maximum(u_prop_ref, abs(u_prop_ref)),
+                    2 - u_prop_ref)
 
             # Check unit cube constraints.
-            if unitcheck(u_prop, nonperiodic):
+            if unitcheck(u_prop, nonbounded):
                 break
             else:
                 fail += 1

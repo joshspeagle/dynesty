@@ -1302,8 +1302,8 @@ def cornerplot(results, span=None, quantiles=[0.025, 0.5, 0.975],
 
 
 def boundplot(results, dims, it=None, idx=None, prior_transform=None,
-              periodic=None, ndraws=5000, color='gray', plot_kwargs=None,
-              labels=None, label_kwargs=None, max_n_ticks=5,
+              periodic=None, reflective=None, ndraws=5000, color='gray',
+              plot_kwargs=None, labels=None, label_kwargs=None, max_n_ticks=5,
               use_math_text=False, show_live=False, live_color='darkviolet',
               live_kwargs=None, span=None, fig=None):
     """
@@ -1340,9 +1340,15 @@ def boundplot(results, dims, it=None, idx=None, prior_transform=None,
         A list of indices for parameters with periodic boundary conditions.
         These parameters *will not* have their positions constrained to be
         within the unit cube, enabling smooth behavior for parameters
-        that may wrap around the edge. It is assumed that their periodicity
-        is dealt with in the `prior_transform`.
-        Default is `None` (i.e. no periodic boundary conditions).
+        that may wrap around the edge. Default is `None` (i.e. no periodic
+        boundary conditions).
+
+    reflective : iterable, optional
+        A list of indices for parameters with reflective boundary conditions.
+        These parameters *will not* have their positions constrained to be
+        within the unit cube, enabling smooth behavior for parameters
+        that may reflect at the edge. Default is `None` (i.e. no reflective
+        boundary conditions).
 
     ndraws : int, optional
         The number of random samples to draw from the bounding distribution
@@ -1427,12 +1433,12 @@ def boundplot(results, dims, it=None, idx=None, prior_transform=None,
         raise ValueError("No bounds were saved in the results!")
     nsamps = len(results['samples'])
 
-    # Gather non-periodic boundary conditions.
+    # Gather boundary conditions.
+    nonbounded = np.ones(bounds[0].n, dtype='bool')
     if periodic is not None:
-        nonperiodic = np.ones(bounds[0].n, dtype='bool')
-        nonperiodic[periodic] = False
-    else:
-        nonperiodic = None
+        nonbounded[periodic] = False
+    if reflective is not None:
+        nonbounded[reflective] = False
 
     if it is not None:
         if it >= nsamps:
@@ -1565,7 +1571,7 @@ def boundplot(results, dims, it=None, idx=None, prior_transform=None,
             l1, l2 = live_u[:, dims].T
     else:
         # Remove points outside of the unit cube as appropriate.
-        sel = [unitcheck(point, nonperiodic) for point in psamps]
+        sel = [unitcheck(point, nonbounded) for point in psamps]
         vsamps = np.array(list(map(prior_transform, psamps[sel])))
         x1, x2 = vsamps[:, dims].T
         if show_live:
@@ -1613,8 +1619,8 @@ def boundplot(results, dims, it=None, idx=None, prior_transform=None,
 
 
 def cornerbound(results, it=None, idx=None, prior_transform=None,
-                periodic=None, ndraws=5000, color='gray', plot_kwargs=None,
-                labels=None, label_kwargs=None, max_n_ticks=5,
+                periodic=None, reflective=None, ndraws=5000, color='gray',
+                plot_kwargs=None, labels=None, label_kwargs=None, max_n_ticks=5,
                 use_math_text=False, show_live=False, live_color='darkviolet',
                 live_kwargs=None, span=None, fig=None):
     """
@@ -1647,9 +1653,15 @@ def cornerbound(results, it=None, idx=None, prior_transform=None,
         A list of indices for parameters with periodic boundary conditions.
         These parameters *will not* have their positions constrained to be
         within the unit cube, enabling smooth behavior for parameters
-        that may wrap around the edge. It is assumed that their periodicity
-        is dealt with in the `prior_transform`.
-        Default is `None` (i.e. no periodic boundary conditions).
+        that may wrap around the edge. Default is `None` (i.e. no periodic
+        boundary conditions).
+
+    reflective : iterable, optional
+        A list of indices for parameters with reflective boundary conditions.
+        These parameters *will not* have their positions constrained to be
+        within the unit cube, enabling smooth behavior for parameters
+        that may reflect at the edge. Default is `None` (i.e. no reflective
+        boundary conditions).
 
     ndraws : int, optional
         The number of random samples to draw from the bounding distribution
@@ -1735,12 +1747,12 @@ def cornerbound(results, it=None, idx=None, prior_transform=None,
         raise ValueError("No bounds were saved in the results!")
     nsamps = len(results['samples'])
 
-    # Gather non-periodic boundary conditions.
+    # Gather boundary conditions.
+    nonbounded = np.ones(bounds[0].n, dtype='bool')
     if periodic is not None:
-        nonperiodic = np.ones(bounds[0].n, dtype='bool')
-        nonperiodic[periodic] = False
-    else:
-        nonperiodic = None
+        nonbounded[periodic] = False
+    if reflective is not None:
+        nonbounded[reflective] = False
 
     if it is not None:
         if it >= nsamps:
@@ -1872,7 +1884,7 @@ def cornerbound(results, it=None, idx=None, prior_transform=None,
             lsamps = live_u.T
     else:
         # Remove points outside of the unit cube.
-        sel = [unitcheck(point, nonperiodic) for point in psamps]
+        sel = [unitcheck(point, nonbounded) for point in psamps]
         psamps = np.array(list(map(prior_transform, psamps[sel])))
         psamps = psamps.T
         if show_live:

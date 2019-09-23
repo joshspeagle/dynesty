@@ -45,7 +45,7 @@ setup(
     install_requires=["numpy", "scipy", "matplotlib", "six"],
     keywords=["nested sampling", "dynamic", "monte carlo", "bayesian",
               "inference", "modeling"],
-    classifiers=["Development Status :: 4 - Beta",
+    classifiers=["Development Status :: 5 - Production/Stable",
                  "License :: OSI Approved :: MIT License",
                  "Natural Language :: English",
                  "Programming Language :: Python :: 2.7",

@@ -84,8 +84,9 @@ For instance::
     samples = results.samples  # samples
     weights = np.exp(results.logwt - results.logz[-1])  # normalized weights
 
-    # Compute 5%-95% quantiles.
-    quantiles = dyfunc.quantile(samples, [0.05, 0.95], weights=weights)
+    # Compute 10%-90% quantiles.
+    quantiles = [dyfunc.quantile(samps, [0.1, 0.9], weights=weights)
+                 for samps in samples.T]
 
     # Compute weighted mean and covariance.
     mean, cov = dyfunc.mean_and_cov(samples, weights)

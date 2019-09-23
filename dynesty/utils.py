@@ -131,7 +131,9 @@ def resample_equal(samples, weights, rstate=None):
         rstate = np.random
 
     if abs(np.sum(weights) - 1.) > SQRTEPS:  # same tol as in np.random.choice.
-        raise ValueError("Weights do not sum to 1.")
+        # Guarantee that the weights will sum to 1.
+        warnings.warn("Weights do not sum to 1 and have been renormalized.")
+        weights = np.array(weights) / np.sum(weights)
 
     # Make N subdivisions and choose positions with a consistent random offset.
     nsamples = len(weights)

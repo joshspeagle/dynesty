@@ -249,6 +249,25 @@ class Sampler(object):
 
         return Results(results)
 
+    @property
+    def n_effective(self):
+        """
+        Estimate the effective number of posterior samples using the Kish
+        Effective Sample Size (ESS) where `ESS = sum(wts)^2 / sum(wts^2)`.
+        Note that this is `len(wts)` when `wts` are uniform and
+        `1` if there is only one non-zero element in `wts`.
+
+        """
+
+        if len(self.saved_logwt) == 0:
+            # If there are no saved weights, return 0.
+            return 0
+        else:
+            # Otherwise, compute Kish ESS.
+            logwts = np.array(self.saved_logwt)
+            logneff = logsumexp(logwts) * 2 - logsumexp(logwts * 2)
+            return np.exp(logneff)
+
     def _beyond_unit_bound(self, loglstar):
         """Check whether we should update our bound beyond the initial
         unit cube."""
@@ -490,8 +509,8 @@ class Sampler(object):
                              "list of samples!")
 
     def sample(self, maxiter=None, maxcall=None, dlogz=0.01,
-               logl_max=np.inf, save_bounds=True, save_samples=True,
-               n_effective=np.inf):
+               logl_max=np.inf, n_effective=np.inf, add_live=True,
+               save_bounds=True, save_samples=True):
         """
         **The main nested sampling loop.** Iteratively replace the worst live
         point with a sample drawn uniformly from the prior until the
@@ -522,6 +541,16 @@ class Sampler(object):
             Iteration will stop when the sampled ln(likelihood) exceeds the
             threshold set by `logl_max`. Default is no bound (`np.inf`).
 
+        n_effective: int, optional
+            Minimum number of effective posterior samples. If the estimated
+            "effective sample size" (ESS) exceeds this number,
+            sampling will terminate. Default is no ESS (`np.inf`).
+
+        add_live : bool, optional
+            Whether or not to add the remaining set of live points to
+            the list of samples when calculating `n_effective`.
+            Default is `True`.
+
         save_bounds : bool, optional
             Whether or not to save past distributions used to bound
             the live points internally. Default is `True`.
@@ -530,12 +559,6 @@ class Sampler(object):
             Whether or not to save past samples from the nested sampling run
             (along with other ancillary quantities) internally.
             Default is `True`.
-
-        n_effective: int, optional
-            Target number of posterior samples. If the estimated effective
-            sample size exceeds this number, the sampling will stop. Default
-            is `np.inf`.
-
 
         Returns
         -------
@@ -682,15 +705,18 @@ class Sampler(object):
                     self.saved_logl.append(loglstar)
                 break
 
-            # Bonus stopping criterion: the number of effective posterior
+            # Stopping criterion 5: the number of effective posterior
             # samples has been achieved.
             if n_effective is not None:
                 if self.n_effective > n_effective:
-                    self.add_final_live(print_progress=False)
-                    n_effective_with_live_points = self.n_effective
-                    self._remove_live_points()
-                    self.added_live = False
-                    if n_effective_with_live_points > n_effective:
+                    if add_live:
+                        self.add_final_live(print_progress=False)
+                        neff = self.n_effective
+                        self._remove_live_points()
+                        self.added_live = False
+                    else:
+                        neff = self.n_effective
+                    if neff > n_effective:
                         if not self.save_samples:
                             self.saved_logz.append(logz)
                             self.saved_logzvar.append(logzvar)
@@ -803,8 +829,9 @@ class Sampler(object):
         return pbar, print_func
 
     def run_nested(self, maxiter=None, maxcall=None, dlogz=None,
-                   logl_max=np.inf, add_live=True, print_progress=True,
-                   print_func=None, save_bounds=True, n_effective=None):
+                   logl_max=np.inf, n_effective=None,
+                   add_live=True, print_progress=True,
+                   print_func=None, save_bounds=True):
         """
         **A wrapper that executes the main nested sampling loop.**
         Iteratively replace the worst live point with a sample drawn
@@ -837,6 +864,11 @@ class Sampler(object):
             Iteration will stop when the sampled ln(likelihood) exceeds the
             threshold set by `logl_max`. Default is no bound (`np.inf`).
 
+        n_effective: int, optional
+            Minimum number of effective posterior samples. If the estimated
+            "effective sample size" (ESS) exceeds this number,
+            sampling will terminate. Default is no ESS (`np.inf`).
+
         add_live : bool, optional
             Whether or not to add the remaining set of live points to
             the list of samples at the end of each run. Default is `True`.
@@ -853,11 +885,6 @@ class Sampler(object):
             Whether or not to save past bounding distributions used to bound
             the live points internally. Default is *True*.
 
-        n_effective: int, optional
-            Target number of posterior samples. If the estimated effective
-            sample size exceeds this number, the sampling will stop. Default
-            is `np.inf`.
-
         """
 
         # Define our stopping criteria.
@@ -871,11 +898,14 @@ class Sampler(object):
         pbar, print_func = self._get_print_func(print_func, print_progress)
         try:
             ncall = self.ncall
-            for it, results in enumerate(self.sample(
-                maxiter=maxiter, maxcall=maxcall, dlogz=dlogz,
-                logl_max=logl_max, save_bounds=save_bounds,
-                save_samples=True, n_effective=n_effective
-            )):
+            for it, results in enumerate(self.sample(maxiter=maxiter,
+                                                     maxcall=maxcall,
+                                                     dlogz=dlogz,
+                                                     logl_max=logl_max,
+                                                     save_bounds=save_bounds,
+                                                     save_samples=True,
+                                                     n_effective=n_effective,
+                                                     add_live=add_live)):
                 (worst, ustar, vstar, loglstar, logvol, logwt,
                  logz, logzvar, h, nc, worst_it, boundidx, bounditer,
                  eff, delta_logz) = results
@@ -952,20 +982,3 @@ class Sampler(object):
         finally:
             if pbar is not None:
                 pbar.close()
-
-    @property
-    def n_effective(self):
-        """
-        Estimate the effective number of posterior samples
-
-        https://en.wikipedia.org/wiki/Effective_sample_size
-
-        n_effective = sum(weights)^2 / sum(weights^2)
-        """
-        if len(self.saved_logwt) == 0:
-            return 0
-        else:
-            ln_weights = np.array(self.saved_logwt)
-            _n_eff = np.exp(
-                logsumexp(ln_weights) * 2 - logsumexp(ln_weights * 2))
-            return _n_eff

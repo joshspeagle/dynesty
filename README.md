@@ -4,7 +4,7 @@ dynesty
 ![dynesty in action](https://github.com/joshspeagle/dynesty/blob/master/docs/images/title.gif)
 
 A Dynamic Nested Sampling package for computing Bayesian posteriors and
-evidences. Pure Python. MIT license. **Beta release.**
+evidences. Pure Python. MIT license.
 
 ### Documentation
 Documentation can be found [here](https://dynesty.readthedocs.io).
@@ -29,4 +29,5 @@ of the code can be found
 ### Attribution
 
 Please cite [Speagle (2019)](https://arxiv.org/abs/1904.02180) if you find the 
-package useful in your research.
+package useful in your research, along with any relevant papers on the
+[citations page](https://dynesty.readthedocs.io/en/latest/index.html#citations).

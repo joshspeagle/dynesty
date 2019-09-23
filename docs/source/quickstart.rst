@@ -77,17 +77,17 @@ would look like::
 
         # Beta
         a, b = 2.31, 0.627  # shape parameters
-        x[2] = scipy.stats.norm.ppf(u[2], a, b)
+        x[2] = scipy.stats.beta.ppf(u[2], a, b)
 
         # Gamma
         alpha = 5.  # shape parameter
-        x[3] = scipy.stats.norm.ppf(u[3], alpha)
+        x[3] = scipy.stats.gamma.ppf(u[3], alpha)
 
         # Truncated Normal
         m, s = 5, 2  # mean and standard deviation
         low, high = 2., 10.  # lower and upper bounds
         low_n, high_n = (low - m) / s, (high - m) / s  # standardize
-        x[4] = scipy.stats.norm.ppf(u[4], low_n, high_n, loc=m, scale=s)
+        x[4] = scipy.stats.truncnorm.ppf(u[4], low_n, high_n, loc=m, scale=s)
 
         return x
 
@@ -110,14 +110,14 @@ by just going through the variables in order. This would look like::
 
         x = np.array(u)  # copy u
 
-        # Mean hyper-prior.
+        # Mean hyper-prior
         mu, sigma = 5., 1.  # mean, standard deviation
         x[0] = scipy.stats.norm.ppf(u[0], loc=mu, scale=sigma)
 
         # Standard deviation hyper-prior
         x[1] = 10. ** (u[1] * 2. - 1.)  # log10(std) ~ Uniform[-1, 1]
 
-        # Prior.
+        # Prior
         x[2] = scipy.stats.norm.ppf(u[2], loc=x[0], scale=x[1])
 
         return x
@@ -375,6 +375,66 @@ This might look something like::
 
 See :ref:`Top-Level Interface` for additional information.
 
+Parallel Support
+----------------
+
+If you want to run computations in parallel, `dynesty` can use a user-defined
+`pool` to execute a variety of internal operations in "parallel" rather than
+in serial. This can be done by passing the `pool` object to the sampler
+upon initialization::
+
+    # initialize sampler with pool
+    sampler = NestedSampler(loglike, ptform, ndim, pool=pool)
+
+By default, `dynesty` tries to grab the size of the pool from the `pool.size`
+attribute of the `pool`. If this is not defined, the number of function
+evaluations to execute in parallel can be set manually using the `queue_size`
+argument::
+
+    # initialize sampler with pool with pre-defined queue
+    sampler = NestedSampler(loglike, ptform, ndim, pool=pool, queue_size=8)
+
+Parallel operations in `dynesty` are done by simply swapping in the
+`pool.map` function over the default `map` function when making likelihood
+calls. Note that this is a *synchronous* function call, which requires that
+all members of the pool have completed their respective tasks before receiving
+the pool's output. The call time for functions is therefore limited
+by the slowest-performing member of the pool.
+
+The reason why "parallel" is written in quotes above is that while function
+evaluations can be made in parallel, live point proposals must be done serially
+in order to avoid breaking the statistical properties of Nested Sampling.
+Assuming we are using :math:`M` processes with :math:`K` live points, this
+leads to sub-linear scaling :math:`S` of the form
+(`Handley et al. 2015 <https://arxiv.org/pdf/1506.00171.pdf>`_):
+
+.. math::
+
+    S(M, K) = K \ln \left(1 + \frac{M}{K}\right)
+
+This scales pretty linearly as long as the number of processes is much smaller
+than the number of live points, but falls off as the pool becomes relatively
+larger.
+
+Depending on where the bottleneck of the computation lies, the provided
+`pool` can be disabled during certain function evaluations (e.g., when
+initializing points) using the `use_pool` argument::
+
+    # initialize sampler with pool with pre-defined queue
+    sampler = NestedSampler(loglike, ptform, ndim,
+                            nlive=2000, bound='single', sample='rwalk',
+                            pool=pool, queue_size=16,
+                            use_pool={'prior_transform': False})
+
+See :ref:`Pool Questions` on the :ref:`FAQ` page for additional troubleshooting
+tips.
+
+Note that, as discussed in :ref:`Combining Runs`, it is actually possible to
+combine multiple independent Nested Sampling runs into a single run, giving
+users an option as to whether they want to parallelize `dynesty` *during*
+runtime (using a user-provided `pool`) or *after* runtime (by merging
+the runs together).
+
 Running Internally
 ------------------
 
@@ -392,9 +452,12 @@ real time. The stopping criteria can be any combination of:
 
 * a fixed number of likelihood calls (`maxcall`),
 
-* a maximum log-likelihood `(logl_max`), and
+* a maximum log-likelihood `(logl_max`),
 
-* a specified :math:`\Delta \ln \hat{\mathcal{Z}}_i` tolerance (`dlogz`).
+* a specified :math:`\Delta \ln \hat{\mathcal{Z}}_i` tolerance (`dlogz`), and
+
+* a specified Effective Sample Size
+  (`ESS <https://en.wikipedia.org/wiki/Effective_sample_size>`_).
 
 For instance, running one of the examples above would produce output like:
 

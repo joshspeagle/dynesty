@@ -57,11 +57,6 @@ are based on:
 
 Slice sampling and its implementations in nested sampling are based on:
 
-    `Bloem-Reddy & Cunningham 2016
-    <http://proceedings.mlr.press/v48/bloem-reddy16.html>`_.
-    *Slice Sampling on Hamiltonian Trajectories.*
-    PMLR, 48, 3050.
-
     `Handley, Hobson & Lasenby 2015b
     <http://adsabs.harvard.edu/abs/2015MNRAS.453.4384H>`_.
     *POLYCHORD: next-generation nested sampling.*

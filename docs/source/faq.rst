@@ -7,6 +7,8 @@ from ``dynesty`` users, along with some answers that hopefully are helpful to
 you. If you don't see your particular issue addressed here, feel free to 
 `open an issue <https://github.com/joshspeagle/dynesty/issues>`_.
 
+**For citation information, see the :ref:`Citations` section on the homepage.**
+
 Sampling Questions
 ------------------
 
@@ -23,6 +25,19 @@ sampling to generate samples efficiently since the prior volume is so large.
 Using gradients can also help generate efficient proposals in this regime.
 ``dynesty`` uses these rules-of-thumb by default to choose a sampling option
 with `'auto'`.
+
+**Sampling seems to freeze around an efficiency of 10%. Is this a bug?**
+
+This isn't a bug, but probably just a consequence of the first bounding update.
+By default, `dynesty` waits to actually start sampling using the proposed
+sampling/bounding methods passed to the sampler until a set of conditions
+specified in `first_update` are satisfied. This lets the live points somewhat
+move away from the edges of the prior and begin to adapt to the shape of the
+target distribution, which helps to avoid problems such as the bounds
+"shredding" the live points into lots of tiny islands. The basic heuristic
+used is to wait until uniform proposals from the prior hit a cumulative
+efficiency of 10%, but that threshold can be adjusted using the
+`first_update` argument.
 
 **Is there an easy way to add more samples to an existing set of results?**
 
@@ -416,6 +431,6 @@ nested functions require more advanced pickling (e.g., ``dill``),
 which is not enabled with some pools by default.
 
 If those quick fixes don't work, feel free to raise an issue. 
-However, as Multi-threading and multi-processing are notoriously 
+However, as multi-threading and multi-processing are notoriously 
 difficult to debug, especially on a problem I'm not familiar with, 
 it's likely that I might not be able to help all that much.

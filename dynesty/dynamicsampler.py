@@ -559,9 +559,29 @@ class DynamicSampler(object):
 
         return Results(results)
 
+    @property
+    def n_effective(self):
+        """
+        Estimate the effective number of posterior samples using the Kish
+        Effective Sample Size (ESS) where `ESS = sum(wts)^2 / sum(wts^2)`.
+        Note that this is `len(wts)` when `wts` are uniform and
+        `1` if there is only one non-zero element in `wts`.
+
+        """
+
+        if len(self.saved_logwt) == 0:
+            # If there are no saved weights, return 0.
+            return 0
+        else:
+            # Otherwise, compute Kish ESS.
+            logwts = np.array(self.saved_logwt)
+            logneff = logsumexp(logwts) * 2 - logsumexp(logwts * 2)
+            return np.exp(logneff)
+
     def sample_initial(self, nlive=500, update_interval=None,
                        first_update=None, maxiter=None, maxcall=None,
-                       logl_max=np.inf, dlogz=0.01, live_points=None):
+                       logl_max=np.inf, dlogz=0.01, n_effective=np.inf,
+                       live_points=None):
         """
         Generate a series of initial samples from a nested sampling
         run using a fixed number of live points using an internal
@@ -609,6 +629,11 @@ class DynamicSampler(object):
         logl_max : float, optional
             Iteration will stop when the sampled ln(likelihood) exceeds the
             threshold set by `logl_max`. Default is no bound (`np.inf`).
+
+        n_effective: int, optional
+            Target number of effective posterior samples. If the estimated
+            "effective sample size" (ESS) exceeds this number,
+            sampling will terminate. Default is no ESS (`np.inf`).
 
         live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
             A set of live points used to initialize the nested sampling run.
@@ -685,36 +710,66 @@ class DynamicSampler(object):
 
         # Initialize the first set of live points.
         if live_points is None:
+            # If no live points are provided, propose them by randomly
+            # sampling from the unit cube.
             self.nlive_init = nlive
-            self.live_u = self.rstate.rand(self.nlive_init, self.npdim)
-            if self.use_pool_ptform:
-                self.live_v = np.array(list(self.M(self.prior_transform,
-                                                   np.array(self.live_u))))
+            for attempt in range(100):
+                self.live_u = self.rstate.rand(self.nlive_init, self.npdim)
+                if self.use_pool_ptform:
+                    self.live_v = np.array(list(self.M(self.prior_transform,
+                                                       np.array(self.live_u))))
+                else:
+                    self.live_v = np.array(list(map(self.prior_transform,
+                                                    np.array(self.live_u))))
+                if self.use_pool_logl:
+                    self.live_logl = np.array(list(self.M(self.loglikelihood,
+                                              np.array(self.live_v))))
+                else:
+                    self.live_logl = np.array(list(map(self.loglikelihood,
+                                                       np.array(self.live_v))))
+
+                # Convert all `-np.inf` log-likelihoods to finite large numbers.
+                # Necessary to keep estimators in our sampler from breaking.
+                for i, logl in enumerate(self.live_logl):
+                    if not np.isfinite(logl):
+                        if np.sign(logl) < 0:
+                            self.live_logl[i] = -1e300
+                        else:
+                            raise ValueError("The log-likelihood ({0}) of live "
+                                             "point {1} located at u={2} v={3} "
+                                             " is invalid."
+                                             .format(logl, i, self.live_u[i],
+                                                     self.live_v[i]))
+
+                # Check to make sure there is at least one finite log-likelihood
+                # value within the initial set of live points.
+                if any(self.live_logl != -1e300):
+                    break
             else:
-                self.live_v = np.array(list(map(self.prior_transform,
-                                                np.array(self.live_u))))
-            if self.use_pool_logl:
-                self.live_logl = np.array(list(self.M(self.loglikelihood,
-                                                      np.array(self.live_v))))
-            else:
-                self.live_logl = np.array(list(map(self.loglikelihood,
-                                                   np.array(self.live_v))))
+                # If we found nothing after many attempts, raise the alarm.
+                raise RuntimeError("After many attempts, not a single live "
+                                   "point had a valid log-likelihood! Please "
+                                   "check your prior transform and/or "
+                                   "log-likelihood.")
         else:
+            # If live points were provided, convert the log-likelihoods and
+            # then run a quick safety check.
             self.live_u, self.live_v, self.live_logl = live_points
             self.nlive_init = len(self.live_u)
 
-        # Convert all `-np.inf` log-likelihoods to finite large numbers.
-        # Necessary to keep estimators in our sampler from breaking.
-        for i, logl in enumerate(self.live_logl):
-            if not np.isfinite(logl):
-                if np.sign(logl) < 0:
-                    self.live_logl[i] = -1e300
-                else:
-                    raise ValueError("The log-likelihood ({0}) of live "
-                                     "point {1} located at u={2} v={3} "
-                                     " is invalid."
-                                     .format(logl, i, self.live_u[i],
-                                             self.live_v[i]))
+            for i, logl in enumerate(self.live_logl):
+                if not np.isfinite(logl):
+                    if np.sign(logl) < 0:
+                        self.live_logl[i] = -1e300
+                    else:
+                        raise ValueError("The log-likelihood ({0}) of live "
+                                         "point {1} located at u={2} v={3} "
+                                         " is invalid."
+                                         .format(logl, i, self.live_u[i],
+                                                 self.live_v[i]))
+            if all(self.live_logl == -1e300):
+                raise ValueError("Not a single provided live point has a "
+                                 "valid log-likelihood!")
 
         # (Re-)bundle live points.
         live_points = [self.live_u, self.live_v, self.live_logl]
@@ -747,7 +802,8 @@ class DynamicSampler(object):
         for i in range(1):
             for it, results in enumerate(self.sampler.sample(maxiter=maxiter,
                                          save_samples=False,
-                                         maxcall=maxcall, dlogz=dlogz)):
+                                         maxcall=maxcall, dlogz=dlogz,
+                                         n_effective=n_effective)):
                 # Grab results.
                 (worst, ustar, vstar, loglstar, logvol, logwt,
                  logz, logzvar, h, nc, worst_it, boundidx, bounditer,
@@ -1355,9 +1411,11 @@ class DynamicSampler(object):
 
     def run_nested(self, nlive_init=500, maxiter_init=None,
                    maxcall_init=None, dlogz_init=0.01, logl_max_init=np.inf,
+                   n_effective_init=np.inf,
                    nlive_batch=500, wt_function=None, wt_kwargs=None,
                    maxiter_batch=None, maxcall_batch=None,
                    maxiter=None, maxcall=None, maxbatch=None,
+                   n_effective=np.inf,
                    stop_function=None, stop_kwargs=None, use_stop=True,
                    save_bounds=True, print_progress=True, print_func=None,
                    live_points=None):
@@ -1398,6 +1456,12 @@ class DynamicSampler(object):
             The baseline run will stop when the sampled ln(likelihood) exceeds
             this threshold. Default is no bound (`np.inf`).
 
+        n_effective_init: int, optional
+            Minimum number of effective posterior samples needed during the
+            baseline run. If the estimated "effective sample size" (ESS)
+            exceeds this number, sampling will terminate.
+            Default is no ESS (`np.inf`).
+
         nlive_batch : int, optional
             The number of live points used when adding additional samples
             from a nested sampling run within each batch. Default is `500`.
@@ -1437,6 +1501,12 @@ class DynamicSampler(object):
         maxbatch : int, optional
             Maximum number of batches allowed. Default is `sys.maxsize`
             (no limit).
+
+        n_effective: int, optional
+            Minimum number of effective posterior samples needed during the
+            entire run. If the estimated "effective sample size" (ESS)
+            exceeds this number, sampling will terminate.
+            Default is no ESS (`np.inf`).
 
         stop_function : func, optional
             A function that takes a :class:`Results` instance and
@@ -1516,6 +1586,7 @@ class DynamicSampler(object):
                                                    maxcall=maxcall_init,
                                                    maxiter=maxiter_init,
                                                    logl_max=logl_max_init,
+                                                   n_effective=n_effective_init,
                                                    live_points=live_points):
                     (worst, ustar, vstar, loglstar, logvol,
                      logwt, logz, logzvar, h, nc, worst_it,
@@ -1534,7 +1605,8 @@ class DynamicSampler(object):
                 res = self.results
                 mcall = min(maxcall - ncall, maxcall_batch)
                 miter = min(maxiter - niter, maxiter_batch)
-                if mcall > 0 and miter > 0 and use_stop:
+                neff = self.n_effective
+                if mcall > 0 and miter > 0 and neff < n_effective and use_stop:
                     if self.use_pool_stopfn:
                         M = self.M
                     else:
@@ -1547,9 +1619,9 @@ class DynamicSampler(object):
                     stop = False
                     stop_val = np.NaN
 
-                # If we have either likelihood calls or iterations remaining,
-                # run our batch.
-                if mcall > 0 and miter > 0 and not stop:
+                # If we have likelihood calls remaining, iterations remaining,
+                # and we have failed to hit the minimum ESS, run our batch.
+                if mcall > 0 and miter > 0 and neff < n_effective and not stop:
                     # Compute our sampling bounds using the provided
                     # weight function.
                     passback = self.add_batch(nlive=nlive_batch,
@@ -1578,8 +1650,9 @@ class DynamicSampler(object):
                 pbar.close()
 
     def add_batch(self, nlive=500, wt_function=None, wt_kwargs=None,
-                  maxiter=None, maxcall=None, save_bounds=True,
-                  print_progress=True, print_func=None, stop_val=None):
+                  maxiter=None, maxcall=None, logl_bounds=None,
+                  save_bounds=True, print_progress=True, print_func=None,
+                  stop_val=None):
         """
         Allocate an additional batch of (nested) samples based on
         the combined set of previous samples using the specified
@@ -1610,6 +1683,11 @@ class DynamicSampler(object):
         maxcall : int, optional
             Maximum number of likelihood evaluations allowed.
             Default is `sys.maxsize` (no limit).
+
+        logl_bounds : tuple of size (2,), optional
+            The ln(likelihood) bounds used to bracket the run. If `None`,
+            the provided `wt_function` will be used to determine the bounds
+            (this is the default behavior).
 
         save_bounds : bool, optional
             Whether or not to save distributions used to bound
@@ -1651,7 +1729,8 @@ class DynamicSampler(object):
                 # weight function.
                 res = self.results
                 lnz, lnzerr = res.logz[-1], res.logzerr[-1]
-                logl_bounds = wt_function(res, wt_kwargs)
+                if logl_bounds is None:
+                    logl_bounds = wt_function(res, wt_kwargs)
                 for results in self.sample_batch(nlive_new=nlive,
                                                  logl_bounds=logl_bounds,
                                                  maxiter=maxiter,

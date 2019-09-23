@@ -471,6 +471,8 @@ def traceplot(results, span=None, quantiles=[0.025, 0.5, 0.975], smooth=0.02,
     connect_kwargs['alpha'] = connect_kwargs.get('alpha', 0.7)
     post_kwargs['alpha'] = post_kwargs.get('alpha', 0.6)
     trace_kwargs['s'] = trace_kwargs.get('s', 3)
+    trace_kwargs['edgecolor'] = trace_kwargs.get('edgecolor', None)
+    trace_kwargs['edgecolors'] = trace_kwargs.get('edgecolors', None)
     truth_kwargs['linestyle'] = truth_kwargs.get('linestyle', 'solid')
     truth_kwargs['linewidth'] = truth_kwargs.get('linewidth', 2)
 
@@ -687,7 +689,8 @@ def traceplot(results, span=None, quantiles=[0.025, 0.5, 0.975], smooth=0.02,
     return fig, axes
 
 
-def cornerpoints(results, thin=1, span=None, cmap='plasma', color=None,
+def cornerpoints(results, dims=None, thin=1, span=None,
+                 cmap='plasma', color=None,
                  kde=True, nkde=1000, plot_kwargs=None, labels=None,
                  label_kwargs=None, truths=None, truth_color='red',
                  truth_kwargs=None, max_n_ticks=5, use_math_text=False,
@@ -701,6 +704,10 @@ def cornerpoints(results, thin=1, span=None, cmap='plasma', color=None,
         A :class:`~dynesty.results.Results` instance from a nested
         sampling run. **Compatible with results derived from**
         `nestle <http://kylebarbary.com/nestle/>`_.
+
+    dims : iterable of shape (ndim,), optional
+        The subset of dimensions that should be plotted. If not provided,
+        all dimensions will be shown.
 
     thin : int, optional
         Thin the samples so that only each `thin`-th sample is plotted.
@@ -790,6 +797,8 @@ def cornerpoints(results, thin=1, span=None, cmap='plasma', color=None,
 
     # Set defaults.
     plot_kwargs['s'] = plot_kwargs.get('s', 1)
+    plot_kwargs['edgecolor'] = plot_kwargs.get('edgecolor', None)
+    plot_kwargs['edgecolors'] = plot_kwargs.get('edgecolors', None)
     truth_kwargs['linestyle'] = truth_kwargs.get('linestyle', 'solid')
     truth_kwargs['linewidth'] = truth_kwargs.get('linewidth', 2)
     truth_kwargs['alpha'] = truth_kwargs.get('alpha', 0.7)
@@ -819,6 +828,10 @@ def cornerpoints(results, thin=1, span=None, cmap='plasma', color=None,
         samples = samples.T
     assert samples.shape[0] <= samples.shape[1], "There are more " \
                                                  "dimensions than samples!"
+
+    # Slice samples based on provided `dims`.
+    if dims is not None:
+        samples = samples[dims]
     ndim, nsamps = samples.shape
 
     # Check weights.
@@ -938,8 +951,8 @@ def cornerpoints(results, thin=1, span=None, cmap='plasma', color=None,
     return (fig, axes)
 
 
-def cornerplot(results, span=None, quantiles=[0.025, 0.5, 0.975],
-               color='black', smooth=0.02, hist_kwargs=None,
+def cornerplot(results, dims=None, span=None, quantiles=[0.025, 0.5, 0.975],
+               color='black', smooth=0.02, quantiles_2d=None, hist_kwargs=None,
                hist2d_kwargs=None, labels=None, label_kwargs=None,
                show_titles=False, title_fmt=".2f", title_kwargs=None,
                truths=None, truth_color='red', truth_kwargs=None,
@@ -954,6 +967,10 @@ def cornerplot(results, span=None, quantiles=[0.025, 0.5, 0.975],
         A :class:`~dynesty.results.Results` instance from a nested
         sampling run. **Compatible with results derived from**
         `nestle <http://kylebarbary.com/nestle/>`_.
+
+    dims : iterable of shape (ndim,), optional
+        The subset of dimensions that should be plotted. If not provided,
+        all dimensions will be shown.
 
     span : iterable with shape (ndim,), optional
         A list where each element is either a length-2 tuple containing
@@ -982,6 +999,11 @@ def cornerplot(results, span=None, quantiles=[0.025, 0.5, 0.975],
         Default is `0.02` (2% smoothing). If an integer is provided instead,
         this will instead default to a simple (weighted) histogram with
         `bins=smooth`.
+
+    quantiles_2d : iterable with shape (nquant,), optional
+        The quantiles used for plotting the smoothed 2-D distributions.
+        If not provided, these default to 0.5, 1, 1.5, and 2-sigma contours
+        roughly corresponding to quantiles of `[0.1, 0.4, 0.65, 0.85]`.
 
     hist_kwargs : dict, optional
         Extra keyword arguments to send to the 1-D (smoothed) histograms.
@@ -1070,6 +1092,7 @@ def cornerplot(results, span=None, quantiles=[0.025, 0.5, 0.975],
     # Set defaults.
     hist_kwargs['alpha'] = hist_kwargs.get('alpha', 0.6)
     hist2d_kwargs['alpha'] = hist2d_kwargs.get('alpha', 0.6)
+    hist2d_kwargs['levels'] = hist2d_kwargs.get('levels', quantiles_2d)
     truth_kwargs['linestyle'] = truth_kwargs.get('linestyle', 'solid')
     truth_kwargs['linewidth'] = truth_kwargs.get('linewidth', 2)
     truth_kwargs['alpha'] = truth_kwargs.get('alpha', 0.7)
@@ -1092,6 +1115,10 @@ def cornerplot(results, span=None, quantiles=[0.025, 0.5, 0.975],
         samples = samples.T
     assert samples.shape[0] <= samples.shape[1], "There are more " \
                                                  "dimensions than samples!"
+
+    # Slice samples based on provided `dims`.
+    if dims is not None:
+        samples = samples[dims]
     ndim, nsamps = samples.shape
 
     # Check weights.
@@ -1618,7 +1645,7 @@ def boundplot(results, dims, it=None, idx=None, prior_transform=None,
     return fig, axes
 
 
-def cornerbound(results, it=None, idx=None, prior_transform=None,
+def cornerbound(results, it=None, idx=None, dims=None, prior_transform=None,
                 periodic=None, reflective=None, ndraws=5000, color='gray',
                 plot_kwargs=None, labels=None, label_kwargs=None, max_n_ticks=5,
                 use_math_text=False, show_live=False, live_color='darkviolet',
@@ -1643,6 +1670,10 @@ def cornerbound(results, it=None, idx=None, prior_transform=None,
         If provided, returns the bounding distribution used to propose the
         dead point at the specified iteration of the nested sampling run.
         **Note that this option and `it` are mutually exclusive.**
+
+    dims : iterable of shape (ndim,), optional
+        The subset of dimensions that should be plotted. If not provided,
+        all dimensions will be shown.
 
     prior_transform : func, optional
         The function transforming samples within the unit cube back to samples
@@ -1891,8 +1922,14 @@ def cornerbound(results, it=None, idx=None, prior_transform=None,
             lsamps = np.array(list(map(prior_transform, live_u)))
             lsamps = lsamps.T
 
-    # Set labels
+    # Subsample dimensions.
+    if dims is not None:
+        psamps = psamps[dims]
+        if show_live:
+            lsamps = lsamps[dims]
     ndim = psamps.shape[0]
+
+    # Set labels.
     if labels is None:
         labels = [r"$x_{"+str(i+1)+"}$" for i in range(ndim)]
 

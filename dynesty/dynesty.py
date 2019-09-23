@@ -302,8 +302,8 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
     # Gather boundary conditions.
     if periodic is not None and reflective is not None:
         if np.intersect1d(periodic, reflective) != 0:
-            raise ValueError(
-                "You have specified a parameter as both periodic and reflective")
+            raise ValueError("You have specified a parameter as both "
+                             "periodic and reflective.")
     nonbounded = np.ones(npdim, dtype='bool')
     if periodic is not None:
         nonbounded[periodic] = False
@@ -415,37 +415,63 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         kwargs['compute_jac'] = compute_jac
 
     # Initialize live points and calculate log-likelihoods.
-    while True:
-        if live_points is None:
+    if live_points is None:
+        # If no live points are provided, propose them by randomly sampling
+        # from the unit cube.
+        for attempt in range(100):
             live_u = rstate.rand(nlive, npdim)  # positions in unit cube
             if use_pool.get('prior_transform', True):
                 live_v = np.array(list(M(ptform,
-                                         np.array(live_u))))  # real parameters
+                                         np.array(live_u))))  # parameters
             else:
                 live_v = np.array(list(map(ptform,
                                            np.array(live_u))))
             if use_pool.get('loglikelihood', True):
                 live_logl = np.array(list(M(loglike,
-                                            np.array(live_v))))  # log likelihood
+                                            np.array(live_v))))  # log-like
             else:
                 live_logl = np.array(list(map(loglike,
                                               np.array(live_v))))
             live_points = [live_u, live_v, live_logl]
 
-        # Convert all `-np.inf` log-likelihoods to finite large numbers.
-        # Necessary to keep estimators in our sampler from breaking.
+            # Convert all `-np.inf` log-likelihoods to finite large numbers.
+            # Necessary to keep estimators in our sampler from breaking.
+            for i, logl in enumerate(live_points[2]):
+                if not np.isfinite(logl):
+                    if np.sign(logl) < 0:
+                        live_points[2][i] = -1e300
+                    else:
+                        raise ValueError("The log-likelihood ({0}) of live "
+                                         "point {1} located at u={2} v={3} "
+                                         "is invalid."
+                                         .format(logl, i, live_points[0][i],
+                                                 live_points[1][i]))
+
+            # Check to make sure there is at least one finite log-likelihood
+            # value within the initial set of live points.
+            if any(live_points[2] != -1e300):
+                break
+        else:
+            # If we found nothing after many attempts, raise the alarm.
+            raise RuntimeError("After many attempts, not a single live point "
+                               "had a valid log-likelihood! Please check your "
+                               "prior transform and/or log-likelihood.")
+    else:
+        # If live points were provided, convert the log-likelihoods and then
+        # run a quick safety check.
         for i, logl in enumerate(live_points[2]):
             if not np.isfinite(logl):
                 if np.sign(logl) < 0:
                     live_points[2][i] = -1e300
                 else:
-                    raise ValueError("The log-likelihood ({0}) of live point {1} "
-                                     "located at u={2} v={3} is invalid."
+                    raise ValueError("The log-likelihood ({0}) of live "
+                                     "point {1} located at u={2} v={3} "
+                                     "is invalid."
                                      .format(logl, i, live_points[0][i],
                                              live_points[1][i]))
-        # check to make sure there is at least one not -inf initial live pt.
-        if any(live_points[2] != -1e300):
-            break
+        if all(live_points[2] == -1e300):
+            raise ValueError("Not a single provided live point has a valid "
+                             "log-likelihood!")
 
     # Initialize our nested sampler.
     sampler = _SAMPLERS[bound](loglike, ptform, npdim,
@@ -457,7 +483,8 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
 
 
 def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
-                         bound='multi', sample='auto', periodic=None, reflective=None,
+                         bound='multi', sample='auto',
+                         periodic=None, reflective=None,
                          update_interval=None, first_update=None,
                          npdim=None, rstate=None, queue_size=None, pool=None,
                          use_pool=None, logl_args=None, logl_kwargs=None,
@@ -698,8 +725,8 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
     # Gather boundary conditions.
     if periodic is not None and reflective is not None:
         if np.intersect1d(periodic, reflective) != 0:
-            raise ValueError(
-                "You have specified a parameter as both periodic and reflective")
+            raise ValueError("You have specified a parameter as both "
+                             "periodic and reflective.")
     nonbounded = np.ones(npdim, dtype='bool')
     if periodic is not None:
         nonbounded[periodic] = False

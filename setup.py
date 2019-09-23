@@ -40,6 +40,7 @@ setup(
     description=("A dynamic nested sampling package for computing Bayesian "
                  "posteriors and evidences."),
     long_description=long_description,
+    long_description_content_type="text/markdown",
     package_data={"": ["README.md", "LICENSE", "AUTHORS.md"]},
     include_package_data=True,
     install_requires=["numpy", "scipy", "matplotlib", "six"],

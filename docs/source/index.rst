@@ -37,7 +37,7 @@ Citations
 =========
 
 If you find `dynesty` useful in your research, please cite
-`Speagle (2019) <https://arxiv.org/abs/1904.02180>_`. You are
+**`Speagle (2019) <https://arxiv.org/abs/1904.02180>`_**. You are
 also encouraged to cite:
 
 * Nested Sampling: 

@@ -259,8 +259,8 @@ class Sampler(object):
 
         """
 
-        if len(self.saved_logwt) == 0:
-            # If there are no saved weights, return 0.
+        if len(self.saved_logwt) == 0 or np.max(self.saved_logwt) > 0.01 * np.nan_to_num(-np.inf):
+            # If there are no saved weights, or its -inf return 0.
             return 0
         else:
             # Otherwise, compute Kish ESS.

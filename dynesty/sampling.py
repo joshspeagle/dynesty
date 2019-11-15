@@ -17,7 +17,7 @@ import math
 import numpy as np
 from numpy import linalg
 
-from .utils import unitcheck
+from .utils import unitcheck, reflect
 
 
 __all__ = ["sample_unif", "sample_rwalk", "sample_rstagger",
@@ -202,10 +202,7 @@ def sample_rwalk(args):
                 u_prop[periodic] = np.mod(u_prop[periodic], 1)
             # Reflect
             if reflective is not None:
-                u_prop_ref = u_prop[reflective]
-                u_prop[reflective] = np.minimum(
-                    np.maximum(u_prop_ref, abs(u_prop_ref)),
-                    2 - u_prop_ref)
+                u_prop[reflective] = reflect(u_prop[reflective])
 
             # Check unit cube constraints.
             if unitcheck(u_prop, nonbounded):
@@ -360,10 +357,7 @@ def sample_rstagger(args):
                 u_prop[periodic] = np.mod(u_prop[periodic], 1)
             # Reflect
             if reflective is not None:
-                u_prop_ref = u_prop[reflective]
-                u_prop[reflective] = np.minimum(
-                    np.maximum(u_prop_ref, abs(u_prop_ref)),
-                    2 - u_prop_ref)
+                u_prop[reflective] = reflect(u_prop[reflective])
 
             # Check unit cube constraints.
             if unitcheck(u_prop, nonbounded):

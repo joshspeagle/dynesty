@@ -324,6 +324,7 @@ class Sampler(object):
         scales = [self.scale for i in range(self.queue_size)]
         ptforms = [self.prior_transform for i in range(self.queue_size)]
         logls = [self.loglikelihood for i in range(self.queue_size)]
+        self.kwargs["live_u"] = self.live_u
         kwargs = [self.kwargs for i in range(self.queue_size)]
         args = zip(point_queue, loglstars, axes_queue,
                    scales, ptforms, logls, kwargs)

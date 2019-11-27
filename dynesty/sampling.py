@@ -263,9 +263,6 @@ def sample_rwalk(args):
                           "extremely inefficient. Adjusting the "
                           "scale-factor accordingly.")
 
-    blob = {'accept': accept, 'reject': reject, 'fail': nfail, 'scale': scale,
-            'u_list': np.array(u_list), 'act': act}
-
     # If the act is finite, pick randomly from within the chain
     if np.isfinite(act):
         idx = np.random.randint(act, len(u_list))
@@ -277,6 +274,8 @@ def sample_rwalk(args):
         u = u_list[-1]
         v = v_list[-1]
         logl = logl_list[-1]
+
+    blob = {'accept': accept, 'reject': reject, 'fail': nfail, 'scale': scale}
 
     ncall = accept + reject
     return u, v, logl, ncall, blob
@@ -474,8 +473,7 @@ def sample_rstagger(args):
         v = v_list[-1]
         logl = logl_list[-1]
 
-    blob = {'accept': accept, 'reject': reject, 'fail': nfail, 'scale': scale,
-            'u_list': np.array(u_list), 'act': act}
+    blob = {'accept': accept, 'reject': reject, 'fail': nfail, 'scale': scale}
 
     ncall = accept + reject
     return u, v, logl, ncall, blob

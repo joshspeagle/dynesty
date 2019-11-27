@@ -168,7 +168,8 @@ def sample_rwalk(args):
     nfail = 0
     act = np.inf
     u_list = [u]
-    v = prior_transform(u)
+    v_list = [prior_transform(u)]
+    logl_list = [loglikelihood(v_list[-1])]
     max_walk_warning = True
 
     drhat, dr, du, u_prop, logl_prop = np.nan, np.nan, np.nan, np.nan, np.nan
@@ -213,6 +214,8 @@ def sample_rwalk(args):
         else:
             nfail += 1
             u_list.append(u_list[-1])
+            v_list.append(v_list[-1])
+            logl_list.append(logl_list[-1])
             continue
 
         # Check if we're stuck generating bad numbers.
@@ -231,10 +234,14 @@ def sample_rwalk(args):
             v = v_prop
             logl = logl_prop
             accept += 1
-            u_list.append(u_prop)
+            u_list.append(u)
+            v_list.append(v)
+            logl_list.append(logl)
         else:
             reject += 1
             u_list.append(u_list[-1])
+            v_list.append(v_list[-1])
+            logl_list.append(logl_list[-1])
 
         if accept > walks:
             act = np.max([1, autocorr_new(np.array(u_list).T)])
@@ -258,6 +265,18 @@ def sample_rwalk(args):
 
     blob = {'accept': accept, 'reject': reject, 'fail': nfail, 'scale': scale,
             'u_list': np.array(u_list), 'act': act}
+
+    # If the act is finite, pick randomly from within the chain
+    if np.isfinite(act):
+        idx = np.random.randint(act, len(u_list))
+        u = u_list[idx]
+        v = v_list[idx]
+        logl = logl_list[idx]
+    else:
+        warnings.warn("Returning the last point in the chain")
+        u = u_list[-1]
+        v = v_list[-1]
+        logl = logl_list[-1]
 
     ncall = accept + reject
     return u, v, logl, ncall, blob
@@ -341,7 +360,8 @@ def sample_rstagger(args):
     stagger = 1.  # adaptive scale
     act = np.inf
     u_list = [u]
-    v = prior_transform(u)
+    v_list = [prior_transform(u)]
+    logl_list = [loglikelihood(v_list[-1])]
     max_walk_warning = True
 
     drhat, dr, du, u_prop, logl_prop = np.nan, np.nan, np.nan, np.nan, np.nan
@@ -386,6 +406,8 @@ def sample_rstagger(args):
         else:
             nfail += 1
             u_list.append(u_list[-1])
+            v_list.append(v_list[-1])
+            logl_list.append(logl_list[-1])
             continue
 
         # Check if we're stuck generating bad numbers.
@@ -404,10 +426,14 @@ def sample_rstagger(args):
             v = v_prop
             logl = logl_prop
             accept += 1
-            u_list.append(u_prop)
+            u_list.append(u)
+            v_list.append(v)
+            logl_list.append(logl)
         else:
             reject += 1
             u_list.append(u_list[-1])
+            v_list.append(v_list[-1])
+            logl_list.append(logl_list[-1])
 
         if accept > walks:
             act = np.max([1, autocorr_new(np.array(u_list).T)])
@@ -435,6 +461,18 @@ def sample_rstagger(args):
             warnings.warn("Random walk proposals appear to be "
                           "extremely inefficient. Adjusting the "
                           "scale-factor accordingly.")
+
+    # If the act is finite, pick randomly from within the chain
+    if np.isfinite(act):
+        idx = np.random.randint(act, len(u_list))
+        u = u_list[idx]
+        v = v_list[idx]
+        logl = logl_list[idx]
+    else:
+        warnings.warn("Returning the last point in the chain")
+        u = u_list[-1]
+        v = v_list[-1]
+        logl = logl_list[-1]
 
     blob = {'accept': accept, 'reject': reject, 'fail': nfail, 'scale': scale,
             'u_list': np.array(u_list), 'act': act}

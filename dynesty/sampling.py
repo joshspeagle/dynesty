@@ -159,8 +159,8 @@ def sample_rwalk(args):
     # Setup.
     n = len(u)
     walks = kwargs.get('walks', 25)  # minimum number of steps
-    maxmcmc = kwargs.get('maxmcmc', 2000)  # Maximum number of steps
-    nact = kwargs.get('nact', 5)  # Number of ACT
+    maxmcmc = kwargs.get('maxmcmc', 5000)  # Maximum number of steps
+    nact = kwargs.get('nact', 10)  # Number of ACT
 
     # Initialize internal variables
     accept = 0
@@ -173,7 +173,7 @@ def sample_rwalk(args):
     max_walk_warning = True
 
     drhat, dr, du, u_prop, logl_prop = np.nan, np.nan, np.nan, np.nan, np.nan
-    while len(u_list) < nact * act or accept == 0 or len(u_list) < walks:
+    while len(u_list) < nact * act:
 
         if scale == 0.:
             raise RuntimeError("The random walk sampling is stuck! "
@@ -195,7 +195,8 @@ def sample_rwalk(args):
         drhat /= linalg.norm(drhat)
 
         # Scale based on dimensionality.
-        dr = drhat * rstate.rand()**(1. / n)
+        # dr = drhat * rstate.rand()**(1. / n)  # CHANGED FROM DYNESTY 1.0
+        dr = drhat * rstate.rand(n)
 
         # Transform to proposal distribution.
         du = np.dot(axes, dr)
@@ -213,9 +214,11 @@ def sample_rwalk(args):
             pass
         else:
             nfail += 1
-            u_list.append(u_list[-1])
-            v_list.append(v_list[-1])
-            logl_list.append(logl_list[-1])
+            # Only start appending to the chain once a single jump is made
+            if accept > 0:
+                u_list.append(u_list[-1])
+                v_list.append(v_list[-1])
+                logl_list.append(logl_list[-1])
             continue
 
         # Check if we're stuck generating bad numbers.
@@ -239,11 +242,14 @@ def sample_rwalk(args):
             logl_list.append(logl)
         else:
             reject += 1
-            u_list.append(u_list[-1])
-            v_list.append(v_list[-1])
-            logl_list.append(logl_list[-1])
+            # Only start appending to the chain once a single jump is made
+            if accept > 0:
+                u_list.append(u_list[-1])
+                v_list.append(v_list[-1])
+                logl_list.append(logl_list[-1])
 
-        if accept > walks:
+        # If we've taken the minimum number of steps, calculate the ACT
+        if accept + reject > walks:
             act = np.max([1, autocorr_new(np.array(u_list).T)])
         if len(u_list) > maxmcmc and accept > 0:
             if max_walk_warning:
@@ -264,11 +270,16 @@ def sample_rwalk(args):
                           "scale-factor accordingly.")
 
     # If the act is finite, pick randomly from within the chain
-    if np.isfinite(act):
+    if np.isfinite(act) and act < len(u_list):
         idx = np.random.randint(act, len(u_list))
         u = u_list[idx]
         v = v_list[idx]
         logl = logl_list[idx]
+    elif len(u_list) == 1:
+        warnings.warn.warning("Returning the only point in the chain")
+        u = u_list[-1]
+        v = v_list[-1]
+        logl = logl_list[-1]
     else:
         warnings.warn("Returning the last point in the chain")
         u = u_list[-1]
@@ -349,8 +360,8 @@ def sample_rstagger(args):
     n = len(u)
     walks = kwargs.get('walks', 25)  # minimum number of steps
     facc_target = kwargs.get('facc', 0.5)  # acceptance fraction
-    maxmcmc = kwargs.get('maxmcmc', 2000)  # Maximum number of steps
-    nact = kwargs.get('nact', 5)  # Number of ACT
+    maxmcmc = kwargs.get('maxmcmc', 5000)  # Maximum number of steps
+    nact = kwargs.get('nact', 10)  # Number of ACT
 
     # Initialize internal variables
     accept = 0
@@ -364,7 +375,7 @@ def sample_rstagger(args):
     max_walk_warning = True
 
     drhat, dr, du, u_prop, logl_prop = np.nan, np.nan, np.nan, np.nan, np.nan
-    while len(u_list) < nact * act or accept == 0 or len(u_list) < walks:
+    while len(u_list) < nact * act:
 
         if scale == 0.:
             raise RuntimeError("The random walk sampling is stuck! "
@@ -386,7 +397,8 @@ def sample_rstagger(args):
         drhat /= linalg.norm(drhat)
 
         # Scale based on dimensionality.
-        dr = drhat * rstate.rand()**(1. / n)
+        # dr = drhat * rstate.rand()**(1. / n)  # CHANGED FROM DYNESTY 1.0
+        dr = drhat * rstate.rand(n)
 
         # Transform to proposal distribution.
         du = np.dot(axes, dr)
@@ -404,9 +416,11 @@ def sample_rstagger(args):
             pass
         else:
             nfail += 1
-            u_list.append(u_list[-1])
-            v_list.append(v_list[-1])
-            logl_list.append(logl_list[-1])
+            # Only start appending to the chain once a single jump is made
+            if accept > 0:
+                u_list.append(u_list[-1])
+                v_list.append(v_list[-1])
+                logl_list.append(logl_list[-1])
             continue
 
         # Check if we're stuck generating bad numbers.
@@ -430,12 +444,17 @@ def sample_rstagger(args):
             logl_list.append(logl)
         else:
             reject += 1
-            u_list.append(u_list[-1])
-            v_list.append(v_list[-1])
-            logl_list.append(logl_list[-1])
+            # Only start appending to the chain once a single jump is made
+            if accept > 0:
+                u_list.append(u_list[-1])
+                v_list.append(v_list[-1])
+                logl_list.append(logl_list[-1])
 
-        if accept > walks:
-            act = np.max([1, autocorr_new(np.array(u_list).T)])
+        # If we've taken the minimum number of steps, calculate the ACT
+        if accept + reject > walks:
+            act = estimate_nmcmc(
+                accept / (accept + reject + nfail), walks, maxmcmc)
+
         if len(u_list) > maxmcmc and accept > 0:
             if max_walk_warning:
                 warnings.warn(
@@ -462,11 +481,16 @@ def sample_rstagger(args):
                           "scale-factor accordingly.")
 
     # If the act is finite, pick randomly from within the chain
-    if np.isfinite(act):
+    if np.isfinite(act) and act < len(u_list):
         idx = np.random.randint(act, len(u_list))
         u = u_list[idx]
         v = v_list[idx]
         logl = logl_list[idx]
+    elif len(u_list) == 1:
+        warnings.warn.warning("Returning the only point in the chain")
+        u = u_list[-1]
+        v = v_list[-1]
+        logl = logl_list[-1]
     else:
         warnings.warn("Returning the last point in the chain")
         u = u_list[-1]
@@ -477,6 +501,45 @@ def sample_rstagger(args):
 
     ncall = accept + reject
     return u, v, logl, ncall, blob
+
+
+def estimate_nmcmc(accept_ratio, minmcmc, maxmcmc, safety=5, tau=None):
+    """ Estimate autocorrelation length of chain using acceptance fraction
+
+    Using ACL = (2/acc) - 1 multiplied by a safety margin. Code adapated from
+    CPNest:
+        - https://github.com/johnveitch/cpnest/blob/master/cpnest/sampler.py
+        - http://github.com/farr/Ensemble.jl
+
+    Parameters
+    ----------
+    accept_ratio: float [0, 1]
+        Ratio of the number of accepted points to the total number of points
+    minmcmc: int
+        The minimum length of the MCMC chain to use
+    maxmcmc: int
+        The maximum length of the MCMC chain to use
+    safety: int
+        A safety factor applied in the calculation
+    tau: int (optional)
+        The ACT, if given, otherwise estimated.
+
+    """
+    if tau is None:
+        tau = maxmcmc / safety
+
+    if accept_ratio == 0.0:
+        Nmcmc_exact = (1. + 1. / tau) * minmcmc
+    else:
+        Nmcmc_exact = (
+            (1. - 1. / tau) * minmcmc +
+            (safety / tau) * (2. / accept_ratio - 1.)
+        )
+
+    Nmcmc_exact = float(min(Nmcmc_exact, maxmcmc))
+    Nmcmc = max(safety, int(Nmcmc_exact))
+
+    return Nmcmc
 
 
 def sample_slice(args):

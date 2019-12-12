@@ -1718,6 +1718,8 @@ class DynamicSampler(object):
             wt_function = weight_function
         if wt_kwargs is None:
             wt_kwargs = dict()
+        if stop_val is None:
+            stop_val = np.nan
 
         # If we have either likelihood calls or iterations remaining,
         # add our new batch of live points.

@@ -459,6 +459,30 @@ class DynamicSampler(object):
         self.new_scale = []
         self.new_logl_min, self.new_logl_max = -np.inf, np.inf  # logl bounds
 
+        def __getstate__(self):
+            """Get state information for pickling."""
+        
+            state = self.__dict__.copy()
+
+            del state['rstate']  # remove random module
+
+            # deal with pool
+            if state['pool'] is not None:
+                del state['pool']  # remove pool
+                del state['M']  # remove `pool.map` function hook
+            
+            # deal with internal sampler (to be safe)
+            if state['sampler'] is not None:
+                try:  # attempt to remove the same things
+                    del state['sampler'].rstate
+                    if state['sampler'].pool is not None:
+                        del state['sampler'].pool
+                        del state['sampler'].M
+                except:
+                    pass
+
+            return state
+
     def reset(self):
         """Re-initialize the sampler."""
 

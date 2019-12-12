@@ -154,8 +154,17 @@ class Sampler(object):
         self.saved_scale = []  # scale factor at each iteration
 
     def __getstate__(self):
+        """Get state information for pickling."""
+        
         state = self.__dict__.copy()
-        del state['rstate']
+        
+        del state['rstate']  # remove random module
+        
+        # deal with pool
+        if state['pool'] is not None:
+            del state['pool']  # remove pool
+            del state['M']  # remove `pool.map` function hook
+            
         return state
 
     def reset(self):

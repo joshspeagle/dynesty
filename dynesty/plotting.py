@@ -299,7 +299,8 @@ def runplot(results, span=None, logplot=False, kde=True, nkde=1000,
     return fig, axes
 
 
-def traceplot(results, span=None, quantiles=[0.025, 0.5, 0.975], smooth=0.02,
+def traceplot(results, span=None, quantiles=[0.025, 0.5, 0.975],
+              smooth=0.02, thin=1, dims=None,
               post_color='blue', post_kwargs=None, kde=True, nkde=1000,
               trace_cmap='plasma', trace_color=None, trace_kwargs=None,
               connect=False, connect_highlight=10, connect_color='red',
@@ -341,6 +342,14 @@ def traceplot(results, span=None, quantiles=[0.025, 0.5, 0.975], smooth=0.02,
         Default is `0.02` (2% smoothing). If an integer is provided instead,
         this will instead default to a simple (weighted) histogram with
         `bins=smooth`.
+
+    thin : int, optional
+        Thin the samples so that only each `thin`-th sample is plotted.
+        Default is `1` (no thinning).
+
+    dims : iterable of shape (ndim,), optional
+        The subset of dimensions that should be plotted. If not provided,
+        all dimensions will be shown.
 
     post_color : str or iterable with shape (ndim,), optional
         A `~matplotlib`-style color (either a single color or a different
@@ -503,6 +512,10 @@ def traceplot(results, span=None, quantiles=[0.025, 0.5, 0.975], smooth=0.02,
         samples = samples.T
     assert samples.shape[0] <= samples.shape[1], "There are more " \
                                                  "dimensions than samples!"
+
+    # Slice samples based on provided `dims`.
+    if dims is not None:
+        samples = samples[dims]
     ndim, nsamps = samples.shape
 
     # Check weights.
@@ -579,7 +592,7 @@ def traceplot(results, span=None, quantiles=[0.025, 0.5, 0.975], smooth=0.02,
             else:
                 color = trace_color[i]
         else:
-            color = wts
+            color = wts[::thin]
         if isinstance(trace_cmap, str_type):
             cmap = trace_cmap
         else:
@@ -599,13 +612,14 @@ def traceplot(results, span=None, quantiles=[0.025, 0.5, 0.975], smooth=0.02,
         ax.set_xlabel(r"$-\ln X$", **label_kwargs)
         ax.set_ylabel(labels[i], **label_kwargs)
         # Generate scatter plot.
-        ax.scatter(-logvol, x, c=color, cmap=cmap, **trace_kwargs)
+        ax.scatter(-logvol[::thin], x[::thin], c=color, cmap=cmap,
+                   **trace_kwargs)
         if connect:
             # Add lines highlighting specific particle paths.
             for j in ids:
-                sel = (samples_id == j)
-                ax.plot(-logvol[sel], x[sel], color=connect_color,
-                        **connect_kwargs)
+                sel = (samples_id[::thin] == j)
+                ax.plot(-logvol[::thin][sel], x[::thin][sel],
+                        color=connect_color, **connect_kwargs)
         # Add truth value(s).
         if truths is not None and truths[i] is not None:
             try:

@@ -29,12 +29,83 @@ _SAMPLERS = {'none': UnitCubeSampler,
              'multi': MultiEllipsoidSampler,
              'balls': RadFriendsSampler,
              'cubes': SupFriendsSampler}
+
 _SAMPLING = {'unif': sample_unif,
              'rwalk': sample_rwalk,
              'rstagger': sample_rstagger,
              'slice': sample_slice,
              'rslice': sample_rslice,
              'hslice': sample_hslice}
+
+_CITES = {'default':  # default set of citations
+          "Code and Methods:\n================\n"
+          "Speagle (2019): "
+          "ui.adsabs.harvard.edu/abs/2019arXiv190402180S\n\n"
+          "Nested Sampling:\n===============\n"
+          "Skilling (2004): "
+          "ui.adsabs.harvard.edu/abs/2004AIPC..735..395S\n"
+          "Skilling (2006): "
+          "projecteuclid.org/euclid.ba/1340370944\n",
+          'dynamic':  # dynamic nested sampling
+          "Dynamic Nested Sampling:\n=======================\n"
+          "Higson et al. (2017b): "
+          "ui.adsabs.harvard.edu/abs/2017arXiv170403459H\n",
+          'none': "Bounding Method:\n===============\n",  # no bound
+          'single':  # single ellipsoid
+          "Bounding Method:\n===============\n"
+          "Mukherjee, Parkinson & Liddle (2006): "
+          "ui.adsabs.harvard.edu/abs/2006ApJ...638L..51M\n",
+          'multi':  # multiple ellipsoids
+          "Bounding Method:\n===============\n"
+          "Feroz, Hobson & Bridges (2009): "
+          "ui.adsabs.harvard.edu/abs/2009MNRAS.398.1601F\n",
+          'balls':  # overlapping balls
+          "Bounding Method:\n===============\n"
+          "Buchner (2016): "
+          "ui.adsabs.harvard.edu/abs/2014arXiv1407.5459B\n"
+          "Buchner (2017): "
+          "ui.adsabs.harvard.edu/abs/2017arXiv170704476B\n",
+          'cubes':  # overlapping cubes
+          "Bounding Method:\n===============\n"
+          "Buchner (2016): "
+          "ui.adsabs.harvard.edu/abs/2014arXiv1407.5459B\n"
+          "Buchner (2017): "
+          "ui.adsabs.harvard.edu/abs/2017arXiv170704476B\n",
+          'unif': "Sampling Method:\n===============\n",  # uniform sampling
+          'rwalk':  # random walk
+          "Sampling Method:\n===============\n"
+          "Skilling (2006): "
+          "projecteuclid.org/euclid.ba/1340370944\n",
+          'rstagger':  # random stagger
+          "Sampling Method:\n===============\n"
+          "Skilling (2006): "
+          "projecteuclid.org/euclid.ba/1340370944\n",
+          'slice':  # multivariate slice
+          "Sampling Method:\n===============\n"
+          "Neal (2003): "
+          "projecteuclid.org/euclid.aos/1056562461\n"
+          "Handley, Hobson & Lasenby (2015a): "
+          "ui.adsabs.harvard.edu/abs/2015MNRAS.450L..61H\n"
+          "Handley, Hobson & Lasenby (2015b): "
+          "ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H\n",
+          'rslice':  # random slice
+          "Sampling Method:\n===============\n"
+          "Neal (2003): "
+          "projecteuclid.org/euclid.aos/1056562461\n"
+          "Handley, Hobson & Lasenby (2015a): "
+          "ui.adsabs.harvard.edu/abs/2015MNRAS.450L..61H\n"
+          "Handley, Hobson & Lasenby (2015b): "
+          "ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H\n",
+          'hslice':  # "hamiltonian" slice
+          "Sampling Method:\n===============\n"
+          "Neal (2003): "
+          "projecteuclid.org/euclid.aos/1056562461\n"
+          "Skilling (2012): "
+          "aip.scitation.org/doi/abs/10.1063/1.3703630\n"
+          "Feroz & Skilling (2013): "
+          "ui.adsabs.harvard.edu/abs/2013AIPC.1553..106F\n"
+          "Speagle (2019): "
+          "ui.adsabs.harvard.edu/abs/2019arXiv190402180S\n"}
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
@@ -290,6 +361,10 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
                 sample = 'hslice'
     if sample not in _SAMPLING:
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
+
+    # Citation generator.
+    kwargs['cite'] = (_CITES['default'] + "\n" + _CITES[bound] + "\n" +
+                      _CITES[sample])
 
     # Dimensional warning check.
     if nlive <= 2 * ndim:
@@ -721,6 +796,10 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
                 sample = 'hslice'
     if sample not in _SAMPLING:
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
+
+    # Citation generator.
+    kwargs['cite'] = (_CITES['default'] + "\n" + _CITES['dynamic'] + "\n" +
+                      _CITES[bound] + "\n" + _CITES[sample])
 
     # Gather boundary conditions.
     if periodic is not None and reflective is not None:

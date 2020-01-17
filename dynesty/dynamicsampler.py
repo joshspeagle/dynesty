@@ -383,6 +383,7 @@ class DynamicSampler(object):
         self.vol_check = kwargs.get('vol_check', 2.0)
         self.walks = self.kwargs.get('walks', 25)
         self.slices = self.kwargs.get('slices', 3)
+        self.cite = self.kwargs.get('cite')
 
         # random state
         self.rstate = rstate
@@ -461,7 +462,7 @@ class DynamicSampler(object):
 
         def __getstate__(self):
             """Get state information for pickling."""
-        
+
             state = self.__dict__.copy()
 
             del state['rstate']  # remove random module
@@ -470,7 +471,7 @@ class DynamicSampler(object):
             if state['pool'] is not None:
                 del state['pool']  # remove pool
                 del state['M']  # remove `pool.map` function hook
-            
+
             # deal with internal sampler (to be safe)
             if state['sampler'] is not None:
                 try:  # attempt to remove the same things
@@ -601,6 +602,16 @@ class DynamicSampler(object):
             logwts = np.array(self.saved_logwt)
             logneff = logsumexp(logwts) * 2 - logsumexp(logwts * 2)
             return np.exp(logneff)
+
+    @property
+    def citations(self):
+        """
+        Return list of papers that should be cited given the specified
+        configuration of the sampler.
+
+        """
+
+        return self.cite
 
     def sample_initial(self, nlive=500, update_interval=None,
                        first_update=None, maxiter=None, maxcall=None,

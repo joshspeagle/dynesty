@@ -154,8 +154,17 @@ class Sampler(object):
         self.saved_scale = []  # scale factor at each iteration
 
     def __getstate__(self):
+        """Get state information for pickling."""
+
         state = self.__dict__.copy()
-        del state['rstate']
+
+        del state['rstate']  # remove random module
+
+        # deal with pool
+        if state['pool'] is not None:
+            del state['pool']  # remove pool
+            del state['M']  # remove `pool.map` function hook
+
         return state
 
     def reset(self):
@@ -259,7 +268,8 @@ class Sampler(object):
 
         """
 
-        if len(self.saved_logwt) == 0 or np.max(self.saved_logwt) > 0.01 * np.nan_to_num(-np.inf):
+        if (len(self.saved_logwt) == 0) or (np.max(self.saved_logwt) >
+                                            0.01 * np.nan_to_num(-np.inf)):
             # If there are no saved weights, or its -inf return 0.
             return 0
         else:
@@ -267,6 +277,16 @@ class Sampler(object):
             logwts = np.array(self.saved_logwt)
             logneff = logsumexp(logwts) * 2 - logsumexp(logwts * 2)
             return np.exp(logneff)
+
+    @property
+    def citations(self):
+        """
+        Return list of papers that should be cited given the specified
+        configuration of the sampler.
+
+        """
+
+        return self.cite
 
     def _beyond_unit_bound(self, loglstar):
         """Check whether we should update our bound beyond the initial

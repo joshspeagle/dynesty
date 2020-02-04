@@ -280,41 +280,6 @@ directly, however, we can instead pass an integer::
 This now specifies that we will update our bounds after `600` function
 calls.
 
-``dynesty`` tries to avoid constructing bounding distributions
-early in the run to avoid issues where the bounds can significantly exceed the
-unit cube. For instance, in most cases the bounding distribution 
-of the initial set of points *by construction* will exceed
-the bounds of the unit cube when `enlarge > 1`. This can lead to a 
-variety of problems associated with each method, especially in higher
-dimensions (since volume scales as :math:`\propto r^D`).
-
-To avoid this behavior, ``dynesty`` deliberately delays the first bounding
-update until at least `2 * nlive` function calls have been made *and* the
-efficiency has fallen to 10%. This generally assumes that the overall
-efficiency will be below 10%, which is the case for almost all sampling
-methods (see below). If we wanted to adjust this behavior so
-that we construct our first bounding distributions much earlier,
-we could do so by passing some parameters using the `first_update`
-argument::
-
-    NestedSampler(loglike, ptform, ndim, nlive=1500, bound='balls',
-                  bootstrap=50, enlarge=1.10, update_interval=600,
-                  first_update={'min_ncall': 100, 'min_eff': 50.})
-
-This will now trigger an update when 100 log-likelihood function calls have
-been made and the effiency drops below 50%.
-
-For specific problems, ``dynesty`` also enables the use of
-**periodic boundary conditions**. This allows points to wrap around the
-unit cube (once), which can help with sampling parameters with periodic
-boundary conditions whose solutions end up near the bounds (e.g., :math:`0` or
-:math:`2\pi` for phases). These can be enabled by just
-specifying the indices of the relevant periodic parameters, as shown below::
-
-    NestedSampler(loglike, ptform, ndim, nlive=1500, bound='balls',
-                  periodic=[0, 2], bootstrap=50, enlarge=1.10,
-                  update_interval=600, first_update={'min_eff': 25.})
-
 See :ref:`Top-Level Interface` for more information.
 
 Sampling Options
@@ -375,8 +340,58 @@ This might look something like::
 
 See :ref:`Top-Level Interface` for additional information.
 
-Parallel Support
-----------------
+Early-Time Behavior
+-------------------
+
+``dynesty`` tries to avoid constructing bounding distributions
+early in the run to avoid issues where the bounds can significantly exceed the
+unit cube. For instance, in most cases the bounding distribution 
+of the initial set of points *by construction* will exceed
+the bounds of the unit cube when `enlarge > 1`. This can lead to a 
+variety of problems associated with each method, especially in higher
+dimensions (since volume scales as :math:`\propto r^D`).
+
+To avoid this behavior, ``dynesty`` deliberately delays the first bounding
+update until at least `2 * nlive` function calls have been made *and* the
+efficiency has fallen to 10%. This generally assumes that the overall
+efficiency will be below 10%, which is the case for almost all sampling
+methods (see below). If we wanted to adjust this behavior so
+that we construct our first bounding distributions much earlier,
+we could do so by passing some parameters using the `first_update`
+argument::
+
+    NestedSampler(loglike, ptform, ndim, nlive=1500, bound='balls',
+                  first_update={'min_ncall': 100, 'min_eff': 50.})
+
+This will now trigger an update when 100 log-likelihood function calls have
+been made and the effiency drops below 50%.
+
+Special Boundary Conditions
+---------------------------
+
+By default, ``dynesty`` assumes that all parameters have hard bounds.
+In other words, if for some reason you propose outside of the unit cube
+that defines the prior (see :ref:`Prior Transforms`), that point is
+automatically rejected and a new one is proposed instead. This is
+the desired behavior for most problems, since individual parameters are often
+either defined everywhere (i.e. from negative infinity to infinity)
+or over a finite range (e.g., from :math:`10` to :math:`25`).
+
+Specific problems, however, may have parameters that behave differently.
+In particular, ``dynesty`` supports both **reflective** and **periodic**
+boundary conditions. The former can arise when parameters are ratios (where
+:math:`1/2` and :math:`2/1` may be equivalent) or angles (since 90 degrees and
+450 degrees are often equivalent). Imposing these specific boundary conditions
+on relevant parameters can help improve the overall sampling efficiency,
+especially when solutions end up near the bounds (e.g., at :math:`0` or
+:math:`2\pi` for phases). These can be enabled by just
+specifying the indices of the relevant parameters, as shown below::
+
+    NestedSampler(loglike, ptform, ndim, nlive=1000, bound='cubes',
+                  periodic=[0, 2], reflective=[1, 5])
+
+Parallelization
+---------------
 
 If you want to run computations in parallel, `dynesty` can use a user-defined
 `pool` to execute a variety of internal operations in "parallel" rather than

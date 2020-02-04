@@ -141,6 +141,7 @@ class UnitCubeSampler(Sampler):
             self.enlarge = kwargs.get('enlarge', 1.0)
         else:
             self.enlarge = kwargs.get('enlarge', 1.25)
+        self.cite = self.kwargs.get('cite')
 
         # Initialize sampler.
         super(UnitCubeSampler,
@@ -317,6 +318,7 @@ class SingleEllipsoidSampler(Sampler):
             self.enlarge = kwargs.get('enlarge', 1.0)
         else:
             self.enlarge = kwargs.get('enlarge', 1.25)
+        self.cite = self.kwargs.get('cite')
 
         # Initialize sampler.
         super(SingleEllipsoidSampler,
@@ -526,6 +528,7 @@ class MultiEllipsoidSampler(Sampler):
             self.enlarge = kwargs.get('enlarge', 1.25)
         self.vol_dec = kwargs.get('vol_dec', 0.5)
         self.vol_check = kwargs.get('vol_check', 2.0)
+        self.cite = self.kwargs.get('cite')
 
         # Initialize sampler.
         super(MultiEllipsoidSampler,
@@ -764,6 +767,7 @@ class RadFriendsSampler(Sampler):
             self.enlarge = kwargs.get('enlarge', 1.0)
         else:
             self.enlarge = kwargs.get('enlarge', 1.25)
+        self.cite = self.kwargs.get('cite')
 
         # Initialize sampler.
         super(RadFriendsSampler,
@@ -967,6 +971,7 @@ class SupFriendsSampler(Sampler):
             self.enlarge = kwargs.get('enlarge', 1.0)
         else:
             self.enlarge = kwargs.get('enlarge', 1.25)
+        self.cite = self.kwargs.get('cite')
 
         # Initialize sampler.
         super(SupFriendsSampler,

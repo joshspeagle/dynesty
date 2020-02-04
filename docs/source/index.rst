@@ -36,29 +36,43 @@ be installed directly from a local copy of the repository by running::
 Citations
 =========
 
-If you find `dynesty` useful in your research, please cite
-`Speagle (2019) <https://arxiv.org/abs/1904.02180>`_. You are
-also encouraged to cite:
+If you find `dynesty` useful in your research, a list of papers that you
+should cite can be generated directly from the `sampler` object by calling::
 
-* Nested Sampling: 
-  `Skilling (2004) <http://adsabs.harvard.edu/abs/2004AIPC..735..395S>`_
+    print(sampler.citations)
+
+This will return a list of relevant papers and corresponding links to download
+citation information such as BibTex files.
+
+This list will by default include the following papers:
+
+* Code:
+  `Speagle (2019) <https://ui.adsabs.harvard.edu/abs/2019arXiv190402180S>`_.
+
+* Nested Sampling:
+  `Skilling (2004) <http://ui.adsabs.harvard.edu/abs/2004AIPC..735..395S>`_
   and `Skilling (2006) <https://projecteuclid.org/euclid.ba/1340370944>`_.
 
-* Dynamic Nested Sampling:
-  `Higson et al. (2017b) <http://adsabs.harvard.edu/abs/2017arXiv170403459H>`_.
+If you use the Dynamic Nested Sampling functionality
+(via `DynamicNestedSampler`), this will also include:
 
-You are also encouraged to cite the following papers as relevant:
+* Dynamic Nested Sampling:
+  `Higson et al. (2017b)
+  <http://ui.adsabs.harvard.edu/abs/2017arXiv170403459H>`_.
+
+Depending on your specific bounding and sampling options, this may also include
+the following papers:
 
 * Single ellipsoid bound:
   `Mukherjee, Parkinson & Liddle (2006)
-  <http://adsabs.harvard.edu/abs/2006ApJ...638L..51M>`_.
+  <http://ui.adsabs.harvard.edu/abs/2006ApJ...638L..51M>`_.
 
 * Multiple ellipsoid bounds:
   `Feroz, Hobson & Bridges (2009)
-  <http://adsabs.harvard.edu/abs/2009MNRAS.398.1601F>`_.
+  <http://ui.adsabs.harvard.edu/abs/2009MNRAS.398.1601F>`_.
 
 * Overlapping balls/cubes:
-  `Buchner (2016) <http://adsabs.harvard.edu/abs/2014arXiv1407.5459B>`_ and
+  `Buchner (2016) <http://ui.adsabs.harvard.edu/abs/2014arXiv1407.5459B>`_ and
   `Buchner (2017) <https://ui.adsabs.harvard.edu/abs/2017arXiv170704476B>`_.
 
 * Random walks/staggers:
@@ -67,20 +81,26 @@ You are also encouraged to cite the following papers as relevant:
 * Multivariate/Random slice sampling:
   `Neal (2003) <https://projecteuclid.org/euclid.aos/1056562461>`_,
   `Handley, Hobson & Lasenby (2015a)
-  <http://adsabs.harvard.edu/abs/2015MNRAS.450L..61H>`_, and
+  <http://ui.adsabs.harvard.edu/abs/2015MNRAS.450L..61H>`_, and
   `Handley, Hobson & Lasenby (2015b)
-  <http://adsabs.harvard.edu/abs/2015MNRAS.453.4384H>`_.
+  <http://ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H>`_.
 
 * Hamiltonian/Reflective slice sampling:
   `Neal (2003) <https://projecteuclid.org/euclid.aos/1056562461>`_,
-  `Skilling (2012) <https://aip.scitation.org/doi/abs/10.1063/1.3703630>`_, and
+  `Skilling (2012) <https://aip.scitation.org/doi/abs/10.1063/1.3703630>`_,
   `Feroz & Skilling (2013)
-  <https://ui.adsabs.harvard.edu/abs/2013AIPC.1553..106F>`_.
+  <https://ui.adsabs.harvard.edu/abs/2013AIPC.1553..106F>`_, and
+  `Speagle (2019) <https://ui.adsabs.harvard.edu/abs/2019arXiv190402180S>`_.
+
+Finally, if you have utilized some of the error analysis features through
+the provided utility functions, you should also cite: 
 
 * Nested Sampling error analysis:
   `Chopin & Robert (2010)
-  <http://adsabs.harvard.edu/abs/2008arXiv0801.3887C>`_ and
-  `Higson et al. (2017a) <http://adsabs.harvard.edu/abs/2017arXiv170309701H>`_.
+  <http://ui.adsabs.harvard.edu/abs/2008arXiv0801.3887C>`_,
+  `Higson et al. (2017a)
+  <http://ui.adsabs.harvard.edu/abs/2017arXiv170309701H>`_,
+  and `Speagle (2019) <https://ui.adsabs.harvard.edu/abs/2019arXiv190402180S>`_.
 
 See :ref:`References and Acknowledgements` for additional details.
 
@@ -89,6 +109,12 @@ Changelog
 
 .. image:: ../images/logo.gif
     :align: center
+
+1.0.1 (2020-01-17)
+-------------------
+* Small quality-of-life improvements to plotting.
+
+* Added citation tool.
 
 1.0.0 (2019-09-22)
 -------------------

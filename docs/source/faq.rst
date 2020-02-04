@@ -339,7 +339,7 @@ In almost all cases, using no bound (`'none'`) should be seen as a fallback
 option. It is mostly useful for systematics checks or in cases where the
 number of live points is small relative to the number of dimensions.
 
-**What are the differences between** `'multi'` **and MultiNest?**
+**What are the differences between** `'multi'` **and MultiNest or nestle?**
 
 The multi-ellipsoid decomposition/bounding method implemented in ``dynesty``
 is entirely based on the algorithm implemented in `nestle 
@@ -348,6 +348,10 @@ is entirely based on the algorithm implemented in `nestle
 <https://arxiv.org/abs/0809.3437>`_. As such, it doesn't include any
 improvements, changes, etc. that may or may not be included in 
 `MultiNest <https://ccpforge.cse.rl.ac.uk/gf/project/multinest/>`_.
+Specifically, it uses a simple scheme based on iterative k-means
+clustering than some of the more robust methods based on `agglomerative
+clustering <https://en.wikipedia.org/wiki/Hierarchical_clustering>`_
+implemented by some other codes.
 
 In addition, there are a few differences in the portion of the algorithm that
 decides when to split an ellipsoid into multiple ellipsoids. As with
@@ -360,9 +364,16 @@ through the :ref:`Top-Level Interface` via the
 `enlarge`, `vol_dec` and `vol_check` keywords if you would like to experiment
 with more conservative/aggressive behavior.
 
-``dynesty`` also uses different heuristics than ``MultiNest`` when deciding,
-e.g., when to first construct bounds. See :ref:`Bounding Options` for
-additional details.
+
+``dynesty`` also uses different heuristics than ``MultiNest`` or ``MultiNest``
+when deciding, e.g., when to first construct bounds. By default, ``dynesty``
+waits until the efficiency hits 10% and a certain number of iterations have
+passed before deciding to try split up live points into any sort of
+ellipsoid decomposition. This helps to avoid problems with "shredding" the
+early set of live points (which tend to be quite dispersed) into an enormous
+set of ellipsoids but can substantially affect the runtime for simple problems
+with tight priors. See :ref:`Bounding Options` for additional details as well
+as the answer below.
 
 **No matter what bounds, options, etc. I pick, the initial samples all
 come from `bound = 0` and continue until the overall efficiency is quite low.

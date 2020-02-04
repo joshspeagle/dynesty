@@ -17,9 +17,7 @@ import numpy as np
 
 from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
                              MultiEllipsoidSampler, RadFriendsSampler,
-                             SupFriendsSampler)
-from .sampling import (sample_unif, sample_rwalk, sample_rstagger,
-                       sample_slice, sample_rslice, sample_hslice)
+                             SupFriendsSampler, _SAMPLING)
 from .dynamicsampler import DynamicSampler
 
 __all__ = ["NestedSampler", "DynamicNestedSampler", "_function_wrapper"]
@@ -29,12 +27,6 @@ _SAMPLERS = {'none': UnitCubeSampler,
              'multi': MultiEllipsoidSampler,
              'balls': RadFriendsSampler,
              'cubes': SupFriendsSampler}
-_SAMPLING = {'unif': sample_unif,
-             'rwalk': sample_rwalk,
-             'rstagger': sample_rstagger,
-             'slice': sample_slice,
-             'rslice': sample_rslice,
-             'hslice': sample_hslice}
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
@@ -90,15 +82,17 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         cubes centered on each live point (`'cubes'`). Default is `'multi'`.
 
     sample : {`'auto'`, `'unif'`, `'rwalk'`, `'rstagger'`,
-              `'slice'`, `'rslice'`, `'hslice'`}, optional
+              `'slice'`, `'rslice'`, `'hslice'`, callable}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds. Unique methods available are:
         uniform sampling within the bounds(`'unif'`),
         random walks with fixed proposals (`'rwalk'`),
         random walks with variable ("staggering") proposals (`'rstagger'`),
         multivariate slice sampling along preferred orientations (`'slice'`),
-        "random" slice sampling along all orientations (`'rslice'`), and
-        "Hamiltonian" slices along random trajectories (`'hslice'`).
+        "random" slice sampling along all orientations (`'rslice'`),
+        "Hamiltonian" slices along random trajectories (`'hslice'`), and
+        any callable function which follows the pattern of the sample methods
+        defined in dynesty.sampling.
         `'auto'` selects the sampling method based on the dimensionality
         of the problem (from `ndim`).
         When `ndim < 10`, this defaults to `'unif'`.
@@ -288,7 +282,8 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
                 sample = 'slice'
             else:
                 sample = 'hslice'
-    if sample not in _SAMPLING:
+
+    if sample not in _SAMPLING and callable(sample) is False:
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
 
     # Dimensional warning check.

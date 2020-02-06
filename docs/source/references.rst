@@ -5,6 +5,74 @@ References and Acknowledgements
 **The release paper describing the code can be found**
 `here <https://github.com/joshspeagle/dynesty/tree/master/paper/dynesty.pdf>`_.
 
+A list of papers that you should cite can always be generated directly
+from the `sampler` object by calling::
+
+    print(sampler.citations)
+
+This will return a list of relevant papers and corresponding links to download
+citation information such as BibTex files.
+
+This list will by default include the following papers:
+
+* Code:
+  `Speagle (2019) <https://ui.adsabs.harvard.edu/abs/2019arXiv190402180S>`_.
+
+* Nested Sampling:
+  `Skilling (2004) <http://ui.adsabs.harvard.edu/abs/2004AIPC..735..395S>`_
+  and `Skilling (2006) <https://projecteuclid.org/euclid.ba/1340370944>`_.
+
+If you use the Dynamic Nested Sampling functionality
+(via `DynamicNestedSampler`), this will also include:
+
+* Dynamic Nested Sampling:
+  `Higson et al. (2017b)
+  <http://ui.adsabs.harvard.edu/abs/2017arXiv170403459H>`_.
+
+Depending on your specific bounding and sampling options, this may also include
+the following papers:
+
+* Single ellipsoid bound:
+  `Mukherjee, Parkinson & Liddle (2006)
+  <http://ui.adsabs.harvard.edu/abs/2006ApJ...638L..51M>`_.
+
+* Multiple ellipsoid bounds:
+  `Feroz, Hobson & Bridges (2009)
+  <http://ui.adsabs.harvard.edu/abs/2009MNRAS.398.1601F>`_.
+
+* Overlapping balls/cubes:
+  `Buchner (2016) <http://ui.adsabs.harvard.edu/abs/2014arXiv1407.5459B>`_ and
+  `Buchner (2017) <https://ui.adsabs.harvard.edu/abs/2017arXiv170704476B>`_.
+
+* Random walks/staggers:
+  `Skilling (2006) <https://projecteuclid.org/euclid.ba/1340370944>`_.
+
+* Multivariate/Random slice sampling:
+  `Neal (2003) <https://projecteuclid.org/euclid.aos/1056562461>`_,
+  `Handley, Hobson & Lasenby (2015a)
+  <http://ui.adsabs.harvard.edu/abs/2015MNRAS.450L..61H>`_, and
+  `Handley, Hobson & Lasenby (2015b)
+  <http://ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H>`_.
+
+* Hamiltonian/Reflective slice sampling:
+  `Neal (2003) <https://projecteuclid.org/euclid.aos/1056562461>`_,
+  `Skilling (2012) <https://aip.scitation.org/doi/abs/10.1063/1.3703630>`_,
+  `Feroz & Skilling (2013)
+  <https://ui.adsabs.harvard.edu/abs/2013AIPC.1553..106F>`_, and
+  `Speagle (2019) <https://ui.adsabs.harvard.edu/abs/2019arXiv190402180S>`_.
+
+If you have utilized some of the error analysis features available through
+the provided utility functions (see :ref:`Nested Sampling Errors`),
+you should also cite:
+
+* Nested Sampling Errors:
+  `Chopin & Robert (2010)
+  <http://ui.adsabs.harvard.edu/abs/2008arXiv0801.3887C>`_,
+  `Higson et al. (2017a)
+  <http://ui.adsabs.harvard.edu/abs/2017arXiv170309701H>`_, and
+  `Speagle (2019)
+  <https://ui.adsabs.harvard.edu/abs/2019arXiv190402180S>`_.
+
 Code
 ====
 

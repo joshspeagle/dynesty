@@ -96,3 +96,8 @@ For instance::
 
     # Generate a new set of results with statistical+sampling uncertainties.
     results_sim = dyfunc.simulate_run(results)
+
+Finally, a list of papers you should cite based on the configuration
+and sampler you are using can be compiled by simply running::
+
+    print(sampler.citations)

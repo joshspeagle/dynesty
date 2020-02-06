@@ -28,6 +28,6 @@ of the code can be found
 
 ### Attribution
 
-Please cite [Speagle (2019)](https://arxiv.org/abs/1904.02180) if you find the 
-package useful in your research, along with any relevant papers on the
-[citations page](https://dynesty.readthedocs.io/en/latest/index.html#citations).
+If you find the package useful in your research, please see the
+[documentation](https://dynesty.readthedocs.io) for papers you
+should cite.

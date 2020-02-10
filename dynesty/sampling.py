@@ -17,7 +17,7 @@ import math
 import numpy as np
 from numpy import linalg
 
-from .utils import unitcheck, reflect
+from .utils import unitcheck, reflect, autocorr_new
 
 
 __all__ = ["sample_unif", "sample_rwalk", "sample_rstagger",
@@ -158,66 +158,76 @@ def sample_rwalk(args):
 
     # Setup.
     n = len(u)
-    walks = kwargs.get('walks', 25)  # number of steps
+    walks = kwargs.get('walks', 25)  # minimum number of steps
+    maxmcmc = kwargs.get('maxmcmc', 5000)  # Maximum number of steps
+    nact = kwargs.get('nact', 10)  # Number of ACT
+
+    # Initialize internal variables
     accept = 0
     reject = 0
-    fail = 0
     nfail = 0
-    nc = 0
-    ncall = 0
+    act = np.inf
+    u_list = [u]
+    v_list = [prior_transform(u)]
+    logl_list = [loglikelihood(v_list[-1])]
+    max_walk_warning = True
 
     drhat, dr, du, u_prop, logl_prop = np.nan, np.nan, np.nan, np.nan, np.nan
-    while nc < walks or accept == 0:
-        while True:
+    while len(u_list) < nact * act:
 
-            # Check scale-factor.
-            if scale == 0.:
-                raise RuntimeError("The random walk sampling is stuck! "
-                                   "Some useful output quantities:\n"
-                                   "u: {0}\n"
-                                   "drhat: {1}\n"
-                                   "dr: {2}\n"
-                                   "du: {3}\n"
-                                   "u_prop: {4}\n"
-                                   "loglstar: {5}\n"
-                                   "logl_prop: {6}\n"
-                                   "axes: {7}\n"
-                                   "scale: {8}."
-                                   .format(u, drhat, dr, du, u_prop,
-                                           loglstar, logl_prop, axes, scale))
+        if scale == 0.:
+            raise RuntimeError("The random walk sampling is stuck! "
+                               "Some useful output quantities:\n"
+                               "u: {0}\n"
+                               "drhat: {1}\n"
+                               "dr: {2}\n"
+                               "du: {3}\n"
+                               "u_prop: {4}\n"
+                               "loglstar: {5}\n"
+                               "logl_prop: {6}\n"
+                               "axes: {7}\n"
+                               "scale: {8}."
+                               .format(u, drhat, dr, du, u_prop,
+                                       loglstar, logl_prop, axes, scale))
 
-            # Propose a direction on the unit n-sphere.
-            drhat = rstate.randn(n)
-            drhat /= linalg.norm(drhat)
+        # Propose a direction on the unit n-sphere.
+        drhat = rstate.randn(n)
+        drhat /= linalg.norm(drhat)
 
-            # Scale based on dimensionality.
-            dr = drhat * rstate.rand()**(1./n)
+        # Scale based on dimensionality.
+        # dr = drhat * rstate.rand()**(1. / n)  # CHANGED FROM DYNESTY 1.0
+        dr = drhat * rstate.rand(n)
 
-            # Transform to proposal distribution.
-            du = np.dot(axes, dr)
-            u_prop = u + scale * du
+        # Transform to proposal distribution.
+        du = np.dot(axes, dr)
+        u_prop = u + scale * du
 
-            # Wrap periodic parameters
-            if periodic is not None:
-                u_prop[periodic] = np.mod(u_prop[periodic], 1)
-            # Reflect
-            if reflective is not None:
-                u_prop[reflective] = reflect(u_prop[reflective])
+        # Wrap periodic parameters
+        if periodic is not None:
+            u_prop[periodic] = np.mod(u_prop[periodic], 1)
+        # Reflect
+        if reflective is not None:
+            u_prop[reflective] = reflect(u_prop[reflective])
 
-            # Check unit cube constraints.
-            if unitcheck(u_prop, nonbounded):
-                break
-            else:
-                fail += 1
-                nfail += 1
+        # Check unit cube constraints.
+        if unitcheck(u_prop, nonbounded):
+            pass
+        else:
+            nfail += 1
+            # Only start appending to the chain once a single jump is made
+            if accept > 0:
+                u_list.append(u_list[-1])
+                v_list.append(v_list[-1])
+                logl_list.append(logl_list[-1])
+            continue
 
-            # Check if we're stuck generating bad numbers.
-            if fail > 100 * walks:
-                warnings.warn("Random number generation appears to be "
-                              "extremely inefficient. Adjusting the "
-                              "scale-factor accordingly.")
-                fail = 0
-                scale *= math.exp(-1. / n)
+        # Check if we're stuck generating bad numbers.
+        if nfail > 100 * walks:
+            warnings.warn("Random number generation appears to be "
+                          "extremely inefficient. Adjusting the "
+                          "scale-factor accordingly.")
+            nfail = 0
+            scale *= math.exp(-1. / n)
 
         # Check proposed point.
         v_prop = prior_transform(np.array(u_prop))
@@ -227,21 +237,58 @@ def sample_rwalk(args):
             v = v_prop
             logl = logl_prop
             accept += 1
+            u_list.append(u)
+            v_list.append(v)
+            logl_list.append(logl)
         else:
             reject += 1
-        nc += 1
-        ncall += 1
+            # Only start appending to the chain once a single jump is made
+            if accept > 0:
+                u_list.append(u_list[-1])
+                v_list.append(v_list[-1])
+                logl_list.append(logl_list[-1])
+
+        # If we've taken the minimum number of steps, calculate the ACT
+        if accept + reject > walks:
+            act = np.max([1, autocorr_new(np.array(u_list).T)])
+        if len(u_list) > maxmcmc and accept > 0:
+            if max_walk_warning:
+                warnings.warn(
+                    "Hit maximum number of walks {} with accept={}, reject={}, "
+                    "and nfail={} try increasing maxmcmc"
+                    .format(maxmcmc, accept, reject, nfail))
+                max_walk_warning = False
+            if accept > 0:
+                # Break if we are above maxmcmc and have at least one accepted point
+                break
 
         # Check if we're stuck generating bad points.
-        if nc > 50 * walks:
+        if accept + reject > 50 * walks:
             scale *= math.exp(-1. / n)
             warnings.warn("Random walk proposals appear to be "
                           "extremely inefficient. Adjusting the "
                           "scale-factor accordingly.")
-            nc, accept, reject = 0, 0, 0  # reset values
+
+    # If the act is finite, pick randomly from within the chain
+    if np.isfinite(act) and act < len(u_list):
+        idx = np.random.randint(act, len(u_list))
+        u = u_list[idx]
+        v = v_list[idx]
+        logl = logl_list[idx]
+    elif len(u_list) == 1:
+        warnings.warn.warning("Returning the only point in the chain")
+        u = u_list[-1]
+        v = v_list[-1]
+        logl = logl_list[-1]
+    else:
+        warnings.warn("Returning the last point in the chain")
+        u = u_list[-1]
+        v = v_list[-1]
+        logl = logl_list[-1]
 
     blob = {'accept': accept, 'reject': reject, 'fail': nfail, 'scale': scale}
 
+    ncall = accept + reject
     return u, v, logl, ncall, blob
 
 
@@ -304,75 +351,85 @@ def sample_rstagger(args):
      prior_transform, loglikelihood, kwargs) = args
     rstate = np.random
 
-    # Periodicity.
+    # Bounds
     nonbounded = kwargs.get('nonbounded', None)
     periodic = kwargs.get('periodic', None)
     reflective = kwargs.get('reflective', None)
 
     # Setup.
     n = len(u)
-    walks = kwargs.get('walks', 25)  # number of steps
+    walks = kwargs.get('walks', 25)  # minimum number of steps
     facc_target = kwargs.get('facc', 0.5)  # acceptance fraction
+    maxmcmc = kwargs.get('maxmcmc', 5000)  # Maximum number of steps
+    nact = kwargs.get('nact', 10)  # Number of ACT
+
+    # Initialize internal variables
     accept = 0
     reject = 0
-    fail = 0
     nfail = 0
-    nc = 0
-    ncall = 0
     stagger = 1.  # adaptive scale
+    act = np.inf
+    u_list = [u]
+    v_list = [prior_transform(u)]
+    logl_list = [loglikelihood(v_list[-1])]
+    max_walk_warning = True
 
     drhat, dr, du, u_prop, logl_prop = np.nan, np.nan, np.nan, np.nan, np.nan
-    while nc < walks or accept == 0:
-        while True:
+    while len(u_list) < nact * act:
 
-            # Check scale-factor.
-            if scale == 0.:
-                raise RuntimeError("The random walk sampling is stuck! "
-                                   "Some useful output quantities:\n"
-                                   "u: {0}\n"
-                                   "drhat: {1}\n"
-                                   "dr: {2}\n"
-                                   "du: {3}\n"
-                                   "u_prop: {4}\n"
-                                   "loglstar: {5}\n"
-                                   "logl_prop: {6}\n"
-                                   "axes: {7}\n"
-                                   "scale: {8}."
-                                   .format(u, drhat, dr, du, u_prop,
-                                           loglstar, logl_prop, axes, scale))
+        if scale == 0.:
+            raise RuntimeError("The random walk sampling is stuck! "
+                               "Some useful output quantities:\n"
+                               "u: {0}\n"
+                               "drhat: {1}\n"
+                               "dr: {2}\n"
+                               "du: {3}\n"
+                               "u_prop: {4}\n"
+                               "loglstar: {5}\n"
+                               "logl_prop: {6}\n"
+                               "axes: {7}\n"
+                               "scale: {8}."
+                               .format(u, drhat, dr, du, u_prop,
+                                       loglstar, logl_prop, axes, scale))
 
-            # Propose a direction on the unit n-sphere.
-            drhat = rstate.randn(n)
-            drhat /= linalg.norm(drhat)
+        # Propose a direction on the unit n-sphere.
+        drhat = rstate.randn(n)
+        drhat /= linalg.norm(drhat)
 
-            # Scale based on dimensionality.
-            dr = drhat * rstate.rand()**(1./n)
+        # Scale based on dimensionality.
+        # dr = drhat * rstate.rand()**(1. / n)  # CHANGED FROM DYNESTY 1.0
+        dr = drhat * rstate.rand(n)
 
-            # Transform to proposal distribution.
-            du = np.dot(axes, dr)
-            u_prop = u + scale * stagger * du
+        # Transform to proposal distribution.
+        du = np.dot(axes, dr)
+        u_prop = u + scale * du
 
-            # Wrap periodic parameters
-            if periodic is not None:
-                u_prop[periodic] = np.mod(u_prop[periodic], 1)
-            # Reflect
-            if reflective is not None:
-                u_prop[reflective] = reflect(u_prop[reflective])
+        # Wrap periodic parameters
+        if periodic is not None:
+            u_prop[periodic] = np.mod(u_prop[periodic], 1)
+        # Reflect
+        if reflective is not None:
+            u_prop[reflective] = reflect(u_prop[reflective])
 
-            # Check unit cube constraints.
-            if unitcheck(u_prop, nonbounded):
-                break
-            else:
-                fail += 1
-                nfail += 1
+        # Check unit cube constraints.
+        if unitcheck(u_prop, nonbounded):
+            pass
+        else:
+            nfail += 1
+            # Only start appending to the chain once a single jump is made
+            if accept > 0:
+                u_list.append(u_list[-1])
+                v_list.append(v_list[-1])
+                logl_list.append(logl_list[-1])
+            continue
 
-            # Check if we're stuck generating bad numbers.
-            if fail > 100 * walks:
-                warnings.warn("Random number generation appears to be "
-                              "extremely inefficient. Adjusting the "
-                              "scale-factor accordingly.")
-                fail = 0
-                scale *= math.exp(-1. / n)
+        # Check if we're stuck generating bad numbers.
+        if nfail > 100 * walks:
+            warnings.warn("Random number generation appears to be "
+                          "extremely inefficient. Adjusting the "
+                          "scale-factor accordingly.")
+            nfail = 0
+            scale *= math.exp(-1. / n)
 
         # Check proposed point.
         v_prop = prior_transform(np.array(u_prop))
@@ -382,10 +439,32 @@ def sample_rstagger(args):
             v = v_prop
             logl = logl_prop
             accept += 1
+            u_list.append(u)
+            v_list.append(v)
+            logl_list.append(logl)
         else:
             reject += 1
-        nc += 1
-        ncall += 1
+            # Only start appending to the chain once a single jump is made
+            if accept > 0:
+                u_list.append(u_list[-1])
+                v_list.append(v_list[-1])
+                logl_list.append(logl_list[-1])
+
+        # If we've taken the minimum number of steps, calculate the ACT
+        if accept + reject > walks:
+            act = estimate_nmcmc(
+                accept / (accept + reject + nfail), walks, maxmcmc)
+
+        if len(u_list) > maxmcmc and accept > 0:
+            if max_walk_warning:
+                warnings.warn(
+                    "Hit maximum number of walks {} with accept={}, reject={}, "
+                    "and nfail={} try increasing maxmcmc"
+                    .format(maxmcmc, accept, reject, nfail))
+                max_walk_warning = False
+            if accept > 0:
+                # Break if we are above maxmcmc and have at least one accepted point
+                break
 
         # Adjust `stagger` to target an acceptance ratio of `facc_target`.
         facc = 1. * accept / (accept + reject)
@@ -395,16 +474,72 @@ def sample_rstagger(args):
             stagger /= math.exp(1. / reject)
 
         # Check if we're stuck generating bad points.
-        if nc > 50 * walks:
+        if accept + reject > 50 * walks:
             scale *= math.exp(-1. / n)
             warnings.warn("Random walk proposals appear to be "
                           "extremely inefficient. Adjusting the "
                           "scale-factor accordingly.")
-            nc, accept, reject = 0, 0, 0  # reset values
+
+    # If the act is finite, pick randomly from within the chain
+    if np.isfinite(act) and act < len(u_list):
+        idx = np.random.randint(act, len(u_list))
+        u = u_list[idx]
+        v = v_list[idx]
+        logl = logl_list[idx]
+    elif len(u_list) == 1:
+        warnings.warn.warning("Returning the only point in the chain")
+        u = u_list[-1]
+        v = v_list[-1]
+        logl = logl_list[-1]
+    else:
+        warnings.warn("Returning the last point in the chain")
+        u = u_list[-1]
+        v = v_list[-1]
+        logl = logl_list[-1]
 
     blob = {'accept': accept, 'reject': reject, 'fail': nfail, 'scale': scale}
 
+    ncall = accept + reject
     return u, v, logl, ncall, blob
+
+
+def estimate_nmcmc(accept_ratio, minmcmc, maxmcmc, safety=5, tau=None):
+    """ Estimate autocorrelation length of chain using acceptance fraction
+
+    Using ACL = (2/acc) - 1 multiplied by a safety margin. Code adapated from
+    CPNest:
+        - https://github.com/johnveitch/cpnest/blob/master/cpnest/sampler.py
+        - http://github.com/farr/Ensemble.jl
+
+    Parameters
+    ----------
+    accept_ratio: float [0, 1]
+        Ratio of the number of accepted points to the total number of points
+    minmcmc: int
+        The minimum length of the MCMC chain to use
+    maxmcmc: int
+        The maximum length of the MCMC chain to use
+    safety: int
+        A safety factor applied in the calculation
+    tau: int (optional)
+        The ACT, if given, otherwise estimated.
+
+    """
+    if tau is None:
+        tau = maxmcmc / safety
+
+    if accept_ratio == 0.0:
+        Nmcmc_exact = (1. + 1. / tau) * minmcmc
+    else:
+        Nmcmc_exact = (
+            (1. - 1. / tau) * minmcmc +
+            (safety / tau) * (2. / accept_ratio - 1.)
+        )
+
+    Nmcmc_exact = float(min(Nmcmc_exact, maxmcmc))
+    Nmcmc = max(safety, int(Nmcmc_exact))
+
+    return Nmcmc
 
 
 def sample_slice(args):

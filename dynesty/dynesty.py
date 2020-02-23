@@ -48,8 +48,8 @@ _CITES = {'default':  # default set of citations
           "projecteuclid.org/euclid.ba/1340370944\n",
           'dynamic':  # dynamic nested sampling
           "Dynamic Nested Sampling:\n=======================\n"
-          "Higson et al. (2017b): "
-          "ui.adsabs.harvard.edu/abs/2017arXiv170403459H\n",
+          "Higson et al. (2019): "
+          "doi.org/10.1007/s11222-018-9844-0\n",
           'none': "Bounding Method:\n===============\n",  # no bound
           'single':  # single ellipsoid
           "Bounding Method:\n===============\n"

@@ -486,13 +486,18 @@ class MultiEllipsoidSampler(Sampler):
                  method, update_interval, first_update, rstate,
                  queue_size, pool, use_pool, kwargs={}):
 
+        if callable(method):
+            _SAMPLING["user-defined"] = method
+            method = "user-defined"
+
         # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
                          'rstagger': self.propose_live,
                          'slice': self.propose_live,
                          'rslice': self.propose_live,
-                         'hslice': self.propose_live}
+                         'hslice': self.propose_live,
+                         'user-defined': self.propose_live}
         self.propose_point = self._PROPOSE[method]
 
         # Initialize method to "evolve" a point to a new position.
@@ -504,7 +509,8 @@ class MultiEllipsoidSampler(Sampler):
                         'rstagger': self.update_rwalk,
                         'slice': self.update_slice,
                         'rslice': self.update_slice,
-                        'hslice': self.update_hslice}
+                        'hslice': self.update_hslice,
+                        'user-defined': self.update_rwalk}
         self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.

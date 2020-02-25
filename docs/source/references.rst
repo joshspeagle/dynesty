@@ -26,8 +26,8 @@ If you use the Dynamic Nested Sampling functionality
 (via `DynamicNestedSampler`), this will also include:
 
 * Dynamic Nested Sampling:
-  `Higson et al. (2017b)
-  <http://ui.adsabs.harvard.edu/abs/2017arXiv170403459H>`_.
+  `Higson et al. (2019)
+  <https://doi.org/10.1007/s11222-018-9844-0>`_.
 
 Depending on your specific bounding and sampling options, this may also include
 the following papers:
@@ -68,8 +68,8 @@ you should also cite:
 * Nested Sampling Errors:
   `Chopin & Robert (2010)
   <http://ui.adsabs.harvard.edu/abs/2008arXiv0801.3887C>`_,
-  `Higson et al. (2017a)
-  <http://ui.adsabs.harvard.edu/abs/2017arXiv170309701H>`_, and
+  `Higson et al. (2018)
+  <https://projecteuclid.org/euclid.ba/1508897094>`_, and
   `Speagle (2019)
   <https://ui.adsabs.harvard.edu/abs/2019arXiv190402180S>`_.
 
@@ -98,16 +98,16 @@ Papers and Texts
 
 The dynamic sampling framework was entirely inspired by:
 
-    `Higson et al. 2017b <http://adsabs.harvard.edu/abs/2017arXiv170403459H>`_.
+    `Higson et al. 2019 <https://doi.org/10.1007/s11222-018-9844-0>`_.
     *Dynamic nested sampling: an improved algorithm for parameter estimation
     and evidence calculation.*
-    ArXiv e-prints, 1704.03459.
+    Stat Comput, 29, 891–913, doi:10.1007/s11222-018-9844-0.
 
 Much of the nested sampling error analysis is based on:
 
-    `Higson et al. 2017a <http://adsabs.harvard.edu/abs/2017arXiv170309701H>`_.
+    `Higson et al. 2018 <https://projecteuclid.org/euclid.ba/1508897094>`_.
     *Sampling errors in nested sampling parameter estimation.*
-    ArXiv e-prints, 1703.09701.
+    Bayesian Analysis, 13, no. 3, 873--896, doi:10.1214/17-BA1075.
 
     `Chopin & Robert 2010
     <http://adsabs.harvard.edu/abs/2008arXiv0801.3887C>`_.

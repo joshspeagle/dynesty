@@ -62,7 +62,7 @@ Returns the following list of papers that should be cited::
 
     Dynamic Nested Sampling:
     =======================
-    Higson et al. (2017b): ui.adsabs.harvard.edu/abs/2017arXiv170403459H
+    Higson et al. (2019): doi.org/10.1007/s11222-018-9844-0
 
     Bounding Method:
     ===============
@@ -78,8 +78,8 @@ the provided utility functions (see :ref:`Nested Sampling Errors`),
 you should also cite
 `Chopin & Robert (2010)
 <http://ui.adsabs.harvard.edu/abs/2008arXiv0801.3887C>`_,
-`Higson et al. (2017a)
-<http://ui.adsabs.harvard.edu/abs/2017arXiv170309701H>`_,
+`Higson et al. (2018)
+<projecteuclid.org/euclid.ba/1508897094>`_,
 and `Speagle (2019) <https://ui.adsabs.harvard.edu/abs/2019arXiv190402180S>`_.
 
 See :ref:`References and Acknowledgements` for additional details.

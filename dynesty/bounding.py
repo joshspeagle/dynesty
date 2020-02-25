@@ -1283,6 +1283,7 @@ def bounding_ellipsoid(points, pointvol=0.):
     """
 
     npoints, ndim = points.shape
+    ntries = 100  # number of times to try fixing covariance
 
     # Check for valid `pointvol` value if provided.
     if pointvol < 0.:
@@ -1322,11 +1323,16 @@ def bounding_ellipsoid(points, pointvol=0.):
     # "zero" volume. This can occur when `npoints <= ndim` or when enough
     # points are linear combinations of other points.
     covar = np.array(cov)
-    for trials in range(100):
+    for trials in range(ntries):
         try:
             # Check if matrix is invertible.
             am = lalg.pinvh(covar)
             l, v = lalg.eigh(covar)  # compute eigenvalues/vectors
+
+            # Check if direct Cholesky decomposition exists.
+            lalg.cholesky(covar, lower=True)
+
+            # Check if everything worked.
             if np.all((l > 0.) & (np.isfinite(l))):
                 break
             else:
@@ -1341,7 +1347,7 @@ def bounding_ellipsoid(points, pointvol=0.):
     else:
         warnings.warn("Failed to guarantee the ellipsoid axes will be "
                       "non-singular. Defaulting to a sphere.")
-        am = np.eye(ndim)
+        covar = np.eye(ndim)  # default to identity
 
     # Calculate expansion factor necessary to bound each point.
     # Points should obey `(x-v)^T A (x-v) <= 1`, so we calculate this for
@@ -1355,12 +1361,41 @@ def bounding_ellipsoid(points, pointvol=0.):
     # Due to round-off errors, we actually scale the ellipsoid so the
     # outermost point obeys `(x-v)^T A (x-v) < 1 - (a bit) < 1`.
     one_minus_a_bit = 1. - SQRTEPS
-
+    covar_mod = np.array(covar)
     if fmax > one_minus_a_bit:
-        covar *= fmax / one_minus_a_bit
+        covar_mod *= fmax / one_minus_a_bit
 
-    # Initialize our ellipsoid.
-    ell = Ellipsoid(ctr, covar)
+    # Repeat the ellipsoid check above just in case this modification makes
+    # us numerically unstable again. Just to be **ultra safe**.
+    covar2 = np.array(covar_mod)
+    for trials in range(ntries):
+        try:
+            # Check if matrix is invertible.
+            am = lalg.pinvh(covar2)
+            l, v = lalg.eigh(covar2)  # compute eigenvalues/vectors
+
+            # Check if direct Cholesky decomposition exists.
+            lalg.cholesky(covar2, lower=True)
+
+            # Check if everything worked.
+            if np.all((l > 0.) & (np.isfinite(l))):
+                break
+            else:
+                raise RuntimeError("The eigenvalue/eigenvector decomposition "
+                                   "failed!")
+        except:
+            # If the matrix remains singular/unstable,
+            # suppress the off-diagonal elements.
+            coeff = 1.1**(trials+1) / 1.1**100
+            covar2 = (1. - coeff) * covar_mod + coeff * np.eye(ndim)
+            pass
+    else:
+        warnings.warn("Failed to guarantee the ellipsoid axes will be "
+                      "non-singular. Defaulting to last working axes.")
+        covar2 = np.array(covar)  # default to last safe version
+
+    # Initialize our ellipsoid with *safe* covariance matrix.
+    ell = Ellipsoid(ctr, covar2)
 
     # Expand our ellipsoid to encompass a minimum volume.
     if pointvol > 0.:

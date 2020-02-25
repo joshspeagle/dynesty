@@ -30,7 +30,7 @@ _SAMPLERS = {'none': UnitCubeSampler,
 
 _CITES = {'default':  # default set of citations
           "Code and Methods:\n================\n"
-          "Speagle (2019): "
+          "Speagle (2020): "
           "ui.adsabs.harvard.edu/abs/2019arXiv190402180S\n\n"
           "Nested Sampling:\n===============\n"
           "Skilling (2004): "
@@ -95,7 +95,7 @@ _CITES = {'default':  # default set of citations
           "aip.scitation.org/doi/abs/10.1063/1.3703630\n"
           "Feroz & Skilling (2013): "
           "ui.adsabs.harvard.edu/abs/2013AIPC.1553..106F\n"
-          "Speagle (2019): "
+          "Speagle (2020): "
           "ui.adsabs.harvard.edu/abs/2019arXiv190402180S\n"}
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
@@ -112,7 +112,7 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
                   compute_jac=False,
                   enlarge=None, bootstrap=0, vol_dec=0.5, vol_check=2.0,
                   walks=25, facc=0.5, slices=5, fmove=0.9, max_move=100,
-                  **kwargs):
+                  update_func=None, **kwargs):
     """
     Initializes and returns a sampler object for Static Nested Sampling.
 
@@ -326,6 +326,15 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         The maximum number of timesteps allowed for `'hslice'`
         per proposal forwards and backwards in time. Default is `100`.
 
+    update_func : function, optional
+        Any callable function which takes in a `blob` and `scale`
+        as input and returns a modification to the internal `scale` as output.
+        Must follow the pattern of the update methods defined
+        in dynesty.nestedsamplers. If provided, this will supersede the
+        default functions used to update proposals. In the case where a custom
+        callable function is passed to `sample` but no similar function is
+        passed to `update_func`, this will default to no update.
+
     Returns
     -------
     sampler : sampler from :mod:`~dynesty.nestedsamplers`
@@ -353,8 +362,14 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
             else:
                 sample = 'hslice'
 
-    if sample not in _SAMPLING and callable(sample) is False:
+    # Custom sampling function.
+    if sample not in _SAMPLING and not callable(sample):
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
+
+    # Custom updating function.
+    if update_func is not None and not callable(update_func):
+        raise ValueError("Unknown update function: '{0}'".format(update_func))
+    kwargs['update_func'] = update_func
 
     # Citation generator.
     kwargs['cite'] = (_CITES['default'] + "\n" + _CITES[bound] + "\n" +
@@ -564,7 +579,7 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
                          vol_dec=0.5, vol_check=2.0,
                          walks=25, facc=0.5,
                          slices=5, fmove=0.9, max_move=100,
-                         **kwargs):
+                         update_func=None, **kwargs):
     """
     Initializes and returns a sampler object for Dynamic Nested Sampling.
 
@@ -606,8 +621,10 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         random walks with fixed proposals (`'rwalk'`),
         random walks with variable ("staggering") proposals (`'rstagger'`),
         multivariate slice sampling along preferred orientations (`'slice'`),
-        "random" slice sampling along all orientations (`'rslice'`), and
-        "Hamiltonian" slices along random trajectories (`'hslice'`).
+        "random" slice sampling along all orientations (`'rslice'`),
+        "Hamiltonian" slices along random trajectories (`'hslice'`), and
+        any callable function which follows the pattern of the sample methods
+        defined in dynesty.sampling.
         `'auto'` selects the sampling method based on the dimensionality
         of the problem (from `ndim`).
         When `ndim < 10`, this defaults to `'unif'`.
@@ -762,6 +779,15 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         The maximum number of timesteps allowed for `'hslice'`
         per proposal forwards and backwards in time. Default is `100`.
 
+    update_func : function, optional
+        Any callable function which takes in a `blob` and `scale`
+        as input and returns a modification to the internal `scale` as output.
+        Must follow the pattern of the update methods defined
+        in dynesty.nestedsamplers. If provided, this will supersede the
+        default functions used to update proposals. In the case where a custom
+        callable function is passed to `sample` but no similar function is
+        passed to `update_func`, this will default to no update.
+
     Returns
     -------
     sampler : a :class:`dynesty.DynamicSampler` instance
@@ -788,8 +814,15 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
                 sample = 'slice'
             else:
                 sample = 'hslice'
-    if sample not in _SAMPLING:
+
+    # Custom sampling function.
+    if sample not in _SAMPLING and not callable(sample):
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
+
+    # Custom updating function.
+    if update_func is not None and not callable(update_func):
+        raise ValueError("Unknown update function: '{0}'".format(update_func))
+    kwargs['update_func'] = update_func
 
     # Citation generator.
     kwargs['cite'] = (_CITES['default'] + "\n" + _CITES['dynamic'] + "\n" +

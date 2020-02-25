@@ -35,8 +35,6 @@ except ImportError:
 from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
                              MultiEllipsoidSampler, RadFriendsSampler,
                              SupFriendsSampler)
-from .sampling import (sample_unif, sample_rwalk, sample_rstagger,
-                       sample_slice, sample_rslice, sample_hslice)
 from .results import Results, print_fn
 from .utils import kld_error
 
@@ -48,12 +46,6 @@ _SAMPLERS = {'none': UnitCubeSampler,
              'multi': MultiEllipsoidSampler,
              'balls': RadFriendsSampler,
              'cubes': SupFriendsSampler}
-_SAMPLING = {'unif': sample_unif,
-             'rwalk': sample_rwalk,
-             'rstagger': sample_rstagger,
-             'slice': sample_slice,
-             'rslice': sample_rslice,
-             'hslice': sample_hslice}
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
@@ -384,6 +376,7 @@ class DynamicSampler(object):
         self.walks = self.kwargs.get('walks', 25)
         self.slices = self.kwargs.get('slices', 3)
         self.cite = self.kwargs.get('cite')
+        self.custom_update = self.kwargs.get('update_func')
 
         # random state
         self.rstate = rstate

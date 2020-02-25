@@ -113,7 +113,12 @@ class UnitCubeSampler(Sampler):
                          'rstagger': self.propose_live,
                          'slice': self.propose_live,
                          'rslice': self.propose_live,
-                         'hslice': self.propose_live}
+                         'hslice': self.propose_live,
+                         'user-defined': self.propose_live}
+
+        if callable(method):
+            _SAMPLING["user-defined"] = method
+            method = "user-defined"
         self.propose_point = self._PROPOSE[method]
 
         # Initialize method to "evolve" a point to a new position.
@@ -125,7 +130,10 @@ class UnitCubeSampler(Sampler):
                         'rstagger': self.update_rwalk,
                         'slice': self.update_slice,
                         'rslice': self.update_slice,
-                        'hslice': self.update_hslice}
+                        'hslice': self.update_hslice,
+                        'user-defined': self.update_user}
+
+        self.custom_update = kwargs.get('update_func')
         self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.
@@ -223,6 +231,14 @@ class UnitCubeSampler(Sampler):
         norm = max(self.fmove, 1. - self.fmove)
         self.scale *= math.exp((fmove - self.fmove) / norm)
 
+    def update_user(self, blob):
+        """Update the scale based on the user-defined update function."""
+
+        if callable(self.custom_update):
+            self.scale = self.custom_update(blob, self.scale)
+        else:
+            pass
+
 
 class SingleEllipsoidSampler(Sampler):
     """
@@ -290,19 +306,28 @@ class SingleEllipsoidSampler(Sampler):
                          'rstagger': self.propose_live,
                          'slice': self.propose_live,
                          'rslice': self.propose_live,
-                         'hslice': self.propose_live}
+                         'hslice': self.propose_live,
+                         'user-defined': self.propose_live}
+
+        if callable(method):
+            _SAMPLING["user-defined"] = method
+            method = "user-defined"
         self.propose_point = self._PROPOSE[method]
 
         # Initialize method to "evolve" a point to a new position.
         self.sampling, self.evolve_point = method, _SAMPLING[method]
 
         # Initialize heuristic used to update our sampling method.
+        # Initialize heuristic used to update our sampling method.
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
                         'rstagger': self.update_rwalk,
                         'slice': self.update_slice,
                         'rslice': self.update_slice,
-                        'hslice': self.update_hslice}
+                        'hslice': self.update_hslice,
+                        'user-defined': self.update_user}
+
+        self.custom_update = kwargs.get('update_func')
         self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.
@@ -425,6 +450,14 @@ class SingleEllipsoidSampler(Sampler):
         norm = max(self.fmove, 1. - self.fmove)
         self.scale *= math.exp((fmove - self.fmove) / norm)
 
+    def update_user(self, blob):
+        """Update the scale based on the user-defined update function."""
+
+        if callable(self.custom_update):
+            self.scale = self.custom_update(blob, self.scale)
+        else:
+            pass
+
 
 class MultiEllipsoidSampler(Sampler):
     """
@@ -486,10 +519,6 @@ class MultiEllipsoidSampler(Sampler):
                  method, update_interval, first_update, rstate,
                  queue_size, pool, use_pool, kwargs={}):
 
-        if callable(method):
-            _SAMPLING["user-defined"] = method
-            method = "user-defined"
-
         # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
                          'rwalk': self.propose_live,
@@ -498,11 +527,16 @@ class MultiEllipsoidSampler(Sampler):
                          'rslice': self.propose_live,
                          'hslice': self.propose_live,
                          'user-defined': self.propose_live}
+
+        if callable(method):
+            _SAMPLING["user-defined"] = method
+            method = "user-defined"
         self.propose_point = self._PROPOSE[method]
 
         # Initialize method to "evolve" a point to a new position.
         self.sampling, self.evolve_point = method, _SAMPLING[method]
 
+        # Initialize heuristic used to update our sampling method.
         # Initialize heuristic used to update our sampling method.
         self._UPDATE = {'unif': self.update_unif,
                         'rwalk': self.update_rwalk,
@@ -510,7 +544,9 @@ class MultiEllipsoidSampler(Sampler):
                         'slice': self.update_slice,
                         'rslice': self.update_slice,
                         'hslice': self.update_hslice,
-                        'user-defined': self.update_rwalk}
+                        'user-defined': self.update_user}
+
+        self.custom_update = kwargs.get('update_func')
         self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.
@@ -672,6 +708,14 @@ class MultiEllipsoidSampler(Sampler):
         norm = max(self.fmove, 1. - self.fmove)
         self.scale *= math.exp((fmove - self.fmove) / norm)
 
+    def update_user(self, blob):
+        """Update the scale based on the user-defined update function."""
+
+        if callable(self.custom_update):
+            self.scale = self.custom_update(blob, self.scale)
+        else:
+            pass
+
 
 class RadFriendsSampler(Sampler):
     """
@@ -739,7 +783,12 @@ class RadFriendsSampler(Sampler):
                          'rstagger': self.propose_live,
                          'slice': self.propose_live,
                          'rslice': self.propose_live,
-                         'hslice': self.propose_live}
+                         'hslice': self.propose_live,
+                         'user-defined': self.propose_live}
+
+        if callable(method):
+            _SAMPLING["user-defined"] = method
+            method = "user-defined"
         self.propose_point = self._PROPOSE[method]
 
         # Initialize method to "evolve" a point to a new position.
@@ -751,7 +800,10 @@ class RadFriendsSampler(Sampler):
                         'rstagger': self.update_rwalk,
                         'slice': self.update_slice,
                         'rslice': self.update_slice,
-                        'hslice': self.update_hslice}
+                        'hslice': self.update_hslice,
+                        'user-defined': self.update_user}
+
+        self.custom_update = kwargs.get('update_func')
         self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.
@@ -876,6 +928,14 @@ class RadFriendsSampler(Sampler):
         norm = max(self.fmove, 1. - self.fmove)
         self.scale *= math.exp((fmove - self.fmove) / norm)
 
+    def update_user(self, blob):
+        """Update the scale based on the user-defined update function."""
+
+        if callable(self.custom_update):
+            self.scale = self.custom_update(blob, self.scale)
+        else:
+            pass
+
 
 class SupFriendsSampler(Sampler):
     """
@@ -943,7 +1003,12 @@ class SupFriendsSampler(Sampler):
                          'rstagger': self.propose_live,
                          'slice': self.propose_live,
                          'rslice': self.propose_live,
-                         'hslice': self.propose_live}
+                         'hslice': self.propose_live,
+                         'user-defined': self.propose_live}
+
+        if callable(method):
+            _SAMPLING["user-defined"] = method
+            method = "user-defined"
         self.propose_point = self._PROPOSE[method]
 
         # Initialize method to "evolve" a point to a new position.
@@ -955,7 +1020,10 @@ class SupFriendsSampler(Sampler):
                         'rstagger': self.update_rwalk,
                         'slice': self.update_slice,
                         'rslice': self.update_slice,
-                        'hslice': self.update_hslice}
+                        'hslice': self.update_hslice,
+                        'user-defined': self.update_user}
+
+        self.custom_update = kwargs.get('update_func')
         self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.
@@ -1080,3 +1148,11 @@ class SupFriendsSampler(Sampler):
         fmove = (1. * nmove) / (nmove + nreflect + ncontract + 2)
         norm = max(self.fmove, 1. - self.fmove)
         self.scale *= math.exp((fmove - self.fmove) / norm)
+
+    def update_user(self, blob):
+        """Update the scale based on the user-defined update function."""
+
+        if callable(self.custom_update):
+            self.scale = self.custom_update(blob, self.scale)
+        else:
+            pass

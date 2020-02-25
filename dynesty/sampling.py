@@ -150,6 +150,7 @@ def sample_rwalk(args):
     (u, loglstar, axes, scale,
      prior_transform, loglikelihood, kwargs) = args
     rstate = np.random
+    scale_init = 1.0 * scale
 
     # Bounds
     nonbounded = kwargs.get('nonbounded', None)
@@ -170,9 +171,9 @@ def sample_rwalk(args):
     while nc < walks or accept == 0:
         while True:
 
-            # Check scale-factor.
-            if scale == 0.:
-                raise RuntimeError("The random walk sampling is stuck! "
+            # Check scale-factor. If we've shrunk too much, terminate.
+            if scale < 1e-5 * scale_init:
+                raise RuntimeError("Random walk sampling appears to be stuck! "
                                    "Some useful output quantities:\n"
                                    "u: {0}\n"
                                    "drhat: {1}\n"
@@ -303,6 +304,7 @@ def sample_rstagger(args):
     (u, loglstar, axes, scale,
      prior_transform, loglikelihood, kwargs) = args
     rstate = np.random
+    scale_init = 1.0 * scale
 
     # Periodicity.
     nonbounded = kwargs.get('nonbounded', None)
@@ -325,9 +327,9 @@ def sample_rstagger(args):
     while nc < walks or accept == 0:
         while True:
 
-            # Check scale-factor.
-            if scale == 0.:
-                raise RuntimeError("The random walk sampling is stuck! "
+            # Check scale-factor. If we've shrunk too much, terminate.
+            if scale < 1e-5 * scale_init:
+                raise RuntimeError("Random walk sampling appears to be stuck! "
                                    "Some useful output quantities:\n"
                                    "u: {0}\n"
                                    "drhat: {1}\n"
@@ -535,8 +537,28 @@ def sample_slice(args):
 
             # Sample within limits. If the sample is not valid, shrink
             # the limits until we hit the `loglstar` bound.
+            window_init = linalg.norm(u_r - u_l)  # initial window size
             while True:
+                # Define slice and window.
                 u_hat = u_r - u_l
+                window = linalg.norm(u_hat)
+
+                # Check if the slice has shrunk to be ridiculously small.
+                if window < 1e-5 * window_init:
+                    raise RuntimeError("Slice sampling appears to be "
+                                       "stuck! Some useful "
+                                       "output quantities:\n"
+                                       "u: {0}\n"
+                                       "u_left: {1}\n"
+                                       "u_right: {2}\n"
+                                       "u_hat: {3}\n"
+                                       "loglstar: {4}\n"
+                                       "axes: {5}\n"
+                                       "axlens: {6}."
+                                       .format(u, u_l, u_r, u_hat,
+                                               loglstar, axes, axlens))
+
+                # Propose a new position.
                 u_prop = u_l + rstate.rand() * u_hat  # scale from left
                 if unitcheck(u_prop, nonperiodic):
                     v_prop = prior_transform(np.array(u_prop))
@@ -545,9 +567,9 @@ def sample_slice(args):
                     logl_prop = -np.inf
                 nc += 1
                 ncontract += 1
+
                 # If we succeed, move to the new position.
                 if logl_prop >= loglstar:
-                    window = linalg.norm(u_hat)  # length of window
                     fscale.append(window / axlen)
                     u = u_prop
                     break
@@ -561,6 +583,7 @@ def sample_slice(args):
                     elif s > 0:  # right
                         u_r = u_prop
                     else:
+                        # If `s = 0` something has gone horribly wrong.
                         raise RuntimeError("Slice sampler has failed to find "
                                            "a valid point. Some useful "
                                            "output quantities:\n"
@@ -703,8 +726,28 @@ def sample_rslice(args):
 
         # Sample within limits. If the sample is not valid, shrink
         # the limits until we hit the `loglstar` bound.
+        window_init = linalg.norm(u_r - u_l)  # initial window size
         while True:
+            # Define slice and window.
             u_hat = u_r - u_l
+            window = linalg.norm(u_hat)
+
+            # Check if the slice has shrunk to be ridiculously small.
+            if window < 1e-5 * window_init:
+                raise RuntimeError("Slice sampling appears to be "
+                                   "stuck! Some useful "
+                                   "output quantities:\n"
+                                   "u: {0}\n"
+                                   "u_left: {1}\n"
+                                   "u_right: {2}\n"
+                                   "u_hat: {3}\n"
+                                   "loglstar: {4}\n"
+                                   "axes: {5}\n"
+                                   "axlen: {6}."
+                                   .format(u, u_l, u_r, u_hat,
+                                           loglstar, axes, axlen))
+
+            # Propose new position.
             u_prop = u_l + rstate.rand() * u_hat  # scale from left
             if unitcheck(u_prop, nonperiodic):
                 v_prop = prior_transform(np.array(u_prop))
@@ -713,9 +756,9 @@ def sample_rslice(args):
                 logl_prop = -np.inf
             nc += 1
             ncontract += 1
+
             # If we succeed, move to the new position.
             if logl_prop >= loglstar:
-                window = linalg.norm(u_hat)  # length of window
                 fscale.append(window / axlen)
                 u = u_prop
                 break
@@ -729,6 +772,7 @@ def sample_rslice(args):
                 elif s > 0:  # right
                     u_r = u_prop
                 else:
+                    # If `s = 0` something has gone horribly wrong.
                     raise RuntimeError("Slice sampler has failed to find "
                                        "a valid point. Some useful "
                                        "output quantities:\n"
@@ -1137,7 +1181,18 @@ def sample_hslice(args):
 
         # Slice sample from all chords simultaneously. This is equivalent to
         # slice sampling in *time* along our trajectory.
+        axlen_init = np.array(axlen)
         while True:
+            # Safety check.
+            if np.any(axlen < 1e-5 * axlen_init):
+                raise RuntimeError("Hamiltonian slice sampling appears to be "
+                                   "stuck! Some useful output quantities:\n"
+                                   "u: {0}\n"
+                                   "u_left: {1}\n"
+                                   "u_right: {2}\n"
+                                   "loglstar: {3}."
+                                   .format(u, u_l, u_r, loglstar))
+
             # Select chord.
             axprob = axlen / np.sum(axlen)
             idx = rstate.choice(Nchords, p=axprob)

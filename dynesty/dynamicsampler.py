@@ -609,7 +609,8 @@ class DynamicSampler(object):
     def sample_initial(self, nlive=500, update_interval=None,
                        first_update=None, maxiter=None, maxcall=None,
                        logl_max=np.inf, dlogz=0.01, n_effective=np.inf,
-                       live_points=None):
+                       live_points=None, save_samples=False, \
+                       resume=False):
         """
         Generate a series of initial samples from a nested sampling
         run using a fixed number of live points using an internal
@@ -733,31 +734,62 @@ class DynamicSampler(object):
         if nlive <= 2 * self.npdim:
             warnings.warn("Beware: `nlive_init <= 2 * ndim`!")
 
-        # Reset saved results to avoid any possible conflicts.
-        self.reset()
+        if not resume:
+            # Reset saved results to avoid any possible conflicts.
+            self.reset()
 
-        # Initialize the first set of live points.
-        if live_points is None:
-            # If no live points are provided, propose them by randomly
-            # sampling from the unit cube.
-            self.nlive_init = nlive
-            for attempt in range(100):
-                self.live_u = self.rstate.rand(self.nlive_init, self.npdim)
-                if self.use_pool_ptform:
-                    self.live_v = np.array(list(self.M(self.prior_transform,
-                                                       np.array(self.live_u))))
-                else:
-                    self.live_v = np.array(list(map(self.prior_transform,
-                                                    np.array(self.live_u))))
-                if self.use_pool_logl:
-                    self.live_logl = np.array(list(self.M(self.loglikelihood,
-                                              np.array(self.live_v))))
-                else:
-                    self.live_logl = np.array(list(map(self.loglikelihood,
-                                                       np.array(self.live_v))))
+            # Initialize the first set of live points.
+            if live_points is None:
+                # If no live points are provided, propose them by randomly
+                # sampling from the unit cube.
+                self.nlive_init = nlive
+                for attempt in range(100):
+                    self.live_u = self.rstate.rand(self.nlive_init, self.npdim)
+                    if self.use_pool_ptform:
+                        self.live_v = np.array(list(self.M(self.prior_transform,
+                                                        np.array(self.live_u))))
+                    else:
+                        self.live_v = np.array(list(map(self.prior_transform,
+                                                        np.array(self.live_u))))
+                    if self.use_pool_logl:
+                        self.live_logl = np.array(list(self.M(\
+                                self.loglikelihood, np.array(self.live_v))))
+                    else:
+                        self.live_logl = np.array(list(map(self.loglikelihood,
+                                                        np.array(self.live_v))))
 
-                # Convert all `-np.inf` log-likelihoods to finite large numbers.
-                # Necessary to keep estimators in our sampler from breaking.
+                    # Convert all `-np.inf` log-likelihoods to finite large 
+                    # numbers. Necessary to keep estimators in our sampler from 
+                    # breaking.
+                    for i, logl in enumerate(self.live_logl):
+                        if not np.isfinite(logl):
+                            if np.sign(logl) < 0:
+                                self.live_logl[i] = -1e300
+                            else:
+                                raise ValueError(\
+                                        "The log-likelihood ({0}) of live "
+                                        "point {1} located at u={2} v={3} "
+                                        " is invalid."
+                                        .format(logl, i, self.live_u[i],
+                                                self.live_v[i]))
+
+                    # Check to make sure there is at least one finite 
+                    # log-likelihood value within the initial set of live 
+                    # points.
+                    if any(self.live_logl != -1e300):
+                        break
+                else:
+                    # If we found nothing after many attempts, raise the alarm.
+                    raise RuntimeError("After many attempts, not a single live "
+                                    "point had a valid log-likelihood! Please "
+                                    "check your prior transform and/or "
+                                    "log-likelihood.")
+            else:
+                # If live points were provided, convert the log-likelihoods and
+                # then run a quick safety check.
+                self.live_u, self.live_v, self.live_logl = live_points
+                self.nlive_init = len(self.live_u)
+
                 for i, logl in enumerate(self.live_logl):
                     if not np.isfinite(logl):
                         if np.sign(logl) < 0:
@@ -768,68 +800,41 @@ class DynamicSampler(object):
                                              " is invalid."
                                              .format(logl, i, self.live_u[i],
                                                      self.live_v[i]))
+                if all(self.live_logl == -1e300):
+                    raise ValueError("Not a single provided live point has a "
+                                     "valid log-likelihood!")
 
-                # Check to make sure there is at least one finite log-likelihood
-                # value within the initial set of live points.
-                if any(self.live_logl != -1e300):
-                    break
-            else:
-                # If we found nothing after many attempts, raise the alarm.
-                raise RuntimeError("After many attempts, not a single live "
-                                   "point had a valid log-likelihood! Please "
-                                   "check your prior transform and/or "
-                                   "log-likelihood.")
-        else:
-            # If live points were provided, convert the log-likelihoods and
-            # then run a quick safety check.
-            self.live_u, self.live_v, self.live_logl = live_points
-            self.nlive_init = len(self.live_u)
+            # (Re-)bundle live points.
+            live_points = [self.live_u, self.live_v, self.live_logl]
+            self.live_init = [np.array(l) for l in live_points]
+            self.ncall += self.nlive_init
+            self.live_bound = np.zeros(self.nlive_init, dtype='int')
+            self.live_it = np.zeros(self.nlive_init, dtype='int')
 
-            for i, logl in enumerate(self.live_logl):
-                if not np.isfinite(logl):
-                    if np.sign(logl) < 0:
-                        self.live_logl[i] = -1e300
-                    else:
-                        raise ValueError("The log-likelihood ({0}) of live "
-                                         "point {1} located at u={2} v={3} "
-                                         " is invalid."
-                                         .format(logl, i, self.live_u[i],
-                                                 self.live_v[i]))
-            if all(self.live_logl == -1e300):
-                raise ValueError("Not a single provided live point has a "
-                                 "valid log-likelihood!")
-
-        # (Re-)bundle live points.
-        live_points = [self.live_u, self.live_v, self.live_logl]
-        self.live_init = [np.array(l) for l in live_points]
-        self.ncall += self.nlive_init
-        self.live_bound = np.zeros(self.nlive_init, dtype='int')
-        self.live_it = np.zeros(self.nlive_init, dtype='int')
-
-        # Initialize the internal `sampler` object.
-        if update_interval is None:
-            update_interval = self.update_interval
-        if isinstance(update_interval, float):
-            update_interval = int(round(self.update_interval * nlive))
-        bounding = self.bounding
-        if bounding == 'none':
-            update_interval = np.inf  # no need to update with no bounds
-        if first_update is None:
-            first_update = self.first_update
-        self.sampler = _SAMPLERS[bounding](self.loglikelihood,
-                                           self.prior_transform,
-                                           self.npdim, self.live_init,
-                                           self.method, update_interval,
-                                           first_update,
-                                           self.rstate, self.queue_size,
-                                           self.pool, self.use_pool,
-                                           self.kwargs)
-        self.bound = self.sampler.bound
+            # Initialize the internal `sampler` object.
+            if update_interval is None:
+                update_interval = self.update_interval
+            if isinstance(update_interval, float):
+                update_interval = int(round(self.update_interval * nlive))
+            bounding = self.bounding
+            if bounding == 'none':
+                update_interval = np.inf  # no need to update with no bounds
+            if first_update is None:
+                first_update = self.first_update
+            self.sampler = _SAMPLERS[bounding](self.loglikelihood,
+                                               self.prior_transform,
+                                               self.npdim, self.live_init,
+                                               self.method, update_interval,
+                                               first_update,
+                                               self.rstate, self.queue_size,
+                                               self.pool, self.use_pool,
+                                               self.kwargs)
+            self.bound = self.sampler.bound
 
         # Run the sampler internally as a generator.
         for i in range(1):
             for it, results in enumerate(self.sampler.sample(maxiter=maxiter,
-                                         save_samples=False,
+                                         save_samples=save_samples,
                                          maxcall=maxcall, dlogz=dlogz,
                                          n_effective=n_effective)):
                 # Grab results.

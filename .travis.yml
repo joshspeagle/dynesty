@@ -6,14 +6,16 @@ dist: trusty
 python:
     - 2.7
     - 3.6
+    - 3.7
+    - 3.8
 
 install:
-    - pip install -U pip
+    - pip install -U pip numpy
     - pip install coveralls pyflakes
     - pip install matplotlib==2.2.4
     - pip install -e .
 
-script: 
+script:
     - python runtests.py
 
 after_success: coveralls

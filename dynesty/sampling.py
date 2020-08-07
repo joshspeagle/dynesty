@@ -223,7 +223,7 @@ def sample_rwalk(args):
         # Check proposed point.
         v_prop = prior_transform(np.array(u_prop))
         logl_prop = loglikelihood(np.array(v_prop))
-        if logl_prop >= loglstar:
+        if logl_prop > loglstar:
             u = u_prop
             v = v_prop
             logl = logl_prop
@@ -379,7 +379,7 @@ def sample_rstagger(args):
         # Check proposed point.
         v_prop = prior_transform(np.array(u_prop))
         logl_prop = loglikelihood(np.array(v_prop))
-        if logl_prop >= loglstar:
+        if logl_prop > loglstar:
             u = u_prop
             v = v_prop
             logl = logl_prop
@@ -516,7 +516,7 @@ def sample_slice(args):
             nexpand += 1
 
             # "Stepping out" the left and right bounds.
-            while logl_l >= loglstar:
+            while logl_l > loglstar:
                 u_l -= axis
                 if unitcheck(u_l, nonperiodic):
                     v_l = prior_transform(np.array(u_l))
@@ -525,7 +525,7 @@ def sample_slice(args):
                     logl_l = -np.inf
                 nc += 1
                 nexpand += 1
-            while logl_r >= loglstar:
+            while logl_r > loglstar:
                 u_r += axis
                 if unitcheck(u_r, nonperiodic):
                     v_r = prior_transform(np.array(u_r))
@@ -569,7 +569,7 @@ def sample_slice(args):
                 ncontract += 1
 
                 # If we succeed, move to the new position.
-                if logl_prop >= loglstar:
+                if logl_prop > loglstar:
                     fscale.append(window / axlen)
                     u = u_prop
                     break
@@ -705,7 +705,7 @@ def sample_rslice(args):
         nexpand += 1
 
         # "Stepping out" the left and right bounds.
-        while logl_l >= loglstar:
+        while logl_l > loglstar:
             u_l -= axis
             if unitcheck(u_l, nonperiodic):
                 v_l = prior_transform(np.array(u_l))
@@ -714,7 +714,7 @@ def sample_rslice(args):
                 logl_l = -np.inf
             nc += 1
             nexpand += 1
-        while logl_r >= loglstar:
+        while logl_r > loglstar:
             u_r += axis
             if unitcheck(u_r, nonperiodic):
                 v_r = prior_transform(np.array(u_r))
@@ -758,7 +758,7 @@ def sample_rslice(args):
             ncontract += 1
 
             # If we succeed, move to the new position.
-            if logl_prop >= loglstar:
+            if logl_prop > loglstar:
                 fscale.append(window / axlen)
                 u = u_prop
                 break
@@ -1209,7 +1209,7 @@ def sample_hslice(args):
             nc += 1
             ncontract += 1
             # If we succeed, move to the new position.
-            if logl_prop >= loglstar:
+            if logl_prop > loglstar:
                 u = u_prop
                 break
             # If we fail, check if the new point is to the left/right of

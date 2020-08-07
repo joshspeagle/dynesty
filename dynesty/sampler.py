@@ -305,7 +305,7 @@ class Sampler(object):
             # If we've already update our bounds, check if we've exceeded the
             # saved log-likelihood threshold. (This is useful when sampling
             # within `dynamicsampler`).
-            return loglstar >= self.logl_first_update
+            return loglstar > self.logl_first_update
 
     def _empty_queue(self):
         """Dump all live point proposals currently on the queue."""
@@ -390,7 +390,7 @@ class Sampler(object):
                 self.update_proposal(blob)
 
             # If we satisfy the log-likelihood constraint, we're done!
-            if logl >= loglstar:
+            if logl > loglstar:
                 break
 
             # If there has been more than `update_interval` function calls

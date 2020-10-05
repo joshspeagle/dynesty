@@ -158,12 +158,17 @@ class Sampler(object):
 
         state = self.__dict__.copy()
 
-        del state['rstate']  # remove random module
+        #attempt to remove from internal sampler, if not dealt within DynamicSampler class
+        try:
+            #remove random module
+            del state['rstate']
 
-        # deal with pool
-        if state['pool'] is not None:
-            del state['pool']  # remove pool
-            del state['M']  # remove `pool.map` function hook
+            # deal with pool
+            if state['pool'] is not None:
+                del state['pool']  # remove pool
+                del state['M']  # remove `pool.map` function hook
+        except:
+            pass
 
         return state
 

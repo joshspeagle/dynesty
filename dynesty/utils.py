@@ -168,7 +168,7 @@ def resample_equal(samples, weights, rstate=None):
     positions = (rstate.random() + np.arange(nsamples)) / nsamples
 
     # Resample the data.
-    idx = np.zeros(nsamples, dtype=np.int)
+    idx = np.zeros(nsamples, dtype=int)
     cumulative_sum = np.cumsum(weights)
     i, j = 0, 0
     while i < nsamples:

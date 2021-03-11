@@ -343,11 +343,12 @@ class DynamicSampler(object):
 
     def __init__(self, loglikelihood, prior_transform, npdim,
                  bound, method, update_interval, first_update, rstate,
-                 queue_size, pool, use_pool, kwargs):
+                 queue_size, pool, use_pool, ncdim, kwargs):
         # distributions
         self.loglikelihood = loglikelihood
         self.prior_transform = prior_transform
         self.npdim = npdim
+        self.ncdim = ncdim
 
         # bounding/sampling
         self.bounding = bound
@@ -731,7 +732,7 @@ class DynamicSampler(object):
             maxcall = sys.maxsize
         if maxiter is None:
             maxiter = sys.maxsize
-        if nlive <= 2 * self.npdim:
+        if nlive <= 2 * self.ncdim:
             warnings.warn("Beware: `nlive_init <= 2 * ndim`!")
 
         if not resume:
@@ -828,7 +829,8 @@ class DynamicSampler(object):
                                                first_update,
                                                self.rstate, self.queue_size,
                                                self.pool, self.use_pool,
-                                               self.kwargs)
+                                               ncdim=self.ncdim,
+                                               kwargs=self.kwargs)
             self.bound = self.sampler.bound
 
         # Run the sampler internally as a generator.
@@ -1018,7 +1020,7 @@ class DynamicSampler(object):
             maxcall = sys.maxsize
         if maxiter is None:
             maxiter = sys.maxsize
-        if nlive_new <= 2 * self.npdim:
+        if nlive_new <= 2 * self.ncdim:
             warnings.warn("Beware: `nlive_batch <= 2 * ndim`!")
         self.sampler.save_bounds = save_bounds
 

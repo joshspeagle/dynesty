@@ -587,7 +587,7 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
                          vol_dec=0.5, vol_check=2.0,
                          walks=25, facc=0.5,
                          slices=5, fmove=0.9, max_move=100,
-                         update_func=None, **kwargs):
+                         update_func=None, ncdim=None, **kwargs):
     """
     Initializes and returns a sampler object for Dynamic Nested Sampling.
 
@@ -796,6 +796,12 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         callable function is passed to `sample` but no similar function is
         passed to `update_func`, this will default to no update.
 
+    ncdim: int, optional
+        The number of clustering dimensions. The first ncdim dimensions will
+        be sampled using the sampling method, the remaining dimensions will
+        just sample uniformly from the prior distribution.
+        If this is `None` (default), this will default to npdim.
+
     Returns
     -------
     sampler : a :class:`dynesty.DynamicSampler` instance
@@ -806,6 +812,8 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
     # Prior dimensions.
     if npdim is None:
         npdim = ndim
+    if ncdim is None:
+        ncdim = npdim
 
     # Bounding method.
     if bound not in _SAMPLERS:
@@ -950,7 +958,7 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
     # Initialize our nested sampler.
     sampler = DynamicSampler(loglike, ptform, npdim,
                              bound, sample, update_interval, first_update,
-                             rstate, queue_size, pool, use_pool, kwargs)
+                             rstate, queue_size, pool, use_pool, ncdim, kwargs)
 
     return sampler
 

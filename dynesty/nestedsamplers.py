@@ -105,7 +105,7 @@ class UnitCubeSampler(Sampler):
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
                  method, update_interval, first_update, rstate,
-                 queue_size, pool, use_pool, kwargs={}):
+                 queue_size, pool, use_pool, kwargs={}, ncdim=0):
 
         # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
@@ -155,8 +155,8 @@ class UnitCubeSampler(Sampler):
         super(UnitCubeSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, first_update,
-                             rstate, queue_size, pool, use_pool)
-        self.unitcube = UnitCube(self.npdim)
+                             rstate, queue_size, pool, use_pool, ncdim=ncdim)
+        self.unitcube = UnitCube(self.ncdim)
         self.bounding = 'none'
         self.method = method
         self.nonbounded = self.kwargs.get('nonbounded', None)
@@ -186,6 +186,7 @@ class UnitCubeSampler(Sampler):
 
         u = self.unitcube.sample(rstate=self.rstate)
         ax = np.identity(self.npdim)
+        u = np.concatenate([u, np.random.uniform(0, 1, self.npdim - self.ncdim)])
 
         return u, ax
 
@@ -210,9 +211,9 @@ class UnitCubeSampler(Sampler):
         self.scale = blob['scale']
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
-        norm = max(self.facc, 1. - self.facc) * self.npdim
+        norm = max(self.facc, 1. - self.facc) * self.ncdim
         self.scale *= math.exp((facc - self.facc) / norm)
-        self.scale = min(self.scale, math.sqrt(self.npdim))
+        self.scale = min(self.scale, math.sqrt(self.ncdim))
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
@@ -298,7 +299,7 @@ class SingleEllipsoidSampler(Sampler):
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
                  method, update_interval, first_update, rstate,
-                 queue_size, pool, use_pool, kwargs={}):
+                 queue_size, pool, use_pool, kwargs={}, ncdim=0):
 
         # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
@@ -349,8 +350,8 @@ class SingleEllipsoidSampler(Sampler):
         super(SingleEllipsoidSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, first_update,
-                             rstate, queue_size, pool, use_pool)
-        self.ell = Ellipsoid(np.zeros(self.npdim), np.identity(self.npdim))
+                             rstate, queue_size, pool, use_pool, ncdim=ncdim)
+        self.ell = Ellipsoid(np.zeros(self.ncdim), np.identity(self.ncdim))
         self.bounding = 'single'
         self.method = method
         self.nonbounded = self.kwargs.get('nonbounded', None)
@@ -380,7 +381,7 @@ class SingleEllipsoidSampler(Sampler):
             pool = None
 
         # Update the ellipsoid.
-        self.ell.update(self.live_u, pointvol=pointvol, rstate=self.rstate,
+        self.ell.update(self.live_u[:, :self.ncdim], pointvol=pointvol, rstate=self.rstate,
                         bootstrap=self.bootstrap, pool=pool)
         if self.enlarge != 1.:
             self.ell.scale_to_vol(self.ell.vol * self.enlarge)
@@ -399,6 +400,7 @@ class SingleEllipsoidSampler(Sampler):
             if unitcheck(u, self.nonbounded):
                 break  # if it is, we're done!
 
+        u = np.concatenate([u, np.random.uniform(0, 1, self.npdim - self.ncdim)])
         return u, self.ell.axes
 
     def propose_live(self):
@@ -413,7 +415,7 @@ class SingleEllipsoidSampler(Sampler):
         elif self.sampling == 'slice':
             ax = self.ell.paxes
         else:
-            ax = np.identity(self.npdim)
+            ax = np.identity(self.ncdim)
 
         return u, ax
 
@@ -429,9 +431,9 @@ class SingleEllipsoidSampler(Sampler):
         self.scale = blob['scale']
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
-        norm = max(self.facc, 1. - self.facc) * self.npdim
+        norm = max(self.facc, 1. - self.facc) * self.ncdim
         self.scale *= math.exp((facc - self.facc) / norm)
-        self.scale = min(self.scale, math.sqrt(self.npdim))
+        self.scale = min(self.scale, math.sqrt(self.ncdim))
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
@@ -517,7 +519,7 @@ class MultiEllipsoidSampler(Sampler):
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
                  method, update_interval, first_update, rstate,
-                 queue_size, pool, use_pool, kwargs={}):
+                 queue_size, pool, use_pool, kwargs={}, ncdim=0):
 
         # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
@@ -570,9 +572,9 @@ class MultiEllipsoidSampler(Sampler):
         super(MultiEllipsoidSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, first_update,
-                             rstate, queue_size, pool, use_pool)
-        self.mell = MultiEllipsoid(ctrs=[np.zeros(self.npdim)],
-                                   covs=[np.identity(self.npdim)])
+                             rstate, queue_size, pool, use_pool, ncdim=ncdim)
+        self.mell = MultiEllipsoid(ctrs=[np.zeros(self.ncdim)],
+                                   covs=[np.identity(self.ncdim)])
         self.bounding = 'multi'
         self.method = method
         self.nonbounded = self.kwargs.get('nonbounded', None)
@@ -602,7 +604,7 @@ class MultiEllipsoidSampler(Sampler):
             pool = None
 
         # Update the bounding ellipsoids.
-        self.mell.update(self.live_u, pointvol=pointvol,
+        self.mell.update(self.live_u[:, :self.ncdim], pointvol=pointvol,
                          vol_dec=self.vol_dec, vol_check=self.vol_check,
                          rstate=self.rstate, bootstrap=self.bootstrap,
                          pool=pool)
@@ -628,6 +630,7 @@ class MultiEllipsoidSampler(Sampler):
                 if q == 1 or self.rstate.rand() < 1.0 / q:
                     break  # if successful, we're done!
 
+        u = np.concatenate([u, np.random.uniform(0, 1, self.npdim - self.ncdim)])
         return u, self.mell.ells[idx].axes
 
     def propose_live(self):
@@ -636,9 +639,10 @@ class MultiEllipsoidSampler(Sampler):
         # Copy a random live point.
         i = self.rstate.randint(self.nlive)
         u = self.live_u[i, :]
+        u_fit = u[:self.ncdim]
 
         # Check for ellipsoid overlap.
-        ell_idxs = self.mell.within(u)
+        ell_idxs = self.mell.within(u_fit)
         nidx = len(ell_idxs)
 
         # Automatically trigger an update if we're not in any ellipsoid.
@@ -659,7 +663,7 @@ class MultiEllipsoidSampler(Sampler):
             self.since_update = 0
 
             # Check for ellipsoid overlap (again).
-            ell_idxs = self.mell.within(u)
+            ell_idxs = self.mell.within(u_fit)
             nidx = len(ell_idxs)
 
         # Pick a random ellipsoid that encompasses `u`.
@@ -687,9 +691,9 @@ class MultiEllipsoidSampler(Sampler):
         self.scale = blob['scale']
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
-        norm = max(self.facc, 1. - self.facc) * self.npdim
+        norm = max(self.facc, 1. - self.facc) * self.ncdim
         self.scale *= math.exp((facc - self.facc) / norm)
-        self.scale = min(self.scale, math.sqrt(self.npdim))
+        self.scale = min(self.scale, math.sqrt(self.ncdim))
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
@@ -775,7 +779,7 @@ class RadFriendsSampler(Sampler):
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
                  method, update_interval, first_update, rstate,
-                 queue_size, pool, use_pool, kwargs={}):
+                 queue_size, pool, use_pool, kwargs={}, ncdim=0):
 
         # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
@@ -825,8 +829,8 @@ class RadFriendsSampler(Sampler):
         super(RadFriendsSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, first_update,
-                             rstate, queue_size, pool, use_pool)
-        self.radfriends = RadFriends(self.npdim)
+                             rstate, queue_size, pool, use_pool, ncdim=ncdim)
+        self.radfriends = RadFriends(self.ncdim)
         self.bounding = 'balls'
         self.method = method
         self.nonbounded = self.kwargs.get('nonbounded', None)
@@ -855,7 +859,7 @@ class RadFriendsSampler(Sampler):
             pool = None
 
         # Update the N-spheres.
-        self.radfriends.update(self.live_u, pointvol=pointvol,
+        self.radfriends.update(self.live_u[:, :self.ncdim], pointvol=pointvol,
                                rstate=self.rstate, bootstrap=self.bootstrap,
                                pool=pool)
         if self.enlarge != 1.:
@@ -871,7 +875,7 @@ class RadFriendsSampler(Sampler):
         while True:
             # Sample a point `u` from the union of N-spheres along with the
             # number of overlapping spheres `q` at point `u`.
-            u, q = self.radfriends.sample(self.live_u, rstate=self.rstate,
+            u, q = self.radfriends.sample(self.live_u[:, :self.ncdim], rstate=self.rstate,
                                           return_q=True)
 
             # Check if our sample is within the unit cube.
@@ -884,6 +888,7 @@ class RadFriendsSampler(Sampler):
         # Define the axes of the N-sphere.
         ax = self.radfriends.axes
 
+        u = np.concatenate([u, np.random.uniform(0, 1, self.npdim - self.ncdim)])
         return u, ax
 
     def propose_live(self):
@@ -907,9 +912,9 @@ class RadFriendsSampler(Sampler):
         self.scale = blob['scale']
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
-        norm = max(self.facc, 1. - self.facc) * self.npdim
+        norm = max(self.facc, 1. - self.facc) * self.ncdim
         self.scale *= math.exp((facc - self.facc) / norm)
-        self.scale = min(self.scale, math.sqrt(self.npdim))
+        self.scale = min(self.scale, math.sqrt(self.ncdim))
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
@@ -995,7 +1000,7 @@ class SupFriendsSampler(Sampler):
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
                  method, update_interval, first_update, rstate,
-                 queue_size, pool, use_pool, kwargs={}):
+                 queue_size, pool, use_pool, kwargs={}, ncdim=0):
 
         # Initialize method to propose a new starting point.
         self._PROPOSE = {'unif': self.propose_unif,
@@ -1045,8 +1050,8 @@ class SupFriendsSampler(Sampler):
         super(SupFriendsSampler,
               self).__init__(loglikelihood, prior_transform, npdim,
                              live_points, update_interval, first_update,
-                             rstate, queue_size, pool, use_pool)
-        self.supfriends = SupFriends(self.npdim)
+                             rstate, queue_size, pool, use_pool, ncdim=ncdim)
+        self.supfriends = SupFriends(self.ncdim)
         self.bounding = 'cubes'
         self.method = method
         self.nonbounded = self.kwargs.get('nonbounded', None)
@@ -1076,7 +1081,7 @@ class SupFriendsSampler(Sampler):
             pool = None
 
         # Update the N-cubes.
-        self.supfriends.update(self.live_u, pointvol=pointvol,
+        self.supfriends.update(self.live_u[:, :self.ncdim], pointvol=pointvol,
                                rstate=self.rstate, bootstrap=self.bootstrap,
                                pool=pool)
         if self.enlarge != 1.:
@@ -1092,7 +1097,7 @@ class SupFriendsSampler(Sampler):
         while True:
             # Sample a point `u` from the union of N-cubes along with the
             # number of overlapping cubes `q` at point `u`.
-            u, q = self.supfriends.sample(self.live_u, rstate=self.rstate,
+            u, q = self.supfriends.sample(self.live_u[:, :self.ncdim], rstate=self.rstate,
                                           return_q=True)
 
             # Check if our point is within the unit cube.
@@ -1105,6 +1110,7 @@ class SupFriendsSampler(Sampler):
         # Define the axes of our N-cube.
         ax = self.supfriends.axes
 
+        u = np.concatenate([u, np.random.uniform(0, 1, self.npdim - self.ncdim)])
         return u, ax
 
     def propose_live(self):
@@ -1128,9 +1134,9 @@ class SupFriendsSampler(Sampler):
         self.scale = blob['scale']
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
-        norm = max(self.facc, 1. - self.facc) * self.npdim
+        norm = max(self.facc, 1. - self.facc) * self.ncdim
         self.scale *= math.exp((facc - self.facc) / norm)
-        self.scale = min(self.scale, math.sqrt(self.npdim))
+        self.scale = min(self.scale, math.sqrt(self.ncdim))
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative

@@ -159,6 +159,7 @@ def sample_rwalk(args):
 
     # Setup.
     n = len(u)
+    n_cluster = axes.shape[0]
     walks = kwargs.get('walks', 25)  # number of steps
     accept = 0
     reject = 0
@@ -188,15 +189,18 @@ def sample_rwalk(args):
                                            loglstar, logl_prop, axes, scale))
 
             # Propose a direction on the unit n-sphere.
-            drhat = rstate.randn(n)
+            drhat = rstate.randn(n_cluster)
             drhat /= linalg.norm(drhat)
 
             # Scale based on dimensionality.
-            dr = drhat * rstate.rand()**(1./n)
+            dr = drhat * rstate.rand()**(1./n_cluster)
+
+            # draw random point for non clustering parameters
+            u_non_cluster = np.random.uniform(0, 1, n - n_cluster)
 
             # Transform to proposal distribution.
             du = np.dot(axes, dr)
-            u_prop = u + scale * du
+            u_prop = np.concatenate([u[:n_cluster] + scale * du, u_non_cluster])
 
             # Wrap periodic parameters
             if periodic is not None:
@@ -218,7 +222,7 @@ def sample_rwalk(args):
                               "extremely inefficient. Adjusting the "
                               "scale-factor accordingly.")
                 fail = 0
-                scale *= math.exp(-1. / n)
+                scale *= math.exp(-1. / n_cluster)
 
         # Check proposed point.
         v_prop = prior_transform(np.array(u_prop))
@@ -235,7 +239,7 @@ def sample_rwalk(args):
 
         # Check if we're stuck generating bad points.
         if nc > 50 * walks:
-            scale *= math.exp(-1. / n)
+            scale *= math.exp(-1. / n_cluster)
             warnings.warn("Random walk proposals appear to be "
                           "extremely inefficient. Adjusting the "
                           "scale-factor accordingly.")
@@ -313,6 +317,7 @@ def sample_rstagger(args):
 
     # Setup.
     n = len(u)
+    n_cluster = axes.shape[0]
     walks = kwargs.get('walks', 25)  # number of steps
     facc_target = kwargs.get('facc', 0.5)  # acceptance fraction
     accept = 0
@@ -344,15 +349,18 @@ def sample_rstagger(args):
                                            loglstar, logl_prop, axes, scale))
 
             # Propose a direction on the unit n-sphere.
-            drhat = rstate.randn(n)
+            drhat = rstate.randn(n_cluster)
             drhat /= linalg.norm(drhat)
 
             # Scale based on dimensionality.
-            dr = drhat * rstate.rand()**(1./n)
+            dr = drhat * rstate.rand()**(1./n_cluster)
+
+            # draw random point for non clustering parameters
+            u_non_cluster = np.random.uniform(0, 1, n - n_cluster)
 
             # Transform to proposal distribution.
             du = np.dot(axes, dr)
-            u_prop = u + scale * stagger * du
+            u_prop = np.concatenate([u[:n_cluster] + scale * du, u_non_cluster])
 
             # Wrap periodic parameters
             if periodic is not None:
@@ -374,7 +382,7 @@ def sample_rstagger(args):
                               "extremely inefficient. Adjusting the "
                               "scale-factor accordingly.")
                 fail = 0
-                scale *= math.exp(-1. / n)
+                scale *= math.exp(-1. / n_cluster)
 
         # Check proposed point.
         v_prop = prior_transform(np.array(u_prop))
@@ -398,7 +406,7 @@ def sample_rstagger(args):
 
         # Check if we're stuck generating bad points.
         if nc > 50 * walks:
-            scale *= math.exp(-1. / n)
+            scale *= math.exp(-1. / n_cluster)
             warnings.warn("Random walk proposals appear to be "
                           "extremely inefficient. Adjusting the "
                           "scale-factor accordingly.")
@@ -472,6 +480,7 @@ def sample_slice(args):
 
     # Setup.
     n = len(u)
+    n_cluster = axes.shape[0]
     slices = kwargs.get('slices', 5)  # number of slices
     nc = 0
     nexpand = 0
@@ -486,8 +495,11 @@ def sample_slice(args):
     for it in range(slices):
 
         # Shuffle axis update order.
-        idxs = np.arange(n)
+        idxs = np.arange(n_cluster)
         rstate.shuffle(idxs)
+
+        # draw random point for non clustering parameters
+        u_non_cluster = np.random.uniform(0, 1, n - n_cluster)
 
         # Slice sample along a random direction.
         for idx in idxs:
@@ -498,7 +510,7 @@ def sample_slice(args):
 
             # Define starting "window".
             r = rstate.rand()  # initial scale/offset
-            u_l = u - r * axis  # left bound
+            u_l = np.concatenate([u[:n_cluster] - r * axis, u_non_cluster])  # left bound
             if unitcheck(u_l, nonperiodic):
                 v_l = prior_transform(np.array(u_l))
                 logl_l = loglikelihood(np.array(v_l))
@@ -506,7 +518,7 @@ def sample_slice(args):
                 logl_l = -np.inf
             nc += 1
             nexpand += 1
-            u_r = u + (1 - r) * axis  # right bound
+            u_r = np.concatenate([u[:n_cluster] + (1 - r) * axis, u_non_cluster])  # right bound
             if unitcheck(u_r, nonperiodic):
                 v_r = prior_transform(np.array(u_r))
                 logl_r = loglikelihood(np.array(v_r))
@@ -517,7 +529,7 @@ def sample_slice(args):
 
             # "Stepping out" the left and right bounds.
             while logl_l > loglstar:
-                u_l -= axis
+                u_l[:n_cluster] -= axis
                 if unitcheck(u_l, nonperiodic):
                     v_l = prior_transform(np.array(u_l))
                     logl_l = loglikelihood(np.array(v_l))
@@ -526,7 +538,7 @@ def sample_slice(args):
                 nc += 1
                 nexpand += 1
             while logl_r > loglstar:
-                u_r += axis
+                u_r[:n_cluster] += axis
                 if unitcheck(u_r, nonperiodic):
                     v_r = prior_transform(np.array(u_r))
                     logl_r = loglikelihood(np.array(v_r))
@@ -537,11 +549,11 @@ def sample_slice(args):
 
             # Sample within limits. If the sample is not valid, shrink
             # the limits until we hit the `loglstar` bound.
-            window_init = linalg.norm(u_r - u_l)  # initial window size
+            window_init = linalg.norm(u_r[:n_cluster] - u_l[:n_cluster])  # initial window size
             while True:
                 # Define slice and window.
                 u_hat = u_r - u_l
-                window = linalg.norm(u_hat)
+                window = linalg.norm(u_hat[:n_cluster])
 
                 # Check if the slice has shrunk to be ridiculously small.
                 if window < 1e-5 * window_init:
@@ -668,6 +680,7 @@ def sample_rslice(args):
 
     # Setup.
     n = len(u)
+    n_cluster = axes.shape[0]
     slices = kwargs.get('slices', 5)  # number of slices
     nc = 0
     nexpand = 0
@@ -678,16 +691,19 @@ def sample_rslice(args):
     for it in range(slices):
 
         # Propose a direction on the unit n-sphere.
-        drhat = rstate.randn(n)
+        drhat = rstate.randn(n_cluster)
         drhat /= linalg.norm(drhat)
 
         # Transform and scale based on past tuning.
         axis = np.dot(axes, drhat) * scale
         axlen = linalg.norm(axis)
 
+        # draw random point for non clustering parameters
+        u_non_cluster = np.random.uniform(0, 1, n - n_cluster)
+
         # Define starting "window".
         r = rstate.rand()  # initial scale/offset
-        u_l = u - r * axis  # left bound
+        u_l = np.concatenate([u[:n_cluster] - r * axis, u_non_cluster])  # left bound
         if unitcheck(u_l, nonperiodic):
             v_l = prior_transform(np.array(u_l))
             logl_l = loglikelihood(np.array(v_l))
@@ -695,7 +711,7 @@ def sample_rslice(args):
             logl_l = -np.inf
         nc += 1
         nexpand += 1
-        u_r = u + (1 - r) * axis  # right bound
+        u_r = np.concatenate([u[:n_cluster] + (1 - r) * axis, u_non_cluster])  # right bound
         if unitcheck(u_r, nonperiodic):
             v_r = prior_transform(np.array(u_r))
             logl_r = loglikelihood(np.array(v_r))
@@ -706,7 +722,7 @@ def sample_rslice(args):
 
         # "Stepping out" the left and right bounds.
         while logl_l > loglstar:
-            u_l -= axis
+            u_l[:n_cluster] -= axis
             if unitcheck(u_l, nonperiodic):
                 v_l = prior_transform(np.array(u_l))
                 logl_l = loglikelihood(np.array(v_l))
@@ -715,7 +731,7 @@ def sample_rslice(args):
             nc += 1
             nexpand += 1
         while logl_r > loglstar:
-            u_r += axis
+            u_r[:n_cluster] += axis
             if unitcheck(u_r, nonperiodic):
                 v_r = prior_transform(np.array(u_r))
                 logl_r = loglikelihood(np.array(v_r))
@@ -726,11 +742,11 @@ def sample_rslice(args):
 
         # Sample within limits. If the sample is not valid, shrink
         # the limits until we hit the `loglstar` bound.
-        window_init = linalg.norm(u_r - u_l)  # initial window size
+        window_init = linalg.norm(u_r[:n_cluster] - u_l[:n_cluster])  # initial window size
         while True:
             # Define slice and window.
             u_hat = u_r - u_l
-            window = linalg.norm(u_hat)
+            window = linalg.norm(u_hat[:n_cluster])
 
             # Check if the slice has shrunk to be ridiculously small.
             if window < 1e-5 * window_init:
@@ -861,6 +877,7 @@ def sample_hslice(args):
 
     # Setup.
     n = len(u)
+    n_cluster = axes.shape[0]
     slices = kwargs.get('slices', 5)  # number of slices
     grad = kwargs.get('grad', None)  # gradient of log-likelihood
     max_move = kwargs.get('max_move', 100)  # limit for `ncall`
@@ -878,16 +895,21 @@ def sample_hslice(args):
         nodes_l, nodes_m, nodes_r = [], [], []
 
         # Propose a direction on the unit n-sphere.
-        drhat = rstate.randn(n)
+        drhat = rstate.randn(n_cluster)
         drhat /= linalg.norm(drhat)
 
         # Transform and scale based on past tuning.
         axis = np.dot(axes, drhat) * scale * 0.01
 
+        # draw random point for non clustering parameters
+        u[n_cluster:] = np.random.uniform(0, 1, n - n_cluster)
+
         # Create starting window.
         vel = np.array(axis)  # current velocity
-        u_l = u - rstate.uniform(1. - jitter, 1. + jitter) * vel
-        u_r = u + rstate.uniform(1. - jitter, 1. + jitter) * vel
+        u_l = u.copy()
+        u_r = u.copy()
+        u_l[:n_cluster] -= rstate.uniform(1. - jitter, 1. + jitter) * vel
+        u_r[:n_cluster] += rstate.uniform(1. - jitter, 1. + jitter) * vel
         nodes_l.append(np.array(u_l))
         nodes_m.append(np.array(u))
         nodes_r.append(np.array(u_r))
@@ -903,7 +925,7 @@ def sample_hslice(args):
             u_out, u_in = None, []
             while True:
                 # Step forward.
-                u_r += rstate.uniform(1. - jitter, 1. + jitter) * vel
+                u_r[:n_cluster] += rstate.uniform(1. - jitter, 1. + jitter) * vel
                 # Evaluate point.
                 if unitcheck(u_r, nonperiodic):
                     v_r = prior_transform(np.array(u_r))
@@ -1041,7 +1063,7 @@ def sample_hslice(args):
             u_out, u_in = None, []
             while True:
                 # Step forward.
-                u_l += rstate.uniform(1. - jitter, 1. + jitter) * vel
+                u_l[:n_cluster] += rstate.uniform(1. - jitter, 1. + jitter) * vel
                 # Evaluate point.
                 if unitcheck(u_l, nonperiodic):
                     v_l = prior_transform(np.array(u_l))

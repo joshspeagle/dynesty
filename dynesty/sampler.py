@@ -85,12 +85,13 @@ class Sampler(object):
 
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
                  update_interval, first_update, rstate,
-                 queue_size, pool, use_pool):
+                 queue_size, pool, use_pool, ncdim):
 
         # distributions
         self.loglikelihood = loglikelihood
         self.prior_transform = prior_transform
         self.npdim = npdim
+        self.ncdim = ncdim
 
         # live points
         self.live_u, self.live_v, self.live_logl = live_points
@@ -132,7 +133,7 @@ class Sampler(object):
         self.since_update = 0  # number of calls since the last update
         self.ncall = self.nlive  # number of function calls
         self.dlv = math.log((self.nlive + 1.) / self.nlive)  # shrinkage/iter
-        self.bound = [UnitCube(self.npdim)]  # bounding distributions
+        self.bound = [UnitCube(self.ncdim)]  # bounding distributions
         self.nbound = 1  # total number of unique bounding distributions
         self.added_live = False  # whether leftover live points were used
         self.eff = 0.  # overall sampling efficiency
@@ -206,7 +207,7 @@ class Sampler(object):
         self.it = 1
         self.since_update = 0
         self.ncall = self.nlive
-        self.bound = [UnitCube(self.npdim)]
+        self.bound = [UnitCube(self.ncdim)]
         self.nbound = 1
         self.added_live = False
 
@@ -340,7 +341,7 @@ class Sampler(object):
             else:
                 # Propose/evaluate points directly from the unit cube.
                 point = self.rstate.rand(self.npdim)
-                axes = np.identity(self.npdim)
+                axes = np.identity(self.ncdim)
                 evolve_point = sample_unif
             point_queue.append(point)
             axes_queue.append(axes)

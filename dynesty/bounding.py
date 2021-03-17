@@ -1364,9 +1364,13 @@ def bounding_ellipsoid(points, pointvol=0.):
     f = np.einsum('...i, ...i', np.tensordot(delta, am, axes=1), delta)
     fmax = np.max(f)
 
+    
     # Due to round-off errors, we actually scale the ellipsoid so the
     # outermost point obeys `(x-v)^T A (x-v) < 1 - (a bit) < 1`.
-    one_minus_a_bit = 1. - SQRTEPS
+    ROUND_DELTA = 1e-5
+    # numerical experiments show that round off errors can reach large
+    # values if the matrix eigen values are very low
+    one_minus_a_bit = 1. - ROUND_DELTA
     covar_mod = np.array(covar)
     if fmax > one_minus_a_bit:
         covar_mod *= fmax / one_minus_a_bit

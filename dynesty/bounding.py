@@ -1379,6 +1379,7 @@ def bounding_ellipsoid(points, pointvol=0.):
     # us numerically unstable again. Just to be **ultra safe**.
     covar2 = np.array(covar_mod)
     for trials in range(ntries):
+        failed = False
         try:
             # Check if matrix is invertible.
             am = lalg.pinvh(covar2)
@@ -1391,14 +1392,14 @@ def bounding_ellipsoid(points, pointvol=0.):
             if np.all((l > 0.) & (np.isfinite(l))):
                 break
             else:
-                raise RuntimeError("The eigenvalue/eigenvector decomposition "
-                                   "failed!")
-        except:
+                failed =True
+        except lalg.LinAlgError:
+            failed =True
+        if failed:
             # If the matrix remains singular/unstable,
             # suppress the off-diagonal elements.
             coeff = 1.1**(trials+1) / 1.1**100
             covar2 = (1. - coeff) * covar_mod + coeff * np.eye(ndim)
-            pass
     else:
         warnings.warn("Failed to guarantee the ellipsoid axes will be "
                       "non-singular. Defaulting to last working axes.")

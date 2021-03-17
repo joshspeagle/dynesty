@@ -593,8 +593,7 @@ class MultiEllipsoid(object):
         # Sanity check: all points must be contained in some ellipsoid
         if not all(any(ell.contains(p) for ell in ells) for p in points):
             # refuse to update
-            warnings.warn('Rejecting invalid MultiEllipsoid region')
-            return
+            raise RuntimeError('Rejecting invalid MultiEllipsoid region')
 
         # Update the set of ellipsoids.
         self.nells = len(ells)

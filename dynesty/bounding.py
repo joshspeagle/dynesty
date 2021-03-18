@@ -593,8 +593,7 @@ class MultiEllipsoid(object):
         # Sanity check: all points must be contained in some ellipsoid
         if not all(any(ell.contains(p) for ell in ells) for p in points):
             # refuse to update
-            warnings.warn('Rejecting invalid MultiEllipsoid region')
-            return
+            raise RuntimeError('Rejecting invalid MultiEllipsoid region')
 
         # Update the set of ellipsoids.
         self.nells = len(ells)
@@ -1364,9 +1363,13 @@ def bounding_ellipsoid(points, pointvol=0.):
     f = np.einsum('...i, ...i', np.tensordot(delta, am, axes=1), delta)
     fmax = np.max(f)
 
+    
     # Due to round-off errors, we actually scale the ellipsoid so the
     # outermost point obeys `(x-v)^T A (x-v) < 1 - (a bit) < 1`.
-    one_minus_a_bit = 1. - SQRTEPS
+    ROUND_DELTA = 1e-5
+    # numerical experiments show that round off errors can reach large
+    # values if the matrix eigen values are very low
+    one_minus_a_bit = 1. - ROUND_DELTA
     covar_mod = np.array(covar)
     if fmax > one_minus_a_bit:
         covar_mod *= fmax / one_minus_a_bit
@@ -1375,6 +1378,7 @@ def bounding_ellipsoid(points, pointvol=0.):
     # us numerically unstable again. Just to be **ultra safe**.
     covar2 = np.array(covar_mod)
     for trials in range(ntries):
+        failed = False
         try:
             # Check if matrix is invertible.
             am = lalg.pinvh(covar2)
@@ -1387,19 +1391,23 @@ def bounding_ellipsoid(points, pointvol=0.):
             if np.all((l > 0.) & (np.isfinite(l))):
                 break
             else:
-                raise RuntimeError("The eigenvalue/eigenvector decomposition "
-                                   "failed!")
-        except:
+                failed =True
+        except lalg.LinAlgError:
+            failed =True
+        if failed:
             # If the matrix remains singular/unstable,
             # suppress the off-diagonal elements.
             coeff = 1.1**(trials+1) / 1.1**100
             covar2 = (1. - coeff) * covar_mod + coeff * np.eye(ndim)
-            pass
     else:
         warnings.warn("Failed to guarantee the ellipsoid axes will be "
                       "non-singular. Defaulting to last working axes.")
         covar2 = np.array(covar)  # default to last safe version
-
+    # this is a final check
+    # if this fails the ellipsoid is broken already
+    if np.einsum('...i, ...i', np.tensordot(delta, lalg.pinvh(covar2), axes=1), delta).max()>=1:
+        raise RuntimeError("Failed to initialize the ellipsoid to contain all the points")
+        
     # Initialize our ellipsoid with *safe* covariance matrix.
     ell = Ellipsoid(ctr, covar2)
 
@@ -1458,54 +1466,51 @@ def _bounding_ellipsoids(points, ell, pointvol=0., vol_dec=0.5,
     start_ctrs = np.vstack((p1, p2))  # shape is (k, ndim) = (2, ndim)
 
     # Split points into two clusters using k-means clustering with k=2.
-    try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            k2_res = kmeans2(points, k=start_ctrs, iter=10, minit='matrix',
-                             check_finite=False)
-        labels = k2_res[1]  # cluster identifier ; shape is (npoints,)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        k2_res = kmeans2(points, k=start_ctrs, iter=10, minit='matrix',
+                         check_finite=False)
+    labels = k2_res[1]  # cluster identifier ; shape is (npoints,)
 
-        # Get points in each cluster.
-        points_k = [points[labels == k, :] for k in (0, 1)]
+    # Get points in each cluster.
+    points_k = [points[labels == k, :] for k in (0, 1)]
 
-        # If either cluster has less than ndim+1 points, the bounding ellipsoid
-        # will be ill-constrained. Reject the split and simply return the
-        # original ellipsoid bounding all the points.
-        if points_k[0].shape[0] < 2 * ndim or points_k[1].shape[0] < 2 * ndim:
-            return [ell]
+    # If either cluster has less than ndim+1 points, the bounding ellipsoid
+    # will be ill-constrained. Reject the split and simply return the
+    # original ellipsoid bounding all the points.
+    if points_k[0].shape[0] < 2 * ndim or points_k[1].shape[0] < 2 * ndim:
+        return [ell]
 
-        # Bounding ellipsoid for each cluster, possibly enlarged
-        # to a minimum volume.
-        ells = [bounding_ellipsoid(points_j, pointvol=pointvol)
-                for points_j in points_k]
+    # Bounding ellipsoid for each cluster, possibly enlarged
+    # to a minimum volume.
+    ells = [bounding_ellipsoid(points_j, pointvol=pointvol)
+            for points_j in points_k]
 
-        # If the total volume decreased by a factor of `vol_dec`, we accept
-        # the split into subsets. We then recursively split each subset.
-        if ells[0].vol + ells[1].vol < vol_dec * ell.vol:
-            return (_bounding_ellipsoids(points_k[0], ells[0],
-                                         pointvol=pointvol, vol_dec=vol_dec,
-                                         vol_check=vol_check) +
-                    _bounding_ellipsoids(points_k[1], ells[1],
-                                         pointvol=pointvol, vol_dec=vol_dec,
-                                         vol_check=vol_check))
+    # If the total volume decreased by a factor of `vol_dec`, we accept
+    # the split into subsets. We then recursively split each subset.
+    if ells[0].vol + ells[1].vol < vol_dec * ell.vol:
+        return (_bounding_ellipsoids(points_k[0], ells[0],
+                                     pointvol=pointvol, vol_dec=vol_dec,
+                                     vol_check=vol_check) +
+                _bounding_ellipsoids(points_k[1], ells[1],
+                                     pointvol=pointvol, vol_dec=vol_dec,
+                                     vol_check=vol_check))
 
-        # Otherwise, see if the total ellipsoid volume is larger than the
-        # minimum volume by a factor of `vol_check`. If it is, this indicates
-        # that there may be more than 2 clusters and we should try to
-        # subdivide further.
-        if ell.vol > vol_check * npoints * pointvol:
-            out = (_bounding_ellipsoids(points_k[0], ells[0],
-                                        pointvol=pointvol, vol_dec=vol_dec,
-                                        vol_check=vol_check) +
-                   _bounding_ellipsoids(points_k[1], ells[1],
-                                        pointvol=pointvol, vol_dec=vol_dec,
-                                        vol_check=vol_check))
+    # Otherwise, see if the total ellipsoid volume is larger than the
+    # minimum volume by a factor of `vol_check`. If it is, this indicates
+    # that there may be more than 2 clusters and we should try to
+    # subdivide further.
+    if ell.vol > vol_check * npoints * pointvol:
+        out = (_bounding_ellipsoids(points_k[0], ells[0],
+                                    pointvol=pointvol, vol_dec=vol_dec,
+                                    vol_check=vol_check) +
+               _bounding_ellipsoids(points_k[1], ells[1],
+                                    pointvol=pointvol, vol_dec=vol_dec,
+                                    vol_check=vol_check))
 
-            # Only accept the split if the volume decreased significantly.
-            if sum(e.vol for e in out) < vol_dec * ell.vol:
-                return out
-    except:
-        pass
+        # Only accept the split if the volume decreased significantly.
+        if sum(e.vol for e in out) < vol_dec * ell.vol:
+            return out
 
     # Otherwise, we are happy with the single bounding ellipsoid.
     return [ell]

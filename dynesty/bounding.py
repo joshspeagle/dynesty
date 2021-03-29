@@ -522,9 +522,9 @@ class MultiEllipsoid(object):
             # unit cube using the same set of samples.
             qin = sum([q * unitcheck(x) for (x, idx, q) in samples])
             overlap = 1. * qin / qsum
-            return vol, overlap
+            return logvol, overlap
         else:
-            return vol
+            return logvol
 
     def update(self, points, pointvol=0., vol_dec=0.5, vol_check=2.,
                rstate=None, bootstrap=0, pool=None, mc_integrate=False):
@@ -630,7 +630,7 @@ class MultiEllipsoid(object):
             # If our ellipsoids are overly constrained, expand them.
             if expand > 1.:
                 lvs = self.logvols + ndim * np.log( expand)
-                self.scale_to_logvols(lvs)
+                self.scale_to_logvol(lvs)
 
         # Estimate the volume and fractional overlap with the unit cube
         # using Monte Carlo integration.

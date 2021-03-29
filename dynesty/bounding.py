@@ -502,9 +502,9 @@ class MultiEllipsoid(object):
 
         return xs
 
-    def monte_carlo_vol(self, ndraws=10000, rstate=None,
+    def monte_carlo_logvol(self, ndraws=10000, rstate=None,
                         return_overlap=True):
-        """Using `ndraws` Monte Carlo draws, estimate the volume of the
+        """Using `ndraws` Monte Carlo draws, estimate the log volume of the
         *union* of ellipsoids. If `return_overlap=True`, also returns the
         estimated fractional overlap with the unit cube."""
 
@@ -635,7 +635,7 @@ class MultiEllipsoid(object):
         # Estimate the volume and fractional overlap with the unit cube
         # using Monte Carlo integration.
         if mc_integrate:
-            self.logvol, self.funit = self.monte_carlo_vol(return_overlap=True)
+            self.logvol, self.funit = self.monte_carlo_logvol(return_overlap=True)
 
 
 class RadFriends(object):
@@ -776,9 +776,9 @@ class RadFriends(object):
 
         return xs
 
-    def monte_carlo_vol(self, ctrs, ndraws=10000, rstate=None,
+    def monte_carlo_loogvol(self, ctrs, ndraws=10000, rstate=None,
                         return_overlap=True):
-        """Using `ndraws` Monte Carlo draws, estimate the volume of the
+        """Using `ndraws` Monte Carlo draws, estimate the log volume of the
         *union* of balls. If `return_overlap=True`, also returns the
         estimated fractional overlap with the unit cube."""
 
@@ -891,7 +891,7 @@ class RadFriends(object):
         # Estimate the volume and fractional overlap with the unit cube
         # using Monte Carlo integration.
         if mc_integrate:
-            self.logvol, self.funit = self.monte_carlo_vol(points,
+            self.logvol, self.funit = self.monte_carlo_logvol(points,
                                                         return_overlap=True)
 
     def _get_covariance_from_all_points(self, points):
@@ -1065,9 +1065,9 @@ class SupFriends(object):
 
         return xs
 
-    def monte_carlo_vol(self, ctrs, ndraws=10000, rstate=None,
+    def monte_carlo_logvol(self, ctrs, ndraws=10000, rstate=None,
                         return_overlap=False):
-        """Using `ndraws` Monte Carlo draws, estimate the volume of the
+        """Using `ndraws` Monte Carlo draws, estimate the log volume of the
         *union* of cubes. If `return_overlap=True`, also returns the
         estimated fractional overlap with the unit cube."""
 
@@ -1178,7 +1178,7 @@ class SupFriends(object):
         # Estimate the volume and fractional overlap with the unit cube
         # using Monte Carlo integration.
         if mc_integrate:
-            self.logvol, self.funit = self.monte_carlo_vol(points,
+            self.logvol, self.funit = self.monte_carlo_logvol(points,
                                                         return_overlap=True)
 
     def _get_covariance_from_all_points(self, points):

@@ -776,7 +776,7 @@ class RadFriends(object):
 
         return xs
 
-    def monte_carlo_loogvol(self, ctrs, ndraws=10000, rstate=None,
+    def monte_carlo_logvol(self, ctrs, ndraws=10000, rstate=None,
                         return_overlap=True):
         """Using `ndraws` Monte Carlo draws, estimate the log volume of the
         *union* of balls. If `return_overlap=True`, also returns the

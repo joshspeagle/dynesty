@@ -34,7 +34,7 @@ from scipy import spatial
 from scipy import cluster
 from scipy import linalg as lalg
 from numpy import cov as mle_cov
-
+from scipy.special import logsumexp
 from .utils import unitcheck
 
 __all__ = ["UnitCube", "Ellipsoid", "MultiEllipsoid",
@@ -1488,7 +1488,7 @@ def _bounding_ellipsoids(points, ell, pointvol=0., vol_dec=0.5,
 
     # If the total volume decreased by a factor of `vol_dec`, we accept
     # the split into subsets. We then recursively split each subset.
-    if ells[0].vol + ells[1].vol < vol_dec * ell.vol:
+    if np.logaddexp(ells[0].logvol, ells[1].logvol) < np.log(vol_dec)+ ell.logvol:
         return (_bounding_ellipsoids(points_k[0], ells[0],
                                      pointvol=pointvol, vol_dec=vol_dec,
                                      vol_check=vol_check) +
@@ -1500,7 +1500,7 @@ def _bounding_ellipsoids(points, ell, pointvol=0., vol_dec=0.5,
     # minimum volume by a factor of `vol_check`. If it is, this indicates
     # that there may be more than 2 clusters and we should try to
     # subdivide further.
-    if ell.vol > vol_check * npoints * pointvol:
+    if ell.logvol > np.log(vol_check * npoints * pointvol):
         out = (_bounding_ellipsoids(points_k[0], ells[0],
                                     pointvol=pointvol, vol_dec=vol_dec,
                                     vol_check=vol_check) +
@@ -1509,7 +1509,7 @@ def _bounding_ellipsoids(points, ell, pointvol=0., vol_dec=0.5,
                                     vol_check=vol_check))
 
         # Only accept the split if the volume decreased significantly.
-        if sum(e.vol for e in out) < vol_dec * ell.vol:
+        if logsumexp([e.logvol for e in out]) <np.log( vol_dec) + ell.logvol:
             return out
 
     # Otherwise, we are happy with the single bounding ellipsoid.

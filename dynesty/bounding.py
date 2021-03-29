@@ -34,7 +34,7 @@ from scipy import spatial
 from scipy import cluster
 from scipy import linalg as lalg
 from numpy import cov as mle_cov
-
+from scipy.special import logsumexp
 from .utils import unitcheck
 
 __all__ = ["UnitCube", "Ellipsoid", "MultiEllipsoid",
@@ -160,7 +160,7 @@ class Ellipsoid(object):
             self.axlens = np.sqrt(l)
             # Volume of ellipsoid is the volume of an n-sphere 
             # is a product of squares of eigen values
-            self.vol = np.exp(logvol_prefactor(self.n) + 0.5*np.log(l).sum())
+            self.logvol = logvol_prefactor(self.n) + 0.5*np.log(l).sum()
         else:
             raise ValueError("The input precision matrix defining the "
                              "ellipsoid {0} is apparently singular with "
@@ -175,16 +175,16 @@ class Ellipsoid(object):
         # cumulative factor from `scale_to_vol`).
         self.expand = 1.
 
-    def scale_to_vol(self, vol):
+    def scale_to_logvol(self, logvol):
         """Scale ellipoid to a target volume."""
 
-        f = np.exp((np.log(vol) - np.log(self.vol)) / self.n)  # linear factor
+        f = np.exp((logvol - self.logvol) / self.n)  # linear factor
         self.expand *= f
         self.cov *= f**2
         self.am *= f**-2
         self.axlens *= f
         self.axes *= f
-        self.vol = vol
+        self.logvol = logvol
 
     def major_axis_endpoints(self):
         """Return the endpoints of the major axis."""
@@ -302,7 +302,7 @@ class Ellipsoid(object):
         self.ctr = ell.ctr
         self.cov = ell.cov
         self.am = ell.am
-        self.vol = ell.vol
+        self.logvol = ell.logvol
         self.axlens = ell.axlens
         self.axes = ell.axes
         self.paxes = ell.paxes
@@ -327,8 +327,8 @@ class Ellipsoid(object):
 
             # If our ellipsoid is over-constrained, expand it.
             if expand > 1.:
-                v = self.vol * expand**self.n
-                self.scale_to_vol(v)
+                lv = self.logvol + self.n *  np.log( expand)
+                self.scale_to_logvol(lv)
 
         # Estimate the fractional overlap with the unit cube using
         # Monte Carlo integration.
@@ -382,22 +382,22 @@ class MultiEllipsoid(object):
                 self.ams = np.array([ell.am for ell in self.ells])
 
         # Compute quantities.
-        self.vols = np.array([ell.vol for ell in self.ells])
+        self.logvols = np.array([ell.logvol for ell in self.ells])
         self.expands = np.ones(self.nells)
-        self.vol_tot = sum(self.vols)
+        self.logvol_tot = logsumexp(self.logvols)
         self.expand_tot = 1.
 
-    def scale_to_vols(self, vols):
+    def scale_to_logvol(self, logvols):
         """Scale ellipoids to a corresponding set of
         target volumes."""
 
-        [self.ells[i].scale_to_vol(vols[i]) for i in range(self.nells)]
-        self.vols = np.array(vols)
+        [self.ells[i].scale_to_logvol(logvols[i]) for i in range(self.nells)]
+        self.logvols = np.array(logvols)
         self.expands = np.array([self.ells[i].expand
                                  for i in range(self.nells)])
-        vol_tot = sum(vols)
-        self.expand_tot *= vol_tot / self.vol_tot
-        self.vol_tot = vol_tot
+        logvol_tot = logsumexp(logvols)
+        self.expand_tot *= np.exp(logvol_tot - self.logvol_tot)
+        self.logvol_tot = logvol_tot
 
     def major_axis_endpoints(self):
         """Return the endpoints of the major axis of each ellipsoid."""
@@ -458,7 +458,7 @@ class MultiEllipsoid(object):
                 return x, idx
 
         # Select an ellipsoid at random proportional to its volume.
-        idx = rstate.choice(self.nells, p=self.vols/self.vol_tot)
+        idx = rstate.choice(self.nells, p=np.exp(self.logvols-self.logvol_tot))
 
         # Select a point from the chosen ellipsoid.
         x = self.ells[idx].sample(rstate=rstate)
@@ -476,7 +476,7 @@ class MultiEllipsoid(object):
             # If `q` is not being returned, assume the user wants this
             # done internally.
             while rstate.rand() > (1. / q):
-                idx = rstate.choice(self.nells, p=self.vols/self.vol_tot)
+                idx = rstate.choice(self.nells, p=np.exp(self.logvols-self.logvol_tot))
                 x = self.ells[idx].sample(rstate=rstate)
                 q = self.overlap(x, j=idx) + 1
 
@@ -502,9 +502,9 @@ class MultiEllipsoid(object):
 
         return xs
 
-    def monte_carlo_vol(self, ndraws=10000, rstate=None,
+    def monte_carlo_logvol(self, ndraws=10000, rstate=None,
                         return_overlap=True):
-        """Using `ndraws` Monte Carlo draws, estimate the volume of the
+        """Using `ndraws` Monte Carlo draws, estimate the log volume of the
         *union* of ellipsoids. If `return_overlap=True`, also returns the
         estimated fractional overlap with the unit cube."""
 
@@ -515,16 +515,16 @@ class MultiEllipsoid(object):
         samples = [self.sample(rstate=rstate, return_q=True)
                    for i in range(ndraws)]
         qsum = sum([q for (x, idx, q) in samples])
-        vol = 1. * ndraws / qsum * self.vol_tot
+        logvol = np.log( ndraws *1. /qsum ) +  self.logvol_tot
 
         if return_overlap:
             # Estimate the fractional amount of overlap with the
             # unit cube using the same set of samples.
             qin = sum([q * unitcheck(x) for (x, idx, q) in samples])
             overlap = 1. * qin / qsum
-            return vol, overlap
+            return logvol, overlap
         else:
-            return vol
+            return logvol
 
     def update(self, points, pointvol=0., vol_dec=0.5, vol_check=2.,
                rstate=None, bootstrap=0, pool=None, mc_integrate=False):
@@ -599,14 +599,14 @@ class MultiEllipsoid(object):
         self.ctrs = np.array([ell.ctr for ell in self.ells])
         self.covs = np.array([ell.cov for ell in self.ells])
         self.ams = np.array([ell.am for ell in self.ells])
-        self.vols = np.array([ell.vol for ell in self.ells])
-        self.vol_tot = sum(self.vols)
+        self.logvols = np.array([ell.logvol for ell in self.ells])
+        self.logvol_tot = logsumexp(self.logvols)
 
         # Compute expansion factor.
         expands = np.array([ell.expand for ell in self.ells])
-        vols_orig = self.vols / expands
-        vol_tot_orig = sum(vols_orig)
-        self.expand_tot = self.vol_tot / vol_tot_orig
+        logvols_orig = self.logvols - np.log(expands)
+        logvol_tot_orig = logsumexp(logvols_orig)
+        self.expand_tot = np.exp(self.logvol_tot - logvol_tot_orig)
 
         # Use bootstrapping to determine the volume expansion factor.
         if bootstrap > 0:
@@ -629,13 +629,13 @@ class MultiEllipsoid(object):
 
             # If our ellipsoids are overly constrained, expand them.
             if expand > 1.:
-                vs = self.vols * expand**ndim
-                self.scale_to_vols(vs)
+                lvs = self.logvols + ndim * np.log( expand)
+                self.scale_to_logvol(lvs)
 
         # Estimate the volume and fractional overlap with the unit cube
         # using Monte Carlo integration.
         if mc_integrate:
-            self.vol, self.funit = self.monte_carlo_vol(return_overlap=True)
+            self.logvol, self.funit = self.monte_carlo_logvol(return_overlap=True)
 
 
 class RadFriends(object):
@@ -663,19 +663,20 @@ class RadFriends(object):
         self.axes_inv = lalg.pinvh(self.axes)
 
         detsign, detln = linalg.slogdet(self.am)
-        self.vol_ball = np.exp(logvol_prefactor(self.n) - 0.5 * detln)
+        # TODO check for finiteness
+        self.logvol_ball = (logvol_prefactor(self.n) - 0.5 * detln)
         self.expand = 1.
 
-    def scale_to_vol(self, vol):
+    def scale_to_logvol(self, logvol):
         """Scale ball to encompass a target volume."""
 
-        f = (vol / self.vol_ball) ** (1.0 / self.n)  # linear factor
+        f = np.exp((logvol - self.logvol_ball) * (1.0 / self.n))  # linear factor
         self.expand *= f
         self.cov *= f**2
         self.am /= f**2
         self.axes *= f
         self.axes_inv /= f
-        self.vol_ball = vol
+        self.logvol_ball = logvol
 
     def within(self, x, ctrs):
         """Check which balls `x` falls within."""
@@ -775,9 +776,9 @@ class RadFriends(object):
 
         return xs
 
-    def monte_carlo_vol(self, ctrs, ndraws=10000, rstate=None,
+    def monte_carlo_logvol(self, ctrs, ndraws=10000, rstate=None,
                         return_overlap=True):
-        """Using `ndraws` Monte Carlo draws, estimate the volume of the
+        """Using `ndraws` Monte Carlo draws, estimate the log volume of the
         *union* of balls. If `return_overlap=True`, also returns the
         estimated fractional overlap with the unit cube."""
 
@@ -788,16 +789,16 @@ class RadFriends(object):
         samples = [self.sample(ctrs, rstate=rstate, return_q=True)
                    for i in range(ndraws)]
         qsum = sum([q for (x, q) in samples])
-        vol = 1. * ndraws / qsum * len(ctrs) * self.vol_ball
+        logvol = np.log(1. * ndraws / qsum * len(ctrs) ) + self.logvol_ball
 
         if return_overlap:
             # Estimate the fractional amount of overlap with the
             # unit cube using the same set of samples.
             qin = sum([q * unitcheck(x) for (x, q) in samples])
             overlap = 1. * qin / qsum
-            return vol, overlap
+            return logvol, overlap
         else:
-            return vol
+            return logvol
 
     def update(self, points, pointvol=0., rstate=None, bootstrap=0,
                pool=None, mc_integrate=False, use_clustering=True):
@@ -877,19 +878,20 @@ class RadFriends(object):
 
         # Compute volume.
         detsign, detln = linalg.slogdet(self.am)
-        self.vol_ball = np.exp(logvol_prefactor(self.n) - 0.5 * detln)
+        # TODO check finite
+        self.logvol_ball = (logvol_prefactor(self.n) - 0.5 * detln)
         self.expand = 1.
 
         # Expand our ball to encompass a minimum volume.
         if pointvol > 0.:
-            v = pointvol
-            if self.vol_ball < v:
-                self.scale_to_vol(v)
+            lv =  np.log(pointvol)
+            if self.logvol_ball < lv:
+                self.scale_to_logvol(lv)
 
         # Estimate the volume and fractional overlap with the unit cube
         # using Monte Carlo integration.
         if mc_integrate:
-            self.vol, self.funit = self.monte_carlo_vol(points,
+            self.logvol, self.funit = self.monte_carlo_logvol(points,
                                                         return_overlap=True)
 
     def _get_covariance_from_all_points(self, points):
@@ -950,19 +952,19 @@ class SupFriends(object):
         self.axes_inv = lalg.pinvh(self.axes)
 
         detsign, detln = linalg.slogdet(self.am)
-        self.vol_cube = np.exp(self.n * np.log(2.) - 0.5 * detln)
+        self.logvol_cube = self.n * np.log(2.) - 0.5 * detln
         self.expand = 1.
 
-    def scale_to_vol(self, vol):
+    def scale_to_logvol(self, logvol):
         """Scale cube to encompass a target volume."""
 
-        f = (vol / self.vol_cube) ** (1.0 / self.n)  # linear factor
+        f = np.exp((logvol - self.logvol_cube) * (1.0 / self.n))  # linear factor
         self.expand *= f
         self.cov *= f**2
         self.am /= f**2
         self.axes *= f
         self.axes_inv /= f
-        self.vol_cube = vol
+        self.logvol_cube = logvol
 
     def within(self, x, ctrs):
         """Checks which cubes `x` falls within."""
@@ -1063,9 +1065,9 @@ class SupFriends(object):
 
         return xs
 
-    def monte_carlo_vol(self, ctrs, ndraws=10000, rstate=None,
+    def monte_carlo_logvol(self, ctrs, ndraws=10000, rstate=None,
                         return_overlap=False):
-        """Using `ndraws` Monte Carlo draws, estimate the volume of the
+        """Using `ndraws` Monte Carlo draws, estimate the log volume of the
         *union* of cubes. If `return_overlap=True`, also returns the
         estimated fractional overlap with the unit cube."""
 
@@ -1076,16 +1078,16 @@ class SupFriends(object):
         samples = [self.sample(ctrs, rstate=rstate, return_q=True)
                    for i in range(ndraws)]
         qsum = sum([q for (x, q) in samples])
-        vol = 1. * ndraws / qsum * len(ctrs) * self.vol_cube
+        logvol = np.log(1. * ndraws / qsum * len(ctrs)) + self.logvol_cube
 
         if return_overlap:
             # Estimate the fractional overlap with the unit cube using
             # the same set of samples.
             qin = sum([q * unitcheck(x) for (x, q) in samples])
             overlap = 1. * qin / qsum
-            return vol, overlap
+            return logvol, overlap
         else:
-            return vol
+            return logvol
 
     def update(self, points, pointvol=0., rstate=None, bootstrap=0,
                pool=None, mc_integrate=False, use_clustering=True):
@@ -1164,19 +1166,19 @@ class SupFriends(object):
         self.axes_inv /= hsmax
 
         detsign, detln = linalg.slogdet(self.am)
-        self.vol_cube = np.exp(self.n * np.log(2.) - 0.5 * detln)
+        self.logvol_cube = (self.n * np.log(2.) - 0.5 * detln)
         self.expand = 1.
 
         # Expand our cube to encompass a minimum volume.
         if pointvol > 0.:
-            v = pointvol
-            if self.vol_cube < v:
-                self.scale_to_vol(v)
+            lv = np.log(pointvol)
+            if self.logvol_cube < lv:
+                self.scale_to_logvol(lv)
 
         # Estimate the volume and fractional overlap with the unit cube
         # using Monte Carlo integration.
         if mc_integrate:
-            self.vol, self.funit = self.monte_carlo_vol(points,
+            self.logvol, self.funit = self.monte_carlo_logvol(points,
                                                         return_overlap=True)
 
     def _get_covariance_from_all_points(self, points):
@@ -1412,8 +1414,8 @@ def bounding_ellipsoid(points, pointvol=0.):
     # Expand our ellipsoid to encompass a minimum volume.
     if pointvol > 0.:
         minvol = npoints * pointvol
-        if ell.vol < minvol:
-            ell.scale_to_vol(minvol)
+        if ell.logvol < np.log(minvol):
+            ell.scale_to_logvol(np.log(minvol))
 
     return ell
 
@@ -1486,7 +1488,7 @@ def _bounding_ellipsoids(points, ell, pointvol=0., vol_dec=0.5,
 
     # If the total volume decreased by a factor of `vol_dec`, we accept
     # the split into subsets. We then recursively split each subset.
-    if ells[0].vol + ells[1].vol < vol_dec * ell.vol:
+    if np.logaddexp(ells[0].logvol, ells[1].logvol) < np.log(vol_dec)+ ell.logvol:
         return (_bounding_ellipsoids(points_k[0], ells[0],
                                      pointvol=pointvol, vol_dec=vol_dec,
                                      vol_check=vol_check) +
@@ -1498,7 +1500,7 @@ def _bounding_ellipsoids(points, ell, pointvol=0., vol_dec=0.5,
     # minimum volume by a factor of `vol_check`. If it is, this indicates
     # that there may be more than 2 clusters and we should try to
     # subdivide further.
-    if ell.vol > vol_check * npoints * pointvol:
+    if ell.logvol > np.log(vol_check * npoints * pointvol):
         out = (_bounding_ellipsoids(points_k[0], ells[0],
                                     pointvol=pointvol, vol_dec=vol_dec,
                                     vol_check=vol_check) +
@@ -1507,7 +1509,7 @@ def _bounding_ellipsoids(points, ell, pointvol=0., vol_dec=0.5,
                                     vol_check=vol_check))
 
         # Only accept the split if the volume decreased significantly.
-        if sum(e.vol for e in out) < vol_dec * ell.vol:
+        if logsumexp([e.logvol for e in out]) <np.log( vol_dec) + ell.logvol:
             return out
 
     # Otherwise, we are happy with the single bounding ellipsoid.

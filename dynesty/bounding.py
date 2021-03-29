@@ -1263,17 +1263,20 @@ def randsphere(n, rstate=None):
 
     return xhat
 
-def improve_covar_mat(covar0, ntries=100, min_condition_number=1e-12):
+def improve_covar_mat(covar0, ntries=100, max_condition_number=1e14):
     """
     Given the covariance matrix improve it, if it is not invertable
-    or eigen values are negative or condition number is below the limit
+    or eigen values are negative or condition number that is above the limit
     Returns:
     updated matrix and its inverse
     """
     ndim = covar0.shape[0]
     covar = np.array(covar0)
-
-    for trials in range(ntries):
+    coeffmin = 1e-10
+    # this will a starting point for the modification
+    # of the form (1-coeff)*M + (coeff)*E
+    
+    for trial in range(ntries):
         failed = False
         try:
             # Check if matrix is invertible.
@@ -1284,7 +1287,7 @@ def improve_covar_mat(covar0, ntries=100, min_condition_number=1e-12):
             lalg.cholesky(covar, lower=True)
 
             # Check if everything worked.
-            if np.all((l > 0) & np.isfinite(l)) and l.min()>l.max() * min_condition_number:
+            if np.all((l > 0) & np.isfinite(l)) and l.max() < l.min() * max_condition_number:
                 break
             else:
                 failed = True
@@ -1293,7 +1296,9 @@ def improve_covar_mat(covar0, ntries=100, min_condition_number=1e-12):
             # suppress the off-diagonal elements
             failed = True
         if failed:
-            coeff = 0.5**(ntries - 1 - trials)
+            coeff = coeffmin * (1./coeffmin)**(trial*1./(ntries-1))
+            # this starts at coeffmin when trial=0 and ends at 1
+            # when trial == ntries-1
             covar = (1. - coeff) * covar + coeff * np.eye(ndim)
     if failed:
         warnings.warn("Failed to guarantee the ellipsoid axes will be "
@@ -1366,9 +1371,14 @@ def bounding_ellipsoid(points, pointvol=0.):
     
     # Due to round-off errors, we actually scale the ellipsoid so the
     # outermost point obeys `(x-v)^T A (x-v) < 1 - (a bit) < 1`.
+
+    
     ROUND_DELTA = 1e-3
     # numerical experiments show that round off errors can reach large
-    # values if the matrix eigen values are very low
+    # values if the matrix is poorly conditioned
+    # Note that likely the delta here must be related to maximum
+    # condition number parameter in improve_covar_mat()
+    # 
     one_minus_a_bit = 1. - ROUND_DELTA
     if fmax > one_minus_a_bit:
         covar *= fmax / one_minus_a_bit
@@ -1378,7 +1388,8 @@ def bounding_ellipsoid(points, pointvol=0.):
     covar, am = improve_covar_mat(covar)
     
     # this is a final check
-    # if this fails the ellipsoid is broken already
+    # if this fails the ellipsoid is still broken
+    # in the sense that it does not include the points 
     fmax1 = np.einsum('...i, ...i', np.tensordot(delta, am, axes=1), delta).max()
     if fmax1 >=1:
         raise RuntimeError("Failed to initialize the ellipsoid to contain all the points")

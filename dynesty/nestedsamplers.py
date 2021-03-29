@@ -384,7 +384,7 @@ class SingleEllipsoidSampler(Sampler):
         self.ell.update(self.live_u[:, :self.ncdim], pointvol=pointvol, rstate=self.rstate,
                         bootstrap=self.bootstrap, pool=pool)
         if self.enlarge != 1.:
-            self.ell.scale_to_vol(self.ell.vol * self.enlarge)
+            self.ell.scale_to_logvol(self.ell.logvol +np.log(self.enlarge))
 
         return copy.deepcopy(self.ell)
 
@@ -609,7 +609,7 @@ class MultiEllipsoidSampler(Sampler):
                          rstate=self.rstate, bootstrap=self.bootstrap,
                          pool=pool)
         if self.enlarge != 1.:
-            self.mell.scale_to_vols(self.mell.vols * self.enlarge)
+            self.mell.scale_to_logvols(self.mell.logvols +np.log( self.enlarge))
 
         return copy.deepcopy(self.mell)
 
@@ -863,8 +863,8 @@ class RadFriendsSampler(Sampler):
                                rstate=self.rstate, bootstrap=self.bootstrap,
                                pool=pool)
         if self.enlarge != 1.:
-            self.radfriends.scale_to_vol(self.radfriends.vol_ball *
-                                         self.enlarge)
+            self.radfriends.scale_to_logvol(self.radfriends.logvol_ball +
+                                        np.log(self.enlarge))
 
         return copy.deepcopy(self.radfriends)
 
@@ -1085,8 +1085,8 @@ class SupFriendsSampler(Sampler):
                                rstate=self.rstate, bootstrap=self.bootstrap,
                                pool=pool)
         if self.enlarge != 1.:
-            self.supfriends.scale_to_vol(self.supfriends.vol_cube *
-                                         self.enlarge)
+            self.supfriends.scale_to_logvol(self.supfriends.logvol_cube +
+                                        np.log(self.enlarge))
 
         return copy.deepcopy(self.supfriends)
 

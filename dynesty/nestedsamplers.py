@@ -609,7 +609,7 @@ class MultiEllipsoidSampler(Sampler):
                          rstate=self.rstate, bootstrap=self.bootstrap,
                          pool=pool)
         if self.enlarge != 1.:
-            self.mell.scale_to_logvols(self.mell.logvols +np.log( self.enlarge))
+            self.mell.scale_to_logvol(self.mell.logvols +np.log( self.enlarge))
 
         return copy.deepcopy(self.mell)
 

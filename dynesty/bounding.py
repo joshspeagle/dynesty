@@ -387,7 +387,7 @@ class MultiEllipsoid(object):
         self.logvol_tot = logsumexp(self.logvols)
         self.expand_tot = 1.
 
-    def scale_to_vols(self, logvols):
+    def scale_to_logvol(self, logvols):
         """Scale ellipoids to a corresponding set of
         target volumes."""
 

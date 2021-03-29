@@ -1344,7 +1344,7 @@ def bounding_ellipsoid(points, pointvol=0.):
         except lalg.LinAlgError:
             # If the matrix remains singular/unstable,
             # suppress the off-diagonal elements.
-            coeff = 0.9**(i + 1 - ntries)
+            coeff = 0.9**(trials + 1 - ntries)
             covar = (1. - coeff) * cov + coeff * np.eye(ndim)
             failed =  True
     if failed:
@@ -1395,7 +1395,7 @@ def bounding_ellipsoid(points, pointvol=0.):
         if failed:
             # If the matrix remains singular/unstable,
             # suppress the off-diagonal elements.
-            coeff = 0.9**(i + 1 - ntries)
+            coeff = 0.9**(trials + 1 - ntries)
             covar2 = (1. - coeff) * covar_mod + coeff * np.eye(ndim)
     if failed:
         warnings.warn("Failed to guarantee the ellipsoid axes will be "

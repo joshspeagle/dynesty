@@ -151,11 +151,6 @@ class Ellipsoid(object):
         self.am = lalg.pinvh(cov)  # precision matrix (inverse of covariance)
         self.axes = lalg.cholesky(cov, lower=True)  # transformation axes
 
-        # Volume of ellipsoid is the volume of an n-sphere divided
-        # by the (determinant of the) Jacobian associated with the
-        # transformation, which by definition is the precision matrix.
-        detsign, detln = linalg.slogdet(self.am)
-        self.vol = np.exp(logvol_prefactor(self.n) - 0.5 * detln)
 
         # The eigenvalues (l) of `a` are (a^-2, b^-2, ...) where
         # (a, b, ...) are the lengths of principle axes.
@@ -163,6 +158,9 @@ class Ellipsoid(object):
         l, v = lalg.eigh(self.cov)
         if np.all((l > 0.) & (np.isfinite(l))):
             self.axlens = np.sqrt(l)
+            # Volume of ellipsoid is the volume of an n-sphere 
+            # is a product of squares of eigen values
+            self.vol = np.exp(logvol_prefactor(self.n) + 0.5*np.log(l).sum())
         else:
             raise ValueError("The input precision matrix defining the "
                              "ellipsoid {0} is apparently singular with "

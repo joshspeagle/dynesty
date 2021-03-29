@@ -11,11 +11,12 @@ python:
 
 install:
     - pip install -U pip numpy
-    - pip install coveralls pyflakes
+    - pip install coveralls pyflakes pylint
     - pip install matplotlib==2.2.4
     - pip install -e .
 
 script:
     - python runtests.py
+    - pylint -E --disable=E1101,E1130  dynesty/*py
 
 after_success: coveralls

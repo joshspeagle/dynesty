@@ -14,7 +14,7 @@ except ImportError:
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
-init_string = open(os.path.join(dir_path, 'dynesty', '__init__.py')).read()
+init_string = open(os.path.join(dir_path, 'py', 'dynesty', '__init__.py')).read()
 VERS = r"^__version__ = ['\"]([^'\"]*)['\"]"
 mo = re.search(VERS, init_string, re.M)
 __version__ = mo.group(1)

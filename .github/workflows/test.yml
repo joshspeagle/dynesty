@@ -30,7 +30,7 @@ jobs:
           pip install .
       - name: Test
         run: |
-           python runtests.py
+           pytest --cov=dynesty
            pylint -E --disable=E1101,E1130  dynesty/*py
       - name: Coveralls
         if: ${{ success() }}

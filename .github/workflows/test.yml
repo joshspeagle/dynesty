@@ -28,10 +28,11 @@ jobs:
           pip install pytest-cov
           pip install coveralls
           pip install .
+      - name: pylint
+        run: pylint -E --disable=E1101,E1130  py/dynesty/*py
       - name: Test
         run: |
            pytest --cov=dynesty
-           pylint -E --disable=E1101,E1130  dynesty/*py
       - name: Coveralls
         if: ${{ success() }}
         run: coveralls --service=github

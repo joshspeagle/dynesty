@@ -42,6 +42,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     package_data={"": ["README.md", "LICENSE", "AUTHORS.md"]},
+    package_dir={'': 'py/'},
     include_package_data=True,
     keywords=["nested sampling", "dynamic", "monte carlo", "bayesian",
               "inference", "modeling"],

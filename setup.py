@@ -43,7 +43,6 @@ setup(
     long_description_content_type="text/markdown",
     package_data={"": ["README.md", "LICENSE", "AUTHORS.md"]},
     include_package_data=True,
-    install_requires=["numpy", "scipy", "matplotlib", "six"],
     keywords=["nested sampling", "dynamic", "monte carlo", "bayesian",
               "inference", "modeling"],
     classifiers=["Development Status :: 5 - Production/Stable",

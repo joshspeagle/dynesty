@@ -10,9 +10,7 @@ from __future__ import (print_function, division)
 from six.moves import range
 
 # system functions that are always useful to have
-import time
 import sys
-import os
 
 # basic numeric setup
 import numpy as np
@@ -20,7 +18,7 @@ from numpy import linalg
 
 # plotting
 import matplotlib
-#if os.environ.get('DISPLAY', '') == '':
+# if os.environ.get('DISPLAY', '') == '':
 #    print('No display found. Using non-interactive Agg backend.')
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
@@ -66,20 +64,22 @@ def test_ellipsoids():
     assert (abs(lnz_truth - sampler.results.logz[-1]) <
             5. * sampler.results.logzerr[-1])
 
+
 def bootstrap_tol(results):
     n = len(results.logz)
     niter = 50
     pos = results.samples
     wts = np.exp(results.logwt - results.logz[-1])
-    means=[]
-    covs=[]
-    
-    for i in rang(niter):
-        xid = np.random.randint(n,size=n)
+    means = []
+    covs = []
+
+    for i in range(niter):
+        xid = np.random.randint(n, size=n)
         mean, cov = dyfunc.mean_and_cov(pos[xid], wts[xid])
         means.append(mean)
         covs.append(cov)
-    return np.std(means,axis=0), np.std(covs,axis=0)
+    return np.std(means, axis=0), np.std(covs, axis=0)
+
 
 # basic checks
 def check_results(C, lnz_truth, results, lz_tol, m_tol, c_tol, sig=5):
@@ -161,12 +161,6 @@ def test_gaussian():
         means.append(mean)
         covs.append(cov)
         logzs.append(logz)
-    if printing:
-        sys.stderr.write('\n')
-    lz_tol, m_tol, c_tol = (np.std(logzs), np.std(means,
-                                                  axis=0), np.std(covs,
-                                                                  axis=0))
-    # TODO some actual checking ...
 
     # check summary
     res = sampler.results
@@ -209,12 +203,13 @@ def test_bounding():
                                         sample='unif')
         sampler.run_nested(print_progress=printing)
         m_tol, c_tol = bootstrap_tol(sampler.results)
-        check_results(sampler.results, lz_tol, m_tol, c_tol)
+        check_results(C_gau, lnz_truth_gau, sampler.results, lz_tol, m_tol,
+                      c_tol)
 
 
 def test_sampling():
     # check various sampling methods
-    lz_tol = 1 
+    lz_tol = 1
     for sample in ['unif', 'rwalk', 'rstagger', 'slice', 'rslice']:
         sampler = dynesty.NestedSampler(loglikelihood_gau,
                                         prior_transform_gau,
@@ -223,11 +218,13 @@ def test_sampling():
                                         sample=sample)
         sampler.run_nested(print_progress=printing)
         m_tol, c_tol = bootstrap_tol(sampler.results)
-        check_results(sampler.results, lz_tol, m_tol, c_tol)
+        check_results(C_gau, lnz_truth_gau, sampler.results, lz_tol, m_tol,
+                      c_tol)
 
 
 # extra checks for gradients
 def test_slice_nograd():
+    lz_tol = 1
     sampler = dynesty.NestedSampler(loglikelihood_gau,
                                     prior_transform_gau,
                                     ndim_gau,
@@ -235,10 +232,11 @@ def test_slice_nograd():
                                     sample='hslice')
     sampler.run_nested(print_progress=printing)
     m_tol, c_tol = bootstrap_tol(sampler.results)
-    check_results(sampler.results, lz_tol, m_tol, c_tol)
+    check_results(C_gau, lnz_truth_gau, sampler.results, lz_tol, m_tol, c_tol)
 
 
 def test_slice_grad():
+    lz_tol = 1
     sampler = dynesty.NestedSampler(loglikelihood_gau,
                                     prior_transform_gau,
                                     ndim_gau,
@@ -247,10 +245,12 @@ def test_slice_grad():
                                     gradient=grad_x_gau,
                                     compute_jac=True)
     sampler.run_nested(print_progress=printing)
-    check_results(sampler.results, lz_tol, m_tol, c_tol)
+    m_tol, c_tol = bootstrap_tol(sampler.results)
+    check_results(C_gau, lnz_truth_gau, sampler.results, lz_tol, m_tol, c_tol)
 
 
 def test_slice_grad1():
+    lz_tol = 1
     sampler = dynesty.NestedSampler(loglikelihood_gau,
                                     prior_transform_gau,
                                     ndim_gau,
@@ -258,15 +258,19 @@ def test_slice_grad1():
                                     sample='hslice',
                                     gradient=grad_u_gau)
     sampler.run_nested(print_progress=printing)
-    check_results(sampler.results, lz_tol, m_tol, c_tol)
+    m_tol, c_tol = bootstrap_tol(sampler.results)
+    check_results(C_gau, lnz_truth_gau, sampler.results, lz_tol, m_tol, c_tol)
 
 
 def test_dynamic():
     # check dynamic nested sampling behavior
+    lz_tol = 1
     dsampler = dynesty.DynamicNestedSampler(loglikelihood_gau,
                                             prior_transform_gau, ndim_gau)
     dsampler.run_nested(print_progress=printing)
-    check_results(dsampler.results, lz_tol, m_tol, c_tol)
+    m_tol, c_tol = bootstrap_tol(dsampler.results)
+
+    check_results(C_gau, lnz_truth_gau, dsampler.results, lz_tol, m_tol, c_tol)
 
     # check error analysis functions
     dres = dyfunc.jitter_run(dsampler.results)

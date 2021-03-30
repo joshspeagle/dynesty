@@ -22,14 +22,14 @@ printing = False
 # EGGBOX
 
 
+# see 1306.2144
 def loglike_egg(x):
-    tmax = 5.0 * np.pi
-    t = 2.0 * tmax * x - tmax
-    return (2.0 + np.cos(t[0] / 2.0) * np.cos(t[1] / 2.0))**5.0
+    logl = ((2 + np.cos(x[0] / 2) * np.cos(x[1] / 2))**5)
+    return logl
 
 
 def prior_transform_egg(x):
-    return x
+    return x * 10 * np.pi
 
 
 def test_ellipsoids():
@@ -40,13 +40,8 @@ def test_ellipsoids():
                                     ndim,
                                     nlive=nlive,
                                     bound='multi',
-                                    sample='unif',
-                                    first_update={
-                                        'min_ncall': 0,
-                                        'min_eff': 100
-                                    })
+                                    sample='unif')
     sampler.run_nested(dlogz=0.01, print_progress=printing)
-    logz_truth = 235.88
+    logz_truth = 235.856
     assert (abs(logz_truth - sampler.results.logz[-1]) <
             5. * sampler.results.logzerr[-1])
-

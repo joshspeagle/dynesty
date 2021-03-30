@@ -145,12 +145,8 @@ def test_gaussian():
     sampler.run_nested(dlogz=0.1, print_progress=printing)
 
     # get errors
-    # check resets and repeated runs
-    means, covs, logzs = [], [], []
-    nerr = 1
+    nerr = 2
     for i in range(nerr):
-        if printing:
-            sys.stderr.write('\r{}/{}'.format(i + 1, nerr))
         sampler.reset()
         sampler.run_nested(print_progress=False)
         results = sampler.results
@@ -158,9 +154,6 @@ def test_gaussian():
         wts = np.exp(results.logwt - results.logz[-1])
         mean, cov = dyfunc.mean_and_cov(pos, wts)
         logz = results.logz[-1]
-        means.append(mean)
-        covs.append(cov)
-        logzs.append(logz)
 
     # check summary
     res = sampler.results
@@ -274,10 +267,9 @@ def test_dynamic():
 
     # check error analysis functions
     dres = dyfunc.jitter_run(dsampler.results)
-    check_results(dres, lz_tol, m_tol, c_tol)
+    check_results(C_gau, lnz_truth_gau, dres, lz_tol, m_tol, c_tol)
     dres = dyfunc.resample_run(dsampler.results)
-    check_results(dres, lz_tol, m_tol, c_tol)
+    check_results(C_gau, lnz_truth_gau, dres, lz_tol, m_tol, c_tol)
     dres = dyfunc.simulate_run(dsampler.results)
-    check_results(dres, lz_tol, m_tol, c_tol)
-    sys.stderr.write('KLD Error\n')
+    check_results(C_gau, lnz_truth_gau, dres, lz_tol, m_tol, c_tol)
     dyfunc.kld_error(dsampler.results)

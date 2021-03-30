@@ -19,37 +19,6 @@ np.random.seed(5647)
 nlive = 1000
 printing = False
 
-# EGGBOX
-
-
-def loglike_egg(x):
-    tmax = 5.0 * np.pi
-    t = 2.0 * tmax * x - tmax
-    return (2.0 + np.cos(t[0] / 2.0) * np.cos(t[1] / 2.0))**5.0
-
-
-def prior_transform_egg(x):
-    return x
-
-
-def test_ellipsoids():
-    # stress test ellipsoid decompositions
-    ndim = 2
-    sampler = dynesty.NestedSampler(loglike_egg,
-                                    prior_transform_egg,
-                                    ndim,
-                                    nlive=nlive,
-                                    bound='multi',
-                                    sample='unif',
-                                    first_update={
-                                        'min_ncall': 0,
-                                        'min_eff': 100
-                                    })
-    sampler.run_nested(dlogz=0.01, print_progress=printing)
-    logz_truth = 235.88
-    assert (abs(logz_truth - sampler.results.logz[-1]) <
-            5. * sampler.results.logzerr[-1])
-
 
 def bootstrap_tol(results):
     """ Compute the uncertainty of means/covs by doing bootstrapping """

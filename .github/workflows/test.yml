@@ -1,0 +1,40 @@
+name: Dynesty
+
+# Run this workflow every time a new commit pushed to your repository
+on: push
+
+jobs:
+  tester:
+    name: Test the code
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.6, 3.8]
+
+    steps:
+      - name: Checkout 
+        uses: actions/checkout@v2
+      - name: Python setup
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: 'x64'
+      - name: Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+          pip install pylint
+          pip install pytest-cov
+          pip install coveralls
+          pip install .
+      - name: pylint
+        run: pylint -E --disable=E1101,E1130  py/dynesty/*py
+      - name: Test
+        run: |
+           pytest --cov=dynesty
+      - name: Coveralls
+        if: ${{ success() }}
+        run: coveralls --service=github
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

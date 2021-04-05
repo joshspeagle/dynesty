@@ -1265,7 +1265,7 @@ def randsphere(n, rstate=None):
 
     return xhat
 
-def improve_covar_mat(covar0, ntries=100, max_condition_number=1e14):
+def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
     """
     Given the covariance matrix improve it, if it is not invertable
     or eigen values are negative or condition number that is above the limit

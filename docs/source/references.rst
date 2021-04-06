@@ -16,7 +16,7 @@ citation information such as BibTex files.
 This list will by default include the following papers:
 
 * Code:
-  `Speagle (2019) <https://ui.adsabs.harvard.edu/abs/2019arXiv190402180S>`_.
+  `Speagle (2020) <https://ui.adsabs.harvard.edu/abs/2019arXiv190402180S>`_.
 
 * Nested Sampling:
   `Skilling (2004) <http://ui.adsabs.harvard.edu/abs/2004AIPC..735..395S>`_

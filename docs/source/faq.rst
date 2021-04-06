@@ -200,8 +200,8 @@ that scales as (roughly) :math:`\sqrt{n} \sigma` where :math:`n` is the number
 of walks and :math:`\sigma` is the typical length scale. The number of steps
 needed then roughly scales as :math:`d^2`. In general this behavior doesn't
 dominate unless sampling in high (:math:`d \gtrsim 20`) dimensions. In lower
-dimensions (:math:`d \lesssim 10`), `walks=25` is often sufficient, while in
-moderate dimensions (:math:`d \sim 10-20`) `walks=50` or greater are often
+dimensions (:math:`d \lesssim 15`), `walks=25` is often sufficient, while in
+moderate dimensions (:math:`d \sim 15-25`) `walks=50` or greater are often
 necessary to maintain independent samples.
 
 **What are the differences between** `'slice'` **and PolyChord?**
@@ -263,10 +263,13 @@ These scaling arguments generally ignore the constant prefactor, which
 can be quite large for many gradient-based approaches that require
 integrating along some trajectory, often resulting in (at least) dozens of
 function calls per sample. This often makes it more efficient to run simpler
-sampling techniques on lower-dimensional problems.
+sampling techniques on lower-dimensional problems. In general, Nested Sampling
+methods are also unable to exploit gradient-based information to the same
+degree as Hamiltonian Monte Carlo approaches, which further degrades
+performance and scaling relative to what you might naively expect.
 
-If you feel like your performance is poorer than expected even given this,
-or if you notice other results that make you highly suspicious of the
+If you feel like your performance is poorer than expected even given these
+caveats, or if you notice other results that make you highly suspicious of the
 resulting samples, please double-check the :ref:`Sampling with Gradients`
 page to make sure you've passed in the correct log-likelihood gradient and are
 dealing with the unit cube Jacobian properly. Failing
@@ -339,7 +342,7 @@ In almost all cases, using no bound (`'none'`) should be seen as a fallback
 option. It is mostly useful for systematics checks or in cases where the
 number of live points is small relative to the number of dimensions.
 
-**What are the differences between** `'multi'` **and MultiNest or nestle?**
+**What are the differences between** `'multi'` **and MultiNest, nestle, etc.?**
 
 The multi-ellipsoid decomposition/bounding method implemented in ``dynesty``
 is entirely based on the algorithm implemented in `nestle 
@@ -351,19 +354,21 @@ improvements, changes, etc. that may or may not be included in
 Specifically, it uses a simple scheme based on iterative k-means
 clustering than some of the more robust methods based on `agglomerative
 clustering <https://en.wikipedia.org/wiki/Hierarchical_clustering>`_
-implemented by some other codes.
+implemented by some other codes such as
+`UltraNest <https://github.com/JohannesBuchner/UltraNest/>`_.
 
 In addition, there are a few differences in the portion of the algorithm that
 decides when to split an ellipsoid into multiple ellipsoids. As with
 ``nestle``, the implementation in ``dynesty`` is more conservative about
 splitting ellipsoids to avoid over-constraining the remaining prior volume and
 also enlarges all the resulting ellipsoids by a constant volume prefactor.
+It also recomputes the ellipsoids from scratch each time there is a
+bounding update, rather than using ellipsoids from previous iterations.
 In general this results in a slightly lower sampling efficiency but greater
 overall robustness. These defaults can be changed 
 through the :ref:`Top-Level Interface` via the
 `enlarge`, `vol_dec` and `vol_check` keywords if you would like to experiment
 with more conservative/aggressive behavior.
-
 
 ``dynesty`` also uses different heuristics than ``MultiNest`` or ``MultiNest``
 when deciding, e.g., when to first construct bounds. By default, ``dynesty``
@@ -374,6 +379,12 @@ early set of live points (which tend to be quite dispersed) into an enormous
 set of ellipsoids but can substantially affect the runtime for simple problems
 with tight priors. See :ref:`Bounding Options` for additional details as well
 as the answer below.
+
+Finally, ``dynesty`` regularizes the ellipsoids based on their
+`condition number <https://blogs.mathworks.com/cleve/2017/07/17/what-is-the-condition-number-of-a-matrix/>`_
+to avoid issues involve numerical instability. This can reduce the sampling
+efficiency for problems with very skewed distributions (i.e. large axis ratios)
+but helps to ensure stable performance.
 
 **No matter what bounds, options, etc. I pick, the initial samples all
 come from `bound = 0` and continue until the overall efficiency is quite low.

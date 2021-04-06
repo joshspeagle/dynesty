@@ -14,6 +14,12 @@ for more information. The latest development version can be found `here
 **The release paper describing the code can be found**
 `here <https://github.com/joshspeagle/dynesty/tree/master/paper/dynesty.pdf>`_.
 
+As a multi-purpose sampler, ``dynesty`` is designed to perform
+"reasonably well" across a large array of problems but is not optimized for
+any single one. In particular, please take caution when applying ``dynesty`` to
+estimate Bayesian posteriors and evidences for large-dimensional
+(>30 dimensions or so) problems.
+
 Installation
 ============
 
@@ -53,7 +59,7 @@ Returns the following list of papers that should be cited::
 
     Code and Methods:
     ================
-    Speagle (2019): ui.adsabs.harvard.edu/abs/2019arXiv190402180S
+    Speagle (2020): ui.adsabs.harvard.edu/abs/2019arXiv190402180S
 
     Nested Sampling:
     ===============
@@ -89,6 +95,29 @@ Changelog
 
 .. image:: ../images/logo.gif
     :align: center
+
+1.1 (2021-04-05)
+------------------
+* Improved behavior and stability of the bounding distributions (with
+  `Sergey Koposov <https://github.com/segasai>`_ and
+  `Johannes Buchner <https://github.com/johannesbuchner>`_).
+
+* Added support for specifying the number of clustering dimensions (`'ncdim'`)
+  in case these may differ from the number of prior dimensions (`'npdim'`)
+  (with `Colm Talbot <https://github.com/ColmTalbot>`_).
+
+* Fixed a bug where ``dynesty`` was not properly enforcing nested sampling's
+  monotonically-increasing likelihood condition when sampling
+  (with `Colm Talbot <https://github.com/ColmTalbot>`_).
+
+* Improved ability to save sampler objects to disk to backup progress (with
+  `Patrick Sheehan <https://github.com/psheehan>`_ and
+  `Alex Nitz <https://github.com/ahnitz>`_).
+
+* Limited support for user-defined proposal strategies (with
+  `Gregory Ashton <https://github.com/GregoryAshton>`_).
+
+* Additional small bugfixes, references, and documentation updates.
 
 1.0.1 (2020-01-17)
 -------------------

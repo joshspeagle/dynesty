@@ -300,6 +300,17 @@ the provided bounds which can be passed via the `sample` argument:
 
 * **"Hamiltonian" slice sampling** away from a current live point (`'hslice'`).
 
+In addition, `dynesty` also supports passing **custom callable functions**
+to the `sample` argument, provided they follow the same format as the
+default sampling functions defined `here
+<https://github.com/joshspeagle/dynesty/blob/master/dynesty/sampling.py>`_.
+These can also be accompanied by custom "update functions" that try to
+adaptively scale proposals to ensure better overall sampling efficiency.
+See `here
+<https://github.com/joshspeagle/dynesty/blob/master/dynesty/nestedsamplers.py>`_
+for examples of some of the functions that are associated with the default
+sampling methods described above.
+
 By default, `dynesty` automatically picks a sampling method 
 based on the dimensionality of the problem via the `'auto'` argument, which
 uses the following logic:
@@ -322,7 +333,9 @@ uses the following logic:
 
 `'rslice'` and `'rstagger'` can be quite effective for particular problems
 but currently are not considered as "robust" as the approaches above.
-**Use them at your own risk.**
+Note that `'hslice'`, while using gradients, is substantially less efficient
+(and in general less reliable) than other gradient-based approaches such
+as Hamiltonian Monte Carlo. As such, **use them at your own risk.**
 
 One benefit to using random walks or slice sampling is that they require many
 fewer live points to adapt to structure in higher dimensions (since they only

@@ -3,6 +3,7 @@ from six.moves import range
 import numpy as np
 from numpy import linalg
 import matplotlib
+
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt  # noqa
 import dynesty  # noqa
@@ -14,19 +15,20 @@ np.random.seed(5647)
 
 nlive = 1000
 printing = False
-alpha = 1e-9
+alpha = 1e-8
 
 
 def loglike(x):
     # this is 1/|x} distribution along the x axis
     # it stops rizing near zero at alpha
     # the second dimension is flat
-    logl =  -np.log(np.maximum(np.abs(x[0]), alpha))
+    logl = -np.log(np.maximum(np.abs(x[0]), alpha))
 
-    noplateau = - 1e-10 * (x**2).sum()
-    # this is to avoid complete plateau 
+    noplateau = -1e-10 * (x**2).sum()
+    # this is to avoid complete plateau
 
     return logl + noplateau
+
 
 def prior_transform(x):
     return x * 2 - 1

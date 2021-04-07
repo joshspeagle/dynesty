@@ -29,6 +29,66 @@ __all__ = ["unitcheck", "resample_equal", "mean_and_cov", "quantile",
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
+class LogLikelihood:
+    def __init__(self,
+                 loglikelihood,
+                 ndim,
+                 pool=None,
+                 save=False,
+                 history_filename=None):
+        self.loglikelihood = loglikelihood
+        self.pool = pool
+        self.history_pars = []
+        self.history_logl = []
+        self.save_every = 10000
+        self.save = save
+        self.history_filename = history_filename
+        self.ndim = ndim
+        if save:
+            self.history_init()
+
+    def map(self, pars):
+        if self.pool is None:
+            ret = np.array(list(map(self.loglikelihood, pars)))
+        else:
+            ret = np.array(self.pool.map(self.loglikelihood))
+        if self.save:
+            self.history_append(ret, pars)
+        return ret
+
+    def __call__(self, x):
+        ret = self.loglikelihood(x)
+        if self.save:
+            self.history_append([ret], [x])
+        return ret
+
+    def history_append(self, logls, pars):
+        self.history_logl.extend(logls)
+        self.history_pars.extend(pars)
+        if len(self.history_logl) > self.save_every:
+            self.history_save()
+
+    def history_init(self):
+        import h5py
+        self.history_counter = 0
+        with h5py.File(self.history_filename, mode='w') as fp:
+            fp.create_dataset('param', (self.save_every, self.ndim),
+                              maxshape=(None, self.ndim))
+            fp.create_dataset('logl', (self.save_every, ), maxshape=(None, ))
+
+    def history_save(self):
+        import h5py
+        with h5py.File(self.history_filename, mode='a') as fp:
+            nadd = len(self.history_logl)
+            fp['param'].resize(self.history_counter + nadd, axis=0)
+            fp['logl'].resize(self.history_counter + nadd, axis=0)
+            fp['param'][-nadd:, :] = np.array(self.history_pars)
+            fp['logl'][-nadd:] = np.array(self.history_logl)
+            self.history_pars = []
+            self.history_logl = []
+            self.history_counter += nadd
+
+
 
 def unitcheck(u, nonbounded=None):
     """Check whether `u` is inside the unit cube. Given a masked array

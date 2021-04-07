@@ -590,7 +590,9 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
                          vol_dec=0.5, vol_check=2.0,
                          walks=25, facc=0.5,
                          slices=5, fmove=0.9, max_move=100,
-                         update_func=None, ncdim=None, **kwargs):
+                         update_func=None, ncdim=None,
+                         save_history=False,
+                         history_filename=None, **kwargs):
     """
     Initializes and returns a sampler object for Dynamic Nested Sampling.
 

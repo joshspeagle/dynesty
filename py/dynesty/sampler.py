@@ -186,14 +186,8 @@ class Sampler(object):
             # Compute the prior transform using the default `map` function.
             self.live_v = np.array(list(map(self.prior_transform,
                                             np.array(self.live_u))))
-        if self.use_pool_logl:
-            # Use the pool to compute the log-likelihoods.
-            self.live_logl = np.array(list(self.M(self.loglikelihood,
-                                                  np.array(self.live_v))))
-        else:
-            # Compute the log-likelihoods using the default `map` function.
-            self.live_logl = np.array(list(map(self.loglikelihood,
-                                               np.array(self.live_v))))
+        self.live_logl = self.loglikelihood.map(np.array(self.live_v))
+
         self.live_bound = np.zeros(self.nlive, dtype='int')
         self.live_it = np.zeros(self.nlive, dtype='int')
 
@@ -966,6 +960,7 @@ class Sampler(object):
         finally:
             if pbar is not None:
                 pbar.close()
+            self.loglikelihood.history_save()
 
     def add_final_live(self, print_progress=True, print_func=None):
         """

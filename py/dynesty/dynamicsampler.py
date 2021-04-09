@@ -36,7 +36,7 @@ from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
                              MultiEllipsoidSampler, RadFriendsSampler,
                              SupFriendsSampler)
 from .results import Results, print_fn
-from .utils import kld_error
+from .utils import kld_error, LogLikelihood
 
 __all__ = ["DynamicSampler", "weight_function", "stopping_function",
            "_kld_error"]
@@ -389,6 +389,7 @@ class DynamicSampler(object):
             self.M = map
         else:
             self.M = pool.map
+
         self.use_pool = use_pool  # provided flags for when to use the pool
         self.use_pool_ptform = use_pool.get('prior_transform', True)
         self.use_pool_logl = use_pool.get('loglikelihood', True)
@@ -752,12 +753,7 @@ class DynamicSampler(object):
                     else:
                         self.live_v = np.array(list(map(self.prior_transform,
                                                         np.array(self.live_u))))
-                    if self.use_pool_logl:
-                        self.live_logl = np.array(list(self.M(\
-                                self.loglikelihood, np.array(self.live_v))))
-                    else:
-                        self.live_logl = np.array(list(map(self.loglikelihood,
-                                                        np.array(self.live_v))))
+                    self.live_logl = np.array(self.loglikelihood.map(np.array(self.live_v)))
 
                     # Convert all `-np.inf` log-likelihoods to finite large 
                     # numbers. Necessary to keep estimators in our sampler from 
@@ -1686,6 +1682,7 @@ class DynamicSampler(object):
         finally:
             if pbar is not None:
                 pbar.close()
+            self.loglikelihood.history_save()
 
     def add_batch(self, nlive=500, wt_function=None, wt_kwargs=None,
                   maxiter=None, maxcall=None, logl_bounds=None,
@@ -1800,6 +1797,7 @@ class DynamicSampler(object):
             finally:
                 if pbar is not None:
                     pbar.close()
+                self.loglikelihood.history_save()
 
             # Combine batch with previous runs.
             self.combine_runs()

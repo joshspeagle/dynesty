@@ -19,7 +19,7 @@ from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
                              MultiEllipsoidSampler, RadFriendsSampler,
                              SupFriendsSampler, _SAMPLING)
 from .dynamicsampler import DynamicSampler
-
+from .utils import LogLikelihood
 __all__ = ["NestedSampler", "DynamicNestedSampler", "_function_wrapper"]
 
 _SAMPLERS = {'none': UnitCubeSampler,
@@ -112,7 +112,9 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
                   compute_jac=False,
                   enlarge=None, bootstrap=0, vol_dec=0.5, vol_check=2.0,
                   walks=25, facc=0.5, slices=5, fmove=0.9, max_move=100,
-                  update_func=None, ncdim=None, **kwargs):
+                  update_func=None, ncdim=None,
+                  save_history=False,
+                  history_filename=None, **kwargs):
     """
     Initializes and returns a sampler object for Static Nested Sampling.
 
@@ -496,8 +498,14 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
     # Wrap functions.
     ptform = _function_wrapper(prior_transform, ptform_args, ptform_kwargs,
                                name='prior_transform')
-    loglike = _function_wrapper(loglikelihood, logl_args, logl_kwargs,
-                                name='loglikelihood')
+    if use_pool.get('loglikelihood') or True:
+        pool_logl = pool
+    else:
+        pool_logl = None
+    loglike = LogLikelihood(_function_wrapper(loglikelihood, logl_args,
+                                              logl_kwargs, name='loglikelihood'), ndim,
+                            save=save_history,
+                            history_filename=history_filename or 'dynesty_logl_history.h5', pool=pool_logl)
 
     # Add in gradient.
     if gradient is not None:
@@ -518,12 +526,7 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
             else:
                 live_v = np.array(list(map(ptform,
                                            np.array(live_u))))
-            if use_pool.get('loglikelihood', True):
-                live_logl = np.array(list(M(loglike,
-                                            np.array(live_v))))  # log-like
-            else:
-                live_logl = np.array(list(map(loglike,
-                                              np.array(live_v))))
+            live_logl = loglike.map(np.array(live_v))  # log-like
             live_points = [live_u, live_v, live_logl]
 
             # Convert all `-np.inf` log-likelihoods to finite large numbers.
@@ -587,7 +590,9 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
                          vol_dec=0.5, vol_check=2.0,
                          walks=25, facc=0.5,
                          slices=5, fmove=0.9, max_move=100,
-                         update_func=None, ncdim=None, **kwargs):
+                         update_func=None, ncdim=None,
+                         save_history=False,
+                         history_filename=None, **kwargs):
     """
     Initializes and returns a sampler object for Dynamic Nested Sampling.
 
@@ -945,8 +950,15 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
     # Wrap functions.
     ptform = _function_wrapper(prior_transform, ptform_args, ptform_kwargs,
                                name='prior_transform')
-    loglike = _function_wrapper(loglikelihood, logl_args, logl_kwargs,
-                                name='loglikelihood')
+
+    if use_pool.get('loglikelihood') or True:
+        pool_logl = pool
+    else:
+        pool_logl = None
+    loglike = LogLikelihood(_function_wrapper(loglikelihood, logl_args,
+                                              logl_kwargs, name='loglikelihood'),                            ndim, pool=pool_logl,
+                            history_filename=history_filename or 'dynesty_logl_history.h5',
+                            save=save_history)
 
     # Add in gradient.
     if gradient is not None:

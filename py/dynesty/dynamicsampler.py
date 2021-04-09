@@ -1111,27 +1111,30 @@ class DynamicSampler(object):
             for i in range(1, nbase - nblive):
                 r = -(nblive + i)
                 uidx = base_id[r]
+                if base_logl[r] <= logl_min:
+                    break
                 live_u[uidx] = base_u[r]
                 live_v[uidx] = base_v[r]
                 live_logl[uidx] = base_logl[r]
-                if live_logl[uidx] <= logl_min:
-                    break
             live_scale = base_scale[r]
-
+            subset = live_logl > logl_min
+            if subset.sum()==0:
+                raise RuntimeError('Could not find live points in the required logl interval')
+            cur_nblive = subset.sum()
             # Hack the internal sampler by overwriting the live points
             # and scale factor.
-            self.sampler.nlive = nblive
-            self.sampler.live_u = np.array(live_u)
-            self.sampler.live_v = np.array(live_v)
-            self.sampler.live_logl = np.array(live_logl)
+            self.sampler.nlive = cur_nblive
+            self.sampler.live_u = np.array(live_u)[subset]
+            self.sampler.live_v = np.array(live_v)[subset]
+            self.sampler.live_logl = np.array(live_logl)[subset]
             self.sampler.scale = live_scale
 
             # Trigger an update of the internal bounding distribution based
             # on the "new" set of live points.
             vol = math.exp(- 1. * (nbase + r) / nblive)
-            loglmin = min(live_logl)
-            if self.sampler._beyond_unit_bound(loglmin):
-                bound = self.sampler.update(vol / nblive)
+            live_logl_min = min(live_logl)
+            if self.sampler._beyond_unit_bound(live_logl_min):
+                bound = self.sampler.update(vol / cur_nblive)
                 if save_bounds:
                     self.sampler.bound.append(copy.deepcopy(bound))
                 self.sampler.nbound += 1
@@ -1143,7 +1146,7 @@ class DynamicSampler(object):
             live_v = np.empty((nlive_new, base_v.shape[1]))
             live_logl = np.empty(nlive_new)
             live_bound = np.zeros(nlive_new, dtype='int')
-            if self.sampler._beyond_unit_bound(loglmin):
+            if self.sampler._beyond_unit_bound(live_logl_min):
                 live_bound += self.sampler.nbound - 1
             live_it = np.empty(nlive_new, dtype='int')
             live_nc = np.empty(nlive_new, dtype='int')
@@ -1166,8 +1169,8 @@ class DynamicSampler(object):
         self.sampler.live_it = np.array(live_it)
 
         # Trigger an update of the internal bounding distribution (again).
-        loglmin = min(live_logl)
-        if self.sampler._beyond_unit_bound(loglmin):
+        live_logl_min = min(live_logl)
+        if self.sampler._beyond_unit_bound(live_logl_min):
             bound = self.sampler.update(vol / nlive_new)
             if save_bounds:
                 self.sampler.bound.append(copy.deepcopy(bound))

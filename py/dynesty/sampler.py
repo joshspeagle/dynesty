@@ -960,6 +960,7 @@ class Sampler(object):
         finally:
             if pbar is not None:
                 pbar.close()
+            self.loglikelihood.history_save()
 
     def add_final_live(self, print_progress=True, print_func=None):
         """

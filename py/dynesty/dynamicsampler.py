@@ -1679,6 +1679,7 @@ class DynamicSampler(object):
         finally:
             if pbar is not None:
                 pbar.close()
+            self.loglikelihood.history_save()
 
     def add_batch(self, nlive=500, wt_function=None, wt_kwargs=None,
                   maxiter=None, maxcall=None, logl_bounds=None,
@@ -1793,6 +1794,7 @@ class DynamicSampler(object):
             finally:
                 if pbar is not None:
                     pbar.close()
+                self.loglikelihood.history_save()
 
             # Combine batch with previous runs.
             self.combine_runs()

@@ -30,12 +30,28 @@ __all__ = ["unitcheck", "resample_equal", "mean_and_cov", "quantile",
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 class LogLikelihood:
+    """ Class that calls the likelihood function (using a pool if provided)
+    Also if requested it saves the history of evaluations
+    """
     def __init__(self,
                  loglikelihood,
                  ndim,
                  pool=None,
                  save=False,
                  history_filename=None):
+        """ Initialize the object.
+        
+        Parameters:
+        loglikelihood: function
+        ndim: int
+            Dimensionality
+        pool: Pool (optional)
+            Any kind of pool capable of performing map()
+        save: bool
+            if True the function evaluations will be saved in the hdf5 file
+        history_filename: string
+            The filename where the history will go
+        """
         self.loglikelihood = loglikelihood
         self.pool = pool
         self.history_pars = []
@@ -44,10 +60,14 @@ class LogLikelihood:
         self.save = save
         self.history_filename = history_filename
         self.ndim = ndim
+        self.failed_save = False
         if save:
             self.history_init()
 
     def map(self, pars):
+        """ Evaluate the likelihood f-n on the list of vectors 
+        The pool is used if it was provided when the object was created
+        """
         if self.pool is None:
             ret = np.array(list(map(self.loglikelihood, pars)))
         else:
@@ -57,37 +77,60 @@ class LogLikelihood:
         return ret
 
     def __call__(self, x):
+        """
+        Evaluate the likelihood f-n once
+        """
         ret = self.loglikelihood(x)
         if self.save:
             self.history_append([ret], [x])
         return ret
 
     def history_append(self, logls, pars):
+        """
+        Append to the internal history the list of loglikelihood values
+        And points
+        """
         self.history_logl.extend(logls)
         self.history_pars.extend(pars)
         if len(self.history_logl) > self.save_every:
             self.history_save()
 
     def history_init(self):
+        """ Initialize the hdf5 storage of evaluations """
         import h5py
         self.history_counter = 0
-        with h5py.File(self.history_filename, mode='w') as fp:
-            fp.create_dataset('param', (self.save_every, self.ndim),
+        try:
+            with h5py.File(self.history_filename, mode='w') as fp:
+                fp.create_dataset('param', (self.save_every, self.ndim),
                               maxshape=(None, self.ndim))
-            fp.create_dataset('logl', (self.save_every, ), maxshape=(None, ))
+                fp.create_dataset('logl', (self.save_every, ), maxshape=(None, ))
+        except OSError:
+            print('Failed to initialize history file')
+            raise
 
     def history_save(self):
+        """
+        Save the actual history from an internal buffer into the file
+        """
+        if self.failed_save or not self.save:
+            # if failed to save before, do not try again
+            # also quickly return if saving is not needed
+            return 
         import h5py
-        with h5py.File(self.history_filename, mode='a') as fp:
-            nadd = len(self.history_logl)
-            fp['param'].resize(self.history_counter + nadd, axis=0)
-            fp['logl'].resize(self.history_counter + nadd, axis=0)
-            fp['param'][-nadd:, :] = np.array(self.history_pars)
-            fp['logl'][-nadd:] = np.array(self.history_logl)
-            self.history_pars = []
-            self.history_logl = []
-            self.history_counter += nadd
-
+        try:
+            with h5py.File(self.history_filename, mode='a') as fp:
+                nadd = len(self.history_logl)
+                fp['param'].resize(self.history_counter + nadd, axis=0)
+                fp['logl'].resize(self.history_counter + nadd, axis=0)
+                fp['param'][-nadd:, :] = np.array(self.history_pars)
+                fp['logl'][-nadd:] = np.array(self.history_logl)
+                self.history_pars = []
+                self.history_logl = []
+                self.history_counter += nadd
+        except OSError:
+            warnings.warn('Failed to save history of evaluations. Will not try again.')
+            self.failed_save = True
+            
 
 
 def unitcheck(u, nonbounded=None):

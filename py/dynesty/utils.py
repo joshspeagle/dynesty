@@ -71,7 +71,7 @@ class LogLikelihood:
         if self.pool is None:
             ret = np.array(list(map(self.loglikelihood, pars)))
         else:
-            ret = np.array(self.pool.map(self.loglikelihood))
+            ret = np.array(self.pool.map(self.loglikelihood, pars))
         if self.save:
             self.history_append(ret, pars)
         return ret

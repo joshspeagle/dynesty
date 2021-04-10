@@ -1488,7 +1488,7 @@ def _bounding_ellipsoids(points, ell, pointvol=0., vol_dec=0.5,
     # minimum volume by a factor of `vol_check`. If it is, this indicates
     # that there may be more than 2 clusters and we should try to
     # subdivide further.
-    if ell.logvol > np.log(vol_check * npoints * pointvol):
+    if pointvol == 0 or ell.logvol > np.log(vol_check * npoints * pointvol):
         out = (_bounding_ellipsoids(points_k[0], ells[0],
                                     pointvol=pointvol, vol_dec=vol_dec,
                                     vol_check=vol_check) +

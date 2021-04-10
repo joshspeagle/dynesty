@@ -144,12 +144,18 @@ class Ellipsoid(object):
 
     """
 
-    def __init__(self, ctr, cov):
+    def __init__(self, ctr, cov, am=None, axes=None):
         self.n = len(ctr)  # dimension
         self.ctr = np.array(ctr)  # center coordinates
         self.cov = np.array(cov)  # covariance matrix
-        self.am = lalg.pinvh(cov)  # precision matrix (inverse of covariance)
-        self.axes = lalg.cholesky(cov, lower=True)  # transformation axes
+        if am is None:
+            self.am = lalg.pinvh(cov)  # precision matrix (inverse of covariance)
+        else:
+            self.am = am
+        if axes is None:
+            self.axes = axes
+        else:
+            self.axes = lalg.cholesky(cov, lower=True)  # transformation axes
 
 
         # The eigenvalues (l) of `a` are (a^-2, b^-2, ...) where
@@ -1286,7 +1292,7 @@ def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
             l, v = lalg.eigh(covar)  # compute eigenvalues/vectors
 
             # Check if direct Cholesky decomposition exists.
-            lalg.cholesky(covar, lower=True)
+            axes = lalg.cholesky(covar, lower=True)
 
             # Check if everything worked.
             if np.all((l > 0) & np.isfinite(l)) and l.max() < l.min() * max_condition_number:
@@ -1307,7 +1313,8 @@ def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
                       "non-singular. Defaulting to a sphere.")
         covar = np.eye(ndim)  # default to identity
         am = lalg.pinvh(covar)
-    return covar, am
+        axes = lalg.cholesky(covar, lower=True)
+    return covar, am, axes
 
 
 def bounding_ellipsoid(points, pointvol=0.):
@@ -1370,7 +1377,7 @@ def bounding_ellipsoid(points, pointvol=0.):
     for i in range(2):
         # we improve the matrix twice, first before rescaling 
         # and second after rescaling
-        covar, am = improve_covar_mat(covar)
+        covar, am, axes = improve_covar_mat(covar)
     
         # Calculate expansion factor necessary to bound each point.
         # Points should obey `(x-v)^T A (x-v) <= 1`, so we calculate this for
@@ -1389,7 +1396,7 @@ def bounding_ellipsoid(points, pointvol=0.):
             raise RuntimeError("Failed to initialize the ellipsoid to contain all the points")
         
     # Initialize our ellipsoid with *safe* covariance matrix.
-    ell = Ellipsoid(ctr, covar)
+    ell = Ellipsoid(ctr, covar, am=am, axes=axes)
 
     # Expand our ellipsoid to encompass a minimum volume.
     if pointvol > 0.:

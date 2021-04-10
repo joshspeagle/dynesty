@@ -150,9 +150,9 @@ class Ellipsoid(object):
         else:
             self.am = am
         if axes is None:
-            self.axes = axes
-        else:
             self.axes = lalg.cholesky(cov, lower=True)  # transformation axes
+        else:
+            self.axes = axes
 
         # The eigenvalues (l) of `a` are (a^-2, b^-2, ...) where
         # (a, b, ...) are the lengths of principle axes.

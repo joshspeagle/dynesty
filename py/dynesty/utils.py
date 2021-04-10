@@ -135,6 +135,7 @@ class LogLikelihood:
         """Get state information for pickling."""
         state = self.__dict__.copy()
         del state['pool']
+        return state
 
 def unitcheck(u, nonbounded=None):
     """Check whether `u` is inside the unit cube. Given a masked array

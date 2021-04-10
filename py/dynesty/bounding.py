@@ -398,6 +398,9 @@ class MultiEllipsoid(object):
         self.expand_tot = 1.
 
     def __update_arrays(self):
+        """
+        Update internal arrays to ensure that in sync with ells
+        """
         self.ctrs = np.array([ell.ctr for ell in self.ells])
         self.covs = np.array([ell.cov for ell in self.ells])
         self.ams = np.array([ell.am for ell in self.ells])
@@ -410,7 +413,7 @@ class MultiEllipsoid(object):
         We must also update arrays ams, covs
         """
         [self.ells[i].scale_to_logvol(logvols[i]) for i in range(self.nells)]
-        self.__update_arrays(self)
+        self.__update_arrays()
         self.expands = np.array(
             [self.ells[i].expand for i in range(self.nells)])
         logvol_tot = logsumexp(logvols)

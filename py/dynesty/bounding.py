@@ -376,9 +376,7 @@ class MultiEllipsoid(object):
             if (ctrs is None) and (covs is None):
                 self.nells = len(ells)
                 self.ells = ells
-                self.ctrs = np.array([ell.ctr for ell in self.ells])
-                self.covs = np.array([ell.cov for ell in self.ells])
-                self.ams = np.array([ell.am for ell in self.ells])
+                self.__update_arrays()
             else:
                 raise ValueError("You cannot specific both `ells` and "
                                  "(`ctrs`, `covs`)!")
@@ -389,25 +387,30 @@ class MultiEllipsoid(object):
                                  "(`ctrs`, `covs`).")
             else:
                 self.nells = len(ctrs)
-                self.ctrs = np.array(ctrs)
-                self.covs = np.array(covs)
                 self.ells = [
                     Ellipsoid(ctrs[i], covs[i]) for i in range(self.nells)
                 ]
-                self.ams = np.array([ell.am for ell in self.ells])
+                self.__update_arrays()
 
         # Compute quantities.
-        self.logvols = np.array([ell.logvol for ell in self.ells])
         self.expands = np.ones(self.nells)
         self.logvol_tot = logsumexp(self.logvols)
         self.expand_tot = 1.
 
+    def __update_arrays(self):
+        self.ctrs = np.array([ell.ctr for ell in self.ells])
+        self.covs = np.array([ell.cov for ell in self.ells])
+        self.ams = np.array([ell.am for ell in self.ells])
+        self.logvols = np.array([ell.logvol for ell in self.ells])
+
     def scale_to_logvol(self, logvols):
         """Scale ellipoids to a corresponding set of
         target volumes."""
-
+        """ IMPORTANT
+        We must also update arrays ams, covs
+        """
         [self.ells[i].scale_to_logvol(logvols[i]) for i in range(self.nells)]
-        self.logvols = np.array(logvols)
+        self.__update_arrays(self)
         self.expands = np.array(
             [self.ells[i].expand for i in range(self.nells)])
         logvol_tot = logsumexp(logvols)
@@ -483,7 +486,8 @@ class MultiEllipsoid(object):
 
         # Check how many ellipsoids the point lies within, passing over
         # the `idx`-th ellipsoid `x` was sampled from.
-        q = self.overlap(x, j=idx) + 1
+        delts = (x[None, :] - self.ctrs)
+        q = (np.einsum('ai,aij,aj->a', delts, self.ams, delts) < 1).sum()
 
         if return_q:
             # If `q` is being returned, assume the user wants to
@@ -627,10 +631,7 @@ class MultiEllipsoid(object):
         # Update the set of ellipsoids.
         self.nells = len(ells)
         self.ells = ells
-        self.ctrs = np.array([ell.ctr for ell in self.ells])
-        self.covs = np.array([ell.cov for ell in self.ells])
-        self.ams = np.array([ell.am for ell in self.ells])
-        self.logvols = np.array([ell.logvol for ell in self.ells])
+        self.__update_arrays()
         self.logvol_tot = logsumexp(self.logvols)
 
         # Compute expansion factor.

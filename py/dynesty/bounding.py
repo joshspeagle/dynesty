@@ -447,8 +447,8 @@ class MultiEllipsoid(object):
 
     def contains(self, x):
         """Checks if the set of ellipsoids contains `x`."""
-
-        return self.overlap(x) > 0
+        delt = x[None, :] - self.ctrs
+        return np.any(np.einsum('ai,aij,aj->a', delt, self.ams, delt) < 1)
 
     def sample(self, rstate=None, return_q=False):
         """
@@ -626,15 +626,14 @@ class MultiEllipsoid(object):
                                     vol_dec=vol_dec,
                                     vol_check=vol_check)
 
-        # Sanity check: all points must be contained in some ellipsoid
-        if not all(any(ell.contains(p) for ell in ells) for p in points):
-            # refuse to update
-            raise RuntimeError('Rejecting invalid MultiEllipsoid region')
-
         # Update the set of ellipsoids.
         self.nells = len(ells)
         self.ells = ells
         self.__update_arrays()
+        # Sanity check: all points must be contained in some ellipsoid
+        if not all(self.contains(p) for p in points):
+            # refuse to update
+            raise RuntimeError('Rejecting invalid MultiEllipsoid region')
         self.logvol_tot = logsumexp(self.logvols)
 
         # Compute expansion factor.

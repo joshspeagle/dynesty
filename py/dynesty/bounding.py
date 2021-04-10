@@ -208,6 +208,14 @@ class Ellipsoid(object):
 
         return np.sqrt(np.dot(np.dot(d, self.am), d))
 
+    def distance_many(self, x):
+        """Compute the normalized distance to `x` from the center of the
+        ellipsoid."""
+
+        d = x - self.ctr[None, :]
+
+        return np.sqrt(np.einsum('ij,jk,ik->i', d, self.am, d))
+
     def contains(self, x):
         """Checks if ellipsoid contains `x`."""
 
@@ -1574,10 +1582,10 @@ def _ellipsoid_bootstrap_expand(args):
     ell = bounding_ellipsoid(points_in, pointvol=pointvol)
 
     # Compute normalized distances to missing points.
-    dists = [ell.distance(p) for p in points_out]
+    dists = ell.distance_many(points_out)
 
     # Compute expansion factor.
-    expand = max(1., max(dists))
+    expand = np.max(1., np.max(dists))
 
     return expand
 
@@ -1603,11 +1611,15 @@ def _ellipsoids_bootstrap_expand(args):
 
     # Compute bounding ellipsoids.
     ell = bounding_ellipsoid(points_in, pointvol=pointvol)
-    ells = _bounding_ellipsoids(points_in, ell, pointvol=pointvol,
-                                vol_dec=vol_dec, vol_check=vol_check)
+    ells = _bounding_ellipsoids(points_in,
+                                ell,
+                                pointvol=pointvol,
+                                vol_dec=vol_dec,
+                                vol_check=vol_check)
 
     # Compute normalized distances to missing points.
-    dists = [min([el.distance(p) for el in ells]) for p in points_out]
+    dists = np.min(np.array([el.distance_many(points_out) for el in ells]),
+                   axis=0)
 
     # Compute expansion factor.
     expand = max(1., max(dists))

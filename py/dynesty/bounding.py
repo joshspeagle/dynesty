@@ -1352,28 +1352,13 @@ def bounding_ellipsoid(points, pointvol=0.):
 
     # Calculate covariance of points.
     ctr = np.mean(points, axis=0)
-    covar0 = mle_cov(points, rowvar=False)
-
+    covar = mle_cov(points, rowvar=False)
+    delta = points - ctr
+    
     # When ndim = 1, `np.cov` returns a 0-d array. Make it a 1x1 2-d array.
     if ndim == 1:
-        covar0 = np.atleast_2d(covar0)
-
-    # throughtout the code covar, am will be our current covariance
-    # and precision matrices
-    covar, am = improve_covar_mat(covar0)
-    
-    # Calculate expansion factor necessary to bound each point.
-    # Points should obey `(x-v)^T A (x-v) <= 1`, so we calculate this for
-    # each point and then scale A up or down to make the
-    # "outermost" point obey `(x-v)^T A (x-v) = 1`. This can be done
-    # quickly using `einsum` and `tensordot` to iterate over all points.
-    delta = points - ctr
-    fmax = np.einsum('ij,jk,ik->i', delta, am, delta).max()
-    
-    # Due to round-off errors, we actually scale the ellipsoid so the
-    # outermost point obeys `(x-v)^T A (x-v) < 1 - (a bit) < 1`.
-
-    
+        covar = np.atleast_2d(covar)
+     
     ROUND_DELTA = 1e-3
     # numerical experiments show that round off errors can reach large
     # values if the matrix is poorly conditioned
@@ -1381,19 +1366,27 @@ def bounding_ellipsoid(points, pointvol=0.):
     # condition number parameter in improve_covar_mat()
     # 
     one_minus_a_bit = 1. - ROUND_DELTA
-    if fmax > one_minus_a_bit:
-        covar *= fmax / one_minus_a_bit
 
-    # Repeat the ellipsoid check above just in case this modification makes
-    # us numerically unstable again. Just to be **ultra safe**.
-    covar, am = improve_covar_mat(covar)
+    for i in range(2):
+        # we improve the matrix twice, first before rescaling 
+        # and second after rescaling
+        covar, am = improve_covar_mat(covar)
     
-    # this is a final check
-    # if this fails the ellipsoid is still broken
-    # in the sense that it does not include the points 
-    fmax1 = np.einsum('ij,jk,ik->i',delta, am, delta).max()
-    if fmax1 >= 1:
-        raise RuntimeError("Failed to initialize the ellipsoid to contain all the points")
+        # Calculate expansion factor necessary to bound each point.
+        # Points should obey `(x-v)^T A (x-v) <= 1`, so we calculate this for
+        # each point and then scale A up or down to make the
+        # "outermost" point obey `(x-v)^T A (x-v) = 1`.
+
+        fmax = np.einsum('ij,jk,ik->i', delta, am, delta).max()
+    
+        # Due to round-off errors, we actually scale the ellipsoid so the
+        # outermost point obeys `(x-v)^T A (x-v) < 1 - (a bit) < 1`.
+        # in the first iteration we just try to adjust the matrix
+        # if it didn't work again, we bail out
+        if i == 0 and fmax > one_minus_a_bit:
+            covar *= fmax / one_minus_a_bit
+        if i == 1 and fmax >= 1:
+            raise RuntimeError("Failed to initialize the ellipsoid to contain all the points")
         
     # Initialize our ellipsoid with *safe* covariance matrix.
     ell = Ellipsoid(ctr, covar)

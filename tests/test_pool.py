@@ -35,8 +35,27 @@ def test_pool():
                                     nlive=nlive,
                                     bound='multi',
                                     sample='unif',
-                                    pool=pool)
+                                    pool=pool,
+                                    queue_size=2)
     sampler.run_nested(dlogz=0.1, print_progress=printing)
+    logz_truth = 235.856
+    assert (abs(logz_truth - sampler.results.logz[-1]) <
+            5. * sampler.results.logzerr[-1])
+
+
+def test_pool2():
+    # test pool
+    ndim = 2
+    pool = mp.Pool(2)
+    sampler = dynesty.DynamicNestedSampler(loglike_egg,
+                                           prior_transform_egg,
+                                           ndim,
+                                           nlive=nlive,
+                                           bound='multi',
+                                           sample='unif',
+                                           pool=pool,
+                                           queue_size=2)
+    sampler.run_nested(dlogz_init=0.1, print_progress=printing)
     logz_truth = 235.856
     assert (abs(logz_truth - sampler.results.logz[-1]) <
             5. * sampler.results.logzerr[-1])

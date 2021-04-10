@@ -25,7 +25,7 @@ def prior_transform_egg(x):
     return x * 10 * np.pi
 
 
-def test_pool):
+def test_pool():
     # test pool
     ndim = 2
     pool = mp.Pool(2)

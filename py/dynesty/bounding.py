@@ -1368,8 +1368,7 @@ def bounding_ellipsoid(points, pointvol=0.):
     # "outermost" point obey `(x-v)^T A (x-v) = 1`. This can be done
     # quickly using `einsum` and `tensordot` to iterate over all points.
     delta = points - ctr
-    f = np.einsum('...i, ...i', np.tensordot(delta, am, axes=1), delta)
-    fmax = np.max(f)
+    fmax = np.einsum('ij,jk,ik->i', delta, am, delta).max()
     
     # Due to round-off errors, we actually scale the ellipsoid so the
     # outermost point obeys `(x-v)^T A (x-v) < 1 - (a bit) < 1`.
@@ -1392,8 +1391,8 @@ def bounding_ellipsoid(points, pointvol=0.):
     # this is a final check
     # if this fails the ellipsoid is still broken
     # in the sense that it does not include the points 
-    fmax1 = np.einsum('...i, ...i', np.tensordot(delta, am, axes=1), delta).max()
-    if fmax1 >=1:
+    fmax1 = np.einsum('ij,jk,ik->i',delta, am, delta).max()
+    if fmax1 >= 1:
         raise RuntimeError("Failed to initialize the ellipsoid to contain all the points")
         
     # Initialize our ellipsoid with *safe* covariance matrix.

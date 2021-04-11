@@ -3,6 +3,7 @@ from six.moves import range
 import numpy as np
 from numpy import linalg
 import matplotlib
+
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt  # noqa
 import dynesty  # noqa
@@ -41,6 +42,22 @@ def test_ellipsoids():
                                     nlive=nlive,
                                     bound='multi',
                                     sample='unif')
+    sampler.run_nested(dlogz=0.01, print_progress=printing)
+    logz_truth = 235.856
+    assert (abs(logz_truth - sampler.results.logz[-1]) <
+            5. * sampler.results.logzerr[-1])
+
+
+def test_ellipsoids_bootstrap():
+    # stress test ellipsoid decompositions
+    ndim = 2
+    sampler = dynesty.NestedSampler(loglike_egg,
+                                    prior_transform_egg,
+                                    ndim,
+                                    nlive=nlive,
+                                    bound='multi',
+                                    sample='unif',
+                                    bootstrap=5)
     sampler.run_nested(dlogz=0.01, print_progress=printing)
     logz_truth = 235.856
     assert (abs(logz_truth - sampler.results.logz[-1]) <

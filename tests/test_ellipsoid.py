@@ -22,6 +22,7 @@ def test_sample():
     for i in range(nsim):
         R.append(mu.sample()[0])
     R = np.array(R)
+    assert (all([mu.contains(_) for _ in R]))
 
     # here I'm checking that all the points are uniformly distributed
     # within each ellipsoid
@@ -60,7 +61,7 @@ def test_sample_q():
                 R.append(x)
                 break
     R = np.array(R)
-
+    assert (all([mu.contains(_) for _ in R]))
     # here I'm checking that all the points are uniformly distributed
     # within each ellipsoid
     for curc in [cen1, cen2]:

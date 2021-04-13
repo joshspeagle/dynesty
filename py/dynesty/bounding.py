@@ -376,7 +376,6 @@ class MultiEllipsoid(object):
             if (ctrs is None) and (covs is None):
                 self.nells = len(ells)
                 self.ells = ells
-                self.__update_arrays()
             else:
                 raise ValueError("You cannot specific both `ells` and "
                                  "(`ctrs`, `covs`)!")
@@ -390,7 +389,7 @@ class MultiEllipsoid(object):
                 self.ells = [
                     Ellipsoid(ctrs[i], covs[i]) for i in range(self.nells)
                 ]
-                self.__update_arrays()
+        self.__update_arrays()
 
         # Compute quantities.
         self.expands = np.ones(self.nells)

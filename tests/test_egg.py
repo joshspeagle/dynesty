@@ -1,17 +1,10 @@
-from __future__ import (print_function, division)
-from six.moves import range
 import numpy as np
-from numpy import linalg
 import matplotlib
 
 matplotlib.use('Agg')
-from matplotlib import pyplot as plt  # noqa
 import dynesty  # noqa
-from dynesty import plotting as dyplot  # noqa
-from dynesty import utils as dyfunc  # noqa
 """
-Run a series of basic tests to check whether anything huge is broken.
-
+Run a series of basic tests of the 2d eggbox
 """
 
 # seed the random number generator

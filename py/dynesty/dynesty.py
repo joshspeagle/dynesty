@@ -485,7 +485,7 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         if queue_size is None:
             try:
                 queue_size = pool.size
-            except:
+            except AttributeError:
                 raise ValueError("Cannot initialize `queue_size` because "
                                  "`pool.size` has not been provided. Please"
                                  "define `pool.size` or specify `queue_size` "
@@ -937,7 +937,7 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         if queue_size is None:
             try:
                 queue_size = pool.size
-            except:
+            except AttributeError:
                 raise ValueError("Cannot initialize `queue_size` because "
                                  "`pool.size` has not been provided. Please "
                                  "define `pool.size` or specify `queue_size` "

@@ -622,12 +622,12 @@ class MultiEllipsoidSampler(Sampler):
             # Returns the point `u`, ellipsoid index `idx`, and number of
             # overlapping ellipsoids `q` at position `u`.
             u, idx, q = self.mell.sample(rstate=self.rstate, return_q=True)
-
-            # Check if the point is within the unit cube.
-            if unitcheck(u, self.nonbounded[:self.ncdim]):
+            
+            if q == 1 or self.rstate.rand() < 1.0 / q:
                 # Accept the point with probability 1/q to account for
                 # overlapping ellipsoids.
-                if q == 1 or self.rstate.rand() < 1.0 / q:
+                # Check if the point is within the unit cube.
+                if unitcheck(u, self.nonbounded[:self.ncdim]):
                     break  # if successful, we're done!
 
         u = np.concatenate([u, np.random.uniform(0, 1, self.npdim - self.ncdim)])

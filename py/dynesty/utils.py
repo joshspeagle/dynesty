@@ -71,7 +71,7 @@ class LogLikelihood:
         if self.pool is None:
             ret = np.array(list(map(self.loglikelihood, pars)))
         else:
-            ret = np.array(self.pool.map(self.loglikelihood))
+            ret = np.array(self.pool.map(self.loglikelihood, pars))
         if self.save:
             self.history_append(ret, pars)
         return ret
@@ -131,7 +131,11 @@ class LogLikelihood:
             warnings.warn('Failed to save history of evaluations. Will not try again.')
             self.failed_save = True
             
-
+    def __getstate__(self):
+        """Get state information for pickling."""
+        state = self.__dict__.copy()
+        del state['pool']
+        return state
 
 def unitcheck(u, nonbounded=None):
     """Check whether `u` is inside the unit cube. Given a masked array

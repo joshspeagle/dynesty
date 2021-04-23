@@ -1,16 +1,10 @@
-from __future__ import (print_function, division)
-from six.moves import range
 import numpy as np
-from numpy import linalg
 import matplotlib
-matplotlib.use('Agg')
-from matplotlib import pyplot as plt  # noqa
-import dynesty  # noqa
-from dynesty import plotting as dyplot  # noqa
-from dynesty import utils as dyfunc  # noqa
-"""
-Run a series of basic tests to check whether anything huge is broken.
 
+matplotlib.use('Agg')
+import dynesty  # noqa
+"""
+Run a series of basic tests of the 2d eggbox
 """
 
 # seed the random number generator
@@ -32,15 +26,32 @@ def prior_transform_egg(x):
     return x * 10 * np.pi
 
 
-def test_ellipsoids():
-    # stress test ellipsoid decompositions
+def test_bounds():
+    # stress test various boundaries
+    ndim = 2
+    for bound in ['multi', 'balls', 'cubes']:
+        sampler = dynesty.NestedSampler(loglike_egg,
+                                        prior_transform_egg,
+                                        ndim,
+                                        nlive=nlive,
+                                        bound=bound,
+                                        sample='unif')
+        sampler.run_nested(dlogz=0.01, print_progress=printing)
+        logz_truth = 235.856
+        assert (abs(logz_truth - sampler.results.logz[-1]) <
+                5. * sampler.results.logzerr[-1])
+
+
+def test_ellipsoids_bootstrap():
+    # stress test ellipsoid decompositions with bootstrap
     ndim = 2
     sampler = dynesty.NestedSampler(loglike_egg,
                                     prior_transform_egg,
                                     ndim,
                                     nlive=nlive,
                                     bound='multi',
-                                    sample='unif')
+                                    sample='unif',
+                                    bootstrap=5)
     sampler.run_nested(dlogz=0.01, print_progress=printing)
     logz_truth = 235.856
     assert (abs(logz_truth - sampler.results.logz[-1]) <

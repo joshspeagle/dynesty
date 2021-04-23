@@ -2,7 +2,9 @@ from __future__ import (print_function, division)
 from six.moves import range
 import numpy as np
 from numpy import linalg
+import numpy.testing as npt
 import matplotlib
+
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt  # noqa
 import dynesty  # noqa
@@ -53,12 +55,9 @@ def check_results(results,
     wts = np.exp(results.logwt - results.logz[-1])
     mean, cov = dyfunc.mean_and_cov(pos, wts)
     logz = results.logz[-1]
-    mean_check = np.all(np.abs(mean - mean_truth) < sig * mean_tol)
-    cov_check = np.all(np.abs(cov - cov_truth) < sig * cov_tol)
-    logz_check = abs((logz_truth - logz)) < sig * logz_tol
-    assert (mean_check)
-    assert (cov_check)
-    assert (logz_check)
+    npt.assert_array_less(np.abs(mean - mean_truth), sig * mean_tol)
+    npt.assert_array_less(np.abs(cov - cov_truth), sig * cov_tol)
+    npt.assert_array_less(np.abs((logz_truth - logz)), sig * logz_tol)
 
 
 # GAUSSIAN TEST
@@ -72,10 +71,16 @@ lnorm_gau = -0.5 * (np.log(2 * np.pi) * ndim_gau + np.log(linalg.det(cov_gau)))
 logz_truth_gau = ndim_gau * (-np.log(2 * 10.))
 
 
-def check_results_gau(results, logz_tol):
+def check_results_gau(results, logz_tol, sig=5):
     mean_tol, cov_tol = bootstrap_tol(results)
-    check_results(results, mean_gau, cov_gau, logz_truth_gau, mean_tol,
-                  cov_tol, logz_tol)
+    check_results(results,
+                  mean_gau,
+                  cov_gau,
+                  logz_truth_gau,
+                  mean_tol,
+                  cov_tol,
+                  logz_tol,
+                  sig=sig)
 
 
 # 3-D correlated multivariate normal log-likelihood
@@ -233,5 +238,7 @@ def test_dynamic():
     dres = dyfunc.resample_run(dsampler.results)
     check_results_gau(dres, logz_tol)
     dres = dyfunc.simulate_run(dsampler.results)
-    check_results_gau(dres, logz_tol)
+    check_results_gau(dres, logz_tol, sig=6)
+    # I bump the threshold
+    # because we have the error twice
     dyfunc.kld_error(dsampler.results)

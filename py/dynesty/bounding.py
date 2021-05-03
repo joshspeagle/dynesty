@@ -1279,23 +1279,6 @@ class SupFriends(object):
 ##################
 
 
-def vol_prefactor(n, p=2.):
-    """
-    Returns the volume constant for an `n`-dimensional sphere with an
-    :math:`L^p` norm. The constant is defined as::
-
-        f = (2. * Gamma(1./p + 1))**n / Gamma(n/p + 1.)
-
-    By default the `p=2.` norm is used (i.e. the standard Euclidean norm).
-
-    """
-
-    p *= 1.  # convert to float in case user inputs an integer
-    f = (2 * special.gamma(1. / p + 1.))**n / special.gamma(n / p + 1)
-
-    return f
-
-
 def logvol_prefactor(n, p=2.):
     """
     Returns the ln(volume constant) for an `n`-dimensional sphere with an

@@ -1104,6 +1104,8 @@ class DynamicSampler(object):
             live_u[base_id[-nblive:]] = base_u[-nblive:]
             live_v[base_id[-nblive:]] = base_v[-nblive:]
             live_logl[base_id[-nblive:]] = base_logl[-nblive:]
+            live_scale = base_scale[-nblive]
+
             # we used value the indices nbase-nblive .... nbase-1
             for r in range(nbase - nblive - 1, -1, -1):
                 # the first value will be nbase - nblive -1

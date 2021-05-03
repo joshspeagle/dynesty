@@ -1,7 +1,14 @@
 name: Dynesty
 
 # Run this workflow every time a new commit pushed to your repository
-on: push
+on:
+  push:
+    branches:
+      - '*'
+    tags:
+      - '*'
+  pull_request:
+    
 
 jobs:
   tester:

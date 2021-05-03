@@ -1104,17 +1104,19 @@ class DynamicSampler(object):
             live_u[base_id[-nblive:]] = base_u[-nblive:]
             live_v[base_id[-nblive:]] = base_v[-nblive:]
             live_logl[base_id[-nblive:]] = base_logl[-nblive:]
-            for i in range(1, nbase - nblive):
-                r = -(nblive + i)
+            for r in range(nbase - nblive - 1, -1, -1):
+                # the first value will be nbase - nblive -1
+                # the last will be zero
                 uidx = base_id[r]
                 if base_logl[r] <= logl_min:
                     break
                 live_u[uidx] = base_u[r]
                 live_v[uidx] = base_v[r]
                 live_logl[uidx] = base_logl[r]
-            live_scale = base_scale[r]
+                live_scale = base_scale[r]
+            
             subset = live_logl > logl_min
-            if subset.sum()==0:
+            if subset.sum() == 0:
                 raise RuntimeError('Could not find live points in the required logl interval')
             cur_nblive = subset.sum()
             # Hack the internal sampler by overwriting the live points

@@ -1634,7 +1634,7 @@ def _ellipsoid_bootstrap_expand(args):
     dists = ell.distance_many(points_out)
 
     # Compute expansion factor.
-    expand = np.max(1., np.max(dists))
+    expand = max(1., np.max(dists))
 
     return expand
 

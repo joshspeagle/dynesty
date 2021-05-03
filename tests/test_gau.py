@@ -18,7 +18,7 @@ Run a series of basic tests to check whether anything huge is broken.
 # seed the random number generator
 np.random.seed(5647)
 
-nlive = 1000
+nlive = 500
 printing = False
 
 
@@ -170,6 +170,22 @@ def test_bounding():
                                         nlive=nlive,
                                         bound=bound,
                                         sample='unif')
+        sampler.run_nested(print_progress=printing)
+        check_results_gau(sampler.results, logz_tol)
+
+
+def test_bounding_bootstrap():
+    # check various bounding methods
+    logz_tol = 1
+
+    for bound in ['single', 'multi', 'balls']:
+        sampler = dynesty.NestedSampler(loglikelihood_gau,
+                                        prior_transform_gau,
+                                        ndim_gau,
+                                        nlive=nlive,
+                                        bound=bound,
+                                        sample='unif',
+                                        bootstrap=5)
         sampler.run_nested(print_progress=printing)
         check_results_gau(sampler.results, logz_tol)
 

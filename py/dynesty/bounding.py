@@ -38,7 +38,7 @@ from .utils import unitcheck
 
 __all__ = [
     "UnitCube", "Ellipsoid", "MultiEllipsoid", "RadFriends", "SupFriends",
-    "vol_prefactor", "logvol_prefactor", "randsphere", "bounding_ellipsoid",
+    "logvol_prefactor", "randsphere", "bounding_ellipsoid",
     "bounding_ellipsoids", "_bounding_ellipsoids",
     "_ellipsoid_bootstrap_expand", "_ellipsoids_bootstrap_expand",
     "_friends_bootstrap_radius", "_friends_leaveoneout_radius"

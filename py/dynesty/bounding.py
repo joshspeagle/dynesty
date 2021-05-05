@@ -38,7 +38,7 @@ from .utils import unitcheck
 
 __all__ = [
     "UnitCube", "Ellipsoid", "MultiEllipsoid", "RadFriends", "SupFriends",
-    "vol_prefactor", "logvol_prefactor", "randsphere", "bounding_ellipsoid",
+    "logvol_prefactor", "randsphere", "bounding_ellipsoid",
     "bounding_ellipsoids", "_bounding_ellipsoids",
     "_ellipsoid_bootstrap_expand", "_ellipsoids_bootstrap_expand",
     "_friends_bootstrap_radius", "_friends_leaveoneout_radius"
@@ -1279,23 +1279,6 @@ class SupFriends(object):
 ##################
 
 
-def vol_prefactor(n, p=2.):
-    """
-    Returns the volume constant for an `n`-dimensional sphere with an
-    :math:`L^p` norm. The constant is defined as::
-
-        f = (2. * Gamma(1./p + 1))**n / Gamma(n/p + 1.)
-
-    By default the `p=2.` norm is used (i.e. the standard Euclidean norm).
-
-    """
-
-    p *= 1.  # convert to float in case user inputs an integer
-    f = (2 * special.gamma(1. / p + 1.))**n / special.gamma(n / p + 1)
-
-    return f
-
-
 def logvol_prefactor(n, p=2.):
     """
     Returns the ln(volume constant) for an `n`-dimensional sphere with an
@@ -1651,7 +1634,7 @@ def _ellipsoid_bootstrap_expand(args):
     dists = ell.distance_many(points_out)
 
     # Compute expansion factor.
-    expand = np.max(1., np.max(dists))
+    expand = max(1., np.max(dists))
 
     return expand
 

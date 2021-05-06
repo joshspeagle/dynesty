@@ -35,6 +35,34 @@ SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 MAXINT = 2**32 - 1
 
 
+# For the moment it's a copy from the one in dynamic sampler
+# but it can probably be united
+class RunRecord:
+    def __init__(self):
+        # results
+        D = {}
+        D['id'] = []  # live point labels
+        D['u'] = []  # unit cube samples
+        D['v'] = []  # transformed variable samples
+        D['logl'] = []  # loglikelihoods of samples
+        D['logvol'] = []  # expected ln(volume)
+        D['logwt'] = []  # ln(weights)
+        D['logz'] = []  # cumulative ln(evidence)
+        D['logzvar'] = []  # cumulative error on ln(evidence)
+        D['h'] = []  # cumulative information
+        D['nc'] = []  # number of calls at each iteration
+        D['boundidx'] = []  # index of bound dead point was drawn from
+        D['it'] = []  # iteration the live (now dead) point was proposed
+        D['n'] = []  # number of live points interior to dead point
+        D['bounditer'] = []  # active bound at a specific iteration
+        D['scale'] = []  # scale factor at each iteration
+        self.D = D
+
+    def append(self, newD):
+        for k in newD.keys():
+            self.D[k].append(newD[k])
+
+
 class Sampler(object):
     """
     The basic sampler object that performs the actual nested sampling.
@@ -135,22 +163,9 @@ class Sampler(object):
         self.nbound = 1  # total number of unique bounding distributions
         self.added_live = False  # whether leftover live points were used
         self.eff = 0.  # overall sampling efficiency
-
+        self.cite = ''  # Default empty
         # results
-        self.saved_id = []  # live point labels
-        self.saved_u = []  # unit cube samples
-        self.saved_v = []  # transformed variable samples
-        self.saved_logl = []  # loglikelihoods of samples
-        self.saved_logvol = []  # expected ln(volume)
-        self.saved_logwt = []  # ln(weights)
-        self.saved_logz = []  # cumulative ln(evidence)
-        self.saved_logzvar = []  # cumulative error on ln(evidence)
-        self.saved_h = []  # cumulative information
-        self.saved_nc = []  # number of calls at each iteration
-        self.saved_boundidx = []  # index of bound dead point was drawn from
-        self.saved_it = []  # iteration the live (now dead) point was proposed
-        self.saved_bounditer = []  # active bound at a specific iteration
-        self.saved_scale = []  # scale factor at each iteration
+        self.saved_run = RunRecord()
 
     def __getstate__(self):
         """Get state information for pickling."""
@@ -205,54 +220,46 @@ class Sampler(object):
         self.added_live = False
 
         # results
-        self.saved_id = []
-        self.saved_u = []
-        self.saved_v = []
-        self.saved_logl = []
-        self.saved_logvol = []
-        self.saved_logwt = []
-        self.saved_logz = []
-        self.saved_logzvar = []
-        self.saved_h = []
-        self.saved_nc = []
-        self.saved_boundidx = []
-        self.saved_it = []
-        self.saved_bounditer = []
-        self.saved_scale = []
+        self.saved_run = RunRecord()
 
     @property
     def results(self):
         """Saved results from the nested sampling run. If bounding
         distributions were saved, those are also returned."""
 
+        d = {}
+        for k in [
+                'nc', 'v', 'id', 'it', 'u', 'logwt', 'logl', 'logvol', 'logz',
+                'logzvar', 'h'
+        ]:
+            d[k] = np.array(self.saved_run.D[k])
+
         # Add all saved samples to the results.
         if self.save_samples:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 results = [('nlive', self.nlive), ('niter', self.it - 1),
-                           ('ncall', np.array(self.saved_nc)),
-                           ('eff', self.eff),
-                           ('samples', np.array(self.saved_v)),
-                           ('samples_id', np.array(self.saved_id)),
-                           ('samples_it', np.array(self.saved_it)),
-                           ('samples_u', np.array(self.saved_u)),
-                           ('logwt', np.array(self.saved_logwt)),
-                           ('logl', np.array(self.saved_logl)),
-                           ('logvol', np.array(self.saved_logvol)),
-                           ('logz', np.array(self.saved_logz)),
-                           ('logzerr', np.sqrt(np.array(self.saved_logzvar))),
-                           ('information', np.array(self.saved_h))]
+                           ('ncall', d['nc']), ('eff', self.eff),
+                           ('samples', d['v'])]
+                for k in ['id', 'it', 'u']:
+                    results.append(('samples_' + k, d[k]))
+                for k in ['logwt', 'logl', 'logvol', 'logz']:
+                    results.append((k, d[k]))
+                results.append(('logzerr', np.sqrt(d['logzvar'])))
+                results.append(('information', d['h']))
         else:
             raise ValueError("You didn't save any samples!")
 
         # Add any saved bounds (and ancillary quantities) to the results.
         if self.save_bounds:
             results.append(('bound', copy.deepcopy(self.bound)))
-            results.append(
-                ('bound_iter', np.array(self.saved_bounditer, dtype='int')))
-            results.append(
-                ('samples_bound', np.array(self.saved_boundidx, dtype='int')))
-            results.append(('scale', np.array(self.saved_scale)))
+            results.append(('bound_iter',
+                            np.array(self.saved_run.D['bounditer'],
+                                     dtype='int')))
+            results.append(('samples_bound',
+                            np.array(self.saved_run.D['boundidx'],
+                                     dtype='int')))
+            results.append(('scale', np.array(self.saved_run.D['scale'])))
 
         return Results(results)
 
@@ -266,13 +273,13 @@ class Sampler(object):
 
         """
 
-        if (len(self.saved_logwt) == 0) or (np.max(self.saved_logwt) >
-                                            0.01 * np.nan_to_num(-np.inf)):
+        if (len(self.saved_run.D['logwt']) == 0) or (np.max(
+                self.saved_run.D['logwt']) > 0.01 * np.nan_to_num(-np.inf)):
             # If there are no saved weights, or its -inf return 0.
             return 0
         else:
             # Otherwise, compute Kish ESS.
-            logwts = np.array(self.saved_logwt)
+            logwts = np.array(self.saved_run.D['logwt'])
             logneff = logsumexp(logwts) * 2 - logsumexp(logwts * 2)
             return np.exp(logneff)
 
@@ -423,10 +430,11 @@ class Sampler(object):
         # within the remaining volume so that the expected volume enclosed
         # by the `i`-th worst likelihood is
         # `e^(-N / nlive) * (nlive + 1 - i) / (nlive + 1)`.
-        logvols = self.saved_logvol[-1]
+        logvols = self.saved_run.D['logvol'][-1]
         logvols += np.log(1. - (np.arange(self.nlive) + 1.) /
                           (self.nlive + 1.))
-        logvols_pad = np.concatenate(([self.saved_logvol[-1]], logvols))
+        logvols_pad = np.concatenate(
+            ([self.saved_run.D['logvol'][-1]], logvols))
         logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
                              axis=1,
                              b=np.c_[np.ones(self.nlive),
@@ -441,10 +449,10 @@ class Sampler(object):
         loglmax = max(self.live_logl)
 
         # Grabbing relevant values from the last dead point.
-        logz = self.saved_logz[-1]
-        logzvar = self.saved_logzvar[-1]
-        h = self.saved_h[-1]
-        loglstar = self.saved_logl[-1]
+        logz = self.saved_run.D['logz'][-1]
+        logzvar = self.saved_run.D['logzvar'][-1]
+        h = self.saved_run.D['h'][-1]
+        loglstar = self.saved_run.D['logl'][-1]
         if self._beyond_unit_bound(loglstar):
             bounditer = self.nbound - 1
         else:
@@ -481,20 +489,21 @@ class Sampler(object):
 
             # Save results.
             if self.save_samples:
-                self.saved_id.append(idx)
-                self.saved_u.append(ustar)
-                self.saved_v.append(vstar)
-                self.saved_logl.append(loglstar)
-                self.saved_logvol.append(logvol)
-                self.saved_logwt.append(logwt)
-                self.saved_logz.append(logz)
-                self.saved_logzvar.append(logzvar)
-                self.saved_h.append(h)
-                self.saved_nc.append(1)
-                self.saved_boundidx.append(boundidx)
-                self.saved_it.append(point_it)
-                self.saved_bounditer.append(bounditer)
-                self.saved_scale.append(self.scale)
+                self.saved_run.append(
+                    dict(id=idx,
+                         u=ustar,
+                         v=vstar,
+                         logl=loglstar,
+                         logvol=logvol,
+                         logwt=logwt,
+                         logz=logz,
+                         logzvar=logzvar,
+                         h=h,
+                         nc=1,
+                         boundidx=boundidx,
+                         it=point_it,
+                         bounditer=bounditer,
+                         scale=self.scale))
             self.eff = 100. * (self.it + i) / self.ncall  # efficiency
 
             # Return our new "dead" point and ancillary quantities.
@@ -508,20 +517,12 @@ class Sampler(object):
         if self.added_live:
             self.added_live = False
             if self.save_samples:
-                del self.saved_id[-self.nlive:]
-                del self.saved_u[-self.nlive:]
-                del self.saved_v[-self.nlive:]
-                del self.saved_logl[-self.nlive:]
-                del self.saved_logvol[-self.nlive:]
-                del self.saved_logwt[-self.nlive:]
-                del self.saved_logz[-self.nlive:]
-                del self.saved_logzvar[-self.nlive:]
-                del self.saved_h[-self.nlive:]
-                del self.saved_nc[-self.nlive:]
-                del self.saved_boundidx[-self.nlive:]
-                del self.saved_it[-self.nlive:]
-                del self.saved_bounditer[-self.nlive:]
-                del self.saved_scale[-self.nlive:]
+                for k in [
+                        'id', 'u', 'v', 'logl', 'logvol', 'logwt', 'logz',
+                        'logzvar', 'h', 'nc', 'boundidx', 'it', 'bounditer',
+                        'scale'
+                ]:
+                    del self.saved_run.D[k][-self.nlive:]
         else:
             raise ValueError("No live points were added to the "
                              "list of samples!")
@@ -670,10 +671,10 @@ class Sampler(object):
                 self._remove_live_points()
 
             # Get final state from previous run.
-            h = self.saved_h[-1]  # information
-            logz = self.saved_logz[-1]  # ln(evidence)
-            logzvar = self.saved_logzvar[-1]  # var[ln(evidence)]
-            logvol = self.saved_logvol[-1]  # ln(volume)
+            h = self.saved_run.D['h'][-1]  # information
+            logz = self.saved_run.D['logz'][-1]  # ln(evidence)
+            logzvar = self.saved_run.D['logzvar'][-1]  # var[ln(evidence)]
+            logvol = self.saved_run.D['logvol'][-1]  # ln(volume)
             loglstar = min(self.live_logl)  # ln(likelihood)
             delta_logz = np.logaddexp(
                 logz,
@@ -684,25 +685,22 @@ class Sampler(object):
 
             # Stopping criterion 1: current number of iterations
             # exceeds `maxiter`.
+            add_info = dict(logz=logz,
+                            logzvar=logzvar,
+                            h=h,
+                            logvol=logvol,
+                            logl=loglstar)
             if it > maxiter:
                 # If dumping past states, save only the required quantities.
                 if not self.save_samples:
-                    self.saved_logz.append(logz)
-                    self.saved_logzvar.append(logzvar)
-                    self.saved_h.append(h)
-                    self.saved_logvol.append(logvol)
-                    self.saved_logl.append(loglstar)
+                    self.saved_run.append(add_info)
                 break
 
             # Stopping criterion 2: current number of `loglikelihood`
             # calls exceeds `maxcall`.
             if ncall > maxcall:
                 if not self.save_samples:
-                    self.saved_logz.append(logz)
-                    self.saved_logzvar.append(logzvar)
-                    self.saved_h.append(h)
-                    self.saved_logvol.append(logvol)
-                    self.saved_logl.append(loglstar)
+                    self.saved_run.append(add_info)
                 break
 
             # Stopping criterion 3: estimated (fractional) remaining evidence
@@ -712,22 +710,14 @@ class Sampler(object):
             if dlogz is not None:
                 if delta_logz < dlogz:
                     if not self.save_samples:
-                        self.saved_logz.append(logz)
-                        self.saved_logzvar.append(logzvar)
-                        self.saved_h.append(h)
-                        self.saved_logvol.append(logvol)
-                        self.saved_logl.append(loglstar)
+                        self.saved_run.append(add_info)
                     break
 
             # Stopping criterion 4: last dead point exceeded the upper
             # `logl_max` bound.
             if loglstar > logl_max:
                 if not self.save_samples:
-                    self.saved_logz.append(logz)
-                    self.saved_logzvar.append(logzvar)
-                    self.saved_h.append(h)
-                    self.saved_logvol.append(logvol)
-                    self.saved_logl.append(loglstar)
+                    self.saved_run.append(add_info)
                 break
 
             # Stopping criterion 5: the number of effective posterior
@@ -743,11 +733,7 @@ class Sampler(object):
                         neff = self.n_effective
                     if neff > n_effective:
                         if not self.save_samples:
-                            self.saved_logz.append(logz)
-                            self.saved_logzvar.append(logzvar)
-                            self.saved_h.append(h)
-                            self.saved_logvol.append(logvol)
-                            self.saved_logl.append(loglstar)
+                            self.saved_run.append(add_info)
                         break
 
             # Expected ln(volume) shrinkage.
@@ -809,20 +795,19 @@ class Sampler(object):
 
             # Save the worst live point. It is now a "dead" point.
             if self.save_samples:
-                self.saved_id.append(worst)
-                self.saved_u.append(ustar)
-                self.saved_v.append(vstar)
-                self.saved_logl.append(loglstar)
-                self.saved_logvol.append(logvol)
-                self.saved_logwt.append(logwt)
-                self.saved_logz.append(logz)
-                self.saved_logzvar.append(logzvar)
-                self.saved_h.append(h)
-                self.saved_nc.append(nc)
-                self.saved_boundidx.append(boundidx)
-                self.saved_it.append(worst_it)
-                self.saved_bounditer.append(bounditer)
-                self.saved_scale.append(self.scale)
+                self.saved_run.append(
+                    dict(id=worst,
+                         u=ustar,
+                         v=vstar,
+                         logl=loglstar,
+                         logvol=logvol,
+                         logz=logz,
+                         logzval=logzvar,
+                         h=h,
+                         nc=nc,
+                         it=worst_it,
+                         bounditer=bounditer,
+                         scale=self.scale))
 
             # Update the live point (previously our "worst" point).
             self.live_u[worst] = u

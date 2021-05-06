@@ -1278,8 +1278,8 @@ class DynamicSampler(object):
 
             add_info = {}
             for k in [
-                    'id', 'u', 'v', 'logl', 'nc', 'boundidx'
-                    'it', 'bounditer', 'scale', 'batch'
+                    'id', 'u', 'v', 'logl', 'nc', 'boundidx', 'it',
+                    'bounditer', 'scale', 'batch'
             ]:
                 add_info[k] = add_source[k][add_idx]
             self.saved_run.append(add_info)

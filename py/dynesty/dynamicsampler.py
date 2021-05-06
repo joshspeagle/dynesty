@@ -1265,24 +1265,26 @@ class DynamicSampler(object):
                 # If instead our collection of dead points are below
                 # the bound, just use our collection of saved samples.
                 nlive = nlive_s
+            add_info = {}
+
             # Increment our position along depending on
             # which dead point (saved or new) is worse.
             if logl_s <= logl_n:
+                add_info['batch'] = saved_d['batch'][idx_saved]
                 add_source = saved_d
                 add_idx = int(idx_saved)
                 idx_saved += 1
             else:
+                add_info['batch'] = self.batch + 1
                 add_source = new_d
                 add_idx = int(idx_new)
                 idx_new += 1
 
-            add_info = {}
             for k in [
                     'id', 'u', 'v', 'logl', 'nc', 'boundidx', 'it',
                     'bounditer', 'scale'
             ]:
                 add_info[k] = add_source[k][add_idx]
-            add_info['batch'] = self.batch + 1
             self.saved_run.append(add_info)
 
             # Save the number of live points and expected ln(volume).

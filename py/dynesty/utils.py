@@ -564,7 +564,7 @@ def resample_run(res, rstate=None, return_idx=False):
         samples_batch = res.samples_batch
         batch_bounds = res.batch_bounds
         added_final_live = True
-    except:
+    except AttributeError:
         # If the number of live points is constant, compute `samples_n` and
         # set up the `added_final_live` flag.
         nlive = res.nlive

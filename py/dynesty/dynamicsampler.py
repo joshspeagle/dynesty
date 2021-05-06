@@ -497,7 +497,7 @@ class DynamicSampler(object):
                 'nc', 'v', 'id', 'batch', 'it', 'u', 'n', 'logwt', 'logl',
                 'logvol', 'logz', 'logzvar', 'h', 'batch_nlive', 'batch_bounds'
         ]:
-            d = np.array(self.saved_run.D[k])
+            d[k] = np.array(self.saved_run.D[k])
 
         # Add all saved samples (and ancillary quantities) to the results.
         with warnings.catch_warnings():
@@ -517,9 +517,11 @@ class DynamicSampler(object):
         # Add any saved bounds (and ancillary quantities) to the results.
         if self.sampler.save_bounds:
             results.append(('bound', copy.deepcopy(self.bound)))
-            results.append(('bound_iter', d['bounditer']))
-            results.append(('samples_bound', d['boundidx']))
-            results.append(('scale', d['scale']))
+            results.append(
+                ('bound_iter', np.array(self.saved_run.D['bounditer'])))
+            results.append(
+                ('samples_bound', np.array(self.saved_run.D['boundidx'])))
+            results.append(('scale', np.array(self.saved_run.D['scale'])))
 
         return Results(results)
 

@@ -283,6 +283,33 @@ def stopping_function(results, args=None, rstate=None, M=None,
     else:
         return stop <= 1.
 
+class RunRecord:
+    def __init__(self):
+        # results
+        self.D = {}
+        D['id'] = []  # live point labels
+        D['u'] = []  # unit cube samples
+        D['v'] = []  # transformed variable samples
+        D['logl'] = []  # loglikelihoods of samples
+        D['logvol'] = []  # expected ln(volume)
+        D['logwt']= []  # ln(weights)
+        D['logz'] = []  # cumulative ln(evidence)
+        D['logzvar'] = []  # cumulative error on ln(evidence)
+        D['h'] = []  # cumulative information
+        D['nc'] = []  # number of calls at each iteration
+        D['boundidx'] = []  # index of bound dead point was drawn from
+        D['it'] = []  # iteration the live (now dead) point was proposed
+        D['n'] = []  # number of live points interior to dead point
+        D['bounditer'] = []  # active bound at a specific iteration
+        D['scale'] = []  # scale factor at each iteration
+        D['batch'] = []  # live point batch ID
+        D['batch_nlive'] = []  # number of live points added in batch
+        D['batch_bounds'] = []  # loglikelihood bounds used in batch
+
+    def append(self, newD):
+        for k in newD.keys():
+            self.D[k].append(newD[k])
+
 
 class DynamicSampler(object):
     """
@@ -405,54 +432,10 @@ class DynamicSampler(object):
         self.eff = 1.  # sampling efficiency
         self.base = False  # base run complete
 
-        # results
-        self.saved_id = []  # live point labels
-        self.saved_u = []  # unit cube samples
-        self.saved_v = []  # transformed variable samples
-        self.saved_logl = []  # loglikelihoods of samples
-        self.saved_logvol = []  # expected ln(volume)
-        self.saved_logwt = []  # ln(weights)
-        self.saved_logz = []  # cumulative ln(evidence)
-        self.saved_logzvar = []  # cumulative error on ln(evidence)
-        self.saved_h = []  # cumulative information
-        self.saved_nc = []  # number of calls at each iteration
-        self.saved_boundidx = []  # index of bound dead point was drawn from
-        self.saved_it = []  # iteration the live (now dead) point was proposed
-        self.saved_n = []  # number of live points interior to dead point
-        self.saved_bounditer = []  # active bound at a specific iteration
-        self.saved_scale = []  # scale factor at each iteration
-        self.saved_batch = []  # live point batch ID
-        self.saved_batch_nlive = []  # number of live points added in batch
-        self.saved_batch_bounds = []  # loglikelihood bounds used in batch
+        self.saved_run = RunRecord()
+        self.base_run = RunRecord()
+        self.new_run = RunRecord()
 
-        # results from our base run
-        self.base_id = []
-        self.base_u = []
-        self.base_v = []
-        self.base_logl = []
-        self.base_logvol = []
-        self.base_logwt = []
-        self.base_logz = []
-        self.base_logzvar = []
-        self.base_h = []
-        self.base_nc = []
-        self.base_boundidx = []
-        self.base_it = []
-        self.base_n = []
-        self.base_bounditer = []
-        self.base_scale = []
-
-        # results from our most recent addition
-        self.new_id = []
-        self.new_u = []
-        self.new_v = []
-        self.new_logl = []
-        self.new_nc = []
-        self.new_it = []
-        self.new_n = []
-        self.new_boundidx = []
-        self.new_bounditer = []
-        self.new_scale = []
         self.new_logl_min, self.new_logl_max = -np.inf, np.inf  # logl bounds
 
     def __getstate__(self):
@@ -490,54 +473,9 @@ class DynamicSampler(object):
         self.eff = 1.
         self.base = False
 
-        # results
-        self.saved_id = []
-        self.saved_u = []
-        self.saved_v = []
-        self.saved_logl = []
-        self.saved_logvol = []
-        self.saved_logwt = []
-        self.saved_logz = []
-        self.saved_logzvar = []
-        self.saved_h = []
-        self.saved_nc = []
-        self.saved_boundidx = []
-        self.saved_it = []
-        self.saved_n = []
-        self.saved_bounditer = []
-        self.saved_scale = []
-        self.saved_batch = []
-        self.saved_batch_nlive = []
-        self.saved_batch_bounds = []
-
-        # results from our base run
-        self.base_id = []
-        self.base_u = []
-        self.base_v = []
-        self.base_logl = []
-        self.base_logvol = []
-        self.base_logwt = []
-        self.base_logz = []
-        self.base_logzvar = []
-        self.base_h = []
-        self.base_nc = []
-        self.base_boundidx = []
-        self.base_it = []
-        self.base_n = []
-        self.base_bounditer = []
-        self.base_scale = []
-
-        # results from our most recent addition
-        self.new_id = []
-        self.new_u = []
-        self.new_v = []
-        self.new_logl = []
-        self.new_nc = []
-        self.new_it = []
-        self.new_n = []
-        self.new_boundidx = []
-        self.new_bounditer = []
-        self.new_scale = []
+        self.saved_run = RunRecord()
+        self.base_run = RunRecord()
+        self.new_run = RunRecord()
         self.new_logl_min, self.new_logl_max = -np.inf, np.inf
 
     @property
@@ -549,33 +487,34 @@ class DynamicSampler(object):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             results = [('niter', self.it - 1),
-                       ('ncall', np.array(self.saved_nc)),
+                       ('ncall', np.array(self.saved_run['nc'])),
                        ('eff', self.eff),
-                       ('samples', np.array(self.saved_v)),
-                       ('samples_id', np.array(self.saved_id)),
-                       ('samples_batch', np.array(self.saved_batch,
+                       ('samples', np.array(self.saved_run['v'])),
+                       ('samples_id', np.array(self.saved_run['id'])),
+                       ('samples_batch', np.array(self.saved_run['batch'],
                                                   dtype='int')),
-                       ('samples_it', np.array(self.saved_it)),
-                       ('samples_u', np.array(self.saved_u)),
-                       ('samples_n', np.array(self.saved_n)),
-                       ('logwt', np.array(self.saved_logwt)),
-                       ('logl', np.array(self.saved_logl)),
-                       ('logvol', np.array(self.saved_logvol)),
-                       ('logz', np.array(self.saved_logz)),
-                       ('logzerr', np.sqrt(np.array(self.saved_logzvar))),
-                       ('information', np.array(self.saved_h)),
-                       ('batch_nlive', np.array(self.saved_batch_nlive,
+                       ('samples_it', np.array(self.saved_run['it'])),
+                       ('samples_u', np.array(self.saved_run['u'])),
+                       ('samples_n', np.array(self.saved_run['n'])),
+                       ('logwt', np.array(self.saved_run['logwt'])),
+                       ('logl', np.array(self.saved_run['logl'])),
+                       ('logvol', np.array(self.saved_run['logvol'])),
+                       ('logz', np.array(self.saved_run['logz'])),
+                       ('logzerr', np.sqrt(
+                           np.array(self.saved_run['logzvar']))),
+                       ('information', np.array(self.saved_run['h'])),
+                       ('batch_nlive', np.array(self.saved_run['batch_nlive'],
                                                 dtype='int')),
-                       ('batch_bounds', np.array(self.saved_batch_bounds))]
+                       ('batch_bounds', np.array(self.saved_run['batch_bounds']))]
 
         # Add any saved bounds (and ancillary quantities) to the results.
         if self.sampler.save_bounds:
             results.append(('bound', copy.deepcopy(self.bound)))
             results.append(('bound_iter',
-                            np.array(self.saved_bounditer, dtype='int')))
+                            np.array(self.saved_run['bounditer'], dtype='int')))
             results.append(('samples_bound',
-                            np.array(self.saved_boundidx, dtype='int')))
-            results.append(('scale', np.array(self.saved_scale)))
+                            np.array(self.saved_run['boundidx'], dtype='int')))
+            results.append(('scale', np.array(self.saved_run['scale'])))
 
         return Results(results)
 
@@ -589,12 +528,12 @@ class DynamicSampler(object):
 
         """
 
-        if len(self.saved_logwt) == 0:
+        if len(self.saved_run['logwt']) == 0:
             # If there are no saved weights, return 0.
             return 0
         else:
             # Otherwise, compute Kish ESS.
-            logwts = np.array(self.saved_logwt)
+            logwts = np.array(self.saved_run['logwt'])
             logneff = logsumexp(logwts) * 2 - logsumexp(logwts * 2)
             return np.exp(logneff)
 
@@ -611,7 +550,7 @@ class DynamicSampler(object):
     def sample_initial(self, nlive=500, update_interval=None,
                        first_update=None, maxiter=None, maxcall=None,
                        logl_max=np.inf, dlogz=0.01, n_effective=np.inf,
-                       live_points=None, save_samples=False, \
+                       live_points=None, save_samples=False,
                        resume=False):
         """
         Generate a series of initial samples from a nested sampling
@@ -841,38 +780,25 @@ class DynamicSampler(object):
                  eff, delta_logz) = results
 
                 # Save our base run (which we will use later).
-                self.base_id.append(worst)
-                self.base_u.append(ustar)
-                self.base_v.append(vstar)
-                self.base_logl.append(loglstar)
-                self.base_logvol.append(logvol)
-                self.base_logwt.append(logwt)
-                self.base_logz.append(logz)
-                self.base_logzvar.append(logzvar)
-                self.base_h.append(h)
-                self.base_nc.append(nc)
-                self.base_it.append(worst_it)
-                self.base_n.append(self.nlive_init)
-                self.base_boundidx.append(boundidx)
-                self.base_bounditer.append(bounditer)
-                self.base_scale.append(self.sampler.scale)
+                add_info = dict(
+                    id=worst,
+                    u=ustar,
+                    v=vstar,
+                    logl=loglstar,
+                    logwt=logwt,
+                    logz=logz,
+                    logzvar=logzvar,
+                    h=h,
+                    nc=nc,
+                    it=worst_it,
+                    n=nlive_init,
+                    boundidx=boundidx,
+                    bounditer=bounditer,
+                    scale=self.sampler.scale)
 
-                # Save a copy of the results.
-                self.saved_id.append(worst)
-                self.saved_u.append(ustar)
-                self.saved_v.append(vstar)
-                self.saved_logl.append(loglstar)
-                self.saved_logvol.append(logvol)
-                self.saved_logwt.append(logwt)
-                self.saved_logz.append(logz)
-                self.saved_logzvar.append(logzvar)
-                self.saved_h.append(h)
-                self.saved_nc.append(nc)
-                self.saved_it.append(worst_it)
-                self.saved_n.append(self.nlive_init)
-                self.saved_boundidx.append(boundidx)
-                self.saved_bounditer.append(bounditer)
-                self.saved_scale.append(self.sampler.scale)
+                self.base_run.append(add_info)
+                self.saved_run.append(add_info)
+
 
                 # Increment relevant counters.
                 self.ncall += nc
@@ -889,39 +815,25 @@ class DynamicSampler(object):
                  logz, logzvar, h, nc, worst_it, boundidx, bounditer,
                  eff, delta_logz) = results
 
-                # Save our base run (which we will use later).
-                self.base_id.append(worst)
-                self.base_u.append(ustar)
-                self.base_v.append(vstar)
-                self.base_logl.append(loglstar)
-                self.base_logvol.append(logvol)
-                self.base_logwt.append(logwt)
-                self.base_logz.append(logz)
-                self.base_logzvar.append(logzvar)
-                self.base_h.append(h)
-                self.base_nc.append(nc)
-                self.base_it.append(worst_it)
-                self.base_n.append(self.nlive_init - it)
-                self.base_boundidx.append(boundidx)
-                self.base_bounditer.append(bounditer)
-                self.base_scale.append(self.sampler.scale)
+                add_info = dict(
+                    id=worst,
+                    u=ustar,
+                    v=vstar,
+                    logl=loglstar,
+                    logwt=logwt,
+                    logz=logz,
+                    logzvar=logzvar,
+                    h=h,
+                    nc=nc,
+                    it=worst_it,
+                    n=self.nlive_init - it,
+                    boundidx=boundidx,
+                    bounditer=bounditer,
+                    scale=self.sampler.scale)
+ 
+                self.base_run.append(add_info)
+                self.saved_run.append(add_info)
 
-                # Save a copy of the results.
-                self.saved_id.append(worst)
-                self.saved_u.append(ustar)
-                self.saved_v.append(vstar)
-                self.saved_logl.append(loglstar)
-                self.saved_logvol.append(logvol)
-                self.saved_logwt.append(logwt)
-                self.saved_logz.append(logz)
-                self.saved_logzvar.append(logzvar)
-                self.saved_h.append(h)
-                self.saved_nc.append(nc)
-                self.saved_it.append(worst_it)
-                self.saved_n.append(self.nlive_init - it)
-                self.saved_boundidx.append(boundidx)
-                self.saved_bounditer.append(bounditer)
-                self.saved_scale.append(self.sampler.scale)
 
                 # Increment relevant counters.
                 self.eff = 100. * self.it / self.ncall

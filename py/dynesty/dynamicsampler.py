@@ -1279,9 +1279,10 @@ class DynamicSampler(object):
             add_info = {}
             for k in [
                     'id', 'u', 'v', 'logl', 'nc', 'boundidx', 'it',
-                    'bounditer', 'scale', 'batch'
+                    'bounditer', 'scale'
             ]:
                 add_info[k] = add_source[k][add_idx]
+            add_info['batch'] = self.batch + 1
             self.saved_run.append(add_info)
 
             # Save the number of live points and expected ln(volume).

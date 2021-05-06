@@ -802,7 +802,7 @@ class Sampler(object):
                          logl=loglstar,
                          logvol=logvol,
                          logz=logz,
-                         logzval=logzvar,
+                         logzvar=logzvar,
                          h=h,
                          nc=nc,
                          it=worst_it,

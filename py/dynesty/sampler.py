@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 """
 The base `Sampler` class containing various helpful functions. All other
 samplers inherit this class either explicitly or implicitly.
@@ -82,10 +81,9 @@ class Sampler(object):
         should be used to execute operations in parallel.
 
     """
-
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
-                 update_interval, first_update, rstate,
-                 queue_size, pool, use_pool, ncdim):
+                 update_interval, first_update, rstate, queue_size, pool,
+                 use_pool, ncdim):
 
         # distributions
         self.loglikelihood = loglikelihood
@@ -159,9 +157,10 @@ class Sampler(object):
 
         state = self.__dict__.copy()
 
-        #attempt to remove from internal sampler, if not dealt within DynamicSampler class
+        # attempt to remove from internal sampler, if not dealt within
+        # DynamicSampler class
         try:
-            #remove random module
+            # remove random module
             del state['rstate']
 
             # deal with pool
@@ -180,12 +179,12 @@ class Sampler(object):
         self.live_u = self.rstate.rand(self.nlive, self.npdim)
         if self.use_pool_ptform:
             # Use the pool to compute the prior transform.
-            self.live_v = np.array(list(self.M(self.prior_transform,
-                                        np.array(self.live_u))))
+            self.live_v = np.array(
+                list(self.M(self.prior_transform, np.array(self.live_u))))
         else:
             # Compute the prior transform using the default `map` function.
-            self.live_v = np.array(list(map(self.prior_transform,
-                                            np.array(self.live_u))))
+            self.live_v = np.array(
+                list(map(self.prior_transform, np.array(self.live_u))))
         self.live_logl = self.loglikelihood.map(np.array(self.live_v))
 
         self.live_bound = np.zeros(self.nlive, dtype='int')
@@ -230,8 +229,7 @@ class Sampler(object):
         if self.save_samples:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                results = [('nlive', self.nlive),
-                           ('niter', self.it - 1),
+                results = [('nlive', self.nlive), ('niter', self.it - 1),
                            ('ncall', np.array(self.saved_nc)),
                            ('eff', self.eff),
                            ('samples', np.array(self.saved_v)),
@@ -250,10 +248,10 @@ class Sampler(object):
         # Add any saved bounds (and ancillary quantities) to the results.
         if self.save_bounds:
             results.append(('bound', copy.deepcopy(self.bound)))
-            results.append(('bound_iter',
-                            np.array(self.saved_bounditer, dtype='int')))
-            results.append(('samples_bound',
-                            np.array(self.saved_boundidx, dtype='int')))
+            results.append(
+                ('bound_iter', np.array(self.saved_bounditer, dtype='int')))
+            results.append(
+                ('samples_bound', np.array(self.saved_boundidx, dtype='int')))
             results.append(('scale', np.array(self.saved_scale)))
 
         return Results(results)
@@ -295,8 +293,8 @@ class Sampler(object):
         if self.logl_first_update is None:
             # If we haven't already updated our bounds, check if we satisfy
             # the provided criteria for establishing the first bounding update.
-            check = (self.ncall > self.ubound_ncall and
-                     self.eff < self.ubound_eff)
+            check = (self.ncall > self.ubound_ncall
+                     and self.eff < self.ubound_eff)
             if check:
                 # Save the log-likelihood where our first update took place.
                 self.logl_first_update = loglstar
@@ -316,7 +314,7 @@ class Sampler(object):
                 self.queue.pop()
                 self.unused += 1  # add to the total number of unused points
                 self.nqueue -= 1
-            except:
+            except IndexError:
                 # If the queue is empty, we're done!
                 self.nqueue = 0
                 break
@@ -345,8 +343,8 @@ class Sampler(object):
         ptforms = [self.prior_transform for i in range(self.queue_size)]
         logls = [self.loglikelihood for i in range(self.queue_size)]
         kwargs = [self.kwargs for i in range(self.queue_size)]
-        args = zip(point_queue, loglstars, axes_queue,
-                   scales, ptforms, logls, kwargs)
+        args = zip(point_queue, loglstars, axes_queue, scales, ptforms, logls,
+                   kwargs)
 
         if self.use_pool_evolve:
             # Use the pool to propose ("evolve") a new live point.
@@ -426,11 +424,13 @@ class Sampler(object):
         # by the `i`-th worst likelihood is
         # `e^(-N / nlive) * (nlive + 1 - i) / (nlive + 1)`.
         logvols = self.saved_logvol[-1]
-        logvols += np.log(1. - (np.arange(self.nlive)+1.) / (self.nlive+1.))
+        logvols += np.log(1. - (np.arange(self.nlive) + 1.) /
+                          (self.nlive + 1.))
         logvols_pad = np.concatenate(([self.saved_logvol[-1]], logvols))
         logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
-                             axis=1, b=np.c_[np.ones(self.nlive),
-                                             -np.ones(self.nlive)])
+                             axis=1,
+                             b=np.c_[np.ones(self.nlive),
+                                     -np.ones(self.nlive)])
         logdvols += math.log(0.5)
 
         # Defining change in `logvol` used in `logzvar` approximation.
@@ -469,9 +469,8 @@ class Sampler(object):
             logz_new = np.logaddexp(logz, logwt)  # ln(evidence)
             lzterm = (math.exp(loglstar - logz_new) * loglstar +
                       math.exp(loglstar_new - logz_new) * loglstar_new)
-            h_new = (math.exp(logdvol) * lzterm +
-                     math.exp(logz - logz_new) * (h + logz) -
-                     logz_new)  # information
+            h_new = (math.exp(logdvol) * lzterm + math.exp(logz - logz_new) *
+                     (h + logz) - logz_new)  # information
             dh = h_new - h
             h = h_new
             logz = logz_new
@@ -499,9 +498,8 @@ class Sampler(object):
             self.eff = 100. * (self.it + i) / self.ncall  # efficiency
 
             # Return our new "dead" point and ancillary quantities.
-            yield (idx, ustar, vstar, loglstar, logvol, logwt,
-                   logz, logzvar, h, 1, point_it, boundidx, bounditer,
-                   self.eff, delta_logz)
+            yield (idx, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
+                   h, 1, point_it, boundidx, bounditer, self.eff, delta_logz)
 
     def _remove_live_points(self):
         """Remove the final set of live points if they were
@@ -528,9 +526,15 @@ class Sampler(object):
             raise ValueError("No live points were added to the "
                              "list of samples!")
 
-    def sample(self, maxiter=None, maxcall=None, dlogz=0.01,
-               logl_max=np.inf, n_effective=np.inf, add_live=True,
-               save_bounds=True, save_samples=True):
+    def sample(self,
+               maxiter=None,
+               maxcall=None,
+               dlogz=0.01,
+               logl_max=np.inf,
+               n_effective=np.inf,
+               add_live=True,
+               save_bounds=True,
+               save_samples=True):
         """
         **The main nested sampling loop.** Iteratively replace the worst live
         point with a sample drawn uniformly from the prior until the
@@ -671,8 +675,9 @@ class Sampler(object):
             logzvar = self.saved_logzvar[-1]  # var[ln(evidence)]
             logvol = self.saved_logvol[-1]  # ln(volume)
             loglstar = min(self.live_logl)  # ln(likelihood)
-            delta_logz = np.logaddexp(logz, np.max(self.live_logl) +
-                                      logvol) - logz  # log-evidence ratio
+            delta_logz = np.logaddexp(
+                logz,
+                np.max(self.live_logl) + logvol) - logz  # log-evidence ratio
 
         # The main nested sampling loop.
         for it in range(sys.maxsize):
@@ -788,9 +793,8 @@ class Sampler(object):
             logz_new = np.logaddexp(logz, logwt)
             lzterm = (math.exp(loglstar - logz_new) * loglstar +
                       math.exp(loglstar_new - logz_new) * loglstar_new)
-            h_new = (math.exp(logdvol) * lzterm +
-                     math.exp(logz - logz_new) * (h + logz) -
-                     logz_new)
+            h_new = (math.exp(logdvol) * lzterm + math.exp(logz - logz_new) *
+                     (h + logz) - logz_new)
             dh = h_new - h
             h = h_new
             logz = logz_new
@@ -834,9 +838,8 @@ class Sampler(object):
             self.it += 1
 
             # Return dead point and ancillary quantities.
-            yield (worst, ustar, vstar, loglstar, logvol, logwt,
-                   logz, logzvar, h, nc, worst_it, boundidx, bounditer,
-                   self.eff, delta_logz)
+            yield (worst, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
+                   h, nc, worst_it, boundidx, bounditer, self.eff, delta_logz)
 
     def _get_print_func(self, print_func, print_progress):
         pbar = None
@@ -848,10 +851,16 @@ class Sampler(object):
                 print_func = partial(print_fn, pbar=pbar)
         return pbar, print_func
 
-    def run_nested(self, maxiter=None, maxcall=None, dlogz=None,
-                   logl_max=np.inf, n_effective=None,
-                   add_live=True, print_progress=True,
-                   print_func=None, save_bounds=True):
+    def run_nested(self,
+                   maxiter=None,
+                   maxcall=None,
+                   dlogz=None,
+                   logl_max=np.inf,
+                   n_effective=None,
+                   add_live=True,
+                   print_progress=True,
+                   print_func=None,
+                   save_bounds=True):
         """
         **A wrapper that executes the main nested sampling loop.**
         Iteratively replace the worst live point with a sample drawn
@@ -918,17 +927,18 @@ class Sampler(object):
         pbar, print_func = self._get_print_func(print_func, print_progress)
         try:
             ncall = self.ncall
-            for it, results in enumerate(self.sample(maxiter=maxiter,
-                                                     maxcall=maxcall,
-                                                     dlogz=dlogz,
-                                                     logl_max=logl_max,
-                                                     save_bounds=save_bounds,
-                                                     save_samples=True,
-                                                     n_effective=n_effective,
-                                                     add_live=add_live)):
-                (worst, ustar, vstar, loglstar, logvol, logwt,
-                 logz, logzvar, h, nc, worst_it, boundidx, bounditer,
-                 eff, delta_logz) = results
+            for it, results in enumerate(
+                    self.sample(maxiter=maxiter,
+                                maxcall=maxcall,
+                                dlogz=dlogz,
+                                logl_max=logl_max,
+                                save_bounds=save_bounds,
+                                save_samples=True,
+                                n_effective=n_effective,
+                                add_live=add_live)):
+                (worst, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
+                 h, nc, worst_it, boundidx, bounditer, eff,
+                 delta_logz) = results
                 ncall += nc
                 if delta_logz > 1e6:
                     delta_logz = np.inf
@@ -938,16 +948,19 @@ class Sampler(object):
                 # Print progress.
                 if print_progress:
                     i = self.it - 1
-                    print_func(results, i, ncall, dlogz=dlogz,
+                    print_func(results,
+                               i,
+                               ncall,
+                               dlogz=dlogz,
                                logl_max=logl_max)
 
             # Add remaining live points to samples.
             if add_live:
                 it = self.it - 1
                 for i, results in enumerate(self.add_live_points()):
-                    (worst, ustar, vstar, loglstar, logvol, logwt,
-                     logz, logzvar, h, nc, worst_it, boundidx, bounditer,
-                     eff, delta_logz) = results
+                    (worst, ustar, vstar, loglstar, logvol, logwt, logz,
+                     logzvar, h, nc, worst_it, boundidx, bounditer, eff,
+                     delta_logz) = results
                     if delta_logz > 1e6:
                         delta_logz = np.inf
                     if logz <= -1e6:
@@ -955,8 +968,12 @@ class Sampler(object):
 
                     # Print progress.
                     if print_progress:
-                        print_func(results, it, ncall, add_live_it=i+1,
-                                   dlogz=dlogz, logl_max=logl_max)
+                        print_func(results,
+                                   it,
+                                   ncall,
+                                   add_live_it=i + 1,
+                                   dlogz=dlogz,
+                                   logl_max=logl_max)
         finally:
             if pbar is not None:
                 pbar.close()
@@ -989,9 +1006,9 @@ class Sampler(object):
             ncall = self.ncall
             it = self.it - 1
             for i, results in enumerate(self.add_live_points()):
-                (worst, ustar, vstar, loglstar, logvol, logwt,
-                 logz, logzvar, h, nc, worst_it, boundidx, bounditer,
-                 eff, delta_logz) = results
+                (worst, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
+                 h, nc, worst_it, boundidx, bounditer, eff,
+                 delta_logz) = results
                 if delta_logz > 1e6:
                     delta_logz = np.inf
                 if logz <= -1e6:
@@ -999,7 +1016,11 @@ class Sampler(object):
 
                 # Print progress.
                 if print_progress:
-                    print_func(results, it, ncall, add_live_it=i+1, dlogz=0.01)
+                    print_func(results,
+                               it,
+                               ncall,
+                               add_live_it=i + 1,
+                               dlogz=0.01)
         finally:
             if pbar is not None:
                 pbar.close()

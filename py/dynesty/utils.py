@@ -583,7 +583,6 @@ def resample_run(res, rstate=None, return_idx=False):
         samples_batch = np.zeros(len(samples_n), dtype='int')
         batch_bounds = np.array([(-np.inf, np.inf)])
     batch_llmin = batch_bounds[:, 0]
-
     # Identify unique particles that make up each strand.
     ids = np.unique(res.samples_id)
 

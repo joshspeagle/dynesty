@@ -871,11 +871,6 @@ class DynamicSampler(object):
         self.saved_run.D['batch'] = np.zeros(len(self.saved_run.D['id']),
                                              dtype='int')  # batch
 
-        # TODO  INCORRECT
-        # Likely this is brokwn because these arrays will not have a correct
-        # length
-        # this probably need to be placed in separat arrays tracking
-        # individual batches rather than points
         self.saved_run.D['batch_nlive'].append(
             self.nlive_init)  # initial nlive
         self.saved_run.D['batch_bounds'].append(
@@ -1244,7 +1239,10 @@ class DynamicSampler(object):
         nnew = len(new_d['n'])
         llmin, llmax = self.new_logl_min, self.new_logl_max
 
+        old_batch_bounds = self.saved_run.D['batch_bounds']
+        old_batch_nlive = self.saved_run.D['batch_nlive']
         # Reset saved results.
+        del self.saved_run
         self.saved_run = RunRecord()
 
         # Start our counters at the beginning of each set of dead points.
@@ -1289,7 +1287,7 @@ class DynamicSampler(object):
 
             # Save the number of live points and expected ln(volume).
             logvol -= math.log((nlive + 1.) / nlive)
-            # TODO check the correctness of this
+
             self.saved_run.D['n'].append(nlive)
             self.saved_run.D['logvol'].append(logvol)
 
@@ -1346,8 +1344,9 @@ class DynamicSampler(object):
         self.batch += 1
 
         # Saved batch quantities.
-        self.saved_run.D['batch_nlive'].append(max(new_d['n']))
-        self.saved_run.D['batch_bounds'].append((llmin, llmax))
+        self.saved_run.D['batch_nlive'] = old_batch_nlive + [(max(new_d['n']))]
+        self.saved_run.D['batch_bounds'] = old_batch_bounds + [(
+            (llmin, llmax))]
 
     def _get_print_func(self, print_func, print_progress):
         pbar = None

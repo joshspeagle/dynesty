@@ -312,6 +312,7 @@ class RunRecord:
         D['bounditer'] = []  # active bound at a specific iteration
         D['scale'] = []  # scale factor at each iteration
         D['batch'] = []  # live point batch ID
+        # these are special since their length is == the number of batches
         D['batch_nlive'] = []  # number of live points added in batch
         D['batch_bounds'] = []  # loglikelihood bounds used in batch
         self.D = D
@@ -491,41 +492,34 @@ class DynamicSampler(object):
     def results(self):
         """Saved results from the dynamic nested sampling run. All saved
         bounds are also returned."""
-        saved_run_d = self.saved_run.D
+        d = {}
+        for k in [
+                'nc', 'v', 'id', 'batch', 'it', 'u', 'n', 'logwt', 'logl',
+                'logvol', 'logz', 'logzvar', 'h', 'batch_nlive', 'batch_bounds'
+        ]:
+            d = np.array(self.saved_run.D[k])
 
         # Add all saved samples (and ancillary quantities) to the results.
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            results = [('niter', self.it - 1),
-                       ('ncall', np.array(saved_run_d['nc'])),
-                       ('eff', self.eff),
-                       ('samples', np.array(saved_run_d['v'])),
-                       ('samples_id', np.array(saved_run_d['id'])),
-                       ('samples_batch',
-                        np.array(saved_run_d['batch'], dtype='int')),
-                       ('samples_it', np.array(saved_run_d['it'])),
-                       ('samples_u', np.array(saved_run_d['u'])),
-                       ('samples_n', np.array(saved_run_d['n'])),
-                       ('logwt', np.array(saved_run_d['logwt'])),
-                       ('logl', np.array(saved_run_d['logl'])),
-                       ('logvol', np.array(saved_run_d['logvol'])),
-                       ('logz', np.array(saved_run_d['logz'])),
-                       ('logzerr', np.sqrt(np.array(saved_run_d['logzvar']))),
-                       ('information', np.array(saved_run_d['h'])),
-                       ('batch_nlive',
-                        np.array(saved_run_d['batch_nlive'], dtype='int')),
-                       ('batch_bounds', np.array(saved_run_d['batch_bounds']))]
+            results = [('niter', self.it - 1), ('ncall', d['nc']),
+                       ('eff', self.eff), ('samples', d['v'])]
+            for k in ['id', 'batch', 'it', 'u', 'n']:
+                results.append(('samples_' + k, d[k]))
+            for k in [
+                    'logwt', 'logl', 'logvol', 'logz', 'batch_nlive',
+                    'batch_bounds'
+            ]:
+                results.append((k, d[k]))
+            results.append(('logzerr', np.sqrt(d['logzvar'])))
+            results.append(('information', d['h']))
 
         # Add any saved bounds (and ancillary quantities) to the results.
         if self.sampler.save_bounds:
             results.append(('bound', copy.deepcopy(self.bound)))
-            results.append(
-                ('bound_iter', np.array(saved_run_d['bounditer'],
-                                        dtype='int')))
-            results.append(
-                ('samples_bound', np.array(saved_run_d['boundidx'],
-                                           dtype='int')))
-            results.append(('scale', np.array(saved_run_d['scale'])))
+            results.append(('bound_iter', d['bounditer']))
+            results.append(('samples_bound', d['boundidx']))
+            results.append(('scale', d['scale']))
 
         return Results(results)
 
@@ -1278,16 +1272,12 @@ class DynamicSampler(object):
                 add_idx = int(idx_new)
                 idx_new += 1
 
-            add_info = dict(id=add_source['id'][add_idx],
-                            u=add_source['u'][add_idx],
-                            v=add_source['v'][add_idx],
-                            logl=add_source['logl'][add_idx],
-                            nc=add_source['nc'][add_idx],
-                            boundidx=add_source['boundidx'][add_idx],
-                            it=add_source['it'][add_idx],
-                            bounditer=add_source['bounditer'][add_idx],
-                            scale=add_source['scale'][add_idx],
-                            batch=add_source['batch'][add_idx])
+            add_info = {}
+            for k in [
+                    'id', 'u', 'v', 'logl', 'nc', 'boundidx'
+                    'it', 'bounditer', 'scale', 'batch'
+            ]:
+                add_info[k] = add_source[k][add_idx]
             self.saved_run.append(add_info)
 
             # Save the number of live points and expected ln(volume).
@@ -1301,14 +1291,13 @@ class DynamicSampler(object):
             try:
                 logl_s = saved_d['logl'][idx_saved]
                 nlive_s = saved_d['n'][idx_saved]
-            except:
-                # TODO FIX naked except
+            except IndexError:
                 logl_s = np.inf
                 nlive_s = 0
             try:
                 logl_n = new_d['logl'][idx_new]
                 nlive_n = new_d['n'][idx_new]
-            except:
+            except IndexError:
                 logl_n = np.inf
                 nlive_n = 0
 
@@ -1350,8 +1339,6 @@ class DynamicSampler(object):
         self.batch += 1
 
         # Saved batch quantities.
-        # TODO likely incorrect
-        # probably needs to be moved out saved_run
         self.saved_run.D['batch_nlive'].append(max(new_d['n']))
         self.saved_run.D['batch_bounds'].append((llmin, llmax))
 

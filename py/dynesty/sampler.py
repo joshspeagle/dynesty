@@ -801,6 +801,7 @@ class Sampler(object):
                          v=vstar,
                          logl=loglstar,
                          logvol=logvol,
+                         logwt=logwt,
                          logz=logz,
                          logzvar=logzvar,
                          h=h,

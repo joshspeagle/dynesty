@@ -38,7 +38,7 @@ def test_saving():
                                     sample='unif',
                                     save_history=True,
                                     history_filename=fname)
-    sampler.run_nested(dlogz=0.1, print_progress=printing)
+    sampler.run_nested(dlogz=1, print_progress=printing)
     assert (os.path.exists(fname))
 
 
@@ -57,5 +57,5 @@ def test_saving_pool():
                                     history_filename=fname,
                                     pool=pool,
                                     queue_size=2)
-    sampler.run_nested(dlogz=0.1, print_progress=printing)
+    sampler.run_nested(dlogz=1, print_progress=printing)
     assert (os.path.exists(fname))

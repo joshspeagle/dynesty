@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 """
 A collection of useful functions.
 
@@ -22,12 +21,15 @@ import copy
 
 from .results import Results
 
-__all__ = ["unitcheck", "resample_equal", "mean_and_cov", "quantile",
-           "jitter_run", "resample_run", "simulate_run", "reweight_run",
-           "unravel_run", "merge_runs", "kl_divergence", "kld_error",
-           "_merge_two", "_get_nsamps_samples_n"]
+__all__ = [
+    "unitcheck", "resample_equal", "mean_and_cov", "quantile", "jitter_run",
+    "resample_run", "simulate_run", "reweight_run", "unravel_run",
+    "merge_runs", "kl_divergence", "kld_error", "_merge_two",
+    "_get_nsamps_samples_n"
+]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
+
 
 class LogLikelihood:
     """ Class that calls the likelihood function (using a pool if provided)
@@ -102,8 +104,9 @@ class LogLikelihood:
         try:
             with h5py.File(self.history_filename, mode='w') as fp:
                 fp.create_dataset('param', (self.save_every, self.ndim),
-                              maxshape=(None, self.ndim))
-                fp.create_dataset('logl', (self.save_every, ), maxshape=(None, ))
+                                  maxshape=(None, self.ndim))
+                fp.create_dataset('logl', (self.save_every, ),
+                                  maxshape=(None, ))
         except OSError:
             print('Failed to initialize history file')
             raise
@@ -115,7 +118,7 @@ class LogLikelihood:
         if self.failed_save or not self.save:
             # if failed to save before, do not try again
             # also quickly return if saving is not needed
-            return 
+            return
         import h5py
         try:
             with h5py.File(self.history_filename, mode='a') as fp:
@@ -128,14 +131,16 @@ class LogLikelihood:
                 self.history_logl = []
                 self.history_counter += nadd
         except OSError:
-            warnings.warn('Failed to save history of evaluations. Will not try again.')
+            warnings.warn(
+                'Failed to save history of evaluations. Will not try again.')
             self.failed_save = True
-            
+
     def __getstate__(self):
         """Get state information for pickling."""
         state = self.__dict__.copy()
         del state['pool']
         return state
+
 
 def unitcheck(u, nonbounded=None):
     """Check whether `u` is inside the unit cube. Given a masked array
@@ -147,10 +152,9 @@ def unitcheck(u, nonbounded=None):
         return np.all(u > 0.) and np.all(u < 1.)
     else:
         # Alternating periodic and non-periodic boundary conditions.
-        return (np.all(u[nonbounded] > 0.) and
-                np.all(u[nonbounded] < 1.) and
-                np.all(u[~nonbounded] > -0.5) and
-                np.all(u[~nonbounded] < 1.5))
+        return (np.all(u[nonbounded] > 0.) and np.all(u[nonbounded] < 1.)
+                and np.all(u[~nonbounded] > -0.5)
+                and np.all(u[~nonbounded] < 1.5))
 
 
 def reflect(u):
@@ -356,7 +360,7 @@ def _get_nsamps_samples_n(res):
         # Check if the number of live points explicitly changes.
         samples_n = res.samples_n
         nsamps = len(samples_n)
-    except:
+    except AttributeError:
         # If the number of live points is constant, compute `samples_n`.
         niter = res.niter
         nlive = res.nlive
@@ -364,8 +368,9 @@ def _get_nsamps_samples_n(res):
         if nsamps == niter:
             samples_n = np.ones(niter, dtype='int') * nlive
         elif nsamps == (niter + nlive):
-            samples_n = np.append(np.ones(niter, dtype='int') * nlive,
-                                  np.arange(1, nlive + 1)[::-1])
+            samples_n = np.append(
+                np.ones(niter, dtype='int') * nlive,
+                np.arange(1, nlive + 1)[::-1])
         else:
             raise ValueError("Final number of samples differs from number of "
                              "iterations and number of live points.")
@@ -431,8 +436,8 @@ def jitter_run(res, rstate=None, approx=False):
             while i < nsamps:
                 if not nlive_flag[i]:
                     bound = []
-                    bound.append(i-1)
-                    nlive_start.append(samples_n[i-1])
+                    bound.append(i - 1)
+                    nlive_start.append(samples_n[i - 1])
                     while i < nsamps and not nlive_flag[i]:
                         i += 1
                     bound.append(i)
@@ -458,10 +463,10 @@ def jitter_run(res, rstate=None, approx=False):
         nstart = nlive_start[i]
         bound = bounds[i]
         sn = samples_n[bound[0]:bound[1]]
-        y_arr = rstate.exponential(scale=1.0, size=nstart+1)
+        y_arr = rstate.exponential(scale=1.0, size=nstart + 1)
         ycsum = y_arr.cumsum()
         ycsum /= ycsum[-1]
-        uorder = ycsum[np.append(nstart, sn-1)]
+        uorder = ycsum[np.append(nstart, sn - 1)]
         rorder = uorder[1:] / uorder[:-1]
         t_arr[bound[0]:bound[1]] = rorder
 
@@ -476,7 +481,8 @@ def jitter_run(res, rstate=None, approx=False):
     logzvar = 0.
     logvols_pad = np.concatenate(([0.], logvol))
     logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
-                         axis=1, b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
+                         axis=1,
+                         b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
     logdvols += math.log(0.5)
     dlvs = -np.diff(np.append(0., res.logvol))
     saved_logwt, saved_logz, saved_logzvar, saved_h = [], [], [], []
@@ -487,9 +493,8 @@ def jitter_run(res, rstate=None, approx=False):
         logz_new = np.logaddexp(logz, logwt)
         lzterm = (math.exp(loglstar - logz_new) * loglstar +
                   math.exp(loglstar_new - logz_new) * loglstar_new)
-        h_new = (math.exp(logdvol) * lzterm +
-                 math.exp(logz - logz_new) * (h + logz) -
-                 logz_new)
+        h_new = (math.exp(logdvol) * lzterm + math.exp(logz - logz_new) *
+                 (h + logz) - logz_new)
         dh = h_new - h
         h = h_new
         logz = logz_new
@@ -559,7 +564,7 @@ def resample_run(res, rstate=None, return_idx=False):
         samples_batch = res.samples_batch
         batch_bounds = res.batch_bounds
         added_final_live = True
-    except:
+    except AttributeError:
         # If the number of live points is constant, compute `samples_n` and
         # set up the `added_final_live` flag.
         nlive = res.nlive
@@ -568,8 +573,9 @@ def resample_run(res, rstate=None, return_idx=False):
             samples_n = np.ones(niter, dtype='int') * nlive
             added_final_live = False
         elif nsamps == (niter + nlive):
-            samples_n = np.append(np.ones(niter, dtype='int') * nlive,
-                                  np.arange(1, nlive + 1)[::-1])
+            samples_n = np.append(
+                np.ones(niter, dtype='int') * nlive,
+                np.arange(1, nlive + 1)[::-1])
             added_final_live = True
         else:
             raise ValueError("Final number of samples differs from number of "
@@ -577,7 +583,6 @@ def resample_run(res, rstate=None, return_idx=False):
         samples_batch = np.zeros(len(samples_n), dtype='int')
         batch_bounds = np.array([(-np.inf, np.inf)])
     batch_llmin = batch_bounds[:, 0]
-
     # Identify unique particles that make up each strand.
     ids = np.unique(res.samples_id)
 
@@ -611,8 +616,8 @@ def resample_run(res, rstate=None, return_idx=False):
 
     # Find corresponding indices within the original run.
     samp_idx = np.arange(len(res.ncall))
-    samp_idx = np.concatenate([samp_idx[res.samples_id == idx]
-                               for idx in live_idx])
+    samp_idx = np.concatenate(
+        [samp_idx[res.samples_id == idx] for idx in live_idx])
 
     # Derive new sample size.
     nsamps = len(samp_idx)
@@ -660,7 +665,8 @@ def resample_run(res, rstate=None, return_idx=False):
     logzvar = 0.
     logvols_pad = np.concatenate(([0.], logvol))
     logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
-                         axis=1, b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
+                         axis=1,
+                         b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
     logdvols += math.log(0.5)
     dlvs = logvols_pad[:-1] - logvols_pad[1:]
     saved_logwt, saved_logz, saved_logzvar, saved_h = [], [], [], []
@@ -671,9 +677,8 @@ def resample_run(res, rstate=None, return_idx=False):
         logz_new = np.logaddexp(logz, logwt)
         lzterm = (math.exp(loglstar - logz_new) * loglstar +
                   math.exp(loglstar_new - logz_new) * loglstar_new)
-        h_new = (math.exp(logdvol) * lzterm +
-                 math.exp(logz - logz_new) * (h + logz) -
-                 logz_new)
+        h_new = (math.exp(logdvol) * lzterm + math.exp(logz - logz_new) *
+                 (h + logz) - logz_new)
         dh = h_new - h
         h = h_new
         logz = logz_new
@@ -800,7 +805,8 @@ def reweight_run(res, logp_new, logp_old=None):
     logzvar = 0.
     logvols_pad = np.concatenate(([0.], logvol))
     logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
-                         axis=1, b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
+                         axis=1,
+                         b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
     logdvols += math.log(0.5)
     dlvs = -np.diff(np.append(0., logvol))
     saved_logwt, saved_logz, saved_logzvar, saved_h = [], [], [], []
@@ -814,9 +820,8 @@ def reweight_run(res, logp_new, logp_old=None):
                       math.exp(loglstar_new - logz_new) * loglstar_new)
         except:
             lzterm = 0.
-        h_new = (math.exp(logdvol) * lzterm +
-                 math.exp(logz - logz_new) * (h + logz) -
-                 logz_new)
+        h_new = (math.exp(logdvol) * lzterm + math.exp(logz - logz_new) *
+                 (h + logz) - logz_new)
         dh = h_new - h
         h = h_new
         logz = logz_new
@@ -912,7 +917,8 @@ def unravel_run(res, save_proposals=True, print_progress=True):
         logzvar = 0.
         logvols_pad = np.concatenate(([0.], logvol))
         logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
-                             axis=1, b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
+                             axis=1,
+                             b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
         logdvols += math.log(0.5)
         dlvs = logvols_pad[:-1] - logvols_pad[1:]
         saved_logwt, saved_logz, saved_logzvar, saved_h = [], [], [], []
@@ -923,9 +929,8 @@ def unravel_run(res, save_proposals=True, print_progress=True):
             logz_new = np.logaddexp(logz, logwt)
             lzterm = (math.exp(loglstar - logz_new) * loglstar +
                       math.exp(loglstar_new - logz_new) * loglstar_new)
-            h_new = (math.exp(logdvol) * lzterm +
-                     math.exp(logz - logz_new) * (h + logz) -
-                     logz_new)
+            h_new = (math.exp(logdvol) * lzterm + math.exp(logz - logz_new) *
+                     (h + logz) - logz_new)
             dh = h_new - h
             h = h_new
             logz = logz_new
@@ -940,18 +945,13 @@ def unravel_run(res, save_proposals=True, print_progress=True):
         eff = 100. * nsamps / sum(res.ncall[strand])
 
         # Save results.
-        r = [('nlive', 1),
-             ('niter', niter),
-             ('ncall', res.ncall[strand]),
-             ('eff', eff),
-             ('samples', res.samples[strand]),
+        r = [('nlive', 1), ('niter', niter), ('ncall', res.ncall[strand]),
+             ('eff', eff), ('samples', res.samples[strand]),
              ('samples_id', res.samples_id[strand]),
              ('samples_it', res.samples_it[strand]),
              ('samples_u', res.samples_u[strand]),
-             ('logwt', np.array(saved_logwt)),
-             ('logl', logl),
-             ('logvol', logvol),
-             ('logz', np.array(saved_logz)),
+             ('logwt', np.array(saved_logwt)), ('logl', logl),
+             ('logvol', logvol), ('logz', np.array(saved_logz)),
              ('logzerr', np.sqrt(np.array(saved_logzvar))),
              ('h', np.array(saved_h))]
 
@@ -977,8 +977,8 @@ def unravel_run(res, save_proposals=True, print_progress=True):
 
         # Print progress.
         if print_progress:
-            sys.stderr.write('\rStrand: {0}/{1}     '
-                             .format(counter + 1, nstrands))
+            sys.stderr.write('\rStrand: {0}/{1}     '.format(
+                counter + 1, nstrands))
 
     return new_res
 
@@ -1033,7 +1033,7 @@ def merge_runs(res_list, print_progress=True):
             while i < nruns:
                 try:
                     # Ignore posterior quantities while merging the runs.
-                    r1, r2 = rlist_base[i], rlist_base[i+1]
+                    r1, r2 = rlist_base[i], rlist_base[i + 1]
                     res = _merge_two(r1, r2, compute_aux=False)
                     rlist_new.append(res)
                 except:
@@ -1043,8 +1043,8 @@ def merge_runs(res_list, print_progress=True):
                 counter += 1
                 # Print progress.
                 if print_progress:
-                    sys.stderr.write('\rMerge: {0}/{1}     '.format(counter,
-                                                                    ntot))
+                    sys.stderr.write('\rMerge: {0}/{1}     '.format(
+                        counter, ntot))
             # Overwrite baseline set of results with merged results.
             rlist_base = copy.copy(rlist_new)
 
@@ -1081,8 +1081,9 @@ def merge_runs(res_list, print_progress=True):
     # Check if we have a constant number of live points where we have
     # recycled the final set of live points.
     try:
-        nlive_test = np.append(np.ones(niter - nlive, dtype='int') * nlive,
-                               np.arange(1, nlive + 1)[::-1])
+        nlive_test = np.append(
+            np.ones(niter - nlive, dtype='int') * nlive,
+            np.arange(1, nlive + 1)[::-1])
         if np.all(samples_n == nlive_test):
             standard_run = True
     except:
@@ -1170,7 +1171,10 @@ def kl_divergence(res1, res2):
     return np.cumsum(kld)
 
 
-def kld_error(res, error='simulate', rstate=None, return_new=False,
+def kld_error(res,
+              error='simulate',
+              rstate=None,
+              return_new=False,
               approx=False):
     """
     Computes the `Kullback-Leibler (KL) divergence
@@ -1226,8 +1230,8 @@ def kld_error(res, error='simulate', rstate=None, return_new=False,
         new_res = jitter_run(new_res)
         logp2 = logp2[samp_idx]  # re-order our original results to match
     else:
-        raise ValueError("Input `'error'` option '{0}' is not valid."
-                         .format(error))
+        raise ValueError(
+            "Input `'error'` option '{0}' is not valid.".format(error))
 
     # Define our new importance weights.
     logp1 = new_res.logwt - new_res.logz[-1]
@@ -1285,8 +1289,9 @@ def _merge_two(res1, res2, compute_aux=False):
         if nbase == niter:
             base_n = np.ones(niter, dtype='int') * nlive
         elif nbase == (niter + nlive):
-            base_n = np.append(np.ones(niter, dtype='int') * nlive,
-                               np.arange(1, nlive + 1)[::-1])
+            base_n = np.append(
+                np.ones(niter, dtype='int') * nlive,
+                np.arange(1, nlive + 1)[::-1])
         else:
             raise ValueError("Final number of samples differs from number of "
                              "iterations and number of live points in `res1`.")
@@ -1326,8 +1331,9 @@ def _merge_two(res1, res2, compute_aux=False):
         if nnew == niter:
             new_n = np.ones(niter, dtype='int') * nlive
         elif nnew == (niter + nlive):
-            new_n = np.append(np.ones(niter, dtype='int') * nlive,
-                              np.arange(1, nlive + 1)[::-1])
+            new_n = np.append(
+                np.ones(niter, dtype='int') * nlive,
+                np.arange(1, nlive + 1)[::-1])
         else:
             raise ValueError("Final number of samples differs from number of "
                              "iterations and number of live points in `res2`.")
@@ -1463,9 +1469,7 @@ def _merge_two(res1, res2, compute_aux=False):
     eff = 100. * ntot / sum(combined_nc)
 
     # Save results.
-    r = [('niter', ntot),
-         ('ncall', np.array(combined_nc)),
-         ('eff', eff),
+    r = [('niter', ntot), ('ncall', np.array(combined_nc)), ('eff', eff),
          ('samples', np.array(combined_v)),
          ('samples_id', np.array(combined_id)),
          ('samples_it', np.array(combined_it)),
@@ -1491,7 +1495,8 @@ def _merge_two(res1, res2, compute_aux=False):
         logzvar = 0.
         logvols_pad = np.concatenate(([0.], combined_logvol))
         logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
-                             axis=1, b=np.c_[np.ones(ntot), -np.ones(ntot)])
+                             axis=1,
+                             b=np.c_[np.ones(ntot), -np.ones(ntot)])
         logdvols += math.log(0.5)
         dlvs = logvols_pad[:-1] - logvols_pad[1:]
         for i in range(ntot):
@@ -1501,9 +1506,8 @@ def _merge_two(res1, res2, compute_aux=False):
             logz_new = np.logaddexp(logz, logwt)
             lzterm = (math.exp(loglstar - logz_new) * loglstar +
                       math.exp(loglstar_new - logz_new) * loglstar_new)
-            h_new = (math.exp(logdvol) * lzterm +
-                     math.exp(logz - logz_new) * (h + logz) -
-                     logz_new)
+            h_new = (math.exp(logdvol) * lzterm + math.exp(logz - logz_new) *
+                     (h + logz) - logz_new)
             dh = h_new - h
             h = h_new
             logz = logz_new
@@ -1516,8 +1520,10 @@ def _merge_two(res1, res2, compute_aux=False):
 
         # Compute batch information.
         combined_id = np.array(combined_id)
-        batch_nlive = [len(np.unique(combined_id[combined_batch == i]))
-                       for i in np.unique(combined_batch)]
+        batch_nlive = [
+            len(np.unique(combined_id[combined_batch == i]))
+            for i in np.unique(combined_batch)
+        ]
 
         # Add to our results.
         r.append(('logwt', np.array(combined_logwt)))

@@ -306,7 +306,8 @@ def traceplot(results, span=None, quantiles=[0.025, 0.5, 0.975],
               connect=False, connect_highlight=10, connect_color='red',
               connect_kwargs=None, max_n_ticks=5, use_math_text=False,
               labels=None, label_kwargs=None,
-              show_titles=False, title_fmt=".2f", title_kwargs=None,
+              show_titles=False, title_quantiles=[0.025, 0.5, 0.975],
+              title_fmt=".2f", title_kwargs=None,
               truths=None, truth_color='red', truth_kwargs=None,
               verbose=False, fig=None):
     """
@@ -423,6 +424,10 @@ def traceplot(results, span=None, quantiles=[0.025, 0.5, 0.975],
         showing the 0.5 quantile along with the upper/lower bounds associated
         with the 0.025 and 0.975 (95%/2-sigma credible interval) quantiles.
         Default is `True`.
+
+    title_quantiles : iterable, optional
+        A list of fractional quantiles to use in the title. Default is
+        `[0.025, 0.5, 0.975]` (median plus 95%/2-sigma credible interval).
 
     title_fmt : str, optional
         The format string for the quantiles provided in the title. Default is
@@ -692,7 +697,7 @@ def traceplot(results, span=None, quantiles=[0.025, 0.5, 0.975],
         if show_titles:
             title = None
             if title_fmt is not None:
-                ql, qm, qh = _quantile(x, [0.025, 0.5, 0.975], weights=weights)
+                ql, qm, qh = _quantile(x, title_quantiles, weights=weights)
                 q_minus, q_plus = qm - ql, qh - qm
                 fmt = "{{0:{0}}}".format(title_fmt).format
                 title = r"${{{0}}}_{{-{1}}}^{{+{2}}}$"
@@ -968,7 +973,8 @@ def cornerpoints(results, dims=None, thin=1, span=None,
 def cornerplot(results, dims=None, span=None, quantiles=[0.025, 0.5, 0.975],
                color='black', smooth=0.02, quantiles_2d=None, hist_kwargs=None,
                hist2d_kwargs=None, labels=None, label_kwargs=None,
-               show_titles=False, title_fmt=".2f", title_kwargs=None,
+               show_titles=False, title_quantiles=[0.025, 0.5, 0.975], 
+               title_fmt=".2f", title_kwargs=None,
                truths=None, truth_color='red', truth_kwargs=None,
                max_n_ticks=5, top_ticks=False, use_math_text=False,
                verbose=False, fig=None):
@@ -1039,6 +1045,10 @@ def cornerplot(results, dims=None, span=None, quantiles=[0.025, 0.5, 0.975],
         showing the 0.5 quantile along with the upper/lower bounds associated
         with the 0.025 and 0.975 (95%/2-sigma credible interval) quantiles.
         Default is `True`.
+
+    title_quantiles : iterable, optional
+        A list of fractional quantiles to use in the title. Default is
+        `[0.025, 0.5, 0.975]` (median plus 95%/2-sigma credible interval).
 
     title_fmt : str, optional
         The format string for the quantiles provided in the title. Default is
@@ -1256,7 +1266,7 @@ def cornerplot(results, dims=None, span=None, quantiles=[0.025, 0.5, 0.975],
         if show_titles:
             title = None
             if title_fmt is not None:
-                ql, qm, qh = _quantile(x, [0.025, 0.5, 0.975], weights=weights)
+                ql, qm, qh = _quantile(x, title_quantiles, weights=weights)
                 q_minus, q_plus = qm - ql, qh - qm
                 fmt = "{{0:{0}}}".format(title_fmt).format
                 title = r"${{{0}}}_{{-{1}}}^{{+{2}}}$"

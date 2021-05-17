@@ -970,12 +970,12 @@ class DynamicSampler(object):
         logvol = 0.  # initially contains the whole prior (volume=1.)
 
         # Grab results from base run.
-        base_id = np.array(self.base_run.D['id'])
-        base_u = np.array(self.base_run.D['u'])
-        base_v = np.array(self.base_run.D['v'])
-        base_logl = np.array(self.base_run.D['logl'])
-        base_n = np.array(self.base_run.D['n'])
-        base_scale = np.array(self.base_run.D['scale'])
+        base_id = np.array(self.saved_run.D['id'])
+        base_u = np.array(self.saved_run.D['u'])
+        base_v = np.array(self.saved_run.D['v'])
+        base_logl = np.array(self.saved_run.D['logl'])
+        base_n = np.array(self.saved_run.D['n'])
+        base_scale = np.array(self.saved_run.D['scale'])
         nbase = len(base_n)
         nblive = self.nlive_init
 
@@ -1032,45 +1032,28 @@ class DynamicSampler(object):
             # If the lower bound doesn't encompass all base samples, we need
             # to "rewind" our previous base run until we arrive at the
             # relevant set of live points (and scale) at the bound.
-            live_u = np.empty((nblive, self.npdim))
-            live_v = np.empty((nblive, base_v.shape[1]))
-            live_logl = np.empty(nblive)
-            live_u[base_id[-nblive:]] = base_u[-nblive:]
-            live_v[base_id[-nblive:]] = base_v[-nblive:]
-            live_logl[base_id[-nblive:]] = base_logl[-nblive:]
-            live_scale = base_scale[-nblive]
-
-            # we used value the indices nbase-nblive .... nbase-1
-            for r in range(nbase - nblive - 1, -1, -1):
-                # the first value will be nbase - nblive -1
-                # the last will be zero
-                if base_logl[r] <= logl_min:
-                    break
-                uidx = base_id[r]
-                live_u[uidx] = base_u[r]
-                live_v[uidx] = base_v[r]
-                live_logl[uidx] = base_logl[r]
-                live_scale = base_scale[r]
-
-            subset = live_logl > logl_min
-            # We need this subset if we didn't rewind
-            # and the logl_min is higher than the min(logl) of top nblive
-            # points. In that case we need to ensure that all the considered
-            # points are above logl_min
-            if subset.sum() == 0:
+            subset = np.nonzero(base_logl > logl_min)[0][:nblive]
+            if len(subset) == 0:
                 raise RuntimeError(
                     'Could not find live points in the required logl interval')
-            cur_nblive = subset.sum()
+            live_u = base_u[subset, :].copy()
+            live_v = base_v[subset, :].copy()
+            live_logl = base_logl[subset].copy()
+            live_scale = base_scale[subset[0]]
+            cur_nblive = len(subset)
             # Hack the internal sampler by overwriting the live points
             # and scale factor.
             self.sampler.nlive = cur_nblive
-            self.sampler.live_u = np.array(live_u)[subset]
-            self.sampler.live_v = np.array(live_v)[subset]
-            self.sampler.live_logl = np.array(live_logl)[subset]
+            self.sampler.live_u = live_u
+            self.sampler.live_v = live_v
+            self.sampler.live_logl = live_logl
             self.sampler.scale = live_scale
 
             # Trigger an update of the internal bounding distribution based
             # on the "new" set of live points.
+            # WRONG WRONG HACK
+            r = 0
+            # WRONG WRONG HACK
             vol = math.exp(-1. * (nbase + r) / nblive)
             live_logl_min = min(live_logl)
             if self.sampler._beyond_unit_bound(live_logl_min):

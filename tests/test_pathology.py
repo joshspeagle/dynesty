@@ -8,7 +8,7 @@ printing = False
 alpha = 1e-8
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def set_seed():
     # seed the random number generator
     np.random.seed(5647)

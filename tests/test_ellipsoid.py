@@ -4,7 +4,7 @@ import scipy.stats
 import pytest
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def set_seed():
     np.random.seed(143463473)
 

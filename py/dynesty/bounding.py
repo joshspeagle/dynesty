@@ -491,6 +491,8 @@ class MultiEllipsoid(object):
         delts = (x[None, :] - self.ctrs)
         q = (np.einsum('ai,aij,aj->a', delts, self.ams, delts) < 1).sum()
 
+        assert (q > 0)  # Should never fail
+
         if return_q:
             # If `q` is being returned, assume the user wants to
             # explicitly apply the `1. / q` acceptance criterion to

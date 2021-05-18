@@ -6,7 +6,7 @@ Run a series of basic tests of the 2d eggbox
 """
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def set_seed():
     # seed the random number generator
     np.random.seed(56432)

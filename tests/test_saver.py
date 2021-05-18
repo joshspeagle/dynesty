@@ -13,7 +13,7 @@ nlive = 100
 printing = False
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def set_seed():
     # seed the random number generator
     np.random.seed(5647)

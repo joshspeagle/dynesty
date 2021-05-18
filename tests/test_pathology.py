@@ -1,21 +1,17 @@
 from __future__ import (print_function, division)
-from six.moves import range
 import numpy as np
-from numpy import linalg
-import matplotlib
-
-matplotlib.use('Agg')
-from matplotlib import pyplot as plt  # noqa
-import dynesty  # noqa
-from dynesty import plotting as dyplot  # noqa
-from dynesty import utils as dyfunc  # noqa
-
-# seed the random number generator
-np.random.seed(5647)
+import dynesty
+import pytest
 
 nlive = 1000
 printing = False
 alpha = 1e-8
+
+
+@pytest.fixture
+def set_seed():
+    # seed the random number generator
+    np.random.seed(5647)
 
 
 def loglike(x):

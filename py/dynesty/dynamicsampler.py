@@ -970,7 +970,6 @@ class DynamicSampler(object):
         logvol = 0.  # initially contains the whole prior (volume=1.)
 
         # Grab results from base run.
-        base_id = np.array(self.saved_run.D['id'])
         base_u = np.array(self.saved_run.D['u'])
         base_v = np.array(self.saved_run.D['v'])
         base_logl = np.array(self.saved_run.D['logl'])
@@ -986,6 +985,8 @@ class DynamicSampler(object):
         # Initialize ln(likelihood) bounds.
         if logl_bounds is None:
             logl_min, logl_max = -np.inf, max(base_logl[:-nblive])
+            # why is logl_max defined this way ???
+            # why are we skipping top nblive points ?
         else:
             logl_min, logl_max = logl_bounds
         self.new_logl_min, self.new_logl_max = logl_min, logl_max
@@ -1051,10 +1052,12 @@ class DynamicSampler(object):
 
             # Trigger an update of the internal bounding distribution based
             # on the "new" set of live points.
-            # WRONG WRONG HACK
-            r = 0
-            # WRONG WRONG HACK
-            vol = math.exp(-1. * (nbase + r) / nblive)
+
+            # TODO CHECK ?
+            r = subset[0]
+            # WRONG ?
+
+            vol = math.exp(-1. * r / nblive)
             live_logl_min = min(live_logl)
             if self.sampler._beyond_unit_bound(live_logl_min):
                 bound = self.sampler.update(vol / cur_nblive)

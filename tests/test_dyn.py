@@ -1,16 +1,8 @@
 import numpy as np
 import dynesty
-import pytest
 """
 Run a series of basic tests of the 2d eggbox
 """
-
-
-@pytest.fixture(autouse=True)
-def set_seed():
-    # seed the random number generator
-    np.random.seed(56432)
-
 
 nlive = 100
 printing = False

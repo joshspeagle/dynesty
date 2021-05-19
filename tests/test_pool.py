@@ -6,9 +6,6 @@ Run a series of basic tests to check whether anything huge is broken.
 
 """
 
-# seed the random number generator
-np.random.seed(5647)
-
 nlive = 1000
 printing = False
 

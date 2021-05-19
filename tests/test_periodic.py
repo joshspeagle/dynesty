@@ -1,18 +1,14 @@
 import numpy as np
 import dynesty
 from scipy.special import erf
-# seed the random number generator
-np.random.seed(5372)
 
 nlive = 100
 printing = True
+win = 10
 
 
 def loglike(x):
     return -0.5 * x[1]**2
-
-
-win = 10
 
 
 def prior_transform(x):

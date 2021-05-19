@@ -4,7 +4,6 @@ import numpy as np
 from numpy import linalg
 import numpy.testing as npt
 import matplotlib
-import pytest
 
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt  # noqa
@@ -18,12 +17,6 @@ Run a series of basic tests to check whether anything huge is broken.
 
 nlive = 500
 printing = False
-
-
-@pytest.fixture(autouse=True)
-def set_seed():
-    # seed the random number generator
-    np.random.seed(5647)
 
 
 def bootstrap_tol(results):

@@ -1,18 +1,11 @@
 import numpy as np
 import dynesty
-import pytest
 """
 Run a series of basic tests testing printing output
 """
 
 nlive = 100
 printing = True
-
-
-@pytest.fixture(autouse=True)
-def set_seed():
-    # seed the random number generator
-    np.random.seed(56432)
 
 
 def loglike(x):

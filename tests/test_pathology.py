@@ -1,17 +1,10 @@
 from __future__ import (print_function, division)
 import numpy as np
 import dynesty
-import pytest
 
 nlive = 1000
 printing = False
 alpha = 1e-8
-
-
-@pytest.fixture(autouse=True)
-def set_seed():
-    # seed the random number generator
-    np.random.seed(5647)
 
 
 def loglike(x):

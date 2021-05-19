@@ -1,13 +1,18 @@
 import numpy as np
 import dynesty
+import pytest
 """
-Run a series of basic tests of the 2d eggbox
+Run a series of basic tests changing various things like
+maxcall options and potentially other things
 """
-
-# seed the random number generator
-np.random.seed(56432)
 
 nlive = 100
+
+
+@pytest.fixture(autouse=True)
+def set_seed():
+    # seed the random number generator
+    np.random.seed(56432)
 
 
 def loglike(x):

@@ -1,8 +1,12 @@
 import dynesty.bounding as db
 import numpy as np
 import scipy.stats
+import pytest
 
-np.random.seed(1)
+
+@pytest.fixture(autouse=True)
+def set_seed():
+    np.random.seed(143463473)
 
 
 def test_sample():

@@ -1,17 +1,19 @@
 import numpy as np
-import matplotlib
-
-matplotlib.use('Agg')
-import dynesty  # noqa
+import pytest
+import dynesty
 """
 Run a series of basic tests of the 2d eggbox
 """
 
-# seed the random number generator
-np.random.seed(5647)
-
 nlive = 1000
 printing = False
+
+
+@pytest.fixture(autouse=True)
+def set_seed():
+    # seed the random number generator
+    np.random.seed(5647)
+
 
 # EGGBOX
 

@@ -2,16 +2,22 @@ import numpy as np
 import dynesty
 import os
 import multiprocessing as mp
+import pytest
 """
-Run a series of basic tests to check whether anything huge is broken.
+Run a series of basic tests to check whether saving likelikelihood evals 
+are broken
 
 """
-
-# seed the random number generator
-np.random.seed(5647)
 
 nlive = 100
 printing = False
+
+
+@pytest.fixture(autouse=True)
+def set_seed():
+    # seed the random number generator
+    np.random.seed(5647)
+
 
 # EGGBOX
 

@@ -1,12 +1,16 @@
 import numpy as np
 import dynesty
-
+import pytest
 """
 Run a series of basic tests of the 2d eggbox
 """
 
-# seed the random number generator
-np.random.seed(56432)
+
+@pytest.fixture(autouse=True)
+def set_seed():
+    # seed the random number generator
+    np.random.seed(56432)
+
 
 nlive = 100
 printing = False
@@ -30,12 +34,12 @@ def test_dyn():
     ndim = 2
     bound = 'multi'
     sampler = dynesty.DynamicNestedSampler(loglike_egg,
-                                        prior_transform_egg,
-                                        ndim,
-                                        nlive=nlive,
-                                        bound=bound,
-                                        sample='unif')
+                                           prior_transform_egg,
+                                           ndim,
+                                           nlive=nlive,
+                                           bound=bound,
+                                           sample='unif')
     sampler.run_nested(dlogz_init=1, print_progress=printing)
     logz_truth = 235.856
     assert (abs(logz_truth - sampler.results.logz[-1]) <
-                5. * sampler.results.logzerr[-1])
+            5. * sampler.results.logzerr[-1])

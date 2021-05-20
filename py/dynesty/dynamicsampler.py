@@ -969,14 +969,14 @@ class DynamicSampler(object):
         logz = -1.e300  # ln(evidence), initially *0.*
         logvol = 0.  # initially contains the whole prior (volume=1.)
 
-        # Grab results from base run.
-        base_id = np.array(self.base_run.D['id'])
-        base_u = np.array(self.base_run.D['u'])
-        base_v = np.array(self.base_run.D['v'])
-        base_logl = np.array(self.base_run.D['logl'])
-        base_n = np.array(self.base_run.D['n'])
-        base_scale = np.array(self.base_run.D['scale'])
-        nbase = len(base_n)
+        # Grab results from saved run.
+        saved_u = np.array(self.saved_run.D['u'])
+        saved_v = np.array(self.saved_run.D['v'])
+        saved_logl = np.array(self.saved_run.D['logl'])
+        saved_n = np.array(self.saved_run.D['n'])
+        saved_logwt = np.array(self.saved_run.D['logwt'])
+        saved_scale = np.array(self.saved_run.D['scale'])
+        nbase = len(saved_n)
         nblive = self.nlive_init
 
         # Reset "new" results.
@@ -985,16 +985,18 @@ class DynamicSampler(object):
 
         # Initialize ln(likelihood) bounds.
         if logl_bounds is None:
-            logl_min, logl_max = -np.inf, max(base_logl[:-nblive])
+            logl_min, logl_max = -np.inf, max(saved_logl[:-nblive])
+            # why is logl_max defined this way ???
+            # why are we skipping top nblive points ?
         else:
             logl_min, logl_max = logl_bounds
         self.new_logl_min, self.new_logl_max = logl_min, logl_max
 
-        # Check whether the lower bound encompasses all previous base samples.
-        psel = np.all(logl_min <= base_logl)
+        # Check whether the lower bound encompasses all previous saved samples.
+        psel = np.all(logl_min <= saved_logl)
         vol = 1. - 1. / nblive  # starting ln(prior volume)
         if psel:
-            # If the lower bound encompasses all base samples, we want
+            # If the lower bound encompasses all saved samples, we want
             # to propose a new set of points from the unit cube.
             live_u = self.rstate.rand(nlive_new, self.npdim)
             if self.use_pool_ptform:
@@ -1029,52 +1031,54 @@ class DynamicSampler(object):
                 yield (-i - 1, live_u[i], live_v[i], live_logl[i], live_nc[i],
                        live_it[i], 0, 0, self.eff)
         else:
-            # If the lower bound doesn't encompass all base samples, we need
-            # to "rewind" our previous base run until we arrive at the
-            # relevant set of live points (and scale) at the bound.
-            live_u = np.empty((nblive, self.npdim))
-            live_v = np.empty((nblive, base_v.shape[1]))
-            live_logl = np.empty(nblive)
-            live_u[base_id[-nblive:]] = base_u[-nblive:]
-            live_v[base_id[-nblive:]] = base_v[-nblive:]
-            live_logl[base_id[-nblive:]] = base_logl[-nblive:]
-            live_scale = base_scale[-nblive]
-
-            # we used value the indices nbase-nblive .... nbase-1
-            for r in range(nbase - nblive - 1, -1, -1):
-                # the first value will be nbase - nblive -1
-                # the last will be zero
-                if base_logl[r] <= logl_min:
-                    break
-                uidx = base_id[r]
-                live_u[uidx] = base_u[r]
-                live_v[uidx] = base_v[r]
-                live_logl[uidx] = base_logl[r]
-                live_scale = base_scale[r]
-
-            subset = live_logl > logl_min
-            # We need this subset if we didn't rewind
-            # and the logl_min is higher than the min(logl) of top nblive
-            # points. In that case we need to ensure that all the considered
-            # points are above logl_min
+            # If the lower bound doesn't encompass all base samples,
+            # we need to create a uniform sample from the prior subject
+            # to the likelihood boundary constraint
+            subset = (saved_logl > logl_min)
             if subset.sum() == 0:
                 raise RuntimeError(
                     'Could not find live points in the required logl interval')
-            cur_nblive = subset.sum()
+
+            live_scale = saved_scale[subset][0]
+            # set the scale based on the lowest point
+
+            # we are weighting each point by 1/L_i * 1/W_i to ensure
+            # uniform sampling within boundary volume
+            cur_logwt = -saved_logl[subset] - saved_logwt[subset]
+            cur_wt = np.exp(cur_logwt - logsumexp(cur_logwt))
+            # we are now randomly sampling with weights
+            # notice that since we are samplign without
+            # replacement we aren't guaranteed to be able
+            # to get nblive points
+            # so we get min(nblive,subset.sum())
+            # in that case the sample technically won't be
+            # uniform
+            subset = self.rstate.choice(np.nonzero(subset)[0],
+                                        size=min(nblive, subset.sum()),
+                                        p=cur_wt,
+                                        replace=False)
+            cur_nblive = len(subset)
+
+            live_u = saved_u[subset, :].copy()
+            live_v = saved_v[subset, :].copy()
+            live_logl = saved_logl[subset].copy()
             # Hack the internal sampler by overwriting the live points
             # and scale factor.
             self.sampler.nlive = cur_nblive
-            self.sampler.live_u = np.array(live_u)[subset]
-            self.sampler.live_v = np.array(live_v)[subset]
-            self.sampler.live_logl = np.array(live_logl)[subset]
+            self.sampler.live_u = live_u
+            self.sampler.live_v = live_v
+            self.sampler.live_logl = live_logl
             self.sampler.scale = live_scale
 
             # Trigger an update of the internal bounding distribution based
             # on the "new" set of live points.
-            vol = math.exp(-1. * (nbase + r) / nblive)
+
             live_logl_min = min(live_logl)
             if self.sampler._beyond_unit_bound(live_logl_min):
-                bound = self.sampler.update(vol / cur_nblive)
+                # notice we are setting the volume to zero
+                # as it is really not clear what the volume should
+                # be
+                bound = self.sampler.update(0)
                 if save_bounds:
                     self.sampler.bound.append(copy.deepcopy(bound))
                 self.sampler.nbound += 1
@@ -1083,7 +1087,7 @@ class DynamicSampler(object):
             # Sample a new batch of `nlive_new` live points using the
             # internal sampler given the `logl_min` constraint.
             live_u = np.empty((nlive_new, self.npdim))
-            live_v = np.empty((nlive_new, base_v.shape[1]))
+            live_v = np.empty((nlive_new, saved_v.shape[1]))
             live_logl = np.empty(nlive_new)
             live_bound = np.zeros(nlive_new, dtype='int')
             if self.sampler._beyond_unit_bound(live_logl_min):

@@ -1039,7 +1039,7 @@ class DynamicSampler(object):
                 raise RuntimeError(
                     'Could not find live points in the required logl interval')
 
-            live_scale = saved_scale[subset[0]]
+            live_scale = saved_scale[subset][0]
             # set the scale based on the lowest point
 
             # we are weighting each point by 1/L_i * 1/W_i to ensure

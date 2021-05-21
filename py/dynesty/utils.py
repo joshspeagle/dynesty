@@ -435,13 +435,12 @@ def jitter_run(res, rstate=None, approx=False):
             i = 0
             while i < nsamps:
                 if not nlive_flag[i]:
-                    bound = []
-                    bound.append(i - 1)
+                    left = i - 1
                     nlive_start.append(samples_n[i - 1])
                     while i < nsamps and not nlive_flag[i]:
                         i += 1
-                    bound.append(i)
-                    bounds.append(bound)
+                    right = i
+                    bounds.append((left, right))
                 i += 1
 
     # The maximum out of a set of `K_i` uniformly distributed random variables
@@ -485,7 +484,10 @@ def jitter_run(res, rstate=None, approx=False):
                          b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
     logdvols += math.log(0.5)
     dlvs = -np.diff(np.append(0., res.logvol))
-    saved_logwt, saved_logz, saved_logzvar, saved_h = [], [], [], []
+    saved_logwt, saved_logz, saved_logzvar, saved_h = (np.empty(nsamps),
+                                                       np.empty(nsamps),
+                                                       np.empty(nsamps),
+                                                       np.empty(nsamps))
     for i in range(nsamps):
         loglstar_new = logl[i]
         logdvol, dlv = logdvols[i], dlvs[i]
@@ -500,22 +502,22 @@ def jitter_run(res, rstate=None, approx=False):
         logz = logz_new
         logzvar += dh * dlv
         loglstar = loglstar_new
-        saved_logwt.append(logwt)
-        saved_logz.append(logz)
-        saved_logzvar.append(logzvar)
-        saved_h.append(h)
+        saved_logwt[i] = logwt
+        saved_logz[i] = logz
+        saved_logzvar[i] = logzvar
+        saved_h[i] = h
 
     # Copy results.
     new_res = Results([item for item in res.items()])
 
     # Overwrite items with our new estimates.
-    new_res.logvol = np.array(logvol)
-    new_res.logwt = np.array(saved_logwt)
-    new_res.logz = np.array(saved_logz)
+    new_res.logvol = logvol
+    new_res.logwt = saved_logwt
+    new_res.logz = saved_logz
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        new_res.logzerr = np.sqrt(np.array(saved_logzvar))
-    new_res.h = np.array(saved_h)
+        new_res.logzerr = np.sqrt(saved_logzvar)
+    new_res.h = saved_h
 
     return new_res
 

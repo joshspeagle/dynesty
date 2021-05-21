@@ -435,13 +435,12 @@ def jitter_run(res, rstate=None, approx=False):
             i = 0
             while i < nsamps:
                 if not nlive_flag[i]:
-                    bound = []
-                    bound.append(i - 1)
+                    left = i - 1
                     nlive_start.append(samples_n[i - 1])
                     while i < nsamps and not nlive_flag[i]:
                         i += 1
-                    bound.append(i)
-                    bounds.append(bound)
+                    right = i
+                    bounds.append((left, right))
                 i += 1
 
     # The maximum out of a set of `K_i` uniformly distributed random variables

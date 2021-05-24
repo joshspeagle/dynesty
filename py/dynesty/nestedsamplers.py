@@ -120,6 +120,19 @@ class UnitCubeSampler(Sampler):
                  kwargs={},
                  ncdim=0):
 
+        # Initialize sampler.
+        super(UnitCubeSampler, self).__init__(loglikelihood,
+                                              prior_transform,
+                                              npdim,
+                                              live_points,
+                                              update_interval,
+                                              first_update,
+                                              rstate,
+                                              queue_size,
+                                              pool,
+                                              use_pool,
+                                              ncdim=ncdim)
+
         # Initialize method to propose a new starting point.
         self._PROPOSE = {
             'unif': self.propose_unif,
@@ -168,18 +181,6 @@ class UnitCubeSampler(Sampler):
             self.enlarge = kwargs.get('enlarge', 1.25)
         self.cite = self.kwargs.get('cite')
 
-        # Initialize sampler.
-        super(UnitCubeSampler, self).__init__(loglikelihood,
-                                              prior_transform,
-                                              npdim,
-                                              live_points,
-                                              update_interval,
-                                              first_update,
-                                              rstate,
-                                              queue_size,
-                                              pool,
-                                              use_pool,
-                                              ncdim=ncdim)
         self.unitcube = UnitCube(self.ncdim)
         self.bounding = 'none'
         self.method = method
@@ -341,6 +342,19 @@ class SingleEllipsoidSampler(Sampler):
                  kwargs={},
                  ncdim=0):
 
+        # Initialize sampler.
+        super(SingleEllipsoidSampler, self).__init__(loglikelihood,
+                                                     prior_transform,
+                                                     npdim,
+                                                     live_points,
+                                                     update_interval,
+                                                     first_update,
+                                                     rstate,
+                                                     queue_size,
+                                                     pool,
+                                                     use_pool,
+                                                     ncdim=ncdim)
+
         # Initialize method to propose a new starting point.
         self._PROPOSE = {
             'unif': self.propose_unif,
@@ -390,18 +404,6 @@ class SingleEllipsoidSampler(Sampler):
             self.enlarge = kwargs.get('enlarge', 1.25)
         self.cite = self.kwargs.get('cite')
 
-        # Initialize sampler.
-        super(SingleEllipsoidSampler, self).__init__(loglikelihood,
-                                                     prior_transform,
-                                                     npdim,
-                                                     live_points,
-                                                     update_interval,
-                                                     first_update,
-                                                     rstate,
-                                                     queue_size,
-                                                     pool,
-                                                     use_pool,
-                                                     ncdim=ncdim)
         self.ell = Ellipsoid(np.zeros(self.ncdim), np.identity(self.ncdim))
         self.bounding = 'single'
         self.method = method
@@ -589,6 +591,18 @@ class MultiEllipsoidSampler(Sampler):
                  use_pool,
                  kwargs={},
                  ncdim=0):
+        # Initialize sampler.
+        super(MultiEllipsoidSampler, self).__init__(loglikelihood,
+                                                    prior_transform,
+                                                    npdim,
+                                                    live_points,
+                                                    update_interval,
+                                                    first_update,
+                                                    rstate,
+                                                    queue_size,
+                                                    pool,
+                                                    use_pool,
+                                                    ncdim=ncdim)
 
         # Initialize method to propose a new starting point.
         self._PROPOSE = {
@@ -641,18 +655,6 @@ class MultiEllipsoidSampler(Sampler):
         self.vol_check = kwargs.get('vol_check', 2.0)
         self.cite = self.kwargs.get('cite')
 
-        # Initialize sampler.
-        super(MultiEllipsoidSampler, self).__init__(loglikelihood,
-                                                    prior_transform,
-                                                    npdim,
-                                                    live_points,
-                                                    update_interval,
-                                                    first_update,
-                                                    rstate,
-                                                    queue_size,
-                                                    pool,
-                                                    use_pool,
-                                                    ncdim=ncdim)
         self.mell = MultiEllipsoid(ctrs=[np.zeros(self.ncdim)],
                                    covs=[np.identity(self.ncdim)])
         self.bounding = 'multi'
@@ -880,6 +882,18 @@ class RadFriendsSampler(Sampler):
                  use_pool,
                  kwargs={},
                  ncdim=0):
+        # Initialize sampler.
+        super(RadFriendsSampler, self).__init__(loglikelihood,
+                                                prior_transform,
+                                                npdim,
+                                                live_points,
+                                                update_interval,
+                                                first_update,
+                                                rstate,
+                                                queue_size,
+                                                pool,
+                                                use_pool,
+                                                ncdim=ncdim)
 
         # Initialize method to propose a new starting point.
         self._PROPOSE = {
@@ -929,18 +943,6 @@ class RadFriendsSampler(Sampler):
             self.enlarge = kwargs.get('enlarge', 1.25)
         self.cite = self.kwargs.get('cite')
 
-        # Initialize sampler.
-        super(RadFriendsSampler, self).__init__(loglikelihood,
-                                                prior_transform,
-                                                npdim,
-                                                live_points,
-                                                update_interval,
-                                                first_update,
-                                                rstate,
-                                                queue_size,
-                                                pool,
-                                                use_pool,
-                                                ncdim=ncdim)
         self.radfriends = RadFriends(self.ncdim)
         self.bounding = 'balls'
         self.method = method
@@ -1133,6 +1135,19 @@ class SupFriendsSampler(Sampler):
                  kwargs={},
                  ncdim=0):
 
+        # Initialize sampler.
+        super(SupFriendsSampler, self).__init__(loglikelihood,
+                                                prior_transform,
+                                                npdim,
+                                                live_points,
+                                                update_interval,
+                                                first_update,
+                                                rstate,
+                                                queue_size,
+                                                pool,
+                                                use_pool,
+                                                ncdim=ncdim)
+
         # Initialize method to propose a new starting point.
         self._PROPOSE = {
             'unif': self.propose_unif,
@@ -1181,18 +1196,6 @@ class SupFriendsSampler(Sampler):
             self.enlarge = kwargs.get('enlarge', 1.25)
         self.cite = self.kwargs.get('cite')
 
-        # Initialize sampler.
-        super(SupFriendsSampler, self).__init__(loglikelihood,
-                                                prior_transform,
-                                                npdim,
-                                                live_points,
-                                                update_interval,
-                                                first_update,
-                                                rstate,
-                                                queue_size,
-                                                pool,
-                                                use_pool,
-                                                ncdim=ncdim)
         self.supfriends = SupFriends(self.ncdim)
         self.bounding = 'cubes'
         self.method = method

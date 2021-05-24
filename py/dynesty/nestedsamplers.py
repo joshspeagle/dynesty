@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 """
 Childen of :class:`dynesty.sampler` used to proposing new live points.
 Includes:
@@ -31,21 +30,25 @@ import numpy as np
 import copy
 
 from .sampler import Sampler
-from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid,
-                       RadFriends, SupFriends)
+from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
+                       SupFriends)
 from .sampling import (sample_unif, sample_rwalk, sample_rstagger,
                        sample_slice, sample_rslice, sample_hslice)
 from .utils import unitcheck
 
-__all__ = ["UnitCubeSampler", "SingleEllipsoidSampler",
-           "MultiEllipsoidSampler", "RadFriendsSampler", "SupFriendsSampler"]
+__all__ = [
+    "UnitCubeSampler", "SingleEllipsoidSampler", "MultiEllipsoidSampler",
+    "RadFriendsSampler", "SupFriendsSampler"
+]
 
-_SAMPLING = {'unif': sample_unif,
-             'rwalk': sample_rwalk,
-             'rstagger': sample_rstagger,
-             'slice': sample_slice,
-             'rslice': sample_rslice,
-             'hslice': sample_hslice}
+_SAMPLING = {
+    'unif': sample_unif,
+    'rwalk': sample_rwalk,
+    'rstagger': sample_rstagger,
+    'slice': sample_slice,
+    'rslice': sample_rslice,
+    'hslice': sample_hslice
+}
 
 
 class UnitCubeSampler(Sampler):
@@ -102,19 +105,31 @@ class UnitCubeSampler(Sampler):
         A dictionary of additional parameters.
 
     """
-
-    def __init__(self, loglikelihood, prior_transform, npdim, live_points,
-                 method, update_interval, first_update, rstate,
-                 queue_size, pool, use_pool, kwargs={}, ncdim=0):
+    def __init__(self,
+                 loglikelihood,
+                 prior_transform,
+                 npdim,
+                 live_points,
+                 method,
+                 update_interval,
+                 first_update,
+                 rstate,
+                 queue_size,
+                 pool,
+                 use_pool,
+                 kwargs={},
+                 ncdim=0):
 
         # Initialize method to propose a new starting point.
-        self._PROPOSE = {'unif': self.propose_unif,
-                         'rwalk': self.propose_live,
-                         'rstagger': self.propose_live,
-                         'slice': self.propose_live,
-                         'rslice': self.propose_live,
-                         'hslice': self.propose_live,
-                         'user-defined': self.propose_live}
+        self._PROPOSE = {
+            'unif': self.propose_unif,
+            'rwalk': self.propose_live,
+            'rstagger': self.propose_live,
+            'slice': self.propose_live,
+            'rslice': self.propose_live,
+            'hslice': self.propose_live,
+            'user-defined': self.propose_live
+        }
 
         if callable(method):
             _SAMPLING["user-defined"] = method
@@ -125,13 +140,15 @@ class UnitCubeSampler(Sampler):
         self.sampling, self.evolve_point = method, _SAMPLING[method]
 
         # Initialize heuristic used to update our sampling method.
-        self._UPDATE = {'unif': self.update_unif,
-                        'rwalk': self.update_rwalk,
-                        'rstagger': self.update_rwalk,
-                        'slice': self.update_slice,
-                        'rslice': self.update_slice,
-                        'hslice': self.update_hslice,
-                        'user-defined': self.update_user}
+        self._UPDATE = {
+            'unif': self.update_unif,
+            'rwalk': self.update_rwalk,
+            'rstagger': self.update_rwalk,
+            'slice': self.update_slice,
+            'rslice': self.update_slice,
+            'hslice': self.update_hslice,
+            'user-defined': self.update_user
+        }
 
         self.custom_update = kwargs.get('update_func')
         self.update_proposal = self._UPDATE[method]
@@ -152,10 +169,17 @@ class UnitCubeSampler(Sampler):
         self.cite = self.kwargs.get('cite')
 
         # Initialize sampler.
-        super(UnitCubeSampler,
-              self).__init__(loglikelihood, prior_transform, npdim,
-                             live_points, update_interval, first_update,
-                             rstate, queue_size, pool, use_pool, ncdim=ncdim)
+        super(UnitCubeSampler, self).__init__(loglikelihood,
+                                              prior_transform,
+                                              npdim,
+                                              live_points,
+                                              update_interval,
+                                              first_update,
+                                              rstate,
+                                              queue_size,
+                                              pool,
+                                              use_pool,
+                                              ncdim=ncdim)
         self.unitcube = UnitCube(self.ncdim)
         self.bounding = 'none'
         self.method = method
@@ -180,20 +204,26 @@ class UnitCubeSampler(Sampler):
 
         return copy.deepcopy(self.unitcube)
 
-    def propose_unif(self):
+    def propose_unif(self, *args):
         """Propose a new live point by sampling *uniformly*
         within the unit cube."""
 
         u = self.unitcube.sample(rstate=self.rstate)
         ax = np.identity(self.npdim)
-        u = np.concatenate([u, np.random.uniform(0, 1, self.npdim - self.ncdim)])
+        u = np.concatenate(
+            [u, np.random.uniform(0, 1, self.npdim - self.ncdim)])
 
         return u, ax
 
-    def propose_live(self):
-        """Return a live point/axes to be used by other sampling methods."""
+    def propose_live(self, *args):
+        """Return a live point/axes to be used by other sampling methods.
+           If args is not empty, it contains the subset of indices of points to
+           sample from."""
 
-        i = self.rstate.randint(self.nlive)
+        if len(args) > 0:
+            i = self.rstate.choice(args[0])
+        else:
+            i = self.rstate.randint(self.nlive)
         u = self.live_u[i, :]
         ax = np.identity(self.npdim)
 
@@ -296,19 +326,31 @@ class SingleEllipsoidSampler(Sampler):
         A dictionary of additional parameters.
 
     """
-
-    def __init__(self, loglikelihood, prior_transform, npdim, live_points,
-                 method, update_interval, first_update, rstate,
-                 queue_size, pool, use_pool, kwargs={}, ncdim=0):
+    def __init__(self,
+                 loglikelihood,
+                 prior_transform,
+                 npdim,
+                 live_points,
+                 method,
+                 update_interval,
+                 first_update,
+                 rstate,
+                 queue_size,
+                 pool,
+                 use_pool,
+                 kwargs={},
+                 ncdim=0):
 
         # Initialize method to propose a new starting point.
-        self._PROPOSE = {'unif': self.propose_unif,
-                         'rwalk': self.propose_live,
-                         'rstagger': self.propose_live,
-                         'slice': self.propose_live,
-                         'rslice': self.propose_live,
-                         'hslice': self.propose_live,
-                         'user-defined': self.propose_live}
+        self._PROPOSE = {
+            'unif': self.propose_unif,
+            'rwalk': self.propose_live,
+            'rstagger': self.propose_live,
+            'slice': self.propose_live,
+            'rslice': self.propose_live,
+            'hslice': self.propose_live,
+            'user-defined': self.propose_live
+        }
 
         if callable(method):
             _SAMPLING["user-defined"] = method
@@ -320,13 +362,15 @@ class SingleEllipsoidSampler(Sampler):
 
         # Initialize heuristic used to update our sampling method.
         # Initialize heuristic used to update our sampling method.
-        self._UPDATE = {'unif': self.update_unif,
-                        'rwalk': self.update_rwalk,
-                        'rstagger': self.update_rwalk,
-                        'slice': self.update_slice,
-                        'rslice': self.update_slice,
-                        'hslice': self.update_hslice,
-                        'user-defined': self.update_user}
+        self._UPDATE = {
+            'unif': self.update_unif,
+            'rwalk': self.update_rwalk,
+            'rstagger': self.update_rwalk,
+            'slice': self.update_slice,
+            'rslice': self.update_slice,
+            'hslice': self.update_hslice,
+            'user-defined': self.update_user
+        }
 
         self.custom_update = kwargs.get('update_func')
         self.update_proposal = self._UPDATE[method]
@@ -347,10 +391,17 @@ class SingleEllipsoidSampler(Sampler):
         self.cite = self.kwargs.get('cite')
 
         # Initialize sampler.
-        super(SingleEllipsoidSampler,
-              self).__init__(loglikelihood, prior_transform, npdim,
-                             live_points, update_interval, first_update,
-                             rstate, queue_size, pool, use_pool, ncdim=ncdim)
+        super(SingleEllipsoidSampler, self).__init__(loglikelihood,
+                                                     prior_transform,
+                                                     npdim,
+                                                     live_points,
+                                                     update_interval,
+                                                     first_update,
+                                                     rstate,
+                                                     queue_size,
+                                                     pool,
+                                                     use_pool,
+                                                     ncdim=ncdim)
         self.ell = Ellipsoid(np.zeros(self.ncdim), np.identity(self.ncdim))
         self.bounding = 'single'
         self.method = method
@@ -381,14 +432,17 @@ class SingleEllipsoidSampler(Sampler):
             pool = None
 
         # Update the ellipsoid.
-        self.ell.update(self.live_u[:, :self.ncdim], pointvol=pointvol, rstate=self.rstate,
-                        bootstrap=self.bootstrap, pool=pool)
+        self.ell.update(self.live_u[:, :self.ncdim],
+                        pointvol=pointvol,
+                        rstate=self.rstate,
+                        bootstrap=self.bootstrap,
+                        pool=pool)
         if self.enlarge != 1.:
-            self.ell.scale_to_logvol(self.ell.logvol +np.log(self.enlarge))
+            self.ell.scale_to_logvol(self.ell.logvol + np.log(self.enlarge))
 
         return copy.deepcopy(self.ell)
 
-    def propose_unif(self):
+    def propose_unif(self, *args):
         """Propose a new live point by sampling *uniformly*
         within the ellipsoid."""
 
@@ -400,13 +454,18 @@ class SingleEllipsoidSampler(Sampler):
             if unitcheck(u, self.nonbounded):
                 break  # if it is, we're done!
 
-        u = np.concatenate([u, np.random.uniform(0, 1, self.npdim - self.ncdim)])
+        u = np.concatenate(
+            [u, np.random.uniform(0, 1, self.npdim - self.ncdim)])
         return u, self.ell.axes
 
-    def propose_live(self):
-        """Return a live point/axes to be used by other sampling methods."""
-
-        i = self.rstate.randint(self.nlive)
+    def propose_live(self, *args):
+        """Return a live point/axes to be used by other sampling methods.
+           If args is not empty, it contains the subset of indices of points to
+           sample from."""
+        if len(args) > 0:
+            i = self.rstate.choice(args[0])
+        else:
+            i = self.rstate.randint(self.nlive)
         u = self.live_u[i, :]
 
         # Choose axes.
@@ -516,19 +575,31 @@ class MultiEllipsoidSampler(Sampler):
         A dictionary of additional parameters.
 
     """
-
-    def __init__(self, loglikelihood, prior_transform, npdim, live_points,
-                 method, update_interval, first_update, rstate,
-                 queue_size, pool, use_pool, kwargs={}, ncdim=0):
+    def __init__(self,
+                 loglikelihood,
+                 prior_transform,
+                 npdim,
+                 live_points,
+                 method,
+                 update_interval,
+                 first_update,
+                 rstate,
+                 queue_size,
+                 pool,
+                 use_pool,
+                 kwargs={},
+                 ncdim=0):
 
         # Initialize method to propose a new starting point.
-        self._PROPOSE = {'unif': self.propose_unif,
-                         'rwalk': self.propose_live,
-                         'rstagger': self.propose_live,
-                         'slice': self.propose_live,
-                         'rslice': self.propose_live,
-                         'hslice': self.propose_live,
-                         'user-defined': self.propose_live}
+        self._PROPOSE = {
+            'unif': self.propose_unif,
+            'rwalk': self.propose_live,
+            'rstagger': self.propose_live,
+            'slice': self.propose_live,
+            'rslice': self.propose_live,
+            'hslice': self.propose_live,
+            'user-defined': self.propose_live
+        }
 
         if callable(method):
             _SAMPLING["user-defined"] = method
@@ -540,13 +611,15 @@ class MultiEllipsoidSampler(Sampler):
 
         # Initialize heuristic used to update our sampling method.
         # Initialize heuristic used to update our sampling method.
-        self._UPDATE = {'unif': self.update_unif,
-                        'rwalk': self.update_rwalk,
-                        'rstagger': self.update_rwalk,
-                        'slice': self.update_slice,
-                        'rslice': self.update_slice,
-                        'hslice': self.update_hslice,
-                        'user-defined': self.update_user}
+        self._UPDATE = {
+            'unif': self.update_unif,
+            'rwalk': self.update_rwalk,
+            'rstagger': self.update_rwalk,
+            'slice': self.update_slice,
+            'rslice': self.update_slice,
+            'hslice': self.update_hslice,
+            'user-defined': self.update_user
+        }
 
         self.custom_update = kwargs.get('update_func')
         self.update_proposal = self._UPDATE[method]
@@ -569,10 +642,17 @@ class MultiEllipsoidSampler(Sampler):
         self.cite = self.kwargs.get('cite')
 
         # Initialize sampler.
-        super(MultiEllipsoidSampler,
-              self).__init__(loglikelihood, prior_transform, npdim,
-                             live_points, update_interval, first_update,
-                             rstate, queue_size, pool, use_pool, ncdim=ncdim)
+        super(MultiEllipsoidSampler, self).__init__(loglikelihood,
+                                                    prior_transform,
+                                                    npdim,
+                                                    live_points,
+                                                    update_interval,
+                                                    first_update,
+                                                    rstate,
+                                                    queue_size,
+                                                    pool,
+                                                    use_pool,
+                                                    ncdim=ncdim)
         self.mell = MultiEllipsoid(ctrs=[np.zeros(self.ncdim)],
                                    covs=[np.identity(self.ncdim)])
         self.bounding = 'multi'
@@ -604,16 +684,19 @@ class MultiEllipsoidSampler(Sampler):
             pool = None
 
         # Update the bounding ellipsoids.
-        self.mell.update(self.live_u[:, :self.ncdim], pointvol=pointvol,
-                         vol_dec=self.vol_dec, vol_check=self.vol_check,
-                         rstate=self.rstate, bootstrap=self.bootstrap,
+        self.mell.update(self.live_u[:, :self.ncdim],
+                         pointvol=pointvol,
+                         vol_dec=self.vol_dec,
+                         vol_check=self.vol_check,
+                         rstate=self.rstate,
+                         bootstrap=self.bootstrap,
                          pool=pool)
         if self.enlarge != 1.:
-            self.mell.scale_to_logvol(self.mell.logvols +np.log( self.enlarge))
+            self.mell.scale_to_logvol(self.mell.logvols + np.log(self.enlarge))
 
         return copy.deepcopy(self.mell)
 
-    def propose_unif(self):
+    def propose_unif(self, *args):
         """Propose a new live point by sampling *uniformly* within
         the union of ellipsoids."""
 
@@ -622,7 +705,7 @@ class MultiEllipsoidSampler(Sampler):
             # Returns the point `u`, ellipsoid index `idx`, and number of
             # overlapping ellipsoids `q` at position `u`.
             u, idx, q = self.mell.sample(rstate=self.rstate, return_q=True)
-            
+
             if q == 1 or self.rstate.rand() < 1.0 / q:
                 # Accept the point with probability 1/q to account for
                 # overlapping ellipsoids.
@@ -630,14 +713,20 @@ class MultiEllipsoidSampler(Sampler):
                 if unitcheck(u, self.nonbounded[:self.ncdim]):
                     break  # if successful, we're done!
 
-        u = np.concatenate([u, np.random.uniform(0, 1, self.npdim - self.ncdim)])
+        u = np.concatenate(
+            [u, np.random.uniform(0, 1, self.npdim - self.ncdim)])
         return u, self.mell.ells[idx].axes
 
-    def propose_live(self):
-        """Return a live point/axes to be used by other sampling methods."""
+    def propose_live(self, *args):
+        """Return a live point/axes to be used by other sampling methods.
+           If args is not empty, it contains the subset of indices of points to
+           sample from."""
 
+        if len(args) > 0:
+            i = self.rstate.choice(args[0])
+        else:
+            i = self.rstate.randint(self.nlive)
         # Copy a random live point.
-        i = self.rstate.randint(self.nlive)
         u = self.live_u[i, :]
         u_fit = u[:self.ncdim]
 
@@ -777,19 +866,31 @@ class RadFriendsSampler(Sampler):
         A dictionary of additional parameters.
 
     """
-
-    def __init__(self, loglikelihood, prior_transform, npdim, live_points,
-                 method, update_interval, first_update, rstate,
-                 queue_size, pool, use_pool, kwargs={}, ncdim=0):
+    def __init__(self,
+                 loglikelihood,
+                 prior_transform,
+                 npdim,
+                 live_points,
+                 method,
+                 update_interval,
+                 first_update,
+                 rstate,
+                 queue_size,
+                 pool,
+                 use_pool,
+                 kwargs={},
+                 ncdim=0):
 
         # Initialize method to propose a new starting point.
-        self._PROPOSE = {'unif': self.propose_unif,
-                         'rwalk': self.propose_live,
-                         'rstagger': self.propose_live,
-                         'slice': self.propose_live,
-                         'rslice': self.propose_live,
-                         'hslice': self.propose_live,
-                         'user-defined': self.propose_live}
+        self._PROPOSE = {
+            'unif': self.propose_unif,
+            'rwalk': self.propose_live,
+            'rstagger': self.propose_live,
+            'slice': self.propose_live,
+            'rslice': self.propose_live,
+            'hslice': self.propose_live,
+            'user-defined': self.propose_live
+        }
 
         if callable(method):
             _SAMPLING["user-defined"] = method
@@ -800,13 +901,15 @@ class RadFriendsSampler(Sampler):
         self.sampling, self.evolve_point = method, _SAMPLING[method]
 
         # Initialize heuristic used to update our sampling method.
-        self._UPDATE = {'unif': self.update_unif,
-                        'rwalk': self.update_rwalk,
-                        'rstagger': self.update_rwalk,
-                        'slice': self.update_slice,
-                        'rslice': self.update_slice,
-                        'hslice': self.update_hslice,
-                        'user-defined': self.update_user}
+        self._UPDATE = {
+            'unif': self.update_unif,
+            'rwalk': self.update_rwalk,
+            'rstagger': self.update_rwalk,
+            'slice': self.update_slice,
+            'rslice': self.update_slice,
+            'hslice': self.update_hslice,
+            'user-defined': self.update_user
+        }
 
         self.custom_update = kwargs.get('update_func')
         self.update_proposal = self._UPDATE[method]
@@ -827,10 +930,17 @@ class RadFriendsSampler(Sampler):
         self.cite = self.kwargs.get('cite')
 
         # Initialize sampler.
-        super(RadFriendsSampler,
-              self).__init__(loglikelihood, prior_transform, npdim,
-                             live_points, update_interval, first_update,
-                             rstate, queue_size, pool, use_pool, ncdim=ncdim)
+        super(RadFriendsSampler, self).__init__(loglikelihood,
+                                                prior_transform,
+                                                npdim,
+                                                live_points,
+                                                update_interval,
+                                                first_update,
+                                                rstate,
+                                                queue_size,
+                                                pool,
+                                                use_pool,
+                                                ncdim=ncdim)
         self.radfriends = RadFriends(self.ncdim)
         self.bounding = 'balls'
         self.method = method
@@ -860,23 +970,26 @@ class RadFriendsSampler(Sampler):
             pool = None
 
         # Update the N-spheres.
-        self.radfriends.update(self.live_u[:, :self.ncdim], pointvol=pointvol,
-                               rstate=self.rstate, bootstrap=self.bootstrap,
+        self.radfriends.update(self.live_u[:, :self.ncdim],
+                               pointvol=pointvol,
+                               rstate=self.rstate,
+                               bootstrap=self.bootstrap,
                                pool=pool)
         if self.enlarge != 1.:
             self.radfriends.scale_to_logvol(self.radfriends.logvol_ball +
-                                        np.log(self.enlarge))
+                                            np.log(self.enlarge))
 
         return copy.deepcopy(self.radfriends)
 
-    def propose_unif(self):
+    def propose_unif(self, *args):
         """Propose a new live point by sampling *uniformly* within
         the union of N-spheres defined by our live points."""
 
         while True:
             # Sample a point `u` from the union of N-spheres along with the
             # number of overlapping spheres `q` at point `u`.
-            u, q = self.radfriends.sample(self.live_u[:, :self.ncdim], rstate=self.rstate,
+            u, q = self.radfriends.sample(self.live_u[:, :self.ncdim],
+                                          rstate=self.rstate,
                                           return_q=True)
 
             # Check if our sample is within the unit cube.
@@ -889,13 +1002,20 @@ class RadFriendsSampler(Sampler):
         # Define the axes of the N-sphere.
         ax = self.radfriends.axes
 
-        u = np.concatenate([u, np.random.uniform(0, 1, self.npdim - self.ncdim)])
+        u = np.concatenate(
+            [u, np.random.uniform(0, 1, self.npdim - self.ncdim)])
         return u, ax
 
-    def propose_live(self):
-        """Propose a live point/axes to be used by other sampling methods."""
+    def propose_live(self, *args):
+        """Propose a live point/axes to be used by other sampling methods.
+           If args is not empty, it contains the subset of indices of points to
+           sample from."""
 
-        i = self.rstate.randint(self.nlive)
+        if len(args) > 0:
+            subset = args[0]
+            i = self.rstate.choice(subset)
+        else:
+            i = self.rstate.randint(self.nlive)
         u = self.live_u[i, :]
         ax = self.radfriends.axes
 
@@ -998,19 +1118,31 @@ class SupFriendsSampler(Sampler):
         A dictionary of additional parameters.
 
     """
-
-    def __init__(self, loglikelihood, prior_transform, npdim, live_points,
-                 method, update_interval, first_update, rstate,
-                 queue_size, pool, use_pool, kwargs={}, ncdim=0):
+    def __init__(self,
+                 loglikelihood,
+                 prior_transform,
+                 npdim,
+                 live_points,
+                 method,
+                 update_interval,
+                 first_update,
+                 rstate,
+                 queue_size,
+                 pool,
+                 use_pool,
+                 kwargs={},
+                 ncdim=0):
 
         # Initialize method to propose a new starting point.
-        self._PROPOSE = {'unif': self.propose_unif,
-                         'rwalk': self.propose_live,
-                         'rstagger': self.propose_live,
-                         'slice': self.propose_live,
-                         'rslice': self.propose_live,
-                         'hslice': self.propose_live,
-                         'user-defined': self.propose_live}
+        self._PROPOSE = {
+            'unif': self.propose_unif,
+            'rwalk': self.propose_live,
+            'rstagger': self.propose_live,
+            'slice': self.propose_live,
+            'rslice': self.propose_live,
+            'hslice': self.propose_live,
+            'user-defined': self.propose_live
+        }
 
         if callable(method):
             _SAMPLING["user-defined"] = method
@@ -1021,13 +1153,15 @@ class SupFriendsSampler(Sampler):
         self.sampling, self.evolve_point = method, _SAMPLING[method]
 
         # Initialize heuristic used to update our sampling method.
-        self._UPDATE = {'unif': self.update_unif,
-                        'rwalk': self.update_rwalk,
-                        'rstagger': self.update_rwalk,
-                        'slice': self.update_slice,
-                        'rslice': self.update_slice,
-                        'hslice': self.update_hslice,
-                        'user-defined': self.update_user}
+        self._UPDATE = {
+            'unif': self.update_unif,
+            'rwalk': self.update_rwalk,
+            'rstagger': self.update_rwalk,
+            'slice': self.update_slice,
+            'rslice': self.update_slice,
+            'hslice': self.update_hslice,
+            'user-defined': self.update_user
+        }
 
         self.custom_update = kwargs.get('update_func')
         self.update_proposal = self._UPDATE[method]
@@ -1048,10 +1182,17 @@ class SupFriendsSampler(Sampler):
         self.cite = self.kwargs.get('cite')
 
         # Initialize sampler.
-        super(SupFriendsSampler,
-              self).__init__(loglikelihood, prior_transform, npdim,
-                             live_points, update_interval, first_update,
-                             rstate, queue_size, pool, use_pool, ncdim=ncdim)
+        super(SupFriendsSampler, self).__init__(loglikelihood,
+                                                prior_transform,
+                                                npdim,
+                                                live_points,
+                                                update_interval,
+                                                first_update,
+                                                rstate,
+                                                queue_size,
+                                                pool,
+                                                use_pool,
+                                                ncdim=ncdim)
         self.supfriends = SupFriends(self.ncdim)
         self.bounding = 'cubes'
         self.method = method
@@ -1082,23 +1223,26 @@ class SupFriendsSampler(Sampler):
             pool = None
 
         # Update the N-cubes.
-        self.supfriends.update(self.live_u[:, :self.ncdim], pointvol=pointvol,
-                               rstate=self.rstate, bootstrap=self.bootstrap,
+        self.supfriends.update(self.live_u[:, :self.ncdim],
+                               pointvol=pointvol,
+                               rstate=self.rstate,
+                               bootstrap=self.bootstrap,
                                pool=pool)
         if self.enlarge != 1.:
             self.supfriends.scale_to_logvol(self.supfriends.logvol_cube +
-                                        np.log(self.enlarge))
+                                            np.log(self.enlarge))
 
         return copy.deepcopy(self.supfriends)
 
-    def propose_unif(self):
+    def propose_unif(self, *args):
         """Propose a new live point by sampling *uniformly* within
         the collection of N-cubes defined by our live points."""
 
         while True:
             # Sample a point `u` from the union of N-cubes along with the
             # number of overlapping cubes `q` at point `u`.
-            u, q = self.supfriends.sample(self.live_u[:, :self.ncdim], rstate=self.rstate,
+            u, q = self.supfriends.sample(self.live_u[:, :self.ncdim],
+                                          rstate=self.rstate,
                                           return_q=True)
 
             # Check if our point is within the unit cube.
@@ -1111,13 +1255,19 @@ class SupFriendsSampler(Sampler):
         # Define the axes of our N-cube.
         ax = self.supfriends.axes
 
-        u = np.concatenate([u, np.random.uniform(0, 1, self.npdim - self.ncdim)])
+        u = np.concatenate(
+            [u, np.random.uniform(0, 1, self.npdim - self.ncdim)])
         return u, ax
 
-    def propose_live(self):
-        """Return a live point/axes to be used by other sampling methods."""
+    def propose_live(self, *args):
+        """Return a live point/axes to be used by other sampling methods.
+           If args is not empty, it contains the subset of indices of points to
+           sample from."""
 
-        i = self.rstate.randint(self.nlive)
+        if len(args) > 0:
+            i = self.rstate.choice(args[0])
+        else:
+            i = self.rstate.randint(self.nlive)
         u = self.live_u[i, :]
         ax = self.supfriends.axes
 

@@ -28,12 +28,11 @@ import warnings
 import math
 import numpy as np
 from numpy import linalg
-from scipy import special
 from scipy import spatial
 from scipy import cluster
 from scipy import linalg as lalg
 from numpy import cov as mle_cov
-from scipy.special import logsumexp
+from scipy.special import logsumexp, gammaln
 from .utils import unitcheck
 
 __all__ = [
@@ -1293,8 +1292,7 @@ def logvol_prefactor(n, p=2.):
     """
 
     p *= 1.  # convert to float in case user inputs an integer
-    lnf = (n * np.log(2.) + n * special.gammaln(1. / p + 1.) -
-           special.gammaln(n / p + 1))
+    lnf = (n * np.log(2.) + n * gammaln(1. / p + 1.) - gammaln(n / p + 1))
 
     return lnf
 

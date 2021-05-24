@@ -134,6 +134,10 @@ class Sampler(object):
         # random state
         self.rstate = rstate
 
+        # set to none just for qa
+        self.scale = None
+        self.kwargs = None
+
         # parallelism
         self.pool = pool  # provided pool
         if self.pool is None:
@@ -167,6 +171,18 @@ class Sampler(object):
         # results
         self.saved_run = RunRecord()
 
+    def propose_point(self, *args):
+        raise RuntimeError('Should be overriden')
+
+    def evolve_point(self, *args):
+        raise RuntimeError('Should be overriden')
+
+    def update_proposal(self, *args):
+        raise RuntimeError('Should be overriden')
+
+    def update(self, *args):
+        raise RuntimeError('Should be overriden')
+
     def __getstate__(self):
         """Get state information for pickling."""
 
@@ -182,7 +198,7 @@ class Sampler(object):
             if state['pool'] is not None:
                 del state['pool']  # remove pool
                 del state['M']  # remove `pool.map` function hook
-        except:
+        except AttributeError:
             pass
 
         return state

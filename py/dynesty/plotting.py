@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 """
 A set of built-in plotting functions to help visualize ``dynesty`` nested
 sampling :class:`~dynesty.results.Results`.
@@ -24,24 +23,33 @@ import warnings
 from .utils import resample_equal, unitcheck
 from .utils import quantile as _quantile
 
-try:
-    str_type = types.StringTypes
-    float_type = types.FloatType
-    int_type = types.IntType
-except:
-    str_type = str
-    float_type = float
-    int_type = int
+str_type = str
+float_type = float
+int_type = int
 
-__all__ = ["runplot", "traceplot", "cornerpoints", "cornerplot",
-           "boundplot", "cornerbound", "_hist2d"]
+__all__ = [
+    "runplot", "traceplot", "cornerpoints", "cornerplot", "boundplot",
+    "cornerbound", "_hist2d"
+]
 
 
-def runplot(results, span=None, logplot=False, kde=True, nkde=1000,
-            color='blue', plot_kwargs=None, label_kwargs=None, lnz_error=True,
-            lnz_truth=None, truth_color='red', truth_kwargs=None,
-            max_x_ticks=8, max_y_ticks=3, use_math_text=True,
-            mark_final_live=True, fig=None):
+def runplot(results,
+            span=None,
+            logplot=False,
+            kde=True,
+            nkde=1000,
+            color='blue',
+            plot_kwargs=None,
+            label_kwargs=None,
+            lnz_error=True,
+            lnz_truth=None,
+            truth_color='red',
+            truth_kwargs=None,
+            max_x_ticks=8,
+            max_y_ticks=3,
+            use_math_text=True,
+            mark_final_live=True,
+            fig=None):
     """
     Plot live points, ln(likelihood), ln(weight), and ln(evidence)
     as a function of ln(prior volume).
@@ -245,8 +253,10 @@ def runplot(results, span=None, logplot=False, kde=True, nkde=1000,
         axes[i].set_ylim([ymin, ymax])
 
     # Plotting.
-    labels = ['Live Points', 'Likelihood\n(normalized)',
-              'Importance\nWeight', 'Evidence']
+    labels = [
+        'Live Points', 'Likelihood\n(normalized)', 'Importance\nWeight',
+        'Evidence'
+    ]
     if kde:
         labels[2] += ' PDF'
 
@@ -282,16 +292,22 @@ def runplot(results, span=None, logplot=False, kde=True, nkde=1000,
         else:
             ax.plot(-logvol, d, color=c, **plot_kwargs)
         if i == 3 and lnz_error:
-            [ax.fill_between(-logvol, np.exp(logz + s*logzerr),
-                             np.exp(logz - s*logzerr), color=c, alpha=0.2)
-             for s in range(1, 4)]
+            [
+                ax.fill_between(-logvol,
+                                np.exp(logz + s * logzerr),
+                                np.exp(logz - s * logzerr),
+                                color=c,
+                                alpha=0.2) for s in range(1, 4)
+            ]
         # Mark addition of final live points.
         if mark_final_live:
-            ax.axvline(-logvol[live_idx], color=c, ls="dashed", lw=2,
+            ax.axvline(-logvol[live_idx],
+                       color=c,
+                       ls="dashed",
+                       lw=2,
                        **plot_kwargs)
             if i == 0:
-                ax.axhline(live_idx, color=c, ls="dashed", lw=2,
-                           **plot_kwargs)
+                ax.axhline(live_idx, color=c, ls="dashed", lw=2, **plot_kwargs)
         # Add truth value(s).
         if i == 3 and lnz_truth is not None:
             ax.axhline(np.exp(lnz_truth), color=truth_color, **truth_kwargs)
@@ -299,17 +315,36 @@ def runplot(results, span=None, logplot=False, kde=True, nkde=1000,
     return fig, axes
 
 
-def traceplot(results, span=None, quantiles=[0.025, 0.5, 0.975],
-              smooth=0.02, thin=1, dims=None,
-              post_color='blue', post_kwargs=None, kde=True, nkde=1000,
-              trace_cmap='plasma', trace_color=None, trace_kwargs=None,
-              connect=False, connect_highlight=10, connect_color='red',
-              connect_kwargs=None, max_n_ticks=5, use_math_text=False,
-              labels=None, label_kwargs=None,
-              show_titles=False, title_quantiles=[0.025, 0.5, 0.975],
-              title_fmt=".2f", title_kwargs=None,
-              truths=None, truth_color='red', truth_kwargs=None,
-              verbose=False, fig=None):
+def traceplot(results,
+              span=None,
+              quantiles=[0.025, 0.5, 0.975],
+              smooth=0.02,
+              thin=1,
+              dims=None,
+              post_color='blue',
+              post_kwargs=None,
+              kde=True,
+              nkde=1000,
+              trace_cmap='plasma',
+              trace_color=None,
+              trace_kwargs=None,
+              connect=False,
+              connect_highlight=10,
+              connect_color='red',
+              connect_kwargs=None,
+              max_n_ticks=5,
+              use_math_text=False,
+              labels=None,
+              label_kwargs=None,
+              show_titles=False,
+              title_quantiles=[0.025, 0.5, 0.975],
+              title_fmt=".2f",
+              title_kwargs=None,
+              truths=None,
+              truth_color='red',
+              truth_kwargs=None,
+              verbose=False,
+              fig=None):
     """
     Plot traces and marginalized posteriors for each parameter.
 
@@ -563,7 +598,7 @@ def traceplot(results, span=None, quantiles=[0.025, 0.5, 0.975],
 
     # Setting up labels.
     if labels is None:
-        labels = [r"$x_{"+str(i+1)+"}$" for i in range(ndim)]
+        labels = [r"$x_{" + str(i + 1) + "}$" for i in range(ndim)]
 
     # Setting up smoothing.
     if (isinstance(smooth, int_type) or isinstance(smooth, float_type)):
@@ -571,7 +606,7 @@ def traceplot(results, span=None, quantiles=[0.025, 0.5, 0.975],
 
     # Setting up default plot layout.
     if fig is None:
-        fig, axes = pl.subplots(ndim, 2, figsize=(12, 3*ndim))
+        fig, axes = pl.subplots(ndim, 2, figsize=(12, 3 * ndim))
     else:
         fig, axes = fig
         try:
@@ -617,19 +652,26 @@ def traceplot(results, span=None, quantiles=[0.025, 0.5, 0.975],
         ax.set_xlabel(r"$-\ln X$", **label_kwargs)
         ax.set_ylabel(labels[i], **label_kwargs)
         # Generate scatter plot.
-        ax.scatter(-logvol[::thin], x[::thin], c=color, cmap=cmap,
+        ax.scatter(-logvol[::thin],
+                   x[::thin],
+                   c=color,
+                   cmap=cmap,
                    **trace_kwargs)
         if connect:
             # Add lines highlighting specific particle paths.
             for j in ids:
                 sel = (samples_id[::thin] == j)
-                ax.plot(-logvol[::thin][sel], x[::thin][sel],
-                        color=connect_color, **connect_kwargs)
+                ax.plot(-logvol[::thin][sel],
+                        x[::thin][sel],
+                        color=connect_color,
+                        **connect_kwargs)
         # Add truth value(s).
         if truths is not None and truths[i] is not None:
             try:
-                [ax.axhline(t, color=truth_color, **truth_kwargs)
-                 for t in truths[i]]
+                [
+                    ax.axhline(t, color=truth_color, **truth_kwargs)
+                    for t in truths[i]
+                ]
             except:
                 ax.axhline(truths[i], color=truth_color, **truth_kwargs)
 
@@ -662,8 +704,12 @@ def traceplot(results, span=None, quantiles=[0.025, 0.5, 0.975],
         if isinstance(s, int_type):
             # If `s` is an integer, plot a weighted histogram with
             # `s` bins within the provided bounds.
-            n, b, _ = ax.hist(x, bins=s, weights=weights, color=color,
-                              range=np.sort(span[i]), **post_kwargs)
+            n, b, _ = ax.hist(x,
+                              bins=s,
+                              weights=weights,
+                              color=color,
+                              range=np.sort(span[i]),
+                              **post_kwargs)
             x0 = np.array(list(zip(b[:-1], b[1:]))).flatten()
             y0 = np.array(list(zip(n, n))).flatten()
         else:
@@ -671,7 +717,9 @@ def traceplot(results, span=None, quantiles=[0.025, 0.5, 0.975],
             # smoothing filter by a factor of 10, then use a Gaussian
             # filter to smooth the results.
             bins = int(round(10. / s))
-            n, b = np.histogram(x, bins=bins, weights=weights,
+            n, b = np.histogram(x,
+                                bins=bins,
+                                weights=weights,
                                 range=np.sort(span[i]))
             n = norm_kde(n, 10.)
             x0 = 0.5 * (b[1:] + b[:-1])
@@ -689,8 +737,10 @@ def traceplot(results, span=None, quantiles=[0.025, 0.5, 0.975],
         # Add truth value(s).
         if truths is not None and truths[i] is not None:
             try:
-                [ax.axvline(t, color=truth_color, **truth_kwargs)
-                 for t in truths[i]]
+                [
+                    ax.axvline(t, color=truth_color, **truth_kwargs)
+                    for t in truths[i]
+                ]
             except:
                 ax.axvline(truths[i], color=truth_color, **truth_kwargs)
         # Set titles.
@@ -708,11 +758,22 @@ def traceplot(results, span=None, quantiles=[0.025, 0.5, 0.975],
     return fig, axes
 
 
-def cornerpoints(results, dims=None, thin=1, span=None,
-                 cmap='plasma', color=None,
-                 kde=True, nkde=1000, plot_kwargs=None, labels=None,
-                 label_kwargs=None, truths=None, truth_color='red',
-                 truth_kwargs=None, max_n_ticks=5, use_math_text=False,
+def cornerpoints(results,
+                 dims=None,
+                 thin=1,
+                 span=None,
+                 cmap='plasma',
+                 color=None,
+                 kde=True,
+                 nkde=1000,
+                 plot_kwargs=None,
+                 labels=None,
+                 label_kwargs=None,
+                 truths=None,
+                 truth_color='red',
+                 truth_kwargs=None,
+                 max_n_ticks=5,
+                 use_math_text=False,
                  fig=None):
     """
     Generate a (sub-)corner plot of (weighted) samples.
@@ -872,7 +933,7 @@ def cornerpoints(results, dims=None, thin=1, span=None,
 
     # Set labels
     if labels is None:
-        labels = [r"$x_{"+str(i+1)+"}$" for i in range(ndim)]
+        labels = [r"$x_{" + str(i + 1) + "}$" for i in range(ndim)]
 
     # Set colormap.
     if color is None:
@@ -899,8 +960,12 @@ def cornerpoints(results, dims=None, thin=1, span=None,
     # Format figure.
     lb = lbdim / dim
     tr = (lbdim + plotdim) / dim
-    fig.subplots_adjust(left=lb, bottom=lb, right=tr, top=tr,
-                        wspace=whspace, hspace=whspace)
+    fig.subplots_adjust(left=lb,
+                        bottom=lb,
+                        right=tr,
+                        top=tr,
+                        wspace=whspace,
+                        hspace=whspace)
 
     # Plot the 2-D projected samples.
     for i, x in enumerate(samples[1:]):
@@ -922,10 +987,10 @@ def cornerpoints(results, dims=None, thin=1, span=None,
                 ax.xaxis.set_major_locator(NullLocator())
                 ax.yaxis.set_major_locator(NullLocator())
             else:
-                ax.xaxis.set_major_locator(MaxNLocator(max_n_ticks,
-                                                       prune="lower"))
-                ax.yaxis.set_major_locator(MaxNLocator(max_n_ticks,
-                                                       prune="lower"))
+                ax.xaxis.set_major_locator(
+                    MaxNLocator(max_n_ticks, prune="lower"))
+                ax.yaxis.set_major_locator(
+                    MaxNLocator(max_n_ticks, prune="lower"))
             # Label axes.
             sf = ScalarFormatter(useMathText=use_math_text)
             ax.xaxis.set_major_formatter(sf)
@@ -940,7 +1005,7 @@ def cornerpoints(results, dims=None, thin=1, span=None,
                 ax.set_yticklabels([])
             else:
                 [l.set_rotation(45) for l in ax.get_yticklabels()]
-                ax.set_ylabel(labels[i+1], **label_kwargs)
+                ax.set_ylabel(labels[i + 1], **label_kwargs)
                 ax.yaxis.set_label_coords(-0.3, 0.5)
             # Plot distribution.
             in_bounds = np.ones_like(y).astype('bool')
@@ -948,36 +1013,60 @@ def cornerpoints(results, dims=None, thin=1, span=None,
                 in_bounds *= ((x >= span[i][0]) & (x <= span[i][1]))
             if span is not None and span[j] is not None:
                 in_bounds *= ((y >= span[j][0]) & (y <= span[j][1]))
-            ax.scatter(y[in_bounds][::thin], x[in_bounds][::thin],
-                       c=color, cmap=cmap, **plot_kwargs)
+            ax.scatter(y[in_bounds][::thin],
+                       x[in_bounds][::thin],
+                       c=color,
+                       cmap=cmap,
+                       **plot_kwargs)
             # Add truth values
             if truths is not None:
                 if truths[j] is not None:
                     try:
-                        [ax.axvline(t, color=truth_color,  **truth_kwargs)
-                         for t in truths[j]]
+                        [
+                            ax.axvline(t, color=truth_color, **truth_kwargs)
+                            for t in truths[j]
+                        ]
                     except:
-                        ax.axvline(truths[j], color=truth_color,
+                        ax.axvline(truths[j],
+                                   color=truth_color,
                                    **truth_kwargs)
-                if truths[i+1] is not None:
+                if truths[i + 1] is not None:
                     try:
-                        [ax.axhline(t, color=truth_color, **truth_kwargs)
-                         for t in truths[i+1]]
+                        [
+                            ax.axhline(t, color=truth_color, **truth_kwargs)
+                            for t in truths[i + 1]
+                        ]
                     except:
-                        ax.axhline(truths[i+1], color=truth_color,
+                        ax.axhline(truths[i + 1],
+                                   color=truth_color,
                                    **truth_kwargs)
 
     return (fig, axes)
 
 
-def cornerplot(results, dims=None, span=None, quantiles=[0.025, 0.5, 0.975],
-               color='black', smooth=0.02, quantiles_2d=None, hist_kwargs=None,
-               hist2d_kwargs=None, labels=None, label_kwargs=None,
-               show_titles=False, title_quantiles=[0.025, 0.5, 0.975], 
-               title_fmt=".2f", title_kwargs=None,
-               truths=None, truth_color='red', truth_kwargs=None,
-               max_n_ticks=5, top_ticks=False, use_math_text=False,
-               verbose=False, fig=None):
+def cornerplot(results,
+               dims=None,
+               span=None,
+               quantiles=[0.025, 0.5, 0.975],
+               color='black',
+               smooth=0.02,
+               quantiles_2d=None,
+               hist_kwargs=None,
+               hist2d_kwargs=None,
+               labels=None,
+               label_kwargs=None,
+               show_titles=False,
+               title_quantiles=[0.025, 0.5, 0.975],
+               title_fmt=".2f",
+               title_kwargs=None,
+               truths=None,
+               truth_color='red',
+               truth_kwargs=None,
+               max_n_ticks=5,
+               top_ticks=False,
+               use_math_text=False,
+               verbose=False,
+               fig=None):
     """
     Generate a corner plot of the 1-D and 2-D marginalized posteriors.
 
@@ -1166,7 +1255,7 @@ def cornerplot(results, dims=None, span=None, quantiles=[0.025, 0.5, 0.975],
 
     # Set labels
     if labels is None:
-        labels = [r"$x_{"+str(i+1)+"}$" for i in range(ndim)]
+        labels = [r"$x_{" + str(i + 1) + "}$" for i in range(ndim)]
 
     # Setting up smoothing.
     if (isinstance(smooth, int_type) or isinstance(smooth, float_type)):
@@ -1193,8 +1282,12 @@ def cornerplot(results, dims=None, span=None, quantiles=[0.025, 0.5, 0.975],
     # Format figure.
     lb = lbdim / dim
     tr = (lbdim + plotdim) / dim
-    fig.subplots_adjust(left=lb, bottom=lb, right=tr, top=tr,
-                        wspace=whspace, hspace=whspace)
+    fig.subplots_adjust(left=lb,
+                        bottom=lb,
+                        right=tr,
+                        top=tr,
+                        wspace=whspace,
+                        hspace=whspace)
 
     # Plotting.
     for i, x in enumerate(samples):
@@ -1211,8 +1304,7 @@ def cornerplot(results, dims=None, span=None, quantiles=[0.025, 0.5, 0.975],
             ax.xaxis.set_major_locator(NullLocator())
             ax.yaxis.set_major_locator(NullLocator())
         else:
-            ax.xaxis.set_major_locator(MaxNLocator(max_n_ticks,
-                                                   prune="lower"))
+            ax.xaxis.set_major_locator(MaxNLocator(max_n_ticks, prune="lower"))
             ax.yaxis.set_major_locator(NullLocator())
         # Label axes.
         sf = ScalarFormatter(useMathText=use_math_text)
@@ -1232,19 +1324,28 @@ def cornerplot(results, dims=None, span=None, quantiles=[0.025, 0.5, 0.975],
         if isinstance(sx, int_type):
             # If `sx` is an integer, plot a weighted histogram with
             # `sx` bins within the provided bounds.
-            n, b, _ = ax.hist(x, bins=sx, weights=weights, color=color,
-                              range=np.sort(span[i]), **hist_kwargs)
+            n, b, _ = ax.hist(x,
+                              bins=sx,
+                              weights=weights,
+                              color=color,
+                              range=np.sort(span[i]),
+                              **hist_kwargs)
         else:
             # If `sx` is a float, oversample the data relative to the
             # smoothing filter by a factor of 10, then use a Gaussian
             # filter to smooth the results.
             bins = int(round(10. / sx))
-            n, b = np.histogram(x, bins=bins, weights=weights,
+            n, b = np.histogram(x,
+                                bins=bins,
+                                weights=weights,
                                 range=np.sort(span[i]))
             n = norm_kde(n, 10.)
             b0 = 0.5 * (b[1:] + b[:-1])
-            n, b, _ = ax.hist(b0, bins=b, weights=n,
-                              range=np.sort(span[i]), color=color,
+            n, b, _ = ax.hist(b0,
+                              bins=b,
+                              weights=n,
+                              range=np.sort(span[i]),
+                              color=color,
                               **hist_kwargs)
         ax.set_ylim([0., max(n) * 1.05])
         # Plot quantiles.
@@ -1258,8 +1359,10 @@ def cornerplot(results, dims=None, span=None, quantiles=[0.025, 0.5, 0.975],
         # Add truth value(s).
         if truths is not None and truths[i] is not None:
             try:
-                [ax.axvline(t, color=truth_color, **truth_kwargs)
-                 for t in truths[i]]
+                [
+                    ax.axvline(t, color=truth_color, **truth_kwargs)
+                    for t in truths[i]
+                ]
             except:
                 ax.axvline(truths[i], color=truth_color, **truth_kwargs)
         # Set titles.
@@ -1295,10 +1398,10 @@ def cornerplot(results, dims=None, span=None, quantiles=[0.025, 0.5, 0.975],
                 ax.xaxis.set_major_locator(NullLocator())
                 ax.yaxis.set_major_locator(NullLocator())
             else:
-                ax.xaxis.set_major_locator(MaxNLocator(max_n_ticks,
-                                                       prune="lower"))
-                ax.yaxis.set_major_locator(MaxNLocator(max_n_ticks,
-                                                       prune="lower"))
+                ax.xaxis.set_major_locator(
+                    MaxNLocator(max_n_ticks, prune="lower"))
+                ax.yaxis.set_major_locator(
+                    MaxNLocator(max_n_ticks, prune="lower"))
             # Label axes.
             sf = ScalarFormatter(useMathText=use_math_text)
             ax.xaxis.set_major_formatter(sf)
@@ -1325,38 +1428,63 @@ def cornerplot(results, dims=None, span=None, quantiles=[0.025, 0.5, 0.975],
             else:
                 fill_contours = True
                 plot_contours = True
-            hist2d_kwargs['fill_contours'] = hist2d_kwargs.get('fill_contours',
-                                                               fill_contours)
-            hist2d_kwargs['plot_contours'] = hist2d_kwargs.get('plot_contours',
-                                                               plot_contours)
-            _hist2d(y, x, ax=ax, span=[span[j], span[i]],
-                    weights=weights, color=color, smooth=[sy, sx],
+            hist2d_kwargs['fill_contours'] = hist2d_kwargs.get(
+                'fill_contours', fill_contours)
+            hist2d_kwargs['plot_contours'] = hist2d_kwargs.get(
+                'plot_contours', plot_contours)
+            _hist2d(y,
+                    x,
+                    ax=ax,
+                    span=[span[j], span[i]],
+                    weights=weights,
+                    color=color,
+                    smooth=[sy, sx],
                     **hist2d_kwargs)
             # Add truth values
             if truths is not None:
                 if truths[j] is not None:
                     try:
-                        [ax.axvline(t, color=truth_color, **truth_kwargs)
-                         for t in truths[j]]
+                        [
+                            ax.axvline(t, color=truth_color, **truth_kwargs)
+                            for t in truths[j]
+                        ]
                     except:
-                        ax.axvline(truths[j], color=truth_color,
+                        ax.axvline(truths[j],
+                                   color=truth_color,
                                    **truth_kwargs)
                 if truths[i] is not None:
                     try:
-                        [ax.axhline(t, color=truth_color, **truth_kwargs)
-                         for t in truths[i]]
+                        [
+                            ax.axhline(t, color=truth_color, **truth_kwargs)
+                            for t in truths[i]
+                        ]
                     except:
-                        ax.axhline(truths[i], color=truth_color,
+                        ax.axhline(truths[i],
+                                   color=truth_color,
                                    **truth_kwargs)
 
     return (fig, axes)
 
 
-def boundplot(results, dims, it=None, idx=None, prior_transform=None,
-              periodic=None, reflective=None, ndraws=5000, color='gray',
-              plot_kwargs=None, labels=None, label_kwargs=None, max_n_ticks=5,
-              use_math_text=False, show_live=False, live_color='darkviolet',
-              live_kwargs=None, span=None, fig=None):
+def boundplot(results,
+              dims,
+              it=None,
+              idx=None,
+              prior_transform=None,
+              periodic=None,
+              reflective=None,
+              ndraws=5000,
+              color='gray',
+              plot_kwargs=None,
+              labels=None,
+              label_kwargs=None,
+              max_n_ticks=5,
+              use_math_text=False,
+              show_live=False,
+              live_color='darkviolet',
+              live_kwargs=None,
+              span=None,
+              fig=None):
     """
     Return the bounding distribution used to propose either (1) live points
     at a given iteration or (2) a specific dead point during
@@ -1570,7 +1698,7 @@ def boundplot(results, dims, it=None, idx=None, prior_transform=None,
             # Find generating bound ID if necessary.
             if it is None:
                 it = results['samples_it'][idx]
-            it_eff = sum(bsel[:it+1])  # effective iteration in batch
+            it_eff = sum(bsel[:it + 1])  # effective iteration in batch
             # Run our sampling backwards.
             for i in range(1, niter_eff - it_eff + 1):
                 r = -(nbatch + i)
@@ -1663,17 +1791,31 @@ def boundplot(results, dims, it=None, idx=None, prior_transform=None,
         axes.set_xlabel(labels[0], **label_kwargs)
         axes.set_ylabel(labels[1], **label_kwargs)
     else:
-        axes.set_xlabel(r"$x_{"+str(dims[0]+1)+"}$", **label_kwargs)
-        axes.set_ylabel(r"$x_{"+str(dims[1]+1)+"}$", **label_kwargs)
+        axes.set_xlabel(r"$x_{" + str(dims[0] + 1) + "}$", **label_kwargs)
+        axes.set_ylabel(r"$x_{" + str(dims[1] + 1) + "}$", **label_kwargs)
 
     return fig, axes
 
 
-def cornerbound(results, it=None, idx=None, dims=None, prior_transform=None,
-                periodic=None, reflective=None, ndraws=5000, color='gray',
-                plot_kwargs=None, labels=None, label_kwargs=None, max_n_ticks=5,
-                use_math_text=False, show_live=False, live_color='darkviolet',
-                live_kwargs=None, span=None, fig=None):
+def cornerbound(results,
+                it=None,
+                idx=None,
+                dims=None,
+                prior_transform=None,
+                periodic=None,
+                reflective=None,
+                ndraws=5000,
+                color='gray',
+                plot_kwargs=None,
+                labels=None,
+                label_kwargs=None,
+                max_n_ticks=5,
+                use_math_text=False,
+                show_live=False,
+                live_color='darkviolet',
+                live_kwargs=None,
+                span=None,
+                fig=None):
     """
     Return the bounding distribution used to propose either (1) live points
     at a given iteration or (2) a specific dead point during
@@ -1891,7 +2033,7 @@ def cornerbound(results, it=None, idx=None, dims=None, prior_transform=None,
             # Find generating bound ID if necessary.
             if it is None:
                 it = results['samples_it'][idx]
-            it_eff = sum(bsel[:it+1])  # effective iteration in batch
+            it_eff = sum(bsel[:it + 1])  # effective iteration in batch
             # Run our sampling backwards.
             for i in range(1, niter_eff - it_eff + 1):
                 r = -(nbatch + i)
@@ -1955,7 +2097,7 @@ def cornerbound(results, it=None, idx=None, dims=None, prior_transform=None,
 
     # Set labels.
     if labels is None:
-        labels = [r"$x_{"+str(i+1)+"}$" for i in range(ndim)]
+        labels = [r"$x_{" + str(i + 1) + "}$" for i in range(ndim)]
 
     # Setup axis layout (from `corner.py`).
     factor = 2.0  # size of side of one panel
@@ -1978,8 +2120,12 @@ def cornerbound(results, it=None, idx=None, dims=None, prior_transform=None,
     # Format figure.
     lb = lbdim / dim
     tr = (lbdim + plotdim) / dim
-    fig.subplots_adjust(left=lb, bottom=lb, right=tr, top=tr,
-                        wspace=whspace, hspace=whspace)
+    fig.subplots_adjust(left=lb,
+                        bottom=lb,
+                        right=tr,
+                        top=tr,
+                        wspace=whspace,
+                        hspace=whspace)
 
     # Plot the 2-D projected samples.
     for i, x in enumerate(psamps[1:]):
@@ -2001,10 +2147,10 @@ def cornerbound(results, it=None, idx=None, dims=None, prior_transform=None,
                 ax.xaxis.set_major_locator(NullLocator())
                 ax.yaxis.set_major_locator(NullLocator())
             else:
-                ax.xaxis.set_major_locator(MaxNLocator(max_n_ticks,
-                                                       prune="lower"))
-                ax.yaxis.set_major_locator(MaxNLocator(max_n_ticks,
-                                                       prune="lower"))
+                ax.xaxis.set_major_locator(
+                    MaxNLocator(max_n_ticks, prune="lower"))
+                ax.yaxis.set_major_locator(
+                    MaxNLocator(max_n_ticks, prune="lower"))
             # Label axes.
             sf = ScalarFormatter(useMathText=use_math_text)
             ax.xaxis.set_major_formatter(sf)
@@ -2019,21 +2165,33 @@ def cornerbound(results, it=None, idx=None, dims=None, prior_transform=None,
                 ax.set_yticklabels([])
             else:
                 [l.set_rotation(45) for l in ax.get_yticklabels()]
-                ax.set_ylabel(labels[i+1], **label_kwargs)
+                ax.set_ylabel(labels[i + 1], **label_kwargs)
                 ax.yaxis.set_label_coords(-0.3, 0.5)
             # Plot distribution.
             ax.plot(y, x, c=color, **plot_kwargs)
             # Add live points.
             if show_live:
-                ax.plot(lsamps[j], lsamps[i+1], c=live_color, **live_kwargs)
+                ax.plot(lsamps[j], lsamps[i + 1], c=live_color, **live_kwargs)
 
     return (fig, axes)
 
 
-def _hist2d(x, y, smooth=0.02, span=None, weights=None, levels=None,
-            ax=None, color='gray', plot_datapoints=False, plot_density=True,
-            plot_contours=True, no_fill_contours=False, fill_contours=True,
-            contour_kwargs=None, contourf_kwargs=None, data_kwargs=None,
+def _hist2d(x,
+            y,
+            smooth=0.02,
+            span=None,
+            weights=None,
+            levels=None,
+            ax=None,
+            color='gray',
+            plot_datapoints=False,
+            plot_density=True,
+            plot_contours=True,
+            no_fill_contours=False,
+            fill_contours=True,
+            contour_kwargs=None,
+            contourf_kwargs=None,
+            data_kwargs=None,
             **kwargs):
     """
     Internal function called by :meth:`cornerplot` used to generate a
@@ -2119,23 +2277,24 @@ def _hist2d(x, y, smooth=0.02, span=None, weights=None, levels=None,
 
     # The default "sigma" contour levels.
     if levels is None:
-        levels = 1.0 - np.exp(-0.5 * np.arange(0.5, 2.1, 0.5) ** 2)
+        levels = 1.0 - np.exp(-0.5 * np.arange(0.5, 2.1, 0.5)**2)
 
     # Color map for the density plot, over-plotted to indicate the
     # density of the points near the center.
-    density_cmap = LinearSegmentedColormap.from_list(
-        "density_cmap", [color, (1, 1, 1, 0)])
+    density_cmap = LinearSegmentedColormap.from_list("density_cmap",
+                                                     [color, (1, 1, 1, 0)])
 
     # Color map used to hide the points at the high density areas.
-    white_cmap = LinearSegmentedColormap.from_list(
-        "white_cmap", [(1, 1, 1), (1, 1, 1)], N=2)
+    white_cmap = LinearSegmentedColormap.from_list("white_cmap", [(1, 1, 1),
+                                                                  (1, 1, 1)],
+                                                   N=2)
 
     # This "color map" is the list of colors for the contour levels if the
     # contours are filled.
     rgba_color = colorConverter.to_rgba(color)
     contour_cmap = [list(rgba_color) for l in levels] + [rgba_color]
     for i, l in enumerate(levels):
-        contour_cmap[i][-1] *= float(i) / (len(levels)+1)
+        contour_cmap[i][-1] *= float(i) / (len(levels) + 1)
 
     # Initialize smoothing.
     if (isinstance(smooth, int_type) or isinstance(smooth, float_type)):
@@ -2157,7 +2316,9 @@ def _hist2d(x, y, smooth=0.02, span=None, weights=None, levels=None,
 
     # We'll make the 2D histogram to directly estimate the density.
     try:
-        H, X, Y = np.histogram2d(x.flatten(), y.flatten(), bins=bins,
+        H, X, Y = np.histogram2d(x.flatten(),
+                                 y.flatten(),
+                                 bins=bins,
                                  range=list(map(np.sort, span)),
                                  weights=weights)
     except ValueError:
@@ -2203,10 +2364,14 @@ def _hist2d(x, y, smooth=0.02, span=None, weights=None, levels=None,
     H2[1, -2] = H[0, -1]
     H2[-2, 1] = H[-1, 0]
     H2[-2, -2] = H[-1, -1]
-    X2 = np.concatenate([X1[0] + np.array([-2, -1]) * np.diff(X1[:2]), X1,
-                         X1[-1] + np.array([1, 2]) * np.diff(X1[-2:])])
-    Y2 = np.concatenate([Y1[0] + np.array([-2, -1]) * np.diff(Y1[:2]), Y1,
-                         Y1[-1] + np.array([1, 2]) * np.diff(Y1[-2:])])
+    X2 = np.concatenate([
+        X1[0] + np.array([-2, -1]) * np.diff(X1[:2]), X1,
+        X1[-1] + np.array([1, 2]) * np.diff(X1[-2:])
+    ])
+    Y2 = np.concatenate([
+        Y1[0] + np.array([-2, -1]) * np.diff(Y1[:2]), Y1,
+        Y1[-1] + np.array([1, 2]) * np.diff(Y1[-2:])
+    ])
 
     # Plot the data points.
     if plot_datapoints:
@@ -2220,16 +2385,20 @@ def _hist2d(x, y, smooth=0.02, span=None, weights=None, levels=None,
 
     # Plot the base fill to hide the densest data points.
     if (plot_contours or plot_density) and not no_fill_contours:
-        ax.contourf(X2, Y2, H2.T, [V.min(), H.max()],
-                    cmap=white_cmap, antialiased=False)
+        ax.contourf(X2,
+                    Y2,
+                    H2.T, [V.min(), H.max()],
+                    cmap=white_cmap,
+                    antialiased=False)
 
     if plot_contours and fill_contours:
         if contourf_kwargs is None:
             contourf_kwargs = dict()
         contourf_kwargs["colors"] = contourf_kwargs.get("colors", contour_cmap)
-        contourf_kwargs["antialiased"] = contourf_kwargs.get("antialiased",
-                                                             False)
-        ax.contourf(X2, Y2, H2.T, np.concatenate([[0], V, [H.max()*(1+1e-4)]]),
+        contourf_kwargs["antialiased"] = contourf_kwargs.get(
+            "antialiased", False)
+        ax.contourf(X2, Y2, H2.T,
+                    np.concatenate([[0], V, [H.max() * (1 + 1e-4)]]),
                     **contourf_kwargs)
 
     # Plot the density map. This can't be plotted at the same time as the

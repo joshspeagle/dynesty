@@ -1748,6 +1748,9 @@ class DynamicSampler(object):
 
             # Combine batch with previous runs.
             self.combine_runs()
-
-        # Pass back info.
-        return ncall, niter, logl_bounds, results
+            # Pass back info.
+            return ncall, niter, logl_bounds, results
+        else:
+            raise RuntimeError(
+                'add_batch called with no leftover function calls or iterations'
+            )

@@ -216,7 +216,10 @@ class UnitCubeSampler(Sampler):
         return u, ax
 
     def propose_live(self, *args):
-        """Return a live point/axes to be used by other sampling methods."""
+        """Return a live point/axes to be used by other sampling methods.
+           If args is not empty, it contains the subset of indices of points to
+           sample from."""
+
         if len(args) > 0:
             i = self.rstate.choice(args[0])
         else:
@@ -456,7 +459,9 @@ class SingleEllipsoidSampler(Sampler):
         return u, self.ell.axes
 
     def propose_live(self, *args):
-        """Return a live point/axes to be used by other sampling methods."""
+        """Return a live point/axes to be used by other sampling methods.
+           If args is not empty, it contains the subset of indices of points to
+           sample from."""
         if len(args) > 0:
             i = self.rstate.choice(args[0])
         else:
@@ -713,7 +718,9 @@ class MultiEllipsoidSampler(Sampler):
         return u, self.mell.ells[idx].axes
 
     def propose_live(self, *args):
-        """Return a live point/axes to be used by other sampling methods."""
+        """Return a live point/axes to be used by other sampling methods.
+           If args is not empty, it contains the subset of indices of points to
+           sample from."""
 
         if len(args) > 0:
             i = self.rstate.choice(args[0])
@@ -1001,7 +1008,9 @@ class RadFriendsSampler(Sampler):
 
     def propose_live(self, *args):
         """Propose a live point/axes to be used by other sampling methods.
-        args can specify an additional subset to chose from"""
+           If args is not empty, it contains the subset of indices of points to
+           sample from."""
+
         if len(args) > 0:
             subset = args[0]
             i = self.rstate.choice(subset)
@@ -1251,7 +1260,10 @@ class SupFriendsSampler(Sampler):
         return u, ax
 
     def propose_live(self, *args):
-        """Return a live point/axes to be used by other sampling methods."""
+        """Return a live point/axes to be used by other sampling methods.
+           If args is not empty, it contains the subset of indices of points to
+           sample from."""
+
         if len(args) > 0:
             i = self.rstate.choice(args[0])
         else:

@@ -136,7 +136,7 @@ class Sampler(object):
 
         # set to none just for qa
         self.scale = None
-        self.kwargs = None
+        self.kwargs = {}
 
         # parallelism
         self.pool = pool  # provided pool

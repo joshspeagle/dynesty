@@ -332,10 +332,14 @@ class Sampler(object):
         # Add/zip arguments to submit to the queue.
         point_queue = []
         axes_queue = []
+        if self.method in ['rslice', 'slice', 'hslice']:
+            args = (np.nonzero(self.live_logl > loglstar)[0], )
+        else:
+            args = ()
         while self.nqueue < self.queue_size:
             if self._beyond_unit_bound(loglstar):
                 # Propose points using the provided sampling/bounding options.
-                point, axes = self.propose_point()
+                point, axes = self.propose_point(*args)
                 evolve_point = self.evolve_point
             else:
                 # Propose/evaluate points directly from the unit cube.

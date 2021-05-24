@@ -882,6 +882,7 @@ class RadFriendsSampler(Sampler):
                  use_pool,
                  kwargs={},
                  ncdim=0):
+
         # Initialize sampler.
         super(RadFriendsSampler, self).__init__(loglikelihood,
                                                 prior_transform,

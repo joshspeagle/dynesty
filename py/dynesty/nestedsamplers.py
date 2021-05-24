@@ -647,10 +647,11 @@ class MultiEllipsoidSampler(Sampler):
 
         # Automatically trigger an update if we're not in any ellipsoid.
         if nidx == 0:
-            try:
+            if len(self.saved_run.D['logvol']) > 0:
                 # Expected ln(prior volume) at a given iteration.
-                expected_vol = math.exp(self.saved_logvol[-1] - self.dlv)
-            except:
+                expected_vol = math.exp(self.saved_run.D['logvol'][-1] -
+                                        self.dlv)
+            else:
                 # Expected ln(prior volume) at the first iteration.
                 expected_vol = math.exp(-self.dlv)
             pointvol = expected_vol / self.nlive  # minimum point volume

@@ -572,10 +572,10 @@ def traceplot(results,
 
     # Check sample IDs.
     if connect:
-        try:
+        if 'samples_id' in results:
             samples_id = results['samples_id']
             uid = np.unique(samples_id)
-        except:
+        else:
             raise ValueError("Sample IDs are not defined!")
         try:
             ids = connect_highlight[0]
@@ -611,7 +611,7 @@ def traceplot(results,
         fig, axes = fig
         try:
             axes.reshape(ndim, 2)
-        except:
+        except ValueError:
             raise ValueError("Provided axes do not match the required shape "
                              "for plotting samples.")
 

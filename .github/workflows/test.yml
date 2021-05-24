@@ -36,7 +36,7 @@ jobs:
           pip install coveralls
           pip install .
       - name: pylint
-        run: pylint -E --disable=E1101,E1130  py/dynesty/*py
+        run: pylint --fail-under=8 --extension-pkg-whitelist=scipy.special  py/dynesty/*py
       - name: Test
         run: |
            pytest --cov=dynesty

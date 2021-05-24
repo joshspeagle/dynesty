@@ -34,7 +34,7 @@ from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
                              MultiEllipsoidSampler, RadFriendsSampler,
                              SupFriendsSampler)
 from .results import Results, print_fn
-from .utils import kld_error, LogLikelihood
+from .utils import kld_error
 
 __all__ = [
     "DynamicSampler", "weight_function", "stopping_function", "_kld_error"
@@ -467,7 +467,7 @@ class DynamicSampler(object):
                 if state['sampler'].pool is not None:
                     del state['sampler'].pool
                     del state['sampler'].M
-            except:
+            except AttributeError:
                 pass
 
         return state
@@ -721,12 +721,12 @@ class DynamicSampler(object):
                             if np.sign(logl) < 0:
                                 self.live_logl[i] = -1e300
                             else:
-                                raise ValueError(\
-                                        "The log-likelihood ({0}) of live "
-                                        "point {1} located at u={2} v={3} "
-                                        " is invalid."
-                                        .format(logl, i, self.live_u[i],
-                                                self.live_v[i]))
+                                raise ValueError(
+                                    "The log-likelihood ({0}) of live "
+                                    "point {1} located at u={2} v={3} "
+                                    " is invalid.".format(
+                                        logl, i, self.live_u[i],
+                                        self.live_v[i]))
 
                     # Check to make sure there is at least one finite
                     # log-likelihood value within the initial set of live
@@ -762,7 +762,7 @@ class DynamicSampler(object):
 
             # (Re-)bundle live points.
             live_points = [self.live_u, self.live_v, self.live_logl]
-            self.live_init = [np.array(l) for l in live_points]
+            self.live_init = [np.array(_) for _ in live_points]
             self.ncall += self.nlive_init
             self.live_bound = np.zeros(self.nlive_init, dtype='int')
             self.live_it = np.zeros(self.nlive_init, dtype='int')
@@ -973,10 +973,8 @@ class DynamicSampler(object):
         saved_u = np.array(self.saved_run.D['u'])
         saved_v = np.array(self.saved_run.D['v'])
         saved_logl = np.array(self.saved_run.D['logl'])
-        saved_n = np.array(self.saved_run.D['n'])
         saved_logwt = np.array(self.saved_run.D['logwt'])
         saved_scale = np.array(self.saved_run.D['scale'])
-        nbase = len(saved_n)
         nblive = self.nlive_init
 
         # Reset "new" results.
@@ -1165,9 +1163,8 @@ class DynamicSampler(object):
                                         save_bounds=save_bounds)):
 
                 # Grab results.
-                (worst, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
-                 h, nc, worst_it, boundidx, bounditer, eff,
-                 delta_logz) = results
+                (worst, ustar, vstar, loglstar, logvol, _, logz, _, h, nc,
+                 worst_it, boundidx, bounditer, _, _) = results
 
                 # Save results.
 
@@ -1193,9 +1190,8 @@ class DynamicSampler(object):
 
             for it, results in enumerate(self.sampler.add_live_points()):
                 # Grab results.
-                (worst, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
-                 h, nc, worst_it, boundidx, bounditer, eff,
-                 delta_logz) = results
+                (worst, ustar, vstar, loglstar, logvol, _, logz, _, h, nc,
+                 worst_it, boundidx, bounditer, _, _) = results
 
                 # Save results.
                 D = dict(id=worst,
@@ -1555,9 +1551,8 @@ class DynamicSampler(object):
                         logl_max=logl_max_init,
                         n_effective=n_effective_init,
                         live_points=live_points):
-                    (worst, ustar, vstar, loglstar, logvol, logwt, logz,
-                     logzvar, h, nc, worst_it, boundidx, bounditer, eff,
-                     delta_logz) = results
+                    (_, _, _, _, _, _, _, _, _, nc, _, _, _, _, _) = results
+
                     ncall += nc
                     niter += 1
 
@@ -1590,7 +1585,7 @@ class DynamicSampler(object):
                     stop_post, stop_evid, stop_val = stop_vals
                 else:
                     stop = False
-                    stop_val = np.NaN
+                    stop_val = np.nan
 
                 # If we have likelihood calls remaining, iterations remaining,
                 # and we have failed to hit the minimum ESS, run our batch.
@@ -1753,6 +1748,9 @@ class DynamicSampler(object):
 
             # Combine batch with previous runs.
             self.combine_runs()
-
-        # Pass back info.
-        return ncall, niter, logl_bounds, results
+            # Pass back info.
+            return ncall, niter, logl_bounds, results
+        else:
+            raise RuntimeError(
+                'add_batch called with no leftover function calls or iterations'
+            )

@@ -332,6 +332,11 @@ class Sampler(object):
         # Add/zip arguments to submit to the queue.
         point_queue = []
         axes_queue = []
+
+        # Slice samplers must have have a starting point
+        # satisfying a strict logl>loglstar criterion othwise they can fail
+        # therefore we provide those subsets of points to choose from.
+
         if self.method in ['rslice', 'slice', 'hslice']:
             args = (np.nonzero(self.live_logl > loglstar)[0], )
         else:

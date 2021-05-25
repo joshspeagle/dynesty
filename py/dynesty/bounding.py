@@ -1322,33 +1322,46 @@ def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
     coeffmin = 1e-10
     # this will a starting point for the modification
     # of the form (1-coeff)*M + (coeff)*E
+    eig_mult = 10  # we want the condition number to be at least that much
+    # smaller than the max_condition_number
 
     for trial in range(ntries):
-        failed = False
+        failed = 0
         try:
             # Check if matrix is invertible.
-            am = lalg.pinvh(covar)
-            l, v = lalg.eigh(covar)  # compute eigenvalues/vectors
-
-            # Check if direct Cholesky decomposition exists.
-            axes = lalg.cholesky(covar, lower=True)
-
+            eigval, eigvec = lalg.eigh(covar)  # compute eigenvalues/vectors
+            maxval = eigval.max()
+            minval = eigval.min()
             # Check if everything worked.
-            if np.all((l > 0) & np.isfinite(l)
-                      ) and l.max() < l.min() * max_condition_number:
-                break
+            if np.isfinite(eigval).all():
+                if maxval <= 0:
+                    failed = 2
+                else:
+                    if minval < maxval / max_condition_number:
+                        failed = 1
+                    else:
+                        am = lalg.pinvh(covar)
+                        # Check if direct Cholesky decomposition exists.
+                        axes = lalg.cholesky(covar, lower=True)
+                        break
             else:
-                failed = True
+                failed = 2
         except lalg.LinAlgError:
             # If the matrix remains singular/unstable,
             # suppress the off-diagonal elements
-            failed = True
-        if failed:
-            coeff = coeffmin * (1. / coeffmin)**(trial * 1. / (ntries - 1))
-            # this starts at coeffmin when trial=0 and ends at 1
-            # when trial == ntries-1
-            covar = (1. - coeff) * covar + coeff * np.eye(ndim)
-    if failed:
+            failed = 2
+        if failed > 0:
+            if failed == 1:
+                eigval_fix = np.maximum(
+                    eigval, eig_mult * maxval / max_condition_number)
+                covar = eigvec @ np.diag(eigval_fix) @ eigvec.T
+            else:
+                coeff = coeffmin * (1. / coeffmin)**(trial * 1. / (ntries - 1))
+                # this starts at coeffmin when trial=0 and ends at 1
+                # when trial == ntries-1
+                covar = (1. - coeff) * covar + coeff * np.eye(ndim)
+
+    if failed > 0:
         warnings.warn("Failed to guarantee the ellipsoid axes will be "
                       "non-singular. Defaulting to a sphere.")
         covar = np.eye(ndim)  # default to identity

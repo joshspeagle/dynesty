@@ -1043,7 +1043,11 @@ class DynamicSampler(object):
             # we are weighting each point by 1/L_i * 1/W_i to ensure
             # uniform sampling within boundary volume
             cur_logwt = -saved_logl[subset] - saved_logwt[subset]
-            cur_wt = np.exp(cur_logwt - logsumexp(cur_logwt))
+            cur_wt = np.exp(cur_logwt - cur_logwt.max())
+            cur_wt = cur_wt / cur_wt.sum()
+            # i normalize in linear space rather then using logsumexp
+            # because cur_wt.sum() needs to be 1 for random.choice
+
             # we are now randomly sampling with weights
             # notice that since we are samplign without
             # replacement we aren't guaranteed to be able

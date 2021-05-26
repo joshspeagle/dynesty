@@ -1325,6 +1325,11 @@ def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
     eig_mult = 10  # we want the condition number to be at least that much
     # smaller than the max_condition_number
 
+    # here we are trying to check if we compute cholesky transformation
+    # and all eigenvals > 0 and condition number is good
+    # if the only problem are the eigenvalues we just increase the lowest ones
+    # if we are getting linalg exceptions we use add diag matrices
+
     for trial in range(ntries):
         failed = 0
         try:
@@ -1332,23 +1337,28 @@ def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
             eigval, eigvec = lalg.eigh(covar)  # compute eigenvalues/vectors
             maxval = eigval.max()
             minval = eigval.min()
-            # Check if everything worked.
+            # Check if eigen values are good
             if np.isfinite(eigval).all():
                 if maxval <= 0:
+                    # no positive eigvalues
+                    # not much to fix
                     failed = 2
                 else:
                     if minval < maxval / max_condition_number:
+                        # some eigen values are too small
                         failed = 1
                     else:
-                        am = lalg.pinvh(covar)
-                        # Check if direct Cholesky decomposition exists.
+                        # eigen values are all right
+                        # checking if cholesky works
                         axes = lalg.cholesky(covar, lower=True)
+                        # if we are here we are done
                         break
             else:
+                # complete failure
                 failed = 2
         except lalg.LinAlgError:
-            # If the matrix remains singular/unstable,
-            # suppress the off-diagonal elements
+            # There is some kind of massive failure
+            # we suppress the off-diagonal elements
             failed = 2
         if failed > 0:
             if failed == 1:
@@ -1367,6 +1377,9 @@ def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
         covar = np.eye(ndim)  # default to identity
         am = lalg.pinvh(covar)
         axes = lalg.cholesky(covar, lower=True)
+    else:
+        # invert the matrix using eigen decomposition
+        am = eigvec @ np.diag(1. / eigval) @ eigvec.T
     return covar, am, axes
 
 

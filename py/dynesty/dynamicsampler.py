@@ -1077,10 +1077,11 @@ class DynamicSampler(object):
 
             live_logl_min = min(live_logl)
             if self.sampler._beyond_unit_bound(live_logl_min):
-                # notice we are setting the volume to zero
+                # notice we are setting the volume to some value
                 # as it is really not clear what the volume should
-                # be
-                bound = self.sampler.update(0)
+                # be TODO
+                pointvol = math.exp(-1. * len(saved_logl) / nblive)
+                bound = self.sampler.update(pointvol)
                 if save_bounds:
                     self.sampler.bound.append(copy.deepcopy(bound))
                 self.sampler.nbound += 1

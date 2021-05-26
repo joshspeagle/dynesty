@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 """
 Functions for proposing new live points used by
 :class:`~dynesty.sampler.Sampler` (and its children from
@@ -19,9 +18,10 @@ from numpy import linalg
 
 from .utils import unitcheck, reflect
 
-
-__all__ = ["sample_unif", "sample_rwalk", "sample_rstagger",
-           "sample_slice", "sample_rslice", "sample_hslice"]
+__all__ = [
+    "sample_unif", "sample_rwalk", "sample_rstagger", "sample_slice",
+    "sample_rslice", "sample_hslice"
+]
 
 EPS = float(np.finfo(np.float64).eps)
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
@@ -82,8 +82,7 @@ def sample_unif(args):
     """
 
     # Unzipping.
-    (u, loglstar, axes, scale,
-     prior_transform, loglikelihood, kwargs) = args
+    (u, loglstar, axes, scale, prior_transform, loglikelihood, kwargs) = args
 
     # Evaluate.
     v = prior_transform(np.array(u))
@@ -147,8 +146,7 @@ def sample_rwalk(args):
     """
 
     # Unzipping.
-    (u, loglstar, axes, scale,
-     prior_transform, loglikelihood, kwargs) = args
+    (u, loglstar, axes, scale, prior_transform, loglikelihood, kwargs) = args
     rstate = np.random
     scale_init = 1.0 * scale
 
@@ -184,23 +182,24 @@ def sample_rwalk(args):
                                    "loglstar: {5}\n"
                                    "logl_prop: {6}\n"
                                    "axes: {7}\n"
-                                   "scale: {8}."
-                                   .format(u, drhat, dr, du, u_prop,
-                                           loglstar, logl_prop, axes, scale))
+                                   "scale: {8}.".format(
+                                       u, drhat, dr, du, u_prop, loglstar,
+                                       logl_prop, axes, scale))
 
             # Propose a direction on the unit n-sphere.
             drhat = rstate.randn(n_cluster)
             drhat /= linalg.norm(drhat)
 
             # Scale based on dimensionality.
-            dr = drhat * rstate.rand()**(1./n_cluster)
+            dr = drhat * rstate.rand()**(1. / n_cluster)
 
             # draw random point for non clustering parameters
             u_non_cluster = np.random.uniform(0, 1, n - n_cluster)
 
             # Transform to proposal distribution.
             du = np.dot(axes, dr)
-            u_prop = np.concatenate([u[:n_cluster] + scale * du, u_non_cluster])
+            u_prop = np.concatenate(
+                [u[:n_cluster] + scale * du, u_non_cluster])
 
             # Wrap periodic parameters
             if periodic is not None:
@@ -305,8 +304,7 @@ def sample_rstagger(args):
     """
 
     # Unzipping.
-    (u, loglstar, axes, scale,
-     prior_transform, loglikelihood, kwargs) = args
+    (u, loglstar, axes, scale, prior_transform, loglikelihood, kwargs) = args
     rstate = np.random
     scale_init = 1.0 * scale
 
@@ -344,23 +342,24 @@ def sample_rstagger(args):
                                    "loglstar: {5}\n"
                                    "logl_prop: {6}\n"
                                    "axes: {7}\n"
-                                   "scale: {8}."
-                                   .format(u, drhat, dr, du, u_prop,
-                                           loglstar, logl_prop, axes, scale))
+                                   "scale: {8}.".format(
+                                       u, drhat, dr, du, u_prop, loglstar,
+                                       logl_prop, axes, scale))
 
             # Propose a direction on the unit n-sphere.
             drhat = rstate.randn(n_cluster)
             drhat /= linalg.norm(drhat)
 
             # Scale based on dimensionality.
-            dr = drhat * rstate.rand()**(1./n_cluster)
+            dr = drhat * rstate.rand()**(1. / n_cluster)
 
             # draw random point for non clustering parameters
             u_non_cluster = np.random.uniform(0, 1, n - n_cluster)
 
             # Transform to proposal distribution.
             du = np.dot(axes, dr)
-            u_prop = np.concatenate([u[:n_cluster] + scale * du, u_non_cluster])
+            u_prop = np.concatenate(
+                [u[:n_cluster] + scale * du, u_non_cluster])
 
             # Wrap periodic parameters
             if periodic is not None:
@@ -471,8 +470,7 @@ def sample_slice(args):
     """
 
     # Unzipping.
-    (u, loglstar, axes, scale,
-     prior_transform, loglikelihood, kwargs) = args
+    (u, loglstar, axes, scale, prior_transform, loglikelihood, kwargs) = args
     rstate = np.random
 
     # Periodicity.
@@ -510,7 +508,8 @@ def sample_slice(args):
 
             # Define starting "window".
             r = rstate.rand()  # initial scale/offset
-            u_l = np.concatenate([u[:n_cluster] - r * axis, u_non_cluster])  # left bound
+            u_l = np.concatenate([u[:n_cluster] - r * axis,
+                                  u_non_cluster])  # left bound
             if unitcheck(u_l, nonperiodic):
                 v_l = prior_transform(np.array(u_l))
                 logl_l = loglikelihood(np.array(v_l))
@@ -518,7 +517,8 @@ def sample_slice(args):
                 logl_l = -np.inf
             nc += 1
             nexpand += 1
-            u_r = np.concatenate([u[:n_cluster] + (1 - r) * axis, u_non_cluster])  # right bound
+            u_r = np.concatenate(
+                [u[:n_cluster] + (1 - r) * axis, u_non_cluster])  # right bound
             if unitcheck(u_r, nonperiodic):
                 v_r = prior_transform(np.array(u_r))
                 logl_r = loglikelihood(np.array(v_r))
@@ -549,7 +549,8 @@ def sample_slice(args):
 
             # Sample within limits. If the sample is not valid, shrink
             # the limits until we hit the `loglstar` bound.
-            window_init = linalg.norm(u_r[:n_cluster] - u_l[:n_cluster])  # initial window size
+            window_init = linalg.norm(u_r[:n_cluster] -
+                                      u_l[:n_cluster])  # initial window size
             while True:
                 # Define slice and window.
                 u_hat = u_r - u_l
@@ -566,9 +567,9 @@ def sample_slice(args):
                                        "u_hat: {3}\n"
                                        "loglstar: {4}\n"
                                        "axes: {5}\n"
-                                       "axlens: {6}."
-                                       .format(u, u_l, u_r, u_hat,
-                                               loglstar, axes, axlens))
+                                       "axlens: {6}.".format(
+                                           u, u_l, u_r, u_hat, loglstar, axes,
+                                           axlens))
 
                 # Propose a new position.
                 u_prop = u_l + rstate.rand() * u_hat  # scale from left
@@ -608,13 +609,16 @@ def sample_slice(args):
                                            "logl_prop: {6}\n"
                                            "axes: {7}\n"
                                            "axlens: {8}\n"
-                                           "s: {9}."
-                                           .format(u, u_l, u_r, u_hat, u_prop,
-                                                   loglstar, logl_prop,
-                                                   axes, axlens, s))
+                                           "s: {9}.".format(
+                                               u, u_l, u_r, u_hat, u_prop,
+                                               loglstar, logl_prop, axes,
+                                               axlens, s))
 
-    blob = {'fscale': np.mean(fscale),
-            'nexpand': nexpand, 'ncontract': ncontract}
+    blob = {
+        'fscale': np.mean(fscale),
+        'nexpand': nexpand,
+        'ncontract': ncontract
+    }
 
     return u_prop, v_prop, logl_prop, nc, blob
 
@@ -671,8 +675,7 @@ def sample_rslice(args):
     """
 
     # Unzipping.
-    (u, loglstar, axes, scale,
-     prior_transform, loglikelihood, kwargs) = args
+    (u, loglstar, axes, scale, prior_transform, loglikelihood, kwargs) = args
     rstate = np.random
 
     # Periodicity.
@@ -703,7 +706,8 @@ def sample_rslice(args):
 
         # Define starting "window".
         r = rstate.rand()  # initial scale/offset
-        u_l = np.concatenate([u[:n_cluster] - r * axis, u_non_cluster])  # left bound
+        u_l = np.concatenate([u[:n_cluster] - r * axis,
+                              u_non_cluster])  # left bound
         if unitcheck(u_l, nonperiodic):
             v_l = prior_transform(np.array(u_l))
             logl_l = loglikelihood(np.array(v_l))
@@ -711,7 +715,8 @@ def sample_rslice(args):
             logl_l = -np.inf
         nc += 1
         nexpand += 1
-        u_r = np.concatenate([u[:n_cluster] + (1 - r) * axis, u_non_cluster])  # right bound
+        u_r = np.concatenate([u[:n_cluster] + (1 - r) * axis,
+                              u_non_cluster])  # right bound
         if unitcheck(u_r, nonperiodic):
             v_r = prior_transform(np.array(u_r))
             logl_r = loglikelihood(np.array(v_r))
@@ -742,26 +747,12 @@ def sample_rslice(args):
 
         # Sample within limits. If the sample is not valid, shrink
         # the limits until we hit the `loglstar` bound.
-        window_init = linalg.norm(u_r[:n_cluster] - u_l[:n_cluster])  # initial window size
+        window_init = linalg.norm(u_r[:n_cluster] -
+                                  u_l[:n_cluster])  # initial window size
         while True:
             # Define slice and window.
             u_hat = u_r - u_l
             window = linalg.norm(u_hat[:n_cluster])
-
-            # Check if the slice has shrunk to be ridiculously small.
-            if window < 1e-5 * window_init:
-                raise RuntimeError("Slice sampling appears to be "
-                                   "stuck! Some useful "
-                                   "output quantities:\n"
-                                   "u: {0}\n"
-                                   "u_left: {1}\n"
-                                   "u_right: {2}\n"
-                                   "u_hat: {3}\n"
-                                   "loglstar: {4}\n"
-                                   "axes: {5}\n"
-                                   "axlen: {6}."
-                                   .format(u, u_l, u_r, u_hat,
-                                           loglstar, axes, axlen))
 
             # Propose new position.
             u_prop = u_l + rstate.rand() * u_hat  # scale from left
@@ -789,25 +780,27 @@ def sample_rslice(args):
                     u_r = u_prop
                 else:
                     # If `s = 0` something has gone horribly wrong.
-                    raise RuntimeError("Slice sampler has failed to find "
-                                       "a valid point. Some useful "
-                                       "output quantities:\n"
-                                       "u: {0}\n"
-                                       "u_left: {1}\n"
-                                       "u_right: {2}\n"
-                                       "u_hat: {3}\n"
-                                       "u_prop: {4}\n"
-                                       "loglstar: {5}\n"
-                                       "logl_prop: {6}\n"
-                                       "axis: {7}\n"
-                                       "axlen: {8}\n"
-                                       "s: {9}."
-                                       .format(u, u_l, u_r, u_hat, u_prop,
-                                               loglstar, logl_prop,
-                                               axis, axlen, s))
+                    raise RuntimeError(
+                        "Slice sampler has failed to find "
+                        "a valid point. Some useful "
+                        "output quantities:\n"
+                        "u: {0}\n"
+                        "u_left: {1}\n"
+                        "u_right: {2}\n"
+                        "u_hat: {3}\n"
+                        "u_prop: {4}\n"
+                        "loglstar: {5}\n"
+                        "logl_prop: {6}\n"
+                        "axis: {7}\n"
+                        "axlen: {8}\n"
+                        "s: {9}.".format(u, u_l, u_r, u_hat, u_prop, loglstar,
+                                         logl_prop, axis, axlen, s))
 
-    blob = {'fscale': np.mean(fscale),
-            'nexpand': nexpand, 'ncontract': ncontract}
+    blob = {
+        'fscale': np.mean(fscale),
+        'nexpand': nexpand,
+        'ncontract': ncontract
+    }
 
     return u_prop, v_prop, logl_prop, nc, blob
 
@@ -868,8 +861,7 @@ def sample_hslice(args):
     """
 
     # Unzipping.
-    (u, loglstar, axes, scale,
-     prior_transform, loglikelihood, kwargs) = args
+    (u, loglstar, axes, scale, prior_transform, loglikelihood, kwargs) = args
     rstate = np.random
 
     # Periodicity.
@@ -925,7 +917,8 @@ def sample_hslice(args):
             u_out, u_in = None, []
             while True:
                 # Step forward.
-                u_r[:n_cluster] += rstate.uniform(1. - jitter, 1. + jitter) * vel
+                u_r[:n_cluster] += rstate.uniform(1. - jitter,
+                                                  1. + jitter) * vel
                 # Evaluate point.
                 if unitcheck(u_r, nonperiodic):
                     v_r = prior_transform(np.array(u_r))
@@ -963,7 +956,8 @@ def sample_hslice(args):
             # Define the rest of our chord.
             if len(nodes_l) == len(nodes_r) + 1:
                 try:
-                    u_in = u_in[rstate.choice(len(u_in))]  # pick point randomly
+                    u_in = u_in[rstate.choice(
+                        len(u_in))]  # pick point randomly
                 except:
                     u_in = np.array(u)
                     pass
@@ -1063,7 +1057,8 @@ def sample_hslice(args):
             u_out, u_in = None, []
             while True:
                 # Step forward.
-                u_l[:n_cluster] += rstate.uniform(1. - jitter, 1. + jitter) * vel
+                u_l[:n_cluster] += rstate.uniform(1. - jitter,
+                                                  1. + jitter) * vel
                 # Evaluate point.
                 if unitcheck(u_l, nonperiodic):
                     v_l = prior_transform(np.array(u_l))
@@ -1101,7 +1096,8 @@ def sample_hslice(args):
             # Define the rest of our chord.
             if len(nodes_r) == len(nodes_l) + 1:
                 try:
-                    u_in = u_in[rstate.choice(len(u_in))]  # pick point randomly
+                    u_in = u_in[rstate.choice(
+                        len(u_in))]  # pick point randomly
                 except:
                     u_in = np.array(u)
                     pass
@@ -1212,8 +1208,8 @@ def sample_hslice(args):
                                    "u: {0}\n"
                                    "u_left: {1}\n"
                                    "u_right: {2}\n"
-                                   "loglstar: {3}."
-                                   .format(u, u_l, u_r, loglstar))
+                                   "loglstar: {3}.".format(
+                                       u, u_l, u_r, loglstar))
 
             # Select chord.
             axprob = axlen / np.sum(axlen)
@@ -1255,9 +1251,9 @@ def sample_hslice(args):
                                        "u_hat: {3}\n"
                                        "u_prop: {4}\n"
                                        "loglstar: {5}\n"
-                                       "logl_prop: {6}."
-                                       .format(u, u_l, u_r, u_hat, u_prop,
-                                               loglstar, logl_prop))
+                                       "logl_prop: {6}.".format(
+                                           u, u_l, u_r, u_hat, u_prop,
+                                           loglstar, logl_prop))
 
     blob = {'nmove': nmove, 'nreflect': nreflect, 'ncontract': ncontract}
 

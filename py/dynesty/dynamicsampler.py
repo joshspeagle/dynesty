@@ -1080,7 +1080,10 @@ class DynamicSampler(object):
                 # notice we are setting the volume to some value
                 # as it is really not clear what the volume should
                 # be TODO
-                pointvol = math.exp(-1. * len(saved_logl) / nblive)
+                if len(subset) == 1:
+                    pointvol = math.exp(-1. * len(saved_logl) / nblive)
+                else:
+                    pointvol = 0
                 bound = self.sampler.update(pointvol)
                 if save_bounds:
                     self.sampler.bound.append(copy.deepcopy(bound))

@@ -9,7 +9,7 @@ alpha = 1e-8
 
 def loglike(x):
     # this is 1/|x} distribution along the x axis
-    # it stops rizing near zero at alpha
+    # it stops rising near zero at alpha
     # the second dimension is flat
     logl = -np.log(np.maximum(np.abs(x[0]), alpha))
 
@@ -25,15 +25,33 @@ def prior_transform(x):
 
 def test_pathology():
     ndim = 2
-    sampler = dynesty.NestedSampler(loglike,
-                                    prior_transform,
-                                    ndim,
-                                    nlive=nlive,
-                                    bound='multi',
-                                    sample='unif')
-    sampler.run_nested(dlogz=0.1, print_progress=printing)
-    logz_truth = np.log(1 - np.log(alpha))
-    # this the integral
-    logz, logzerr = sampler.results.logz[-1], sampler.results.logzerr[-1]
-    thresh = 5
-    assert (np.abs(logz - logz_truth) < thresh * logzerr)
+    for sampler in ['unif', 'rslice']:
+        sampler = dynesty.NestedSampler(loglike,
+                                        prior_transform,
+                                        ndim,
+                                        nlive=nlive,
+                                        bound='multi',
+                                        sample=sampler)
+        sampler.run_nested(dlogz=0.1, print_progress=printing)
+        logz_truth = np.log(1 - np.log(alpha))
+        # this the integral
+        logz, logzerr = sampler.results.logz[-1], sampler.results.logzerr[-1]
+        thresh = 4
+        assert (np.abs(logz - logz_truth) < thresh * logzerr)
+
+
+def test_pathology_dynamic():
+    ndim = 2
+    for sampler in ['unif', 'rslice']:
+        sampler = dynesty.DynamicNestedSampler(loglike,
+                                               prior_transform,
+                                               ndim,
+                                               nlive=nlive,
+                                               bound='multi',
+                                               sample=sampler)
+        sampler.run_nested(dlogz_init=1, print_progress=printing)
+        logz_truth = np.log(1 - np.log(alpha))
+        # this the integral
+        logz, logzerr = sampler.results.logz[-1], sampler.results.logzerr[-1]
+        thresh = 4
+        assert (np.abs(logz - logz_truth) < thresh * logzerr)

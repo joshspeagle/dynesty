@@ -955,10 +955,10 @@ def sample_hslice(args):
                     break
             # Define the rest of our chord.
             if len(nodes_l) == len(nodes_r) + 1:
-                try:
+                if len(u_in) > 0:
                     u_in = u_in[rstate.choice(
                         len(u_in))]  # pick point randomly
-                except:
+                else:
                     u_in = np.array(u)
                     pass
                 nodes_m.append(np.array(u_in))
@@ -1095,10 +1095,10 @@ def sample_hslice(args):
                     break
             # Define the rest of our chord.
             if len(nodes_r) == len(nodes_l) + 1:
-                try:
+                if len(u_in) > 0:
                     u_in = u_in[rstate.choice(
                         len(u_in))]  # pick point randomly
-                except:
+                else:
                     u_in = np.array(u)
                     pass
                 nodes_m.append(np.array(u_in))

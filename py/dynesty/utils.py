@@ -412,7 +412,7 @@ def _find_decrease(samples_n):
                 boundl = curi - 1
         # we need to close the last interval
         bounds.append((boundl, last + 1))
-
+        nlive_start = np.array(nlive_start)
     return ~nlive_flag, nlive_start, bounds
 
 
@@ -487,7 +487,7 @@ def jitter_run(res, rstate=None, approx=False):
         y_arr = rstate.exponential(scale=1.0, size=nstart + 1)
         ycsum = y_arr.cumsum()
         ycsum /= ycsum[-1]
-        uorder = ycsum[np.append(nstart, sn - 1)]
+        uorder = ycsum[[nstart, sn - 1]]
         rorder = uorder[1:] / uorder[:-1]
         t_arr[bound[0]:bound[1]] = rorder
 

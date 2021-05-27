@@ -372,10 +372,12 @@ def _get_nsamps_samples_n(res):
     return nsamps, samples_n
 
 
-def find_decrease(nsamps, samples_n):
-
-    # Find all instances where the number of live points is either constant
-    # or increasing.
+def _find_decrease(samples_n):
+    """
+    Find all instances where the number of live points is either constant
+    or increasing.
+    """
+    nsamps = len(samples_n)
     nlive_flag = np.ones(nsamps, dtype=bool)
     nlive_start, bounds = [], []
     nlive_flag[1:] = np.diff(samples_n) >= 0
@@ -445,7 +447,7 @@ def jitter_run(res, rstate=None, approx=False):
         nlive_flag = np.ones(nsamps, dtype=bool)
         nlive_start, bounds = [], []
     else:
-        nlive_flag, nlive_start, bounds = find_decrease(nsamps, samples_n)
+        nlive_flag, nlive_start, bounds = _find_decrease(samples_n)
 
     # The maximum out of a set of `K_i` uniformly distributed random variables
     # has a marginal distribution of `Beta(K_i, 1)`.

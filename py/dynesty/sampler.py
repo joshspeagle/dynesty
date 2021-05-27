@@ -355,6 +355,9 @@ class Sampler(object):
 
         if self.method in ['rslice', 'slice', 'hslice']:
             args = (np.nonzero(self.live_logl > loglstar)[0], )
+            if len(args[0]) == 0:
+                raise RuntimeError('No live points are above loglstar. '
+                                   'Do you have likelihood plateau ? ')
         else:
             args = ()
         while self.nqueue < self.queue_size:
@@ -395,6 +398,7 @@ class Sampler(object):
 
         # Grab the earliest entry.
         u, v, logl, nc, blob = self.queue.pop(0)
+
         self.used += 1  # add to the total number of used points
         self.nqueue -= 1
 

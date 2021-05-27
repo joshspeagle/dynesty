@@ -511,6 +511,7 @@ def jitter_run(res, rstate=None, approx=False):
                                                        np.empty(nsamps),
                                                        np.empty(nsamps))
     for i in range(nsamps):
+        # TODO: explain maths
         loglstar_new = logl[i]
         logdvol, dlv = logdvols[i], dlvs[i]
         logwt = np.logaddexp(loglstar_new, loglstar) + logdvol

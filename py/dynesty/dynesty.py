@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 """
 The top-level interface (defined natively upon initialization) that
 provides access to the two main sampler "super-classes" via
@@ -20,13 +19,16 @@ from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
                              SupFriendsSampler, _SAMPLING)
 from .dynamicsampler import DynamicSampler
 from .utils import LogLikelihood
+
 __all__ = ["NestedSampler", "DynamicNestedSampler", "_function_wrapper"]
 
-_SAMPLERS = {'none': UnitCubeSampler,
-             'single': SingleEllipsoidSampler,
-             'multi': MultiEllipsoidSampler,
-             'balls': RadFriendsSampler,
-             'cubes': SupFriendsSampler}
+_SAMPLERS = {
+    'none': UnitCubeSampler,
+    'single': SingleEllipsoidSampler,
+    'multi': MultiEllipsoidSampler,
+    'balls': RadFriendsSampler,
+    'cubes': SupFriendsSampler
+}
 
 _CITES = {'default':  # default set of citations
           "Code and Methods:\n================\n"
@@ -101,20 +103,44 @@ _CITES = {'default':  # default set of citations
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
-def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
-                  bound='multi', sample='auto', periodic=None, reflective=None,
-                  update_interval=None, first_update=None,
-                  npdim=None, rstate=None, queue_size=None, pool=None,
-                  use_pool=None, live_points=None,
-                  logl_args=None, logl_kwargs=None,
-                  ptform_args=None, ptform_kwargs=None,
-                  gradient=None, grad_args=None, grad_kwargs=None,
+def NestedSampler(loglikelihood,
+                  prior_transform,
+                  ndim,
+                  nlive=500,
+                  bound='multi',
+                  sample='auto',
+                  periodic=None,
+                  reflective=None,
+                  update_interval=None,
+                  first_update=None,
+                  npdim=None,
+                  rstate=None,
+                  queue_size=None,
+                  pool=None,
+                  use_pool=None,
+                  live_points=None,
+                  logl_args=None,
+                  logl_kwargs=None,
+                  ptform_args=None,
+                  ptform_kwargs=None,
+                  gradient=None,
+                  grad_args=None,
+                  grad_kwargs=None,
                   compute_jac=False,
-                  enlarge=None, bootstrap=0, vol_dec=0.5, vol_check=2.0,
-                  walks=25, facc=0.5, slices=5, fmove=0.9, max_move=100,
-                  update_func=None, ncdim=None,
+                  enlarge=None,
+                  bootstrap=0,
+                  vol_dec=0.5,
+                  vol_check=2.0,
+                  walks=25,
+                  facc=0.5,
+                  slices=5,
+                  fmove=0.9,
+                  max_move=100,
+                  update_func=None,
+                  ncdim=None,
                   save_history=False,
-                  history_filename=None, **kwargs):
+                  history_filename=None,
+                  **kwargs):
     """
     Initializes and returns a sampler object for Static Nested Sampling.
 
@@ -372,6 +398,9 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
             else:
                 sample = 'hslice'
 
+    if ncdim != npdim and sample in ['slice', 'hslice', 'rslice']:
+        raise ValueError('ncdim unsupported for slice sampling')
+
     # Custom sampling function.
     if sample not in _SAMPLING and not callable(sample):
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
@@ -496,20 +525,29 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
         use_pool = dict()
 
     # Wrap functions.
-    ptform = _function_wrapper(prior_transform, ptform_args, ptform_kwargs,
+    ptform = _function_wrapper(prior_transform,
+                               ptform_args,
+                               ptform_kwargs,
                                name='prior_transform')
     if use_pool.get('loglikelihood') or True:
         pool_logl = pool
     else:
         pool_logl = None
-    loglike = LogLikelihood(_function_wrapper(loglikelihood, logl_args,
-                                              logl_kwargs, name='loglikelihood'), ndim,
+    loglike = LogLikelihood(_function_wrapper(loglikelihood,
+                                              logl_args,
+                                              logl_kwargs,
+                                              name='loglikelihood'),
+                            ndim,
                             save=save_history,
-                            history_filename=history_filename or 'dynesty_logl_history.h5', pool=pool_logl)
+                            history_filename=history_filename
+                            or 'dynesty_logl_history.h5',
+                            pool=pool_logl)
 
     # Add in gradient.
     if gradient is not None:
-        grad = _function_wrapper(gradient, grad_args, grad_kwargs,
+        grad = _function_wrapper(gradient,
+                                 grad_args,
+                                 grad_kwargs,
                                  name='gradient')
         kwargs['grad'] = grad
         kwargs['compute_jac'] = compute_jac
@@ -524,8 +562,7 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
                 live_v = np.array(list(M(ptform,
                                          np.array(live_u))))  # parameters
             else:
-                live_v = np.array(list(map(ptform,
-                                           np.array(live_u))))
+                live_v = np.array(list(map(ptform, np.array(live_u))))
             live_logl = loglike.map(np.array(live_v))  # log-like
             live_points = [live_u, live_v, live_logl]
 
@@ -538,9 +575,9 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
                     else:
                         raise ValueError("The log-likelihood ({0}) of live "
                                          "point {1} located at u={2} v={3} "
-                                         "is invalid."
-                                         .format(logl, i, live_points[0][i],
-                                                 live_points[1][i]))
+                                         "is invalid.".format(
+                                             logl, i, live_points[0][i],
+                                             live_points[1][i]))
 
             # Check to make sure there is at least one finite log-likelihood
             # value within the initial set of live points.
@@ -561,38 +598,67 @@ def NestedSampler(loglikelihood, prior_transform, ndim, nlive=500,
                 else:
                     raise ValueError("The log-likelihood ({0}) of live "
                                      "point {1} located at u={2} v={3} "
-                                     "is invalid."
-                                     .format(logl, i, live_points[0][i],
-                                             live_points[1][i]))
+                                     "is invalid.".format(
+                                         logl, i, live_points[0][i],
+                                         live_points[1][i]))
         if all(live_points[2] == -1e300):
             raise ValueError("Not a single provided live point has a valid "
                              "log-likelihood!")
 
     # Initialize our nested sampler.
-    sampler = _SAMPLERS[bound](loglike, ptform, npdim,
-                               live_points, sample, update_interval,
-                               first_update, rstate, queue_size, pool,
-                               use_pool, kwargs, ncdim=ncdim)
+    sampler = _SAMPLERS[bound](loglike,
+                               ptform,
+                               npdim,
+                               live_points,
+                               sample,
+                               update_interval,
+                               first_update,
+                               rstate,
+                               queue_size,
+                               pool,
+                               use_pool,
+                               kwargs,
+                               ncdim=ncdim)
 
     return sampler
 
 
-def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
-                         bound='multi', sample='auto',
-                         periodic=None, reflective=None,
-                         update_interval=None, first_update=None,
-                         npdim=None, rstate=None, queue_size=None, pool=None,
-                         use_pool=None, logl_args=None, logl_kwargs=None,
-                         ptform_args=None, ptform_kwargs=None,
-                         gradient=None, grad_args=None, grad_kwargs=None,
+def DynamicNestedSampler(loglikelihood,
+                         prior_transform,
+                         ndim,
+                         bound='multi',
+                         sample='auto',
+                         periodic=None,
+                         reflective=None,
+                         update_interval=None,
+                         first_update=None,
+                         npdim=None,
+                         rstate=None,
+                         queue_size=None,
+                         pool=None,
+                         use_pool=None,
+                         logl_args=None,
+                         logl_kwargs=None,
+                         ptform_args=None,
+                         ptform_kwargs=None,
+                         gradient=None,
+                         grad_args=None,
+                         grad_kwargs=None,
                          compute_jac=False,
-                         enlarge=None, bootstrap=0,
-                         vol_dec=0.5, vol_check=2.0,
-                         walks=25, facc=0.5,
-                         slices=5, fmove=0.9, max_move=100,
-                         update_func=None, ncdim=None,
+                         enlarge=None,
+                         bootstrap=0,
+                         vol_dec=0.5,
+                         vol_check=2.0,
+                         walks=25,
+                         facc=0.5,
+                         slices=5,
+                         fmove=0.9,
+                         max_move=100,
+                         update_func=None,
+                         ncdim=None,
                          save_history=False,
-                         history_filename=None, **kwargs):
+                         history_filename=None,
+                         **kwargs):
     """
     Initializes and returns a sampler object for Dynamic Nested Sampling.
 
@@ -836,6 +902,9 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
             else:
                 sample = 'hslice'
 
+    if ncdim != npdim and sample in ['slice', 'hslice', 'rslice']:
+        raise ValueError('ncdim unsupported for slice sampling')
+
     # Custom sampling function.
     if sample not in _SAMPLING and not callable(sample):
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
@@ -948,29 +1017,38 @@ def DynamicNestedSampler(loglikelihood, prior_transform, ndim,
         use_pool = dict()
 
     # Wrap functions.
-    ptform = _function_wrapper(prior_transform, ptform_args, ptform_kwargs,
+    ptform = _function_wrapper(prior_transform,
+                               ptform_args,
+                               ptform_kwargs,
                                name='prior_transform')
 
     if use_pool.get('loglikelihood') or True:
         pool_logl = pool
     else:
         pool_logl = None
-    loglike = LogLikelihood(_function_wrapper(loglikelihood, logl_args,
-                                              logl_kwargs, name='loglikelihood'),                            ndim, pool=pool_logl,
-                            history_filename=history_filename or 'dynesty_logl_history.h5',
+    loglike = LogLikelihood(_function_wrapper(loglikelihood,
+                                              logl_args,
+                                              logl_kwargs,
+                                              name='loglikelihood'),
+                            ndim,
+                            pool=pool_logl,
+                            history_filename=history_filename
+                            or 'dynesty_logl_history.h5',
                             save=save_history)
 
     # Add in gradient.
     if gradient is not None:
-        grad = _function_wrapper(gradient, grad_args, grad_kwargs,
+        grad = _function_wrapper(gradient,
+                                 grad_args,
+                                 grad_kwargs,
                                  name='gradient')
         kwargs['grad'] = grad
         kwargs['compute_jac'] = compute_jac
 
     # Initialize our nested sampler.
-    sampler = DynamicSampler(loglike, ptform, npdim,
-                             bound, sample, update_interval, first_update,
-                             rstate, queue_size, pool, use_pool, ncdim, kwargs)
+    sampler = DynamicSampler(loglike, ptform, npdim, bound, sample,
+                             update_interval, first_update, rstate, queue_size,
+                             pool, use_pool, ncdim, kwargs)
 
     return sampler
 
@@ -982,7 +1060,6 @@ class _function_wrapper(object):
     `emcee <http://dan.iel.fm/emcee/>`_.
 
     """
-
     def __init__(self, func, args, kwargs, name='input'):
         self.func = func
         self.args = args

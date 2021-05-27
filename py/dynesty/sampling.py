@@ -416,20 +416,17 @@ def sample_rstagger(args):
     return u, v, logl, ncall, blob
 
 
-def generic_slice_step(u0, direction0, n_cluster, nonperiodic, loglstar,
-                       loglikelihood, prior_transform, rstate):
+def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
+                       prior_transform, rstate):
     """
     Do a slice generic slice sampling step along a specified dimension
 
     Arguments
-    u0: ndarray (ndim sized)
+    u: ndarray (ndim sized)
         Starting point in unit cube coordinates
         It MUST satisfy the logl>loglstar criterion
-    direction0: ndarray (ndim sized)
+    direction: ndarray (ndim sized)
         Step direction vector
-    n_cluster: int
-        How many dimensions will be affected by slice sampling
-        You should use all.
     nonperiodic: ndarray(bool)
         mask for nonperiodic variables
     loglstar: float
@@ -440,13 +437,8 @@ def generic_slice_step(u0, direction0, n_cluster, nonperiodic, loglstar,
     """
     nc, nexpand, ncontract = 0, 0, 0
     nexpand_threshold = 10000  # Threshold for warning the user
-    n = len(u0)
-    u_non_cluster = np.random.uniform(0, 1, n - n_cluster)
-    u = np.concatenate((u0[:n_cluster], u_non_cluster))
-    # Define starting "window".
+    n = len(u)
     rand0 = rstate.rand()  # initial scale/offset
-    direction = direction0 * 1
-    direction[n_cluster:] = 0
     dirlen = linalg.norm(direction)
     maxlen = np.sqrt(n) / 2.
     # maximum initial interval length (the diagonal of the cube)
@@ -457,9 +449,6 @@ def generic_slice_step(u0, direction0, n_cluster, nonperiodic, loglstar,
     else:
         dirnorm = 1
     direction = direction / dirnorm
-
-    # we do not change the non-cluster dimensions
-    # but the n_cluster code is completely broken
 
     #  The function that evaluates the logl at the location of
     # u0 + x*direction0
@@ -600,7 +589,8 @@ def sample_slice(args):
     nonperiodic = kwargs.get('nonperiodic', None)
 
     # Setup.
-    n_cluster = axes.shape[0]
+    n = len(u)
+    assert (axes.shape[0] == n)
     slices = kwargs.get('slices', 5)  # number of slices
     nc = 0
     nexpand = 0
@@ -614,7 +604,7 @@ def sample_slice(args):
     for it in range(slices):
 
         # Shuffle axis update order.
-        idxs = np.arange(n_cluster)
+        idxs = np.arange(n)
         rstate.shuffle(idxs)
 
         # Slice sample along a random direction.
@@ -623,9 +613,9 @@ def sample_slice(args):
             # Select axis.
             axis = axes[idx]
             (u_prop, v_prop, logl_prop, nc1, nexpand1, ncontract1,
-             fscale1) = generic_slice_step(u, axis, n_cluster, nonperiodic,
-                                           loglstar, loglikelihood,
-                                           prior_transform, rstate)
+             fscale1) = generic_slice_step(u, axis, nonperiodic, loglstar,
+                                           loglikelihood, prior_transform,
+                                           rstate)
             u = u_prop
             nc += nc1
             nexpand += nexpand1
@@ -700,7 +690,8 @@ def sample_rslice(args):
     nonperiodic = kwargs.get('nonperiodic', None)
 
     # Setup.
-    n_cluster = axes.shape[0]
+    n = len(u)
+    assert (axes.shape[0] == n)
     slices = kwargs.get('slices', 5)  # number of slices
     nc = 0
     nexpand = 0
@@ -711,16 +702,15 @@ def sample_rslice(args):
     for it in range(slices):
 
         # Propose a direction on the unit n-sphere.
-        drhat = rstate.randn(n_cluster)
+        drhat = rstate.randn(n)
         drhat /= linalg.norm(drhat)
 
         # Transform and scale based on past tuning.
         axis = np.dot(axes, drhat) * scale
 
         (u_prop, v_prop, logl_prop, nc1, nexpand1, ncontract1,
-         fscale1) = generic_slice_step(u, axis, n_cluster, nonperiodic,
-                                       loglstar, loglikelihood,
-                                       prior_transform, rstate)
+         fscale1) = generic_slice_step(u, axis, nonperiodic, loglstar,
+                                       loglikelihood, prior_transform, rstate)
         u = u_prop
         nc += nc1
         nexpand += nexpand1
@@ -800,7 +790,7 @@ def sample_hslice(args):
 
     # Setup.
     n = len(u)
-    n_cluster = axes.shape[0]
+    assert (axes.shape[0] == len(u))
     slices = kwargs.get('slices', 5)  # number of slices
     grad = kwargs.get('grad', None)  # gradient of log-likelihood
     max_move = kwargs.get('max_move', 100)  # limit for `ncall`
@@ -818,21 +808,18 @@ def sample_hslice(args):
         nodes_l, nodes_m, nodes_r = [], [], []
 
         # Propose a direction on the unit n-sphere.
-        drhat = rstate.randn(n_cluster)
+        drhat = rstate.randn(n)
         drhat /= linalg.norm(drhat)
 
         # Transform and scale based on past tuning.
         axis = np.dot(axes, drhat) * scale * 0.01
 
-        # draw random point for non clustering parameters
-        u[n_cluster:] = np.random.uniform(0, 1, n - n_cluster)
-
         # Create starting window.
         vel = np.array(axis)  # current velocity
         u_l = u.copy()
         u_r = u.copy()
-        u_l[:n_cluster] -= rstate.uniform(1. - jitter, 1. + jitter) * vel
-        u_r[:n_cluster] += rstate.uniform(1. - jitter, 1. + jitter) * vel
+        u_l -= rstate.uniform(1. - jitter, 1. + jitter) * vel
+        u_r += rstate.uniform(1. - jitter, 1. + jitter) * vel
         nodes_l.append(np.array(u_l))
         nodes_m.append(np.array(u))
         nodes_r.append(np.array(u_r))
@@ -848,8 +835,7 @@ def sample_hslice(args):
             u_out, u_in = None, []
             while True:
                 # Step forward.
-                u_r[:n_cluster] += rstate.uniform(1. - jitter,
-                                                  1. + jitter) * vel
+                u_r += rstate.uniform(1. - jitter, 1. + jitter) * vel
                 # Evaluate point.
                 if unitcheck(u_r, nonperiodic):
                     v_r = prior_transform(np.array(u_r))
@@ -988,8 +974,7 @@ def sample_hslice(args):
             u_out, u_in = None, []
             while True:
                 # Step forward.
-                u_l[:n_cluster] += rstate.uniform(1. - jitter,
-                                                  1. + jitter) * vel
+                u_l += rstate.uniform(1. - jitter, 1. + jitter) * vel
                 # Evaluate point.
                 if unitcheck(u_l, nonperiodic):
                     v_l = prior_transform(np.array(u_l))

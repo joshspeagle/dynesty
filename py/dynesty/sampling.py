@@ -439,7 +439,7 @@ def generic_slice_step(u0, direction0, n_cluster, nonperiodic, loglstar,
     rstate: random state
     """
     nc, nexpand, ncontract = 0, 0, 0
-    fscale = []
+    nexpand_threshold = 10000  # Threshold for warning the user
     n = len(u0)
     u_non_cluster = np.random.uniform(0, 1, n - n_cluster)
     u = np.concatenate((u0[:n_cluster], u_non_cluster))
@@ -447,6 +447,16 @@ def generic_slice_step(u0, direction0, n_cluster, nonperiodic, loglstar,
     rand0 = rstate.rand()  # initial scale/offset
     direction = direction0 * 1
     direction[n_cluster:] = 0
+    dirlen = linalg.norm(direction)
+    maxlen = np.sqrt(n) / 2.
+    # maximum initial interval length (the diagonal of the cube)
+    if dirlen > maxlen:
+        warnings.warn(
+            'The slice sampling interval is longer than the cube size')
+        dirnorm = dirlen / maxlen
+    else:
+        dirnorm = 1
+    direction = direction / dirnorm
 
     # we do not change the non-cluster dimensions
     # but the n_cluster code is completely broken
@@ -481,7 +491,11 @@ def generic_slice_step(u0, direction0, n_cluster, nonperiodic, loglstar,
         nstep_r += 1
         u_r, logl_r = F(nstep_r)
         nexpand += 1
-
+    if nexpand > nexpand_threshold:
+        warnings.warn(
+            str.format(
+                'The slice sample interval was expanded more than {0} times',
+                nexpand_threshold))
     # Sample within limits. If the sample is not valid, shrink
     # the limits until we hit the `loglstar` bound.
 
@@ -496,7 +510,7 @@ def generic_slice_step(u0, direction0, n_cluster, nonperiodic, loglstar,
 
         # If we succeed, move to the new position.
         if logl_prop > loglstar:
-            fscale.append(nstep_r - nstep_l)
+            fscale = (nstep_r - nstep_l) / dirnorm
             break
         # If we fail, check if the new point is to the left/right of
         # our original point along our proposal axis and update
@@ -507,7 +521,7 @@ def generic_slice_step(u0, direction0, n_cluster, nonperiodic, loglstar,
             elif nstep_prop > 0:  # right
                 nstep_r = nstep_prop
             else:
-                # If `s = 0` something has gone horribly wrong.
+                # If `nstep_prop = 0` something has gone horribly wrong.
                 raise RuntimeError("Slice sampler has failed to find "
                                    "a valid point. Some useful "
                                    "output quantities:\n"
@@ -616,7 +630,7 @@ def sample_slice(args):
             nc += nc1
             nexpand += nexpand1
             ncontract += ncontract1
-            fscale.extend(fscale1)
+            fscale.append(fscale1)
 
     blob = {
         'fscale': np.mean(fscale),
@@ -711,7 +725,7 @@ def sample_rslice(args):
         nc += nc1
         nexpand += nexpand1
         ncontract += ncontract1
-        fscale.extend(fscale1)
+        fscale.append(fscale1)
 
     blob = {
         'fscale': np.mean(fscale),

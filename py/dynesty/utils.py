@@ -5,19 +5,12 @@ A collection of useful functions.
 
 """
 
-from __future__ import (print_function, division)
-from six.moves import range
-
 import sys
 import warnings
 import math
-try:
-    from scipy.special import logsumexp
-except ImportError:
-    from scipy.misc import logsumexp
-
-import numpy as np
 import copy
+import numpy as np
+from scipy.special import logsumexp
 
 from .results import Results
 
@@ -265,8 +258,8 @@ def resample_equal(samples, weights, rstate=None):
     -----
     Implements the systematic resampling method described in `Hol, Schon, and
     Gustafsson (2006) <doi:10.1109/NSSPW.2006.4378824>`_.
-
-    """
+ 
+   """
 
     if rstate is None:
         rstate = np.random
@@ -368,15 +361,41 @@ def _get_nsamps_samples_n(res):
         nlive = res.nlive
         nsamps = len(res.logvol)
         if nsamps == niter:
-            samples_n = np.ones(niter, dtype='int') * nlive
+            samples_n = np.ones(niter, dtype=int) * nlive
         elif nsamps == (niter + nlive):
             samples_n = np.append(
-                np.ones(niter, dtype='int') * nlive,
+                np.ones(niter, dtype=int) * nlive,
                 np.arange(1, nlive + 1)[::-1])
         else:
             raise ValueError("Final number of samples differs from number of "
                              "iterations and number of live points.")
     return nsamps, samples_n
+
+
+def find_decrease(nsamps, samples_n):
+
+    # Find all instances where the number of live points is either constant
+    # or increasing.
+    nlive_flag = np.ones(nsamps, dtype=bool)
+    nlive_start, bounds = [], []
+    nlive_flag[1:] = np.diff(samples_n) >= 0
+
+    # For all the portions that are decreasing, find out where they start,
+    # where they end, and how many live points are present at that given
+    # iteration.
+
+    if np.any(~nlive_flag):
+        i = 0
+        while i < nsamps:
+            if not nlive_flag[i]:
+                left = i - 1
+                nlive_start.append(samples_n[i - 1])
+                while i < nsamps and not nlive_flag[i]:
+                    i += 1
+                right = i
+                bounds.append((left, right))
+            i += 1
+    return nlive_flag, nlive_start, bounds
 
 
 def jitter_run(res, rstate=None, approx=False):
@@ -421,29 +440,12 @@ def jitter_run(res, rstate=None, approx=False):
     # If instead the number of live points is decreasing, that means we're
     # instead  sampling down a set of uniform random variables
     # (i.e. uniform order statistics).
-    nlive_flag = np.ones(nsamps, dtype='bool')
-    nlive_start, bounds = [], []
 
-    if not approx:
-        # Find all instances where the number of live points is either constant
-        # or increasing.
-        nlive_flag[1:] = np.diff(samples_n) >= 0
-
-        # For all the portions that are decreasing, find out where they start,
-        # where they end, and how many live points are present at that given
-        # iteration.
-
-        if np.any(~nlive_flag):
-            i = 0
-            while i < nsamps:
-                if not nlive_flag[i]:
-                    left = i - 1
-                    nlive_start.append(samples_n[i - 1])
-                    while i < nsamps and not nlive_flag[i]:
-                        i += 1
-                    right = i
-                    bounds.append((left, right))
-                i += 1
+    if approx:
+        nlive_flag = np.ones(nsamps, dtype=bool)
+        nlive_start, bounds = [], []
+    else:
+        nlive_flag, nlive_start, bounds = find_decrease(nsamps, samples_n)
 
     # The maximum out of a set of `K_i` uniformly distributed random variables
     # has a marginal distribution of `Beta(K_i, 1)`.
@@ -574,17 +576,17 @@ def resample_run(res, rstate=None, return_idx=False):
         nlive = res.nlive
         niter = res.niter
         if nsamps == niter:
-            samples_n = np.ones(niter, dtype='int') * nlive
+            samples_n = np.ones(niter, dtype=int) * nlive
             added_final_live = False
         elif nsamps == (niter + nlive):
             samples_n = np.append(
-                np.ones(niter, dtype='int') * nlive,
+                np.ones(niter, dtype=int) * nlive,
                 np.arange(1, nlive + 1)[::-1])
             added_final_live = True
         else:
             raise ValueError("Final number of samples differs from number of "
                              "iterations and number of live points.")
-        samples_batch = np.zeros(len(samples_n), dtype='int')
+        samples_batch = np.zeros(len(samples_n), dtype=int)
         batch_bounds = np.array([(-np.inf, np.inf)])
     batch_llmin = batch_bounds[:, 0]
     # Identify unique particles that make up each strand.
@@ -634,7 +636,7 @@ def resample_run(res, rstate=None, return_idx=False):
 
     if added_final_live:
         # Compute the effective number of live points for each sample.
-        samp_n = np.zeros(nsamps, dtype='int')
+        samp_n = np.zeros(nsamps, dtype=int)
         uidxs, uidxs_n = np.unique(live_idx, return_counts=True)
         for uidx, uidx_n in zip(uidxs, uidxs_n):
             sel = (res.samples_id == uidx)  # selection flag
@@ -651,7 +653,7 @@ def resample_run(res, rstate=None, return_idx=False):
             endsel = (logl == upper)
             endsel_n = np.count_nonzero(endsel)
             chunk = endsel_n / uidx_n  # define our chunk
-            counters = np.array(np.arange(endsel_n) / chunk, dtype='int')
+            counters = np.array(np.arange(endsel_n) / chunk, dtype=int)
             nlive_end = counters[::-1] + 1  # decreasing number of live points
             samp_n[endsel] += nlive_end  # add live point sequence
     else:
@@ -1076,7 +1078,7 @@ def merge_runs(res_list, print_progress=True):
 
     # Check if we have a constant number of live points.
     try:
-        nlive_test = np.ones(niter, dtype='int') * nlive
+        nlive_test = np.ones(niter, dtype=int) * nlive
         if np.all(samples_n == nlive_test):
             standard_run = True
     except:
@@ -1086,7 +1088,7 @@ def merge_runs(res_list, print_progress=True):
     # recycled the final set of live points.
     try:
         nlive_test = np.append(
-            np.ones(niter - nlive, dtype='int') * nlive,
+            np.ones(niter - nlive, dtype=int) * nlive,
             np.arange(1, nlive + 1)[::-1])
         if np.all(samples_n == nlive_test):
             standard_run = True
@@ -1291,10 +1293,10 @@ def _merge_two(res1, res2, compute_aux=False):
     except:
         niter, nlive = res1.niter, res1.nlive
         if nbase == niter:
-            base_n = np.ones(niter, dtype='int') * nlive
+            base_n = np.ones(niter, dtype=int) * nlive
         elif nbase == (niter + nlive):
             base_n = np.append(
-                np.ones(niter, dtype='int') * nlive,
+                np.ones(niter, dtype=int) * nlive,
                 np.arange(1, nlive + 1)[::-1])
         else:
             raise ValueError("Final number of samples differs from number of "
@@ -1315,7 +1317,7 @@ def _merge_two(res1, res2, compute_aux=False):
         base_batch = res1.samples_batch
         base_bounds = res1.batch_bounds
     except:
-        base_batch = np.zeros(nbase, dtype='int')
+        base_batch = np.zeros(nbase, dtype=int)
         base_bounds = np.array([(-np.inf, np.inf)])
 
     # Initialize the second ("new") run.
@@ -1333,10 +1335,10 @@ def _merge_two(res1, res2, compute_aux=False):
     except:
         niter, nlive = res2.niter, res2.nlive
         if nnew == niter:
-            new_n = np.ones(niter, dtype='int') * nlive
+            new_n = np.ones(niter, dtype=int) * nlive
         elif nnew == (niter + nlive):
             new_n = np.append(
-                np.ones(niter, dtype='int') * nlive,
+                np.ones(niter, dtype=int) * nlive,
                 np.arange(1, nlive + 1)[::-1])
         else:
             raise ValueError("Final number of samples differs from number of "
@@ -1357,7 +1359,7 @@ def _merge_two(res1, res2, compute_aux=False):
         new_batch = res2.samples_batch
         new_bounds = res2.batch_bounds
     except:
-        new_batch = np.zeros(nnew, dtype='int')
+        new_batch = np.zeros(nnew, dtype=int)
         new_bounds = np.array([(-np.inf, np.inf)])
 
     # Initialize our new combind run.
@@ -1534,7 +1536,7 @@ def _merge_two(res1, res2, compute_aux=False):
         r.append(('logz', np.array(combined_logz)))
         r.append(('logzerr', np.sqrt(np.array(combined_logzvar))))
         r.append(('h', np.array(combined_h)))
-        r.append(('batch_nlive', np.array(batch_nlive, dtype='int')))
+        r.append(('batch_nlive', np.array(batch_nlive, dtype=int)))
 
     # Combine to form final results object.
     res = Results(r)

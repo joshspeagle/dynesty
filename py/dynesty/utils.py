@@ -376,28 +376,44 @@ def _find_decrease(samples_n):
     """
     Find all instances where the number of live points is either constant
     or increasing.
+    Returne the mask, 
+    the values of nlive when nlives starts to decrease 
+    The ranges of decreasing nlives
+    v=[3,2,1,13,13,12,23,22];
+    > print(dynesty.utils._find_decrease(v))
+    (array([ True, False, False,  True,  True, False,  True, False]),
+    [3, 13, 23],
+    [[0, 3], [4, 6], (6, 8)])
+
     """
     nsamps = len(samples_n)
-    nlive_flag = np.ones(nsamps, dtype=bool)
+    nlive_flag = np.zeros(nsamps, dtype=bool)
     nlive_start, bounds = [], []
-    nlive_flag[1:] = np.diff(samples_n) >= 0
+    nlive_flag[1:] = np.diff(samples_n) < 0
 
     # For all the portions that are decreasing, find out where they start,
     # where they end, and how many live points are present at that given
     # iteration.
+    ids = np.nonzero(nlive_flag)[0]
+    if len(ids) > 0:
+        boundl = ids[0] - 1
+        last = ids[0]
+        nlive_start.append(samples_n[boundl])
+        for curi in ids[1:]:
+            if curi == last + 1:
+                last += 1
+                # we are in the interval of continuisly decreasing values
+                continue
+            else:
+                # we need to close the last interval
+                bounds.append([boundl, last + 1])
+                nlive_start.append(samples_n[curi - 1])
+                last = curi
+                boundl = curi - 1
+        # we need to close the last interval
+        bounds.append((boundl, last + 1))
 
-    if np.any(~nlive_flag):
-        i = 0
-        while i < nsamps:
-            if not nlive_flag[i]:
-                left = i - 1
-                nlive_start.append(samples_n[i - 1])
-                while i < nsamps and not nlive_flag[i]:
-                    i += 1
-                right = i
-                bounds.append((left, right))
-            i += 1
-    return nlive_flag, nlive_start, bounds
+    return ~nlive_flag, nlive_start, bounds
 
 
 def jitter_run(res, rstate=None, approx=False):

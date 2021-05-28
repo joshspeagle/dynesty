@@ -1168,6 +1168,8 @@ class DynamicSampler(object):
         # sample past the original bounds "for free".
 
         for i in range(1):
+            iterated_batch = False
+            # To identify if the loop below was executed or not
             for it, results in enumerate(
                     self.sampler.sample(dlogz=dlogz_batch,
                                         logl_max=logl_max,
@@ -1198,11 +1200,11 @@ class DynamicSampler(object):
                 self.ncall += nc
                 self.eff = 100. * self.it / self.ncall
                 self.it += 1
-
+                iterated_batch = True
                 yield (worst, ustar, vstar, loglstar, nc, worst_it, boundidx,
                        bounditer, self.eff)
 
-            if loglstar < logl_max:
+            if iterated_batch and loglstar < logl_max:
                 warnings.warn('Warning. The maximum likelihood not reached '
                               'in the batch. '
                               'You may not have enough livepoints')

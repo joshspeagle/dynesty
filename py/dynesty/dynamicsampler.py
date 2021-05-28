@@ -1161,9 +1161,10 @@ class DynamicSampler(object):
         # the lower likelihood threshold. Afterwards, we add in our remaining
         # live points *as if* we had terminated the run. This allows us to
         # sample past the original bounds "for free".
+        dlogz_batch = 1e-4
         for i in range(1):
             for it, results in enumerate(
-                    self.sampler.sample(dlogz=0.,
+                    self.sampler.sample(dlogz=dlogz_batch,
                                         logl_max=logl_max,
                                         maxiter=maxiter - nlive_new - 1,
                                         maxcall=maxcall - sum(live_nc),
@@ -1195,6 +1196,11 @@ class DynamicSampler(object):
 
                 yield (worst, ustar, vstar, loglstar, nc, worst_it, boundidx,
                        bounditer, self.eff)
+
+            if loglstar < logl_max:
+                warnings.warn('Warning. The maximum likelihood not reached '
+                              'in the batch. '
+                              'You may not have enough livepoints')
 
             for it, results in enumerate(self.sampler.add_live_points()):
                 # Grab results.

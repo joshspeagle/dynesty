@@ -1061,7 +1061,7 @@ class DynamicSampler(object):
             # in that case the sample technically won't be
             # uniform
             subset = self.rstate.choice(np.nonzero(subset)[0],
-                                        size=min(nblive, subset.sum()),
+                                        size=min(nblive, (cur_wt > 0).sum()),
                                         p=cur_wt,
                                         replace=False)
             cur_nblive = len(subset)

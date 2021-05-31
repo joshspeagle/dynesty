@@ -964,6 +964,11 @@ class DynamicSampler(object):
             warnings.warn("Beware: `nlive_batch <= 2 * ndim`!")
         self.sampler.save_bounds = save_bounds
 
+        dlogz_batch = 1e-4
+        # This is the target dlogz in batch
+        # Previously this was zero, but that could make the sampler stuck
+        # if the narrow posterior mode is missed
+
         # Initialize starting values.
         h = 0.0  # Information, initially *0.*
         logz = -1.e300  # ln(evidence), initially *0.*
@@ -1161,9 +1166,12 @@ class DynamicSampler(object):
         # the lower likelihood threshold. Afterwards, we add in our remaining
         # live points *as if* we had terminated the run. This allows us to
         # sample past the original bounds "for free".
+
         for i in range(1):
+            iterated_batch = False
+            # To identify if the loop below was executed or not
             for it, results in enumerate(
-                    self.sampler.sample(dlogz=0.,
+                    self.sampler.sample(dlogz=dlogz_batch,
                                         logl_max=logl_max,
                                         maxiter=maxiter - nlive_new - 1,
                                         maxcall=maxcall - sum(live_nc),
@@ -1192,9 +1200,14 @@ class DynamicSampler(object):
                 self.ncall += nc
                 self.eff = 100. * self.it / self.ncall
                 self.it += 1
-
+                iterated_batch = True
                 yield (worst, ustar, vstar, loglstar, nc, worst_it, boundidx,
                        bounditer, self.eff)
+
+            if iterated_batch and loglstar < logl_max:
+                warnings.warn('Warning. The maximum likelihood not reached '
+                              'in the batch. '
+                              'You may not have enough livepoints')
 
             for it, results in enumerate(self.sampler.add_live_points()):
                 # Grab results.

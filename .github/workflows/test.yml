@@ -39,7 +39,7 @@ jobs:
         run: pylint --fail-under=8 --extension-pkg-whitelist=scipy.special  py/dynesty/*py
       - name: Test
         run: |
-           pytest --cov=dynesty
+           pytest --durations=0 --cov=dynesty
       - name: Coveralls
         if: ${{ success() }}
         run: coveralls --service=github

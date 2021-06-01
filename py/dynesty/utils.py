@@ -500,11 +500,11 @@ def jitter_run(res, rstate=None, approx=False):
     logz = -1.e300
     loglstar = -1.e300
     logzvar = 0.
-    logvols_pad = np.concatenate(([0.], logvol))
-    logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
-                         axis=1,
-                         b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
-    logdvols += math.log(0.5)
+    logvol_pad = np.concatenate(([0.], logvol))
+    logdvol = logsumexp(a=np.c_[logvol_pad[:-1], logvol_pad[1:]],
+                        axis=1,
+                        b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
+    logdvol += math.log(0.5)
     dlvs = -np.diff(np.append(0., res.logvol))
     saved_logwt, saved_logz, saved_logzvar, saved_h = (np.empty(nsamps),
                                                        np.empty(nsamps),
@@ -513,12 +513,12 @@ def jitter_run(res, rstate=None, approx=False):
     for i in range(nsamps):
         # TODO: explain maths
         loglstar_new = logl[i]
-        logdvol, dlv = logdvols[i], dlvs[i]
-        logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
+        cur_logdvol, dlv = logdvol[i], dlvs[i]
+        logwt = np.logaddexp(loglstar_new, loglstar) + cur_logdvol
         logz_new = np.logaddexp(logz, logwt)
         lzterm = (math.exp(loglstar - logz_new) * loglstar +
                   math.exp(loglstar_new - logz_new) * loglstar_new)
-        h_new = (math.exp(logdvol) * lzterm + math.exp(logz - logz_new) *
+        h_new = (math.exp(cur_logdvol) * lzterm + math.exp(logz - logz_new) *
                  (h + logz) - logz_new)
         dh = h_new - h
         h = h_new

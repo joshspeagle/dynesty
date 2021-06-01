@@ -504,8 +504,11 @@ def jitter_run(res, rstate=None, approx=False):
     logdvol = logsumexp(a=np.c_[logvol_pad[:-1], logvol_pad[1:]],
                         axis=1,
                         b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
+    # logdvol is log(delta(volumes)) i.e. log (X_i-X_{i-1}) for the
+    # newly simulated run
     logdvol += math.log(0.5)
     dlvs = -np.diff(np.append(0., res.logvol))
+    # this are delta(log(volumes)) of the run
     saved_logwt, saved_logz, saved_logzvar, saved_h = (np.empty(nsamps),
                                                        np.empty(nsamps),
                                                        np.empty(nsamps),
@@ -515,7 +518,10 @@ def jitter_run(res, rstate=None, approx=False):
         loglstar_new = logl[i]
         cur_logdvol, dlv = logdvol[i], dlvs[i]
         logwt = np.logaddexp(loglstar_new, loglstar) + cur_logdvol
+        # this is log (L_{i+1}+L_i) + log(X_{i+1} - X_{i})
         logz_new = np.logaddexp(logz, logwt)
+        # This implements eqn 16 of Speagle2020
+
         lzterm = (math.exp(loglstar - logz_new) * loglstar +
                   math.exp(loglstar_new - logz_new) * loglstar_new)
         h_new = (math.exp(cur_logdvol) * lzterm + math.exp(logz - logz_new) *

@@ -65,8 +65,8 @@ cov_gau = np.identity(ndim_gau)  # set covariance to identity matrix
 cov_gau[cov_gau == 0] = 0.95  # set off-diagonal terms (strongly correlated)
 cov_inv_gau = linalg.inv(cov_gau)  # precision matrix
 lnorm_gau = -0.5 * (np.log(2 * np.pi) * ndim_gau + np.log(linalg.det(cov_gau)))
-logz_truth_gau = ndim_gau * (-np.log(2 * 10.))
-
+prior_win = 10 # +/- 10 on both sides
+logz_truth_gau = ndim_gau * (-np.log(2 * prior_win))
 
 def check_results_gau(results, logz_tol, sig=5):
     mean_tol, cov_tol = bootstrap_tol(results)
@@ -90,7 +90,7 @@ def loglikelihood_gau(x):
 # prior transform
 def prior_transform_gau(u):
     """Flat prior between -10. and 10."""
-    return 10. * (2. * u - 1.)
+    return prior_win * (2. * u - 1.)
 
 
 # gradient (no jacobian)
@@ -102,7 +102,7 @@ def grad_x_gau(x):
 # gradient (with jacobian)
 def grad_u_gau(x):
     """Multivariate normal log-likelihood gradient."""
-    return -np.dot(cov_inv_gau, x - mean_gau) * 20.
+    return -np.dot(cov_inv_gau, x - mean_gau) * 2 * prior_win
 
 
 def test_gaussian():
@@ -112,6 +112,8 @@ def test_gaussian():
                                     ndim_gau,
                                     nlive=nlive)
     sampler.run_nested(print_progress=printing)
+    # check that jitter works
+    dyfunc.jitter_run(sampler.results)
 
     # add samples
     # check continuation behavior
@@ -246,14 +248,12 @@ def test_dynamic():
     check_results_gau(dsampler.results, logz_tol)
 
     # check error analysis functions
-    # IMPORTANT I had to bump up the agreement threshold to 6 sigma
-    # this is too much and needs to be checked
     dres = dyfunc.jitter_run(dsampler.results)
     check_results_gau(dres, logz_tol)
     dres = dyfunc.resample_run(dsampler.results)
-    check_results_gau(dres, logz_tol, sig=6)
+    check_results_gau(dres, logz_tol)
     dres = dyfunc.simulate_run(dsampler.results)
-    check_results_gau(dres, logz_tol, sig=6)
+    check_results_gau(dres, logz_tol)
     # I bump the threshold
     # because we have the error twice
     dyfunc.kld_error(dsampler.results)

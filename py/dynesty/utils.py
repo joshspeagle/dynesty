@@ -514,38 +514,21 @@ def jitter_run(res, rstate=None, approx=False):
     # These are log((L_i+L_{i_1})*(X_i+1-X_i)/2)
     saved_logwt = np.logaddexp(loglstar_pad[1:], loglstar_pad[:-1]) + logdvol2
     saved_logz = np.logaddexp.accumulate(saved_logwt)
-    dzhlnz = ((
-        np.exp(loglstar_pad[1:] - saved_logz + logdvol2) * loglstar_pad[1:] +
-        np.exp(loglstar_pad[:-1] - saved_logz + logdvol2) * loglstar_pad[:-1]))
-
-    for i in range(nsamps):
-        dlv = dlvs[i]
-        # this is log (L_{i+1}+L_i) + log(X_{i+1} - X_{i})
-        logz_new = saved_logz[i]
-        # This implements eqn 16 of Speagle2020
-        # H is defined as
-        # H = 1/z int( L * ln(L) dX,X=0..1) - ln(z)
-        # Therefore delta(z(H+ln(z))) = int(L * ln(L), X=X_i..X_i+1)
-        # where delta is a change from iteration to iteration
-        # Therefore z_{i+1}*(H_{i+1}+ln(Z_{i+1})) - z_{i}*(H_{i}+ln(Z_{i}))
-        # equals to L_i ln(L_i) + L_{i+1} * ln(L_{i+1}) * (X_{i+1} - X_i)/2
-        # by doing trapezoid integration
-        # from this we get that
-        # H_{i+1} = ((L_i ln(L_i) + L_{i+1} ln(L_{i+1}) * (X_{i+1} - X_i)/2)/
-        #           /z_{i+1} + (H_i + ln(Z_i) ) * Z_i/Z_{i+1} - ln (Z_{i+1})
-        #
-        #
-        cur_dzhlnz = dzhlnz[i]
-        # change in z*(H+ln(z)) divided by znew
-
-        h_new = (cur_dzhlnz + math.exp(logz - logz_new) * (h + logz) -
-                 logz_new)
-        dh = h_new - h
-        h = h_new
-        logz = logz_new
-        logzvar += dh * dlv
-        saved_logzvar[i] = logzvar
-        saved_h[i] = h
+    # This implements eqn 16 of Speagle2020
+    logzmax = saved_logz[-1]
+    zhlnz = np.cumsum(
+        (np.exp(loglstar_pad[1:] - logzmax + logdvol2) * loglstar_pad[1:] +
+         np.exp(loglstar_pad[:-1] - logzmax + logdvol2) * loglstar_pad[:-1]))
+    # H is defined as
+    # H = 1/z int( L * ln(L) dX,X=0..1) - ln(z)
+    # Therefore delta(z(H+ln(z))) = int(L * ln(L), X=X_i..X_i+1)
+    # where delta is a change from iteration to iteration
+    # Therefore z_{i+1}*(H_{i+1}+ln(Z_{i+1})) - z_{i}*(H_{i}+ln(Z_{i}))
+    # equals to L_i ln(L_i) + L_{i+1} * ln(L_{i+1}) * (X_{i+1} - X_i)/2
+    # by doing trapezoid integration
+    saved_h = zhlnz / np.exp(saved_logz - logzmax) - saved_logz
+    dh = np.diff(saved_h, prepend=0)
+    saved_logzvar = np.sum(dh * dlvs)
 
     # Copy results.
     new_res = Results([item for item in res.items()])

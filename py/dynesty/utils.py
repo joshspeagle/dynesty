@@ -505,8 +505,9 @@ def jitter_run(res, rstate=None, approx=False):
                         axis=1,
                         b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
     # logdvol is log(delta(volumes)) i.e. log (X_i-X_{i-1}) for the
-    # newly simulated run
-    logdvol += math.log(0.5)
+    # newly simulated ru
+    logdvol2 = logdvol + math.log(0.5)
+    # These are log(1/2(X_(i+1)-X_i))
     dlvs = -np.diff(np.append(0., res.logvol))
     # this are delta(log(volumes)) of the run
     saved_logwt, saved_logz, saved_logzvar, saved_h = (np.empty(nsamps),
@@ -516,16 +517,28 @@ def jitter_run(res, rstate=None, approx=False):
     for i in range(nsamps):
         # TODO: explain maths
         loglstar_new = logl[i]
-        cur_logdvol, dlv = logdvol[i], dlvs[i]
-        logwt = np.logaddexp(loglstar_new, loglstar) + cur_logdvol
+        cur_logdvol2, dlv = logdvol2[i], dlvs[i]
+        logwt = np.logaddexp(loglstar_new, loglstar) + cur_logdvol2
         # this is log (L_{i+1}+L_i) + log(X_{i+1} - X_{i})
         logz_new = np.logaddexp(logz, logwt)
         # This implements eqn 16 of Speagle2020
-
-        lzterm = (math.exp(loglstar - logz_new) * loglstar +
-                  math.exp(loglstar_new - logz_new) * loglstar_new)
-        h_new = (math.exp(cur_logdvol) * lzterm + math.exp(logz - logz_new) *
-                 (h + logz) - logz_new)
+        # H is defined as
+        # H = 1/z int( L * ln(L) dX,X=0..1) - ln(z)
+        # Therefore delta(z(H+ln(z))) = int(L * ln(L), X=X_i..X_i+1)
+        # where delta is a change from iteration to iteration
+        # Therefore z_{i+1}*(H_{i+1}+ln(Z_{i+1})) - z_{i}*(H_{i}+ln(Z_{i}))
+        # equals to L_i ln(L_i) + L_{i+1} * ln(L_{i+1}) * (X_{i+1} - X_i)/2
+        # by doing trapezoid integration
+        # from this we get that
+        # H_{i+1} = ((L_i ln(L_i) + L_{i+1} ln(L_{i+1}) * (X_{i+1} - X_i)/2)/
+        #           /z_{i+1} + (H_i + ln(Z_i) ) * Z_i/Z_{i+1} - ln (Z_{i+1})
+        #
+        #
+        dhlnz = ((math.exp(loglstar - logz_new) * loglstar +
+                  math.exp(loglstar_new - logz_new) * loglstar_new) *
+                 math.exp(cur_logdvol2))
+        # change in z*(H+ln(z))
+        h_new = (dhlnz + math.exp(logz - logz_new) * (h + logz) - logz_new)
         dh = h_new - h
         h = h_new
         logz = logz_new

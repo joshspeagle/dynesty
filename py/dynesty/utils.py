@@ -510,15 +510,12 @@ def jitter_run(res, rstate=None, approx=False):
     # These are log(1/2(X_(i+1)-X_i))
     dlvs = -np.diff(np.append(0., res.logvol))
     # this are delta(log(volumes)) of the run
-    saved_logzvar, saved_h = (np.empty(nsamps), np.empty(nsamps))
+
     # These are log((L_i+L_{i_1})*(X_i+1-X_i)/2)
     saved_logwt = np.logaddexp(loglstar_pad[1:], loglstar_pad[:-1]) + logdvol2
     saved_logz = np.logaddexp.accumulate(saved_logwt)
     # This implements eqn 16 of Speagle2020
     logzmax = saved_logz[-1]
-    zhlnz = np.cumsum(
-        (np.exp(loglstar_pad[1:] - logzmax + logdvol2) * loglstar_pad[1:] +
-         np.exp(loglstar_pad[:-1] - logzmax + logdvol2) * loglstar_pad[:-1]))
     # H is defined as
     # H = 1/z int( L * ln(L) dX,X=0..1) - ln(z)
     # Therefore delta(z(H+ln(z))) = int(L * ln(L), X=X_i..X_i+1)
@@ -526,8 +523,14 @@ def jitter_run(res, rstate=None, approx=False):
     # Therefore z_{i+1}*(H_{i+1}+ln(Z_{i+1})) - z_{i}*(H_{i}+ln(Z_{i}))
     # equals to L_i ln(L_i) + L_{i+1} * ln(L_{i+1}) * (X_{i+1} - X_i)/2
     # by doing trapezoid integration
+    zhlnz = np.cumsum(
+        (np.exp(loglstar_pad[1:] - logzmax + logdvol2) * loglstar_pad[1:] +
+         np.exp(loglstar_pad[:-1] - logzmax + logdvol2) * loglstar_pad[:-1]))
+    # here we divide the likelihood by zmax to avoid to overflow
     saved_h = zhlnz / np.exp(saved_logz - logzmax) - saved_logz
+    # changes in h in each step
     dh = np.diff(saved_h, prepend=0)
+    # why ??
     saved_logzvar = np.sum(dh * dlvs)
 
     # Copy results.

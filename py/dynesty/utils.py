@@ -498,7 +498,6 @@ def jitter_run(res, rstate=None, approx=False):
     # Compute weights using quadratic estimator.
     h = 0.
     logz = -1.e300
-    loglstar = -1.e300
     logzvar = 0.
     logvol_pad = np.concatenate(([0.], logvol))
     loglstar_pad = np.concatenate([[-1.e300], logl])
@@ -506,7 +505,7 @@ def jitter_run(res, rstate=None, approx=False):
                         axis=1,
                         b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
     # logdvol is log(delta(volumes)) i.e. log (X_i-X_{i-1}) for the
-    # newly simulated ru
+    # newly simulated run
     logdvol2 = logdvol + math.log(0.5)
     # These are log(1/2(X_(i+1)-X_i))
     dlvs = -np.diff(np.append(0., res.logvol))
@@ -515,10 +514,11 @@ def jitter_run(res, rstate=None, approx=False):
     # These are log((L_i+L_{i_1})*(X_i+1-X_i)/2)
     saved_logwt = np.logaddexp(loglstar_pad[1:], loglstar_pad[:-1]) + logdvol2
     saved_logz = np.logaddexp.accumulate(saved_logwt)
+    dzhlnz = ((np.exp(loglstar_pad[1:] / saved_logz) * loglstar_pad[1:] +
+               np.exp(loglstar_pad[:-1] / saved_logz) * loglstar_pad[:-1]))
+
     for i in range(nsamps):
-        # TODO: explain maths
-        loglstar_new = logl[i]
-        cur_logdvol2, dlv = logdvol2[i], dlvs[i]
+        dlv = dlvs[i]
         # this is log (L_{i+1}+L_i) + log(X_{i+1} - X_{i})
         logz_new = saved_logz[i]
         # This implements eqn 16 of Speagle2020
@@ -534,16 +534,15 @@ def jitter_run(res, rstate=None, approx=False):
         #           /z_{i+1} + (H_i + ln(Z_i) ) * Z_i/Z_{i+1} - ln (Z_{i+1})
         #
         #
-        dhlnz = ((math.exp(loglstar - logz_new) * loglstar +
-                  math.exp(loglstar_new - logz_new) * loglstar_new) *
-                 math.exp(cur_logdvol2))
-        # change in z*(H+ln(z))
-        h_new = (dhlnz + math.exp(logz - logz_new) * (h + logz) - logz_new)
+        cur_dzhlnz = dzhlnz[i]
+        # change in z*(H+ln(z)) divided by znew
+
+        h_new = (cur_dzhlnz + math.exp(logz - logz_new) * (h + logz) -
+                 logz_new)
         dh = h_new - h
         h = h_new
         logz = logz_new
         logzvar += dh * dlv
-        loglstar = loglstar_new
         saved_logzvar[i] = logzvar
         saved_h[i] = h
 

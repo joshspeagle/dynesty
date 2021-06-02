@@ -496,9 +496,6 @@ def jitter_run(res, rstate=None, approx=False):
     logvol = np.log(t_arr).cumsum()
 
     # Compute weights using quadratic estimator.
-    h = 0.
-    logz = -1.e300
-    logzvar = 0.
     logvol_pad = np.concatenate(([0.], logvol))
     loglstar_pad = np.concatenate([[-1.e300], logl])
     logdvol = logsumexp(a=np.c_[logvol_pad[:-1], logvol_pad[1:]],
@@ -508,14 +505,18 @@ def jitter_run(res, rstate=None, approx=False):
     # newly simulated run
     logdvol2 = logdvol + math.log(0.5)
     # These are log(1/2(X_(i+1)-X_i))
-    dlvs = -np.diff(np.append(0., res.logvol))
+
+    dlvs = -np.diff(res.logvol, prepend=0)
     # this are delta(log(volumes)) of the run
 
     # These are log((L_i+L_{i_1})*(X_i+1-X_i)/2)
     saved_logwt = np.logaddexp(loglstar_pad[1:], loglstar_pad[:-1]) + logdvol2
     saved_logz = np.logaddexp.accumulate(saved_logwt)
     # This implements eqn 16 of Speagle2020
+
     logzmax = saved_logz[-1]
+    # we'll need that to just normalize likelihoods to avoid overflows
+
     # H is defined as
     # H = 1/z int( L * ln(L) dX,X=0..1) - ln(z)
     # Therefore delta(z(H+ln(z))) = int(L * ln(L), X=X_i..X_i+1)

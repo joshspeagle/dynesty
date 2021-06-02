@@ -514,8 +514,9 @@ def jitter_run(res, rstate=None, approx=False):
     # These are log((L_i+L_{i_1})*(X_i+1-X_i)/2)
     saved_logwt = np.logaddexp(loglstar_pad[1:], loglstar_pad[:-1]) + logdvol2
     saved_logz = np.logaddexp.accumulate(saved_logwt)
-    dzhlnz = ((np.exp(loglstar_pad[1:] / saved_logz) * loglstar_pad[1:] +
-               np.exp(loglstar_pad[:-1] / saved_logz) * loglstar_pad[:-1]))
+    dzhlnz = ((
+        np.exp(loglstar_pad[1:] - saved_logz + logdvol2) * loglstar_pad[1:] +
+        np.exp(loglstar_pad[:-1] - saved_logz + logdvol2) * loglstar_pad[:-1]))
 
     for i in range(nsamps):
         dlv = dlvs[i]

@@ -501,6 +501,7 @@ def jitter_run(res, rstate=None, approx=False):
     loglstar = -1.e300
     logzvar = 0.
     logvol_pad = np.concatenate(([0.], logvol))
+    loglstar_pad = np.concatenate([[-1.e300], logl])
     logdvol = logsumexp(a=np.c_[logvol_pad[:-1], logvol_pad[1:]],
                         axis=1,
                         b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
@@ -510,17 +511,16 @@ def jitter_run(res, rstate=None, approx=False):
     # These are log(1/2(X_(i+1)-X_i))
     dlvs = -np.diff(np.append(0., res.logvol))
     # this are delta(log(volumes)) of the run
-    saved_logwt, saved_logz, saved_logzvar, saved_h = (np.empty(nsamps),
-                                                       np.empty(nsamps),
-                                                       np.empty(nsamps),
-                                                       np.empty(nsamps))
+    saved_logzvar, saved_h = (np.empty(nsamps), np.empty(nsamps))
+    # These are log((L_i+L_{i_1})*(X_i+1-X_i)/2)
+    saved_logwt = np.logaddexp(loglstar_pad[1:], loglstar_pad[:-1]) + logdvol2
+    saved_logz = np.logaddexp.accumulate(saved_logwt)
     for i in range(nsamps):
         # TODO: explain maths
         loglstar_new = logl[i]
         cur_logdvol2, dlv = logdvol2[i], dlvs[i]
-        logwt = np.logaddexp(loglstar_new, loglstar) + cur_logdvol2
         # this is log (L_{i+1}+L_i) + log(X_{i+1} - X_{i})
-        logz_new = np.logaddexp(logz, logwt)
+        logz_new = saved_logz[i]
         # This implements eqn 16 of Speagle2020
         # H is defined as
         # H = 1/z int( L * ln(L) dX,X=0..1) - ln(z)
@@ -544,8 +544,6 @@ def jitter_run(res, rstate=None, approx=False):
         logz = logz_new
         logzvar += dh * dlv
         loglstar = loglstar_new
-        saved_logwt[i] = logwt
-        saved_logz[i] = logz
         saved_logzvar[i] = logzvar
         saved_h[i] = h
 

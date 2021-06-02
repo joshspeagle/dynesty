@@ -502,15 +502,16 @@ def jitter_run(res, rstate=None, approx=False):
     # assuming that logvol0 = 0
     # log(exp(LV_{i})-exp(LV_{i+1})) =
     # = LV{i} + log(1-exp(LV_{i+1}-LV{i}))
-    dlogvs = np.diff(logvol, prepend=0)
-    logdvol = logvol - dlogvs + np.log1p(-np.exp(dlogvs))
+    # = LV_{i+1} - (LV_{i+1} -LV_i) + log(1-exp(LV_{i+1}-LV{i}))
+    dlogvol = np.diff(logvol, prepend=0)
+    logdvol = logvol - dlogvol + np.log1p(-np.exp(dlogvol))
 
     # logdvol is log(delta(volumes)) i.e. log (X_i-X_{i-1}) for the
     # newly simulated run
     logdvol2 = logdvol + math.log(0.5)
     # These are log(1/2(X_(i+1)-X_i))
 
-    dlvs = -np.diff(res.logvol, prepend=0)
+    dlogvol_run = -np.diff(res.logvol, prepend=0)
     # this are delta(log(volumes)) of the run
 
     # These are log((L_i+L_{i_1})*(X_i+1-X_i)/2)
@@ -536,7 +537,7 @@ def jitter_run(res, rstate=None, approx=False):
     # changes in h in each step
     dh = np.diff(saved_h, prepend=0)
     # why ??
-    saved_logzvar = np.sum(dh * dlvs)
+    saved_logzvar = np.sum(dh * dlogvol_run)
 
     # Copy results.
     new_res = Results([item for item in res.items()])

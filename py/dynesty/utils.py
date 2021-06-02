@@ -496,11 +496,15 @@ def jitter_run(res, rstate=None, approx=False):
     logvol = np.log(t_arr).cumsum()
 
     # Compute weights using quadratic estimator.
-    logvol_pad = np.concatenate(([0.], logvol))
     loglstar_pad = np.concatenate([[-1.e300], logl])
-    logdvol = logsumexp(a=np.c_[logvol_pad[:-1], logvol_pad[1:]],
-                        axis=1,
-                        b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
+
+    # we want log(exp(logvol_i)-exp(logvol_(i+1)))
+    # assuming that logvol0 = 0
+    # log(exp(LV_{i})-exp(LV_{i+1})) =
+    # = LV{i} + log(1-exp(LV_{i+1}-LV{i}))
+    dlogvs = np.diff(logvol, prepend=0)
+    logdvol = logvol - dlogvs + np.log1p(-np.exp(dlogvs))
+
     # logdvol is log(delta(volumes)) i.e. log (X_i-X_{i-1}) for the
     # newly simulated run
     logdvol2 = logdvol + math.log(0.5)

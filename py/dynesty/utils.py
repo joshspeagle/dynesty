@@ -533,7 +533,8 @@ def jitter_run(res, rstate=None, approx=False):
         (np.exp(loglstar_pad[1:] - logzmax + logdvol2) * loglstar_pad[1:] +
          np.exp(loglstar_pad[:-1] - logzmax + logdvol2) * loglstar_pad[:-1]))
     # here we divide the likelihood by zmax to avoid to overflow
-    saved_h = zhlnz / np.exp(saved_logz - logzmax) - saved_logz
+    # print(zhlnz, logzmax, saved_logz)
+    saved_h = zhlnz - logzmax * np.exp(saved_logz - logzmax)
     # changes in h in each step
     dh = np.diff(saved_h, prepend=0)
     # why ??

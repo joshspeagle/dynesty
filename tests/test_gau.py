@@ -65,8 +65,9 @@ cov_gau = np.identity(ndim_gau)  # set covariance to identity matrix
 cov_gau[cov_gau == 0] = 0.95  # set off-diagonal terms (strongly correlated)
 cov_inv_gau = linalg.inv(cov_gau)  # precision matrix
 lnorm_gau = -0.5 * (np.log(2 * np.pi) * ndim_gau + np.log(linalg.det(cov_gau)))
-prior_win = 10 # +/- 10 on both sides
+prior_win = 10  # +/- 10 on both sides
 logz_truth_gau = ndim_gau * (-np.log(2 * prior_win))
+
 
 def check_results_gau(results, logz_tol, sig=5):
     mean_tol, cov_tol = bootstrap_tol(results)
@@ -161,19 +162,20 @@ def test_gaussian():
     plt.close()
 
 
-def test_bounding():
+def test_bounding_sample():
     # check various bounding methods
     logz_tol = 1
 
     for bound in ['none', 'single', 'multi', 'balls', 'cubes']:
-        sampler = dynesty.NestedSampler(loglikelihood_gau,
-                                        prior_transform_gau,
-                                        ndim_gau,
-                                        nlive=nlive,
-                                        bound=bound,
-                                        sample='unif')
-        sampler.run_nested(print_progress=printing)
-        check_results_gau(sampler.results, logz_tol)
+        for sample in ['unif', 'rwalk', 'slice', 'rslice', 'rstagger']:
+            sampler = dynesty.NestedSampler(loglikelihood_gau,
+                                            prior_transform_gau,
+                                            ndim_gau,
+                                            nlive=nlive,
+                                            bound=bound,
+                                            sample=sample)
+            sampler.run_nested(print_progress=printing)
+            check_results_gau(sampler.results, logz_tol)
 
 
 def test_bounding_bootstrap():
@@ -188,19 +190,6 @@ def test_bounding_bootstrap():
                                         bound=bound,
                                         sample='unif',
                                         bootstrap=5)
-        sampler.run_nested(print_progress=printing)
-        check_results_gau(sampler.results, logz_tol)
-
-
-def test_sampling():
-    # check various sampling methods
-    logz_tol = 1
-    for sample in ['unif', 'rwalk', 'rstagger', 'slice', 'rslice']:
-        sampler = dynesty.NestedSampler(loglikelihood_gau,
-                                        prior_transform_gau,
-                                        ndim_gau,
-                                        nlive=nlive,
-                                        sample=sample)
         sampler.run_nested(print_progress=printing)
         check_results_gau(sampler.results, logz_tol)
 

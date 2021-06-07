@@ -13,7 +13,7 @@ def loglike(x):
     # the second dimension is flat
     logl = -np.log(np.maximum(np.abs(x[0]), alpha))
 
-    noplateau = -1e-10 * (x**2).sum()
+    noplateau = -1e-8 * (x**2).sum()
     # this is to avoid complete plateau
 
     return logl + noplateau

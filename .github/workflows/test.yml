@@ -37,11 +37,15 @@ jobs:
           pip install .
       - name: pylint
         run: pylint --fail-under=8 --extension-pkg-whitelist=scipy.special  py/dynesty/*py
+      - name: TestWithCov
+        # Run coverage only for 3.6
+        if: ${{ matrix.python-version == '3.6'}}
+        run: pytest --durations=0 --cov=dynesty
       - name: Test
-        run: |
-           pytest --cov=dynesty
+        if: ${{ matrix.python-version != '3.6'}}
+        run: pytest --durations=0
       - name: Coveralls
-        if: ${{ success() }}
+        if: ${{ success() && ( matrix.python-version == '3.6') }}
         run: coveralls --service=github
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -496,39 +496,49 @@ def jitter_run(res, rstate=None, approx=False):
     logvol = np.log(t_arr).cumsum()
 
     # Compute weights using quadratic estimator.
-    h = 0.
-    logz = -1.e300
-    loglstar = -1.e300
-    logzvar = 0.
-    logvols_pad = np.concatenate(([0.], logvol))
-    logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
-                         axis=1,
-                         b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
-    logdvols += math.log(0.5)
-    dlvs = -np.diff(np.append(0., res.logvol))
-    saved_logwt, saved_logz, saved_logzvar, saved_h = (np.empty(nsamps),
-                                                       np.empty(nsamps),
-                                                       np.empty(nsamps),
-                                                       np.empty(nsamps))
-    for i in range(nsamps):
-        # TODO: explain maths
-        loglstar_new = logl[i]
-        logdvol, dlv = logdvols[i], dlvs[i]
-        logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
-        logz_new = np.logaddexp(logz, logwt)
-        lzterm = (math.exp(loglstar - logz_new) * loglstar +
-                  math.exp(loglstar_new - logz_new) * loglstar_new)
-        h_new = (math.exp(logdvol) * lzterm + math.exp(logz - logz_new) *
-                 (h + logz) - logz_new)
-        dh = h_new - h
-        h = h_new
-        logz = logz_new
-        logzvar += dh * dlv
-        loglstar = loglstar_new
-        saved_logwt[i] = logwt
-        saved_logz[i] = logz
-        saved_logzvar[i] = logzvar
-        saved_h[i] = h
+    loglstar_pad = np.concatenate([[-1.e300], logl])
+
+    # we want log(exp(logvol_i)-exp(logvol_(i+1)))
+    # assuming that logvol0 = 0
+    # log(exp(LV_{i})-exp(LV_{i+1})) =
+    # = LV{i} + log(1-exp(LV_{i+1}-LV{i}))
+    # = LV_{i+1} - (LV_{i+1} -LV_i) + log(1-exp(LV_{i+1}-LV{i}))
+    dlogvol = np.diff(logvol, prepend=0)
+    logdvol = logvol - dlogvol + np.log1p(-np.exp(dlogvol))
+
+    # logdvol is log(delta(volumes)) i.e. log (X_i-X_{i-1}) for the
+    # newly simulated run
+    logdvol2 = logdvol + math.log(0.5)
+    # These are log(1/2(X_(i+1)-X_i))
+
+    dlogvol_run = -np.diff(res.logvol, prepend=0)
+    # this are delta(log(volumes)) of the run
+
+    # These are log((L_i+L_{i_1})*(X_i+1-X_i)/2)
+    saved_logwt = np.logaddexp(loglstar_pad[1:], loglstar_pad[:-1]) + logdvol2
+    saved_logz = np.logaddexp.accumulate(saved_logwt)
+    # This implements eqn 16 of Speagle2020
+
+    logzmax = saved_logz[-1]
+    # we'll need that to just normalize likelihoods to avoid overflows
+
+    # H is defined as
+    # H = 1/z int( L * ln(L) dX,X=0..1) - ln(z)
+    # Therefore delta(z(H+ln(z))) = int(L * ln(L), X=X_i..X_i+1)
+    # where delta is a change from iteration to iteration
+    # Therefore z_{i+1}*(H_{i+1}+ln(Z_{i+1})) - z_{i}*(H_{i}+ln(Z_{i}))
+    # equals to L_i ln(L_i) + L_{i+1} * ln(L_{i+1}) * (X_{i+1} - X_i)/2
+    # by doing trapezoid integration
+    zhlnz = np.cumsum(
+        (np.exp(loglstar_pad[1:] - logzmax + logdvol2) * loglstar_pad[1:] +
+         np.exp(loglstar_pad[:-1] - logzmax + logdvol2) * loglstar_pad[:-1]))
+    # here we divide the likelihood by zmax to avoid to overflow
+    # print(zhlnz, logzmax, saved_logz)
+    saved_h = zhlnz - logzmax * np.exp(saved_logz - logzmax)
+    # changes in h in each step
+    dh = np.diff(saved_h, prepend=0)
+    # why ??
+    saved_logzvar = np.sum(dh * dlogvol_run)
 
     # Copy results.
     new_res = Results([item for item in res.items()])

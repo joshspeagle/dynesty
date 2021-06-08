@@ -264,7 +264,8 @@ def resample_equal(samples, weights, rstate=None):
     if rstate is None:
         rstate = np.random
 
-    if abs(np.sum(weights) - 1.) > SQRTEPS:  # same tol as in np.random.choice.
+    if abs(np.sum(weights) - 1.) > SQRTEPS:
+        # same tol as in numpy's random.choice.
         # Guarantee that the weights will sum to 1.
         warnings.warn("Weights do not sum to 1 and have been renormalized.")
         weights = np.array(weights) / np.sum(weights)

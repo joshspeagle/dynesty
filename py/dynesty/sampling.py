@@ -194,7 +194,7 @@ def sample_rwalk(args):
             dr = drhat * rstate.rand()**(1. / n_cluster)
 
             # draw random point for non clustering parameters
-            u_non_cluster = np.random.uniform(0, 1, n - n_cluster)
+            u_non_cluster = rstate.uniform(0, 1, n - n_cluster)
 
             # Transform to proposal distribution.
             du = np.dot(axes, dr)
@@ -354,7 +354,7 @@ def sample_rstagger(args):
             dr = drhat * rstate.rand()**(1. / n_cluster)
 
             # draw random point for non clustering parameters
-            u_non_cluster = np.random.uniform(0, 1, n - n_cluster)
+            u_non_cluster = rstate.uniform(0, 1, n - n_cluster)
 
             # Transform to proposal distribution.
             du = np.dot(axes, dr)

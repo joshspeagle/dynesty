@@ -212,7 +212,7 @@ class UnitCubeSampler(Sampler):
         u = self.unitcube.sample(rstate=self.rstate)
         ax = np.identity(self.npdim)
         u = np.concatenate(
-            [u, np.random.uniform(0, 1, self.npdim - self.ncdim)])
+            [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])
 
         return u, ax
 
@@ -457,7 +457,7 @@ class SingleEllipsoidSampler(Sampler):
                 break  # if it is, we're done!
 
         u = np.concatenate(
-            [u, np.random.uniform(0, 1, self.npdim - self.ncdim)])
+            [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])
         return u, self.ell.axes
 
     def propose_live(self, *args):
@@ -716,7 +716,7 @@ class MultiEllipsoidSampler(Sampler):
                     break  # if successful, we're done!
 
         u = np.concatenate(
-            [u, np.random.uniform(0, 1, self.npdim - self.ncdim)])
+            [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])
         return u, self.mell.ells[idx].axes
 
     def propose_live(self, *args):
@@ -1006,7 +1006,7 @@ class RadFriendsSampler(Sampler):
         ax = self.radfriends.axes
 
         u = np.concatenate(
-            [u, np.random.uniform(0, 1, self.npdim - self.ncdim)])
+            [u, np.self.rstate.uniform(0, 1, self.npdim - self.ncdim)])
         return u, ax
 
     def propose_live(self, *args):
@@ -1260,7 +1260,7 @@ class SupFriendsSampler(Sampler):
         ax = self.supfriends.axes
 
         u = np.concatenate(
-            [u, np.random.uniform(0, 1, self.npdim - self.ncdim)])
+            [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])
         return u, ax
 
     def propose_live(self, *args):

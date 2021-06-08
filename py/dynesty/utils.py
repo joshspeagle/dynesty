@@ -537,8 +537,8 @@ def jitter_run(res, rstate=None, approx=False):
     saved_h = zhlnz - logzmax * np.exp(saved_logz - logzmax)
     # changes in h in each step
     dh = np.diff(saved_h, prepend=0)
-    # why ??
-    saved_logzvar = np.sum(dh * dlogvol_run)
+
+    saved_logzvar = np.cumsum(dh * dlogvol_run)
 
     # Copy results.
     new_res = Results([item for item in res.items()])

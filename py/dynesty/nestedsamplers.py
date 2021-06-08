@@ -1006,7 +1006,7 @@ class RadFriendsSampler(Sampler):
         ax = self.radfriends.axes
 
         u = np.concatenate(
-            [u, np.self.rstate.uniform(0, 1, self.npdim - self.ncdim)])
+            [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])
         return u, ax
 
     def propose_live(self, *args):

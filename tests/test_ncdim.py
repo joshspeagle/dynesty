@@ -1,18 +1,10 @@
-from __future__ import (print_function, division)
-from six.moves import range
 import numpy as np
 from numpy import linalg
 import numpy.testing as npt
-import matplotlib
-
-matplotlib.use('Agg')
-from matplotlib import pyplot as plt  # noqa
-import dynesty  # noqa
-from dynesty import plotting as dyplot  # noqa
-from dynesty import utils as dyfunc  # noqa
+import dynesty
+from dynesty import utils as dyfunc
 """
-Run a series of basic tests to check whether anything huge is broken.
-
+A rudimentary test that ncdim parameter works
 """
 
 nlive = 500

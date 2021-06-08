@@ -125,15 +125,19 @@ def test_gaussian():
 
     # get errors
     nerr = 2
+    result_list = []
     for i in range(nerr):
         sampler.reset()
         sampler.run_nested(print_progress=False)
         results = sampler.results
+        result_list.append(results)
         pos = results.samples
         wts = np.exp(results.logwt - results.logz[-1])
         mean, cov = dyfunc.mean_and_cov(pos, wts)
         logz = results.logz[-1]
         assert (np.abs(logz - logz_truth_gau) < logz_tol)
+    res_comb = dyfunc.merge_runs(result_list)
+    assert (np.abs(res_comb.logz[-1] - logz_truth_gau) < logz_tol)
     # check summary
     res = sampler.results
     res.summary()

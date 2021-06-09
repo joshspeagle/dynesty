@@ -143,11 +143,6 @@ class Ellipsoid(object):
         self.n = len(ctr)  # dimension
         self.ctr = np.asarray(ctr)  # center coordinates
         self.cov = np.asarray(cov)  # covariance matrix
-        if am is None:
-            self.am = lalg.pinvh(cov)
-            # precision matrix (inverse of covariance)
-        else:
-            self.am = am
         if axes is None:
             self.axes = lalg.cholesky(cov, lower=True)  # transformation axes
         else:
@@ -166,6 +161,11 @@ class Ellipsoid(object):
             raise ValueError("The input precision matrix defining the "
                              "ellipsoid {0} is apparently singular with "
                              "l={1} and v={2}.".format(self.cov, l, v))
+        if am is None:
+            self.am = v @ np.diag(1. / l) @ v.T
+            # precision matrix (inverse of covariance)
+        else:
+            self.am = am
 
         # Scaled eigenvectors are the principle axes, where `paxes[:,i]` is the
         # i-th axis. Multiplying this matrix by a vector will transform a
@@ -177,14 +177,18 @@ class Ellipsoid(object):
         self.expand = 1.
 
     def scale_to_logvol(self, logvol):
-        """Scale ellipoid to a target volume."""
+        """Scale ellipsoid to a target volume."""
 
         f = np.exp((logvol - self.logvol) / self.n)  # linear factor
+        maxlen = np.sqrt(self.n)
+        fax = np.minimum(self.axlens * f, maxlen) / self.axlens
+        l, v = lalg.eigh(self.cov)
         self.expand *= f
-        self.cov *= f**2
-        self.am *= f**-2
-        self.axlens *= f
-        self.axes *= f
+        self.cov = v @ np.diag(l * fax) @ v.T
+        self.am = v @ np.diag(1 / l / fax) @ v.T
+        self.axlens *= fax
+        self.axes = lalg.cholesky(self.cov, lower=True)
+        # I don't quite know how to scale it
         self.logvol = logvol
 
     def major_axis_endpoints(self):

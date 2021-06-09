@@ -179,16 +179,38 @@ class Ellipsoid(object):
     def scale_to_logvol(self, logvol):
         """Scale ellipsoid to a target volume."""
 
-        f = np.exp((logvol - self.logvol) / self.n)  # linear factor
-        maxlen = np.sqrt(self.n)
-        fax = np.minimum(self.axlens * f, maxlen) / self.axlens
-        l, v = lalg.eigh(self.cov)
-        self.expand *= f
-        self.cov = v @ np.diag(l * fax) @ v.T
-        self.am = v @ np.diag(1 / l / fax) @ v.T
-        self.axlens *= fax
-        self.axes = lalg.cholesky(self.cov, lower=True)
-        # I don't quite know how to scale it
+        logf = (logvol - self.logvol)
+        # log of the maxium axis length of the ellipsoid
+        lmaxlen = np.log(np.sqrt(self.n) / 2)
+        laxlen = np.log(self.axlens)
+        if (laxlen < lmaxlen - logf / self.n).all():
+            # we are safe to inflate the ellipsoid isothropically
+            # without hitting boundaries
+            f = np.exp(logf / self.n)
+            self.expand *= f
+            self.cov *= f**2
+            self.am *= 1. / f**2
+            self.axlens *= f
+            self.axes *= f
+        else:
+            logfax = np.zeros(self.n)
+            curlogf = logf
+            curn = self.n
+            # here we start from largest and go to smallest
+            for curi in np.argsort(self.axlens)[::-1]:
+                delta = min(lmaxlen - laxlen[curi], curlogf / curn)
+                logfax[curi] = delta
+                curlogf -= delta
+                curn -= 1
+            fax = np.exp(logfax)
+            l, v = lalg.eigh(self.cov)
+            l1 = l * fax
+            self.expand *= np.exp(logf)
+            self.cov = v @ np.diag(l1) @ v.T
+            self.am = v @ np.diag(1 / l1) @ v.T
+            self.axlens *= fax
+            self.axes = lalg.cholesky(self.cov, lower=True)
+            # I don't quite know how to scale it
         self.logvol = logvol
 
     def major_axis_endpoints(self):

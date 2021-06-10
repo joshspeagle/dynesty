@@ -748,7 +748,7 @@ class MultiEllipsoidSampler(Sampler):
             pointvol = expected_vol / self.nlive  # minimum point volume
 
             # Update the bounding ellipsoids.
-            bound = self.update(pointvol)
+            bound = self.update(0)  #  pointvol)
             if self.save_bounds:
                 self.bound.append(bound)
             self.nbound += 1

@@ -29,8 +29,11 @@ def bootstrap_tol(results):
     covs = []
 
     for i in range(niter):
-        xid = np.random.randint(n, size=n)
-        mean, cov = dyfunc.mean_and_cov(pos[xid], wts[xid])
+        #curpos = dyfunc.resample_equal(pos, wts)
+        #xid = np.random.randint(len(curpos), size=len(curpos))
+        sub = np.random.uniform(size=n) < wts / wts.max()
+        mean = pos[sub].mean(axis=0)
+        cov = np.cov(pos[sub].T)
         means.append(mean)
         covs.append(cov)
     return np.std(means, axis=0), np.std(covs, axis=0)

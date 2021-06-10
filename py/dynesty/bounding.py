@@ -187,7 +187,6 @@ class Ellipsoid(object):
             # we are safe to inflate the ellipsoid isothropically
             # without hitting boundaries
             f = np.exp(logf / self.n)
-            self.expand *= f
             self.cov *= f**2
             self.am *= 1. / f**2
             self.axlens *= f
@@ -205,7 +204,6 @@ class Ellipsoid(object):
             fax = np.exp(logfax)
             l, v = lalg.eigh(self.cov)
             l1 = l * fax
-            self.expand *= np.exp(logf / self.n)
             self.cov = v @ np.diag(l1) @ v.T
             self.am = v @ np.diag(1 / l1) @ v.T
             self.axlens *= fax
@@ -732,7 +730,6 @@ class RadFriends(object):
 
         f = np.exp((logvol - self.logvol_ball) * (1.0 / self.n))
         # linear factor
-        self.expand *= f
         self.cov *= f**2
         self.am /= f**2
         self.axes *= f
@@ -1033,7 +1030,6 @@ class SupFriends(object):
 
         f = np.exp((logvol - self.logvol_cube) * (1.0 / self.n))
         # linear factor
-        self.expand *= f
         self.cov *= f**2
         self.am /= f**2
         self.axes *= f

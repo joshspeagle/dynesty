@@ -1082,14 +1082,7 @@ class DynamicSampler(object):
 
             live_logl_min = min(live_logl)
             if self.sampler._beyond_unit_bound(live_logl_min):
-                # notice we are setting the volume to some value
-                # as it is really not clear what the volume should
-                # be TODO
-                if len(subset) == 1:
-                    pointvol = math.exp(-1. * len(saved_logl) / nblive)
-                else:
-                    pointvol = 0
-                bound = self.sampler.update(pointvol)
+                bound = self.sampler.update()
                 if save_bounds:
                     self.sampler.bound.append(copy.deepcopy(bound))
                 self.sampler.nbound += 1
@@ -1107,7 +1100,7 @@ class DynamicSampler(object):
             live_nc = np.empty(nlive_new, dtype='int')
             for i in range(nlive_new):
                 (live_u[i], live_v[i], live_logl[i],
-                 live_nc[i]) = self.sampler._new_point(logl_min, -np.inf)
+                 live_nc[i]) = self.sampler._new_point(logl_min)
                 live_it[i] = self.it
                 self.ncall += live_nc[i]
                 # Return live points in generator format.
@@ -1126,7 +1119,7 @@ class DynamicSampler(object):
         # Trigger an update of the internal bounding distribution (again).
         live_logl_min = min(live_logl)
         if self.sampler._beyond_unit_bound(live_logl_min):
-            bound = self.sampler.update(0)  # vol / nlive_new)
+            bound = self.sampler.update()  # vol / nlive_new)
             if save_bounds:
                 self.sampler.bound.append(copy.deepcopy(bound))
             self.sampler.nbound += 1
@@ -1144,9 +1137,7 @@ class DynamicSampler(object):
             update_interval = np.inf  # no need to update with no bounds
         self.sampler.update_interval = update_interval
 
-        # Update internal ln(prior volume)-based quantities used to set things
-        # like `pointvol` that help to prevent constructing over-constrained
-        # bounding distributions.
+        # Update internal ln(prior volume)-based quantities
         if self.new_logl_min == -np.inf:
             bound_logvol = 0.
         else:

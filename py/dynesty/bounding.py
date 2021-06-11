@@ -351,7 +351,7 @@ class Ellipsoid(object):
             else:
                 M = pool.map
             ps = [points for it in range(bootstrap)]
-            args = ps
+            args = zip(ps)
             expands = list(M(_ellipsoid_bootstrap_expand, args))
 
             # Conservatively set the expansion factor to be the maximum

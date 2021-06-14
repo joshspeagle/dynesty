@@ -404,7 +404,7 @@ class Sampler(object):
 
         return u, v, logl, nc, blob
 
-    def _new_point(self, loglstar, logvol):
+    def _new_point(self, loglstar):
         """Propose points until a new point that satisfies the log-likelihood
         constraint `loglstar` is found."""
 
@@ -431,8 +431,7 @@ class Sampler(object):
             # made *and* we satisfy the criteria for moving beyond sampling
             # from the unit cube, update the bound.
             if ucheck and bcheck:
-                pointvol = math.exp(logvol) / self.nlive
-                bound = self.update(pointvol)
+                bound = self.update()
                 if self.save_bounds:
                     self.bound.append(bound)
                 self.nbound += 1
@@ -687,9 +686,8 @@ class Sampler(object):
 
             # Check if we should initialize a different bounding distribution
             # instead of using the unit cube.
-            pointvol = 1. / self.nlive
             if self._beyond_unit_bound(loglstar):
-                bound = self.update(pointvol)
+                bound = self.update()
                 if self.save_bounds:
                     self.bound.append(bound)
                     self.nbound += 1
@@ -774,8 +772,7 @@ class Sampler(object):
             ucheck = self.since_update >= self.update_interval
             bcheck = self._beyond_unit_bound(loglstar)
             if ucheck and bcheck:
-                pointvol = math.exp(logvol) / self.nlive
-                bound = self.update(pointvol)
+                bound = self.update()
                 if self.save_bounds:
                     self.bound.append(bound)
                 self.nbound += 1
@@ -799,7 +796,7 @@ class Sampler(object):
             # Sample a new live point from within the likelihood constraint
             # `logl > loglstar` using the bounding distribution and sampling
             # method from our sampler.
-            u, v, logl, nc = self._new_point(loglstar_new, logvol)
+            u, v, logl, nc = self._new_point(loglstar_new)
             ncall += nc
             self.ncall += nc
             self.since_update += nc

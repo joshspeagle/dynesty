@@ -200,7 +200,7 @@ class UnitCubeSampler(Sampler):
         self.fmove = self.kwargs.get('fmove', 0.9)
         self.max_move = self.kwargs.get('max_move', 100)
 
-    def update(self, pointvol):
+    def update(self):
         """Update the unit cube bound."""
 
         return copy.deepcopy(self.unitcube)
@@ -423,7 +423,7 @@ class SingleEllipsoidSampler(Sampler):
         self.fmove = self.kwargs.get('fmove', 0.9)
         self.max_move = self.kwargs.get('max_move', 100)
 
-    def update(self, pointvol):
+    def update(self):
         """Update the bounding ellipsoid using the current set of
         live points."""
 
@@ -435,7 +435,6 @@ class SingleEllipsoidSampler(Sampler):
 
         # Update the ellipsoid.
         self.ell.update(self.live_u[:, :self.ncdim],
-                        pointvol=pointvol,
                         rstate=self.rstate,
                         bootstrap=self.bootstrap,
                         pool=pool)
@@ -675,7 +674,7 @@ class MultiEllipsoidSampler(Sampler):
         self.fmove = self.kwargs.get('fmove', 0.9)
         self.max_move = self.kwargs.get('max_move', 100)
 
-    def update(self, pointvol):
+    def update(self):
         """Update the bounding ellipsoids using the current set of
         live points."""
 
@@ -687,7 +686,6 @@ class MultiEllipsoidSampler(Sampler):
 
         # Update the bounding ellipsoids.
         self.mell.update(self.live_u[:, :self.ncdim],
-                         pointvol=pointvol,
                          vol_dec=self.vol_dec,
                          vol_check=self.vol_check,
                          rstate=self.rstate,
@@ -738,17 +736,10 @@ class MultiEllipsoidSampler(Sampler):
 
         # Automatically trigger an update if we're not in any ellipsoid.
         if nidx == 0:
-            if len(self.saved_run.D['logvol']) > 0:
-                # Expected ln(prior volume) at a given iteration.
-                expected_vol = math.exp(self.saved_run.D['logvol'][-1] -
-                                        self.dlv)
-            else:
-                # Expected ln(prior volume) at the first iteration.
-                expected_vol = math.exp(-self.dlv)
-            pointvol = expected_vol / self.nlive  # minimum point volume
 
             # Update the bounding ellipsoids.
-            bound = self.update(0)  #  pointvol)
+
+            bound = self.update()
             if self.save_bounds:
                 self.bound.append(bound)
             self.nbound += 1
@@ -757,6 +748,8 @@ class MultiEllipsoidSampler(Sampler):
             # Check for ellipsoid overlap (again).
             ell_idxs = self.mell.within(u_fit)
             nidx = len(ell_idxs)
+            if nidx == 0:
+                raise RuntimeError('Update of the ellipsoid failed')
 
         # Pick a random ellipsoid that encompasses `u`.
         ell_idx = ell_idxs[self.rstate.randint(nidx)]
@@ -963,7 +956,7 @@ class RadFriendsSampler(Sampler):
         self.fmove = self.kwargs.get('fmove', 0.9)
         self.max_move = self.kwargs.get('max_move', 100)
 
-    def update(self, pointvol):
+    def update(self):
         """Update the N-sphere radii using the current set of live points."""
 
         # Check if we should use the provided pool for updating.
@@ -974,7 +967,6 @@ class RadFriendsSampler(Sampler):
 
         # Update the N-spheres.
         self.radfriends.update(self.live_u[:, :self.ncdim],
-                               pointvol=pointvol,
                                rstate=self.rstate,
                                bootstrap=self.bootstrap,
                                pool=pool)
@@ -1216,7 +1208,7 @@ class SupFriendsSampler(Sampler):
         self.fmove = self.kwargs.get('fmove', 0.9)
         self.max_move = self.kwargs.get('max_move', 100)
 
-    def update(self, pointvol):
+    def update(self):
         """Update the N-cube side-lengths using the current set of
         live points."""
 
@@ -1228,7 +1220,6 @@ class SupFriendsSampler(Sampler):
 
         # Update the N-cubes.
         self.supfriends.update(self.live_u[:, :self.ncdim],
-                               pointvol=pointvol,
                                rstate=self.rstate,
                                bootstrap=self.bootstrap,
                                pool=pool)

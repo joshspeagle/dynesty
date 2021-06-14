@@ -115,7 +115,7 @@ class UnitCube(object):
 
         return xs
 
-    def update(self, points, pointvol=0., rstate=None, bootstrap=0, pool=None):
+    def update(self, points, rstate=None, bootstrap=0, pool=None):
         """Filler function."""
 
         pass
@@ -194,21 +194,23 @@ class Ellipsoid(object):
         else:
             logfax = np.zeros(self.n)
             curlogf = logf  # how much we have left to inflate
-            curn = self.n  # how many dimensions leftx
+            curn = self.n  # how many dimensions left
+            l, v = lalg.eigh(self.cov)
+
             # here we start from largest and go to smallest
-            for curi in np.argsort(self.axlens)[::-1]:
-                delta = min(max_log_axlen - log_axlen[curi], curlogf / curn)
+            for curi in np.argsort(l)[::-1]:
+                delta = max(
+                    min(max_log_axlen - log_axlen[curi], curlogf / curn), 0)
                 logfax[curi] = delta
                 curlogf -= delta
                 curn -= 1
-            fax = np.exp(logfax)
-            l, v = lalg.eigh(self.cov)
-            l1 = l * fax
+            fax = np.exp(logfax)  # linear inflation of each dimension
+            l1 = l * fax**2  # eigen values are squares of axes
             self.cov = v @ np.diag(l1) @ v.T
             self.am = v @ np.diag(1 / l1) @ v.T
             self.axlens *= fax
             self.axes = lalg.cholesky(self.cov, lower=True)
-            # I don't quite know how to scale it
+            # I don't quite know how to scale axes, so I rerun cholesky
         self.logvol = logvol
 
     def major_axis_endpoints(self):
@@ -296,7 +298,6 @@ class Ellipsoid(object):
 
     def update(self,
                points,
-               pointvol=0.,
                rstate=None,
                bootstrap=0,
                pool=None,
@@ -308,9 +309,6 @@ class Ellipsoid(object):
         ----------
         points : `~numpy.ndarray` with shape (npoints, ndim)
             The set of points to bound.
-
-        pointvol : float, optional
-            The minimum volume associated with each point. Default is `0.`.
 
         rstate : `~numpy.random.RandomState`, optional
             `~numpy.random.RandomState` instance.
@@ -335,7 +333,7 @@ class Ellipsoid(object):
             rstate = np.random
 
         # Compute new bounding ellipsoid.
-        ell = bounding_ellipsoid(points, pointvol=pointvol)
+        ell = bounding_ellipsoid(points)
         self.n = ell.n
         self.ctr = ell.ctr
         self.cov = ell.cov
@@ -355,8 +353,7 @@ class Ellipsoid(object):
             else:
                 M = pool.map
             ps = [points for it in range(bootstrap)]
-            pvs = [pointvol for it in range(bootstrap)]
-            args = zip(ps, pvs)
+            args = zip(ps)
             expands = list(M(_ellipsoid_bootstrap_expand, args))
 
             # Conservatively set the expansion factor to be the maximum
@@ -580,7 +577,6 @@ class MultiEllipsoid(object):
 
     def update(self,
                points,
-               pointvol=0.,
                vol_dec=0.5,
                vol_check=2.,
                rstate=None,
@@ -594,9 +590,6 @@ class MultiEllipsoid(object):
         ----------
         points : `~numpy.ndarray` with shape (npoints, ndim)
             The set of points to bound.
-
-        pointvol : float, optional
-            The minimum volume associated with each point. Default is `0.`.
 
         vol_dec : float, optional
             The required fractional reduction in volume after splitting
@@ -639,14 +632,13 @@ class MultiEllipsoid(object):
 
         # Calculate the bounding ellipsoid for the points, possibly
         # enlarged to a minimum volume.
-        firstell = bounding_ellipsoid(points, pointvol=pointvol)
+        firstell = bounding_ellipsoid(points)
 
         # Recursively split the bounding ellipsoid using `vol_check`
         # until the volume of each split no longer decreases by a
         # factor of `vol_dec`.
         ells = _bounding_ellipsoids(points,
                                     firstell,
-                                    pointvol=pointvol,
                                     vol_dec=vol_dec,
                                     vol_check=vol_check)
 
@@ -675,10 +667,9 @@ class MultiEllipsoid(object):
             else:
                 M = pool.map
             ps = [points for it in range(bootstrap)]
-            pvs = [pointvol for it in range(bootstrap)]
             vds = [vol_dec for it in range(bootstrap)]
             vcs = [vol_check for it in range(bootstrap)]
-            args = zip(ps, pvs, vds, vcs)
+            args = zip(ps, vds, vcs)
             expands = list(M(_ellipsoids_bootstrap_expand, args))
 
             # Conservatively set the expansion factor to be the maximum
@@ -865,7 +856,6 @@ class RadFriends(object):
 
     def update(self,
                points,
-               pointvol=0.,
                rstate=None,
                bootstrap=0,
                pool=None,
@@ -878,9 +868,6 @@ class RadFriends(object):
         ----------
         points : `~numpy.ndarray` with shape (npoints, ndim)
             The set of points to bound.
-
-        pointvol : float, optional
-            The minimum volume associated with each point. Default is `0.`.
 
         rstate : `~numpy.random.RandomState`, optional
             `~numpy.random.RandomState` instance.
@@ -950,12 +937,6 @@ class RadFriends(object):
         # TODO check finite
         self.logvol_ball = (logvol_prefactor(self.n) - 0.5 * detln)
         self.expand = 1.
-
-        # Expand our ball to encompass a minimum volume.
-        if pointvol > 0.:
-            lv = np.log(pointvol)
-            if self.logvol_ball < lv:
-                self.scale_to_logvol(lv)
 
         # Estimate the volume and fractional overlap with the unit cube
         # using Monte Carlo integration.
@@ -1166,7 +1147,6 @@ class SupFriends(object):
 
     def update(self,
                points,
-               pointvol=0.,
                rstate=None,
                bootstrap=0,
                pool=None,
@@ -1179,9 +1159,6 @@ class SupFriends(object):
         ----------
         points : `~numpy.ndarray` with shape (npoints, ndim)
             The set of points to bound.
-
-        pointvol : float, optional
-            The minimum volume associated with each point. Default is `0.`.
 
         rstate : `~numpy.random.RandomState`, optional
             `~numpy.random.RandomState` instance.
@@ -1249,12 +1226,6 @@ class SupFriends(object):
         detsign, detln = linalg.slogdet(self.am)
         self.logvol_cube = (self.n * np.log(2.) - 0.5 * detln)
         self.expand = 1.
-
-        # Expand our cube to encompass a minimum volume.
-        if pointvol > 0.:
-            lv = np.log(pointvol)
-            if self.logvol_cube < lv:
-                self.scale_to_logvol(lv)
 
         # Estimate the volume and fractional overlap with the unit cube
         # using Monte Carlo integration.
@@ -1405,7 +1376,7 @@ def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
     return covar, am, axes
 
 
-def bounding_ellipsoid(points, pointvol=0.):
+def bounding_ellipsoid(points):
     """
     Calculate the bounding ellipsoid containing a collection of points.
 
@@ -1413,11 +1384,6 @@ def bounding_ellipsoid(points, pointvol=0.):
     ----------
     points : `~numpy.ndarray` with shape (npoints, ndim)
         A set of coordinates.
-
-    pointvol : float, optional
-        The minimum volume occupied by a single point. When provided,
-        used to set a minimum bound on the ellipsoid volume
-        as `npoints * pointvol`. Default is `0.`.
 
     Returns
     -------
@@ -1428,22 +1394,9 @@ def bounding_ellipsoid(points, pointvol=0.):
 
     npoints, ndim = points.shape
 
-    # Check for valid `pointvol` value if provided.
-    if pointvol < 0.:
-        raise ValueError("You must specify a non-negative value "
-                         "for `pointvol`.")
-
-    # If there is only a single point, return an n-sphere with volume
-    # `pointvol` centered at the point.
     if npoints == 1:
-        if pointvol > 0.:
-            ctr = points[0]
-            r = np.exp((np.log(pointvol) - logvol_prefactor(ndim)) / ndim)
-            covar = r**2 * np.identity(ndim)
-            return Ellipsoid(ctr, covar)
-        else:
-            raise ValueError("Cannot compute a bounding ellipsoid to a "
-                             "single point if `pointvol` is not specified.")
+        raise ValueError("Cannot compute a bounding ellipsoid to a "
+                         "single point if `pointvol` is not specified.")
 
     # Calculate covariance of points.
     ctr = np.mean(points, axis=0)
@@ -1487,16 +1440,10 @@ def bounding_ellipsoid(points, pointvol=0.):
     # Initialize our ellipsoid with *safe* covariance matrix.
     ell = Ellipsoid(ctr, covar, am=am, axes=axes)
 
-    # Expand our ellipsoid to encompass a minimum volume.
-    if pointvol > 0.:
-        minvol = npoints * pointvol
-        if ell.logvol < np.log(minvol):
-            ell.scale_to_logvol(np.log(minvol))
-
     return ell
 
 
-def _bounding_ellipsoids(points, ell, pointvol=0., vol_dec=0.5, vol_check=2.):
+def _bounding_ellipsoids(points, ell, vol_dec=0.5, vol_check=2.):
     """
     Internal method used to compute a set of bounding ellipsoids when a
     bounding ellipsoid for the entire set has already been calculated.
@@ -1508,11 +1455,6 @@ def _bounding_ellipsoids(points, ell, pointvol=0., vol_dec=0.5, vol_check=2.):
 
     ell : Ellipsoid
         The bounding ellipsoid containing :data:`points`.
-
-    pointvol : float, optional
-        Volume represented by a single point. When provided,
-        used to set a minimum bound on the ellipsoid volume
-        as `npoints * pointvol`. Default is `0.`.
 
     vol_dec : float, optional
         The required fractional reduction in volume after splitting an
@@ -1561,51 +1503,31 @@ def _bounding_ellipsoids(points, ell, pointvol=0., vol_dec=0.5, vol_check=2.):
 
     # Bounding ellipsoid for each cluster, possibly enlarged
     # to a minimum volume.
-    ells = [
-        bounding_ellipsoid(points_j, pointvol=pointvol)
-        for points_j in points_k
-    ]
+    ells = [bounding_ellipsoid(points_j) for points_j in points_k]
 
     # If the total volume decreased by a factor of `vol_dec`, we accept
     # the split into subsets. We then recursively split each subset.
     if np.logaddexp(ells[0].logvol,
                     ells[1].logvol) < np.log(vol_dec) + ell.logvol:
-        return (_bounding_ellipsoids(points_k[0],
-                                     ells[0],
-                                     pointvol=pointvol,
-                                     vol_dec=vol_dec,
-                                     vol_check=vol_check) +
-                _bounding_ellipsoids(points_k[1],
-                                     ells[1],
-                                     pointvol=pointvol,
-                                     vol_dec=vol_dec,
-                                     vol_check=vol_check))
+        return (
+            _bounding_ellipsoids(
+                points_k[0], ells[0], vol_dec=vol_dec, vol_check=vol_check) +
+            _bounding_ellipsoids(
+                points_k[1], ells[1], vol_dec=vol_dec, vol_check=vol_check))
+    out = (_bounding_ellipsoids(
+        points_k[0], ells[0], vol_dec=vol_dec, vol_check=vol_check) +
+           _bounding_ellipsoids(
+               points_k[1], ells[1], vol_dec=vol_dec, vol_check=vol_check))
 
-    # Otherwise, see if the total ellipsoid volume is larger than the
-    # minimum volume by a factor of `vol_check`. If it is, this indicates
-    # that there may be more than 2 clusters and we should try to
-    # subdivide further.
-    if pointvol == 0 or ell.logvol > np.log(vol_check * npoints * pointvol):
-        out = (_bounding_ellipsoids(points_k[0],
-                                    ells[0],
-                                    pointvol=pointvol,
-                                    vol_dec=vol_dec,
-                                    vol_check=vol_check) +
-               _bounding_ellipsoids(points_k[1],
-                                    ells[1],
-                                    pointvol=pointvol,
-                                    vol_dec=vol_dec,
-                                    vol_check=vol_check))
-
-        # Only accept the split if the volume decreased significantly.
-        if logsumexp([e.logvol for e in out]) < np.log(vol_dec) + ell.logvol:
-            return out
+    # Only accept the split if the volume decreased significantly.
+    if logsumexp([e.logvol for e in out]) < np.log(vol_dec) + ell.logvol:
+        return out
 
     # Otherwise, we are happy with the single bounding ellipsoid.
     return [ell]
 
 
-def bounding_ellipsoids(points, pointvol=0., vol_dec=0.5, vol_check=2.):
+def bounding_ellipsoids(points, vol_dec=0.5, vol_check=2.):
     """
     Calculate a set of ellipsoids that bound the collection of points.
 
@@ -1613,11 +1535,6 @@ def bounding_ellipsoids(points, pointvol=0., vol_dec=0.5, vol_check=2.):
     ----------
     points : `~numpy.ndarray` with shape (npoints, ndim)
         A set of coordinates.
-
-    pointvol : float, optional
-        Volume represented by a single point. When provided,
-        used to set a minimum bound on the ellipsoid volume
-        as `npoints * pointvol`. Default is `0.`.
 
     vol_dec : float, optional
         The required fractional reduction in volume after splitting an
@@ -1643,13 +1560,12 @@ def bounding_ellipsoids(points, pointvol=0., vol_dec=0.5, vol_check=2.):
 
     # Calculate the bounding ellipsoid for the points possibly
     # enlarged to a minimum volume.
-    ell = bounding_ellipsoid(points, pointvol=pointvol)
+    ell = bounding_ellipsoid(points)
 
     # Recursively split the bounding ellipsoid until the volume of each
     # split no longer decreases by a factor of `vol_dec`.
     ells = _bounding_ellipsoids(points,
                                 ell,
-                                pointvol=pointvol,
                                 vol_dec=vol_dec,
                                 vol_check=vol_check)
 
@@ -1661,7 +1577,7 @@ def _ellipsoid_bootstrap_expand(args):
     ellipsoid based on bootstrapping."""
 
     # Unzipping.
-    points, pointvol = args
+    points, = args
     rstate = np.random
 
     # Resampling.
@@ -1676,7 +1592,7 @@ def _ellipsoid_bootstrap_expand(args):
     points_in, points_out = points[idx_in], points[idx_out]
 
     # Compute bounding ellipsoid.
-    ell = bounding_ellipsoid(points_in, pointvol=pointvol)
+    ell = bounding_ellipsoid(points_in)
 
     # Compute normalized distances to missing points.
     dists = ell.distance_many(points_out)
@@ -1692,7 +1608,7 @@ def _ellipsoids_bootstrap_expand(args):
     of bounding ellipsoids using bootstrapping."""
 
     # Unzipping.
-    points, pointvol, vol_dec, vol_check = args
+    points, vol_dec, vol_check = args
     rstate = np.random
 
     # Resampling.
@@ -1707,10 +1623,9 @@ def _ellipsoids_bootstrap_expand(args):
     points_in, points_out = points[idx_in], points[idx_out]
 
     # Compute bounding ellipsoids.
-    ell = bounding_ellipsoid(points_in, pointvol=pointvol)
+    ell = bounding_ellipsoid(points_in)
     ells = _bounding_ellipsoids(points_in,
                                 ell,
-                                pointvol=pointvol,
                                 vol_dec=vol_dec,
                                 vol_check=vol_check)
 

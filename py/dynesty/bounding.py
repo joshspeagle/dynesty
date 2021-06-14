@@ -143,11 +143,6 @@ class Ellipsoid(object):
         self.n = len(ctr)  # dimension
         self.ctr = np.asarray(ctr)  # center coordinates
         self.cov = np.asarray(cov)  # covariance matrix
-        if am is None:
-            self.am = lalg.pinvh(cov)
-            # precision matrix (inverse of covariance)
-        else:
-            self.am = am
         if axes is None:
             self.axes = lalg.cholesky(cov, lower=True)  # transformation axes
         else:
@@ -166,6 +161,11 @@ class Ellipsoid(object):
             raise ValueError("The input precision matrix defining the "
                              "ellipsoid {0} is apparently singular with "
                              "l={1} and v={2}.".format(self.cov, l, v))
+        if am is None:
+            self.am = v @ np.diag(1. / l) @ v.T
+            # precision matrix (inverse of covariance)
+        else:
+            self.am = am
 
         # Scaled eigenvectors are the principle axes, where `paxes[:,i]` is the
         # i-th axis. Multiplying this matrix by a vector will transform a
@@ -177,14 +177,38 @@ class Ellipsoid(object):
         self.expand = 1.
 
     def scale_to_logvol(self, logvol):
-        """Scale ellipoid to a target volume."""
+        """Scale ellipsoid to a target volume."""
 
-        f = np.exp((logvol - self.logvol) / self.n)  # linear factor
-        self.expand *= f
-        self.cov *= f**2
-        self.am *= f**-2
-        self.axlens *= f
-        self.axes *= f
+        logf = (logvol - self.logvol)
+        # log of the maxium axis length of the ellipsoid
+        max_log_axlen = np.log(np.sqrt(self.n) / 2)
+        log_axlen = np.log(self.axlens)
+        if log_axlen.max() < max_log_axlen - logf / self.n:
+            # we are safe to inflate the ellipsoid isothropically
+            # without hitting boundaries
+            f = np.exp(logf / self.n)
+            self.cov *= f**2
+            self.am *= 1. / f**2
+            self.axlens *= f
+            self.axes *= f
+        else:
+            logfax = np.zeros(self.n)
+            curlogf = logf  # how much we have left to inflate
+            curn = self.n  # how many dimensions leftx
+            # here we start from largest and go to smallest
+            for curi in np.argsort(self.axlens)[::-1]:
+                delta = min(max_log_axlen - log_axlen[curi], curlogf / curn)
+                logfax[curi] = delta
+                curlogf -= delta
+                curn -= 1
+            fax = np.exp(logfax)
+            l, v = lalg.eigh(self.cov)
+            l1 = l * fax
+            self.cov = v @ np.diag(l1) @ v.T
+            self.am = v @ np.diag(1 / l1) @ v.T
+            self.axlens *= fax
+            self.axes = lalg.cholesky(self.cov, lower=True)
+            # I don't quite know how to scale it
         self.logvol = logvol
 
     def major_axis_endpoints(self):
@@ -706,7 +730,6 @@ class RadFriends(object):
 
         f = np.exp((logvol - self.logvol_ball) * (1.0 / self.n))
         # linear factor
-        self.expand *= f
         self.cov *= f**2
         self.am /= f**2
         self.axes *= f
@@ -1007,7 +1030,6 @@ class SupFriends(object):
 
         f = np.exp((logvol - self.logvol_cube) * (1.0 / self.n))
         # linear factor
-        self.expand *= f
         self.cov *= f**2
         self.am /= f**2
         self.axes *= f

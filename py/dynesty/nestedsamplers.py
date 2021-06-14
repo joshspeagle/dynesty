@@ -651,7 +651,6 @@ class MultiEllipsoidSampler(Sampler):
         else:
             self.enlarge = kwargs.get('enlarge', 1.25)
         self.vol_dec = kwargs.get('vol_dec', 0.5)
-        self.vol_check = kwargs.get('vol_check', 2.0)
         self.cite = self.kwargs.get('cite')
 
         self.mell = MultiEllipsoid(ctrs=[np.zeros(self.ncdim)],
@@ -687,7 +686,6 @@ class MultiEllipsoidSampler(Sampler):
         # Update the bounding ellipsoids.
         self.mell.update(self.live_u[:, :self.ncdim],
                          vol_dec=self.vol_dec,
-                         vol_check=self.vol_check,
                          rstate=self.rstate,
                          bootstrap=self.bootstrap,
                          pool=pool)

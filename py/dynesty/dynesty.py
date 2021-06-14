@@ -130,7 +130,6 @@ def NestedSampler(loglikelihood,
                   enlarge=None,
                   bootstrap=0,
                   vol_dec=0.5,
-                  vol_check=2.0,
                   walks=25,
                   facc=0.5,
                   slices=5,
@@ -324,12 +323,6 @@ def NestedSampler(loglikelihood,
         in volume after splitting an ellipsoid in order to to accept the split.
         Default is `0.5`.
 
-    vol_check : float, optional
-        For the `'multi'` bounding option, the factor used when checking if
-        the volume of the original bounding ellipsoid is large enough to
-        warrant `> 2` splits via `ell.vol > vol_check * nlive * pointvol`.
-        Default is `2.0`.
-
     walks : int, optional
         For the `'rwalk'` sampling option, the minimum number of steps
         (minimum 2) before proposing a new live point. Default is `25`.
@@ -488,8 +481,6 @@ def NestedSampler(loglikelihood,
         kwargs['bootstrap'] = bootstrap
     if vol_dec is not None:
         kwargs['vol_dec'] = vol_dec
-    if vol_check is not None:
-        kwargs['vol_check'] = vol_check
 
     # Sampling.
     if walks is not None:
@@ -648,7 +639,6 @@ def DynamicNestedSampler(loglikelihood,
                          enlarge=None,
                          bootstrap=0,
                          vol_dec=0.5,
-                         vol_check=2.0,
                          walks=25,
                          facc=0.5,
                          slices=5,
@@ -828,12 +818,6 @@ def DynamicNestedSampler(loglikelihood,
         in volume after splitting an ellipsoid in order to to accept the split.
         Default is `0.5`.
 
-    vol_check : float, optional
-        For the `'multi'` bounding option, the factor used when checking if
-        the volume of the original bounding ellipsoid is large enough to
-        warrant `> 2` splits via `ell.vol > vol_check * nlive * pointvol`.
-        Default is `2.0`.
-
     walks : int, optional
         For the `'rwalk'` sampling option, the minimum number of steps
         (minimum 2) before proposing a new live point. Default is `25`.
@@ -982,8 +966,6 @@ def DynamicNestedSampler(loglikelihood,
         kwargs['bootstrap'] = bootstrap
     if vol_dec is not None:
         kwargs['vol_dec'] = vol_dec
-    if vol_check is not None:
-        kwargs['vol_check'] = vol_check
 
     # Sampling.
     if walks is not None:
@@ -1069,7 +1051,7 @@ class _function_wrapper(object):
     def __call__(self, x):
         try:
             return self.func(x, *self.args, **self.kwargs)
-        except:
+        except:  # noqa
             import traceback
             print("Exception while calling {0} function:".format(self.name))
             print("  params:", x)

@@ -197,7 +197,8 @@ class Ellipsoid(object):
             curn = self.n  # how many dimensions leftx
             # here we start from largest and go to smallest
             for curi in np.argsort(self.axlens)[::-1]:
-                delta = min(max_log_axlen - log_axlen[curi], curlogf / curn)
+                delta = max(
+                    min(max_log_axlen - log_axlen[curi], curlogf / curn), 0)
                 logfax[curi] = delta
                 curlogf -= delta
                 curn -= 1
@@ -208,7 +209,7 @@ class Ellipsoid(object):
             self.am = v @ np.diag(1 / l1) @ v.T
             self.axlens *= fax
             self.axes = lalg.cholesky(self.cov, lower=True)
-            # I don't quite know how to scale it
+            # I don't quite know how to scale axes, so I rerun cholesky
         self.logvol = logvol
 
     def major_axis_endpoints(self):

@@ -195,8 +195,8 @@ def NestedSampler(loglikelihood,
         When `ndim < 10`, this defaults to `'unif'`.
         When `10 <= ndim <= 20`, this defaults to `'rwalk'`.
         When `ndim > 20`, this defaults to `'hslice'` if a `gradient` is
-        provided and `'slice'` otherwise. `'rstagger'` and `'rslice'`
-        are provided as alternatives for `'rwalk'` and `'slice'`, respectively.
+        provided and `'rslice'` otherwise. `'rstagger'` and `'slice'`
+        are provided as alternatives for `'rwalk'` and `'rslice'`, respectively.
         Default is `'auto'`.
 
     periodic : iterable, optional
@@ -387,7 +387,7 @@ def NestedSampler(loglikelihood,
             sample = 'rwalk'
         else:
             if gradient is None:
-                sample = 'slice'
+                sample = 'rslice'
             else:
                 sample = 'hslice'
 
@@ -699,8 +699,8 @@ def DynamicNestedSampler(loglikelihood,
         When `ndim < 10`, this defaults to `'unif'`.
         When `10 <= ndim <= 20`, this defaults to `'rwalk'`.
         When `ndim > 20`, this defaults to `'hslice'` if a `gradient` is
-        provided and `'slice'` otherwise. `'rstagger'` and `'rslice'`
-        are provided as alternatives for `'rwalk'` and `'slice'`, respectively.
+        provided and `'rslice'` otherwise. `'rstagger'` and `'slice'`
+        are provided as alternatives for `'rwalk'` and `'rslice'`, respectively.
         Default is `'auto'`.
 
     periodic : iterable, optional
@@ -882,7 +882,7 @@ def DynamicNestedSampler(loglikelihood,
             sample = 'rwalk'
         else:
             if gradient is None:
-                sample = 'slice'
+                sample = 'rslice'
             else:
                 sample = 'hslice'
 

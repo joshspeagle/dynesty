@@ -194,16 +194,17 @@ class Ellipsoid(object):
         else:
             logfax = np.zeros(self.n)
             curlogf = logf  # how much we have left to inflate
-            curn = self.n  # how many dimensions leftx
+            curn = self.n  # how many dimensions left
+            l, v = lalg.eigh(self.cov)
+
             # here we start from largest and go to smallest
-            for curi in np.argsort(self.axlens)[::-1]:
+            for curi in np.argsort(l)[::-1]:
                 delta = max(
                     min(max_log_axlen - log_axlen[curi], curlogf / curn), 0)
                 logfax[curi] = delta
                 curlogf -= delta
                 curn -= 1
             fax = np.exp(logfax)  # linear inflation of each dimension
-            l, v = lalg.eigh(self.cov)
             l1 = l * fax**2  # eigen values are squares of axes
             self.cov = v @ np.diag(l1) @ v.T
             self.am = v @ np.diag(1 / l1) @ v.T

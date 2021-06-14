@@ -201,9 +201,9 @@ class Ellipsoid(object):
                 logfax[curi] = delta
                 curlogf -= delta
                 curn -= 1
-            fax = np.exp(logfax)
+            fax = np.exp(logfax)  # linear inflation of each dimension
             l, v = lalg.eigh(self.cov)
-            l1 = l * fax
+            l1 = l * fax**2  # eigen values are squares of axes
             self.cov = v @ np.diag(l1) @ v.T
             self.am = v @ np.diag(1 / l1) @ v.T
             self.axlens *= fax

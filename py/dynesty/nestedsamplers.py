@@ -736,15 +736,9 @@ class MultiEllipsoidSampler(Sampler):
 
         # Automatically trigger an update if we're not in any ellipsoid.
         if nidx == 0:
-            if len(self.saved_run.D['logvol']) > 0:
-                # Expected ln(prior volume) at a given iteration.
-                expected_vol = math.exp(self.saved_run.D['logvol'][-1] -
-                                        self.dlv)
-            else:
-                # Expected ln(prior volume) at the first iteration.
-                expected_vol = math.exp(-self.dlv)
 
             # Update the bounding ellipsoids.
+
             bound = self.update()
             if self.save_bounds:
                 self.bound.append(bound)
@@ -754,6 +748,8 @@ class MultiEllipsoidSampler(Sampler):
             # Check for ellipsoid overlap (again).
             ell_idxs = self.mell.within(u_fit)
             nidx = len(ell_idxs)
+            if nidx == 0:
+                raise RuntimeError('Update of the ellipsoid failed')
 
         # Pick a random ellipsoid that encompasses `u`.
         ell_idx = ell_idxs[self.rstate.randint(nidx)]

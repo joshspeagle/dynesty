@@ -1487,6 +1487,8 @@ def _bounding_ellipsoids(points, ell):
     # then BIC is N*log(V1) + X *k *ln(N)
     # from that we can get the volume decrease condition
     # V1/V0 < exp(-(k-1)*X*ln(N)/N)
+    # The choice of BIC is motivated by Xmeans algo from Pelleg 2000
+    # See also Feroz2008
 
     nparam = (ndim * (ndim + 3)) // 2
     vol_dec1 = np.exp(-nparam * np.log(npoints) / npoints)

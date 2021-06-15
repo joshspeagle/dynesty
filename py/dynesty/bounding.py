@@ -1504,7 +1504,7 @@ def _bounding_ellipsoids(points, ell):
     vol_dec2 = np.exp(-nparam * (len(out) - 1) * np.log(npoints) / npoints)
 
     # Only accept the split if the volume decreased significantly
-    if logsumexp([e.logvol for e in out]) < 2 * np.log(vol_dec2) + ell.logvol:
+    if logsumexp([e.logvol for e in out]) < np.log(vol_dec2) + ell.logvol:
         return out
 
     # Otherwise, we are happy with the single bounding ellipsoid.

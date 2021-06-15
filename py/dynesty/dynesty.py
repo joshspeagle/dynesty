@@ -129,7 +129,6 @@ def NestedSampler(loglikelihood,
                   compute_jac=False,
                   enlarge=None,
                   bootstrap=0,
-                  vol_dec=0.5,
                   walks=25,
                   facc=0.5,
                   slices=5,
@@ -318,11 +317,6 @@ def NestedSampler(loglikelihood,
         out during each iteration to enlarge the resulting volumes. Can
         lead to unstable bounding ellipsoids. Default is `0` (no bootstrap).
 
-    vol_dec : float, optional
-        For the `'multi'` bounding option, the required fractional reduction
-        in volume after splitting an ellipsoid in order to to accept the split.
-        Default is `0.5`.
-
     walks : int, optional
         For the `'rwalk'` sampling option, the minimum number of steps
         (minimum 2) before proposing a new live point. Default is `25`.
@@ -479,8 +473,6 @@ def NestedSampler(loglikelihood,
         kwargs['enlarge'] = enlarge
     if bootstrap is not None:
         kwargs['bootstrap'] = bootstrap
-    if vol_dec is not None:
-        kwargs['vol_dec'] = vol_dec
 
     # Sampling.
     if walks is not None:
@@ -638,7 +630,6 @@ def DynamicNestedSampler(loglikelihood,
                          compute_jac=False,
                          enlarge=None,
                          bootstrap=0,
-                         vol_dec=0.5,
                          walks=25,
                          facc=0.5,
                          slices=5,
@@ -813,11 +804,6 @@ def DynamicNestedSampler(loglikelihood,
         out during each iteration to enlarge the resulting volumes. Can lead
         to unstable bounding ellipsoids. Default is `0` (no bootstrap).
 
-    vol_dec : float, optional
-        For the `'multi'` bounding option, the required fractional reduction
-        in volume after splitting an ellipsoid in order to to accept the split.
-        Default is `0.5`.
-
     walks : int, optional
         For the `'rwalk'` sampling option, the minimum number of steps
         (minimum 2) before proposing a new live point. Default is `25`.
@@ -964,8 +950,6 @@ def DynamicNestedSampler(loglikelihood,
         kwargs['enlarge'] = enlarge
     if bootstrap is not None:
         kwargs['bootstrap'] = bootstrap
-    if vol_dec is not None:
-        kwargs['vol_dec'] = vol_dec
 
     # Sampling.
     if walks is not None:

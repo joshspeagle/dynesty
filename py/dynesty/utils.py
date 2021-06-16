@@ -525,17 +525,13 @@ def jitter_run(res, rstate=None, approx=False):
 
     # H is defined as
     # H = 1/z int( L * ln(L) dX,X=0..1) - ln(z)
-    # Therefore delta(z(H+ln(z))) = int(L * ln(L), X=X_i..X_i+1)
-    # where delta is a change from iteration to iteration
-    # Therefore z_{i+1}*(H_{i+1}+ln(Z_{i+1})) - z_{i}*(H_{i}+ln(Z_{i}))
-    # equals to L_i ln(L_i) + L_{i+1} * ln(L_{i+1}) * (X_{i+1} - X_i)/2
-    # by doing trapezoid integration
-    zhlnz = np.cumsum(
+    # incomplete H can be defined as
+    # H = int( L/Z * ln(L) dX,X=0..x) - z_x/Z * ln(Z)
+    h_part1 = np.cumsum(
         (np.exp(loglstar_pad[1:] - logzmax + logdvol2) * loglstar_pad[1:] +
          np.exp(loglstar_pad[:-1] - logzmax + logdvol2) * loglstar_pad[:-1]))
     # here we divide the likelihood by zmax to avoid to overflow
-    # print(zhlnz, logzmax, saved_logz)
-    saved_h = zhlnz - logzmax * np.exp(saved_logz - logzmax)
+    saved_h = h_part1 - logzmax * np.exp(saved_logz - logzmax)
     # changes in h in each step
     dh = np.diff(saved_h, prepend=0)
 

@@ -35,7 +35,7 @@ class LogLikelihood:
                  save=False,
                  history_filename=None):
         """ Initialize the object.
-        
+
         Parameters:
         loglikelihood: function
         ndim: int
@@ -60,7 +60,7 @@ class LogLikelihood:
             self.history_init()
 
     def map(self, pars):
-        """ Evaluate the likelihood f-n on the list of vectors 
+        """ Evaluate the likelihood f-n on the list of vectors
         The pool is used if it was provided when the object was created
         """
         if self.pool is None:
@@ -258,7 +258,6 @@ def resample_equal(samples, weights, rstate=None):
     -----
     Implements the systematic resampling method described in `Hol, Schon, and
     Gustafsson (2006) <doi:10.1109/NSSPW.2006.4378824>`_.
- 
    """
 
     if rstate is None:
@@ -377,8 +376,8 @@ def _find_decrease(samples_n):
     """
     Find all instances where the number of live points is either constant
     or increasing.
-    Returne the mask, 
-    the values of nlive when nlives starts to decrease 
+    Return the mask,
+    the values of nlive when nlives starts to decrease
     The ranges of decreasing nlives
     v=[3,2,1,13,13,12,23,22];
     > print(dynesty.utils._find_decrease(v))

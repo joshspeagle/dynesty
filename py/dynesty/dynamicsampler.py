@@ -989,7 +989,6 @@ class DynamicSampler(object):
 
         # Check whether the lower bound encompasses all previous saved samples.
         psel = np.all(logl_min <= saved_logl)
-        vol = 1. - 1. / nblive  # starting ln(prior volume)
         if psel:
             # If the lower bound encompasses all saved samples, we want
             # to propose a new set of points from the unit cube.
@@ -1757,5 +1756,5 @@ class DynamicSampler(object):
             return ncall, niter, logl_bounds, results
         else:
             raise RuntimeError(
-                'add_batch called with no leftover function calls or iterations'
-            )
+                'add_batch called with no leftover function calls'
+                'or iterations')

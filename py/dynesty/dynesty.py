@@ -7,8 +7,6 @@ provides access to the two main sampler "super-classes" via
 
 """
 
-from __future__ import (print_function, division)
-
 import sys
 import warnings
 import math

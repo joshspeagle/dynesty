@@ -6,19 +6,13 @@ samplers inherit this class either explicitly or implicitly.
 
 """
 
-from __future__ import (print_function, division)
-from six.moves import range
-
 import sys
 import warnings
 from functools import partial
 import math
 import copy
 import numpy as np
-try:
-    from scipy.special import logsumexp
-except ImportError:
-    from scipy.misc import logsumexp
+from scipy.special import logsumexp
 
 try:
     import tqdm

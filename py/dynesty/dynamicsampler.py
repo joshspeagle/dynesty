@@ -11,19 +11,13 @@ by the user.
 
 """
 
-from __future__ import (print_function, division)
-from six.moves import range
-
 import sys
 import warnings
 from functools import partial
 import math
 import numpy as np
 import copy
-try:
-    from scipy.special import logsumexp
-except ImportError:
-    from scipy.misc import logsumexp
+from scipy.special import logsumexp
 
 try:
     import tqdm

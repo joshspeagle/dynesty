@@ -6,11 +6,8 @@ sampling :class:`~dynesty.results.Results`.
 
 """
 
-from __future__ import (print_function, division)
-from six.moves import range
-
 import logging
-import types
+import warnings
 import numpy as np
 import matplotlib.pyplot as pl
 from matplotlib.ticker import MaxNLocator, NullLocator
@@ -19,7 +16,6 @@ from matplotlib.ticker import ScalarFormatter
 from scipy import spatial
 from scipy.ndimage import gaussian_filter as norm_kde
 from scipy.stats import gaussian_kde
-import warnings
 from .utils import resample_equal, unitcheck
 from .utils import quantile as _quantile
 

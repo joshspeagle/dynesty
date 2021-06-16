@@ -32,5 +32,5 @@ of the code can be found
 ### Attribution
 
 If you find the package useful in your research, please see the
-[documentation](https://dynesty.readthedocs.io) for papers you
+[documentation](https://dynesty.readthedocs.io/en/latest/references.html) for papers you
 should cite.

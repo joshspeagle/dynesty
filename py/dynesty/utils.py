@@ -709,8 +709,7 @@ def resample_run(res, rstate=None, return_idx=False):
         logz_new = np.logaddexp(logz, logwt)
         lzterm = (math.exp(loglstar - logz_new + logdvol) * loglstar +
                   math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
-        h_new = (lzterm + math.exp(logz - logz_new) *
-                 (h + logz) - logz_new)
+        h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) - logz_new)
         dh = h_new - h
         h = h_new
         logz = logz_new
@@ -847,10 +846,9 @@ def reweight_run(res, logp_new, logp_old=None):
         logdvol, dlv = logdvols[i], dlvs[i]
         logwt = np.logaddexp(loglstar_new, loglstar) + logdvol + logrwt[i]
         logz_new = np.logaddexp(logz, logwt)
-        lzterm = (math.exp(loglstar - logz_new + logdvol ) * loglstar +
-                      math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
-        h_new = lzterm + math.exp(logz - logz_new) *
-                 (h + logz) - logz_new)
+        lzterm = (math.exp(loglstar - logz_new + logdvol) * loglstar +
+                  math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
+        h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) - logz_new)
         dh = h_new - h
         h = h_new
         logz = logz_new
@@ -956,10 +954,11 @@ def unravel_run(res, save_proposals=True, print_progress=True):
             logdvol, dlv = logdvols[i], dlvs[i]
             logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
             logz_new = np.logaddexp(logz, logwt)
-            lzterm = (math.exp(loglstar - logz_new + logdvol) * loglstar +
-                      math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
-            h_new = (lzterm + math.exp(logz - logz_new) *
-                     (h + logz) - logz_new)
+            lzterm = (
+                math.exp(loglstar - logz_new + logdvol) * loglstar +
+                math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
+            h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) -
+                     logz_new)
             dh = h_new - h
             h = h_new
             logz = logz_new
@@ -1533,10 +1532,11 @@ def _merge_two(res1, res2, compute_aux=False):
             logdvol, dlv = logdvols[i], dlvs[i]
             logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
             logz_new = np.logaddexp(logz, logwt)
-            lzterm = (math.exp(loglstar - logz_new + logdvol) * loglstar +
-                      math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
-            h_new = (lzterm + math.exp(logz - logz_new) *
-                     (h + logz) - logz_new)
+            lzterm = (
+                math.exp(loglstar - logz_new + logdvol) * loglstar +
+                math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
+            h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) -
+                     logz_new)
             dh = h_new - h
             h = h_new
             logz = logz_new

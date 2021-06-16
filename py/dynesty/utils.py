@@ -990,14 +990,14 @@ def unravel_run(res, save_proposals=True, print_progress=True):
                 r.append(('prop_iter', res.prop_iter[strand]))
                 r.append(('samples_prop', res.samples_prop[strand]))
                 r.append(('scale', res.scale[strand]))
-            except:
+            except AttributeError:
                 pass
 
         # Add on batch information (if available).
         try:
             r.append(('samples_batch', res.samples_batch[strand]))
             r.append(('batch_bounds', res.batch_bounds))
-        except:
+        except AttributeError:
             pass
 
         # Append to list of strands.
@@ -1312,7 +1312,7 @@ def _merge_two(res1, res2, compute_aux=False):
     # Number of live points throughout the run.
     try:
         base_n = res1.samples_n
-    except:
+    except AttributeError:
         niter, nlive = res1.niter, res1.nlive
         if nbase == niter:
             base_n = np.ones(niter, dtype=int) * nlive
@@ -1331,14 +1331,14 @@ def _merge_two(res1, res2, compute_aux=False):
         base_piter = res1.prop_iter
         base_scale = res1.scale
         base_proposals = True
-    except:
+    except AttributeError:
         base_proposals = False
 
     # Batch information (if available).
     try:
         base_batch = res1.samples_batch
         base_bounds = res1.batch_bounds
-    except:
+    except AttributeError:
         base_batch = np.zeros(nbase, dtype=int)
         base_bounds = np.array([(-np.inf, np.inf)])
 
@@ -1354,7 +1354,7 @@ def _merge_two(res1, res2, compute_aux=False):
     # Number of live points throughout the run.
     try:
         new_n = res2.samples_n
-    except:
+    except AttributeError:
         niter, nlive = res2.niter, res2.nlive
         if nnew == niter:
             new_n = np.ones(niter, dtype=int) * nlive
@@ -1373,14 +1373,14 @@ def _merge_two(res1, res2, compute_aux=False):
         new_piter = res2.prop_iter
         new_scale = res2.scale
         new_proposals = True
-    except:
+    except AttributeError:
         new_proposals = False
 
     # Batch information (if available).
     try:
         new_batch = res2.samples_batch
         new_bounds = res2.batch_bounds
-    except:
+    except AttributeError:
         new_batch = np.zeros(nnew, dtype=int)
         new_bounds = np.array([(-np.inf, np.inf)])
 

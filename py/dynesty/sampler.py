@@ -503,10 +503,11 @@ class Sampler(object):
             # Compute relative contribution to results.
             logwt = np.logaddexp(loglstar_new, loglstar) + logdvol  # weight
             logz_new = np.logaddexp(logz, logwt)  # ln(evidence)
-            lzterm = (math.exp(loglstar - logz_new) * loglstar +
-                      math.exp(loglstar_new - logz_new) * loglstar_new)
-            h_new = (math.exp(logdvol) * lzterm + math.exp(logz - logz_new) *
-                     (h + logz) - logz_new)  # information
+            lzterm = (
+                math.exp(loglstar - logz_new + logdvol) * loglstar +
+                math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
+            h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) - logz_new
+                     )  # information
             dh = h_new - h
             h = h_new
             logz = logz_new
@@ -803,10 +804,11 @@ class Sampler(object):
 
             # Update evidence `logz` and information `h`.
             logz_new = np.logaddexp(logz, logwt)
-            lzterm = (math.exp(loglstar - logz_new) * loglstar +
-                      math.exp(loglstar_new - logz_new) * loglstar_new)
-            h_new = (math.exp(logdvol) * lzterm + math.exp(logz - logz_new) *
-                     (h + logz) - logz_new)
+            lzterm = (
+                math.exp(loglstar - logz_new + logdvol) * loglstar +
+                math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
+            h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) -
+                     logz_new)
             dh = h_new - h
             h = h_new
             logz = logz_new

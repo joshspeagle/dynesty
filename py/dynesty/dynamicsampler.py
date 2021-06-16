@@ -409,8 +409,6 @@ class DynamicSampler(object):
             self.enlarge = kwargs.get('enlarge', 1.0)
         else:
             self.enlarge = kwargs.get('enlarge', 1.25)
-        self.vol_dec = kwargs.get('vol_dec', 0.5)
-        self.vol_check = kwargs.get('vol_check', 2.0)
         self.walks = self.kwargs.get('walks', 25)
         self.slices = self.kwargs.get('slices', 3)
         self.cite = self.kwargs.get('cite')

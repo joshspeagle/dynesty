@@ -577,8 +577,6 @@ class MultiEllipsoid(object):
 
     def update(self,
                points,
-               vol_dec=0.5,
-               vol_check=2.,
                rstate=None,
                bootstrap=0,
                pool=None,
@@ -590,17 +588,6 @@ class MultiEllipsoid(object):
         ----------
         points : `~numpy.ndarray` with shape (npoints, ndim)
             The set of points to bound.
-
-        vol_dec : float, optional
-            The required fractional reduction in volume after splitting
-            an ellipsoid in order to to accept the split.
-            Default is `0.5`.
-
-        vol_check : float, optional
-            The factor used when checking if the volume of the original
-            bounding ellipsoid is large enough to warrant `> 2` splits
-            via `ell.vol > vol_check * nlive * pointvol`.
-            Default is `2.0`.
 
         rstate : `~numpy.random.RandomState`, optional
             `~numpy.random.RandomState` instance.
@@ -634,13 +621,8 @@ class MultiEllipsoid(object):
         # enlarged to a minimum volume.
         firstell = bounding_ellipsoid(points)
 
-        # Recursively split the bounding ellipsoid using `vol_check`
-        # until the volume of each split no longer decreases by a
-        # factor of `vol_dec`.
-        ells = _bounding_ellipsoids(points,
-                                    firstell,
-                                    vol_dec=vol_dec,
-                                    vol_check=vol_check)
+        # Recursively split the bounding ellipsoid
+        ells = _bounding_ellipsoids(points, firstell)
 
         # Update the set of ellipsoids.
         self.nells = len(ells)
@@ -667,9 +649,7 @@ class MultiEllipsoid(object):
             else:
                 M = pool.map
             ps = [points for it in range(bootstrap)]
-            vds = [vol_dec for it in range(bootstrap)]
-            vcs = [vol_check for it in range(bootstrap)]
-            args = zip(ps, vds, vcs)
+            args = zip(ps, )
             expands = list(M(_ellipsoids_bootstrap_expand, args))
 
             # Conservatively set the expansion factor to be the maximum
@@ -1443,7 +1423,7 @@ def bounding_ellipsoid(points):
     return ell
 
 
-def _bounding_ellipsoids(points, ell, vol_dec=0.5, vol_check=2.):
+def _bounding_ellipsoids(points, ell):
     """
     Internal method used to compute a set of bounding ellipsoids when a
     bounding ellipsoid for the entire set has already been calculated.
@@ -1455,16 +1435,6 @@ def _bounding_ellipsoids(points, ell, vol_dec=0.5, vol_check=2.):
 
     ell : Ellipsoid
         The bounding ellipsoid containing :data:`points`.
-
-    vol_dec : float, optional
-        The required fractional reduction in volume after splitting an
-        ellipsoid in order to to accept the split. Default is `0.5`.
-
-    vol_check : float, optional
-        The factor used to when checking whether the volume of the
-        original bounding ellipsoid is large enough to warrant more
-        trial splits via `ell.vol > vol_check * npoints * pointvol`.
-        Default is `2.0`.
 
     Returns
     -------
@@ -1505,29 +1475,43 @@ def _bounding_ellipsoids(points, ell, vol_dec=0.5, vol_check=2.):
     # to a minimum volume.
     ells = [bounding_ellipsoid(points_j) for points_j in points_k]
 
-    # If the total volume decreased by a factor of `vol_dec`, we accept
+    # If the total volume decreased significantly, we accept
     # the split into subsets. We then recursively split each subset.
-    if np.logaddexp(ells[0].logvol,
-                    ells[1].logvol) < np.log(vol_dec) + ell.logvol:
-        return (
-            _bounding_ellipsoids(
-                points_k[0], ells[0], vol_dec=vol_dec, vol_check=vol_check) +
-            _bounding_ellipsoids(
-                points_k[1], ells[1], vol_dec=vol_dec, vol_check=vol_check))
-    out = (_bounding_ellipsoids(
-        points_k[0], ells[0], vol_dec=vol_dec, vol_check=vol_check) +
-           _bounding_ellipsoids(
-               points_k[1], ells[1], vol_dec=vol_dec, vol_check=vol_check))
+    # The condition for hte volume decrease is motivated by the BIC values
+    # assuming that the number of parameter of the ellipsoid is X (it is
+    # Ndim*(Ndim+3)/2, the number of points is N
+    # then the BIC of the bounding ellipsoid model is
+    # N * log(V0) + X * ln(N)
+    # where V0 is the volume of the ellipsoid
+    # if we have many (k) ellipsoids with total volume V1
+    # then BIC is N*log(V1) + X *k *ln(N)
+    # from that we can get the volume decrease condition
+    # V1/V0 < exp(-(k-1)*X*ln(N)/N)
+    # The choice of BIC is motivated by Xmeans algo from Pelleg 2000
+    # See also Feroz2008
 
-    # Only accept the split if the volume decreased significantly.
-    if logsumexp([e.logvol for e in out]) < np.log(vol_dec) + ell.logvol:
+    nparam = (ndim * (ndim + 3)) // 2
+    vol_dec1 = np.exp(-nparam * np.log(npoints) / npoints)
+
+    if np.logaddexp(ells[0].logvol,
+                    ells[1].logvol) < np.log(vol_dec1) + ell.logvol:
+        return (_bounding_ellipsoids(points_k[0], ells[0]) +
+                _bounding_ellipsoids(points_k[1], ells[1]))
+
+    # here if the split didn't succeed, we still try to split
+    out = (_bounding_ellipsoids(points_k[0], ells[0]) +
+           _bounding_ellipsoids(points_k[1], ells[1]))
+    vol_dec2 = np.exp(-nparam * (len(out) - 1) * np.log(npoints) / npoints)
+
+    # Only accept the split if the volume decreased significantly
+    if logsumexp([e.logvol for e in out]) < np.log(vol_dec2) + ell.logvol:
         return out
 
     # Otherwise, we are happy with the single bounding ellipsoid.
     return [ell]
 
 
-def bounding_ellipsoids(points, vol_dec=0.5, vol_check=2.):
+def bounding_ellipsoids(points):
     """
     Calculate a set of ellipsoids that bound the collection of points.
 
@@ -1535,16 +1519,6 @@ def bounding_ellipsoids(points, vol_dec=0.5, vol_check=2.):
     ----------
     points : `~numpy.ndarray` with shape (npoints, ndim)
         A set of coordinates.
-
-    vol_dec : float, optional
-        The required fractional reduction in volume after splitting an
-        ellipsoid in order to to accept the split. Default is `0.5`.
-
-    vol_check : float, optional
-        The factor used to when checking whether the volume of the
-        original bounding ellipsoid is large enough to warrant more
-        trial splits via `ell.vol > vol_check * npoints * pointvol`.
-        Default is `2.0`.
 
     Returns
     -------
@@ -1562,12 +1536,8 @@ def bounding_ellipsoids(points, vol_dec=0.5, vol_check=2.):
     # enlarged to a minimum volume.
     ell = bounding_ellipsoid(points)
 
-    # Recursively split the bounding ellipsoid until the volume of each
-    # split no longer decreases by a factor of `vol_dec`.
-    ells = _bounding_ellipsoids(points,
-                                ell,
-                                vol_dec=vol_dec,
-                                vol_check=vol_check)
+    # Recursively split the bounding ellipsoid
+    ells = _bounding_ellipsoids(points, ell)
 
     return MultiEllipsoid(ells=ells)
 
@@ -1608,7 +1578,7 @@ def _ellipsoids_bootstrap_expand(args):
     of bounding ellipsoids using bootstrapping."""
 
     # Unzipping.
-    points, vol_dec, vol_check = args
+    points, = args
     rstate = np.random
 
     # Resampling.
@@ -1624,10 +1594,7 @@ def _ellipsoids_bootstrap_expand(args):
 
     # Compute bounding ellipsoids.
     ell = bounding_ellipsoid(points_in)
-    ells = _bounding_ellipsoids(points_in,
-                                ell,
-                                vol_dec=vol_dec,
-                                vol_check=vol_check)
+    ells = _bounding_ellipsoids(points_in, ell)
 
     # Compute normalized distances to missing points.
     dists = np.min(np.array([el.distance_many(points_out) for el in ells]),

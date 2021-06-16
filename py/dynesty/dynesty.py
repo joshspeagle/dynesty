@@ -129,8 +129,6 @@ def NestedSampler(loglikelihood,
                   compute_jac=False,
                   enlarge=None,
                   bootstrap=0,
-                  vol_dec=0.5,
-                  vol_check=2.0,
                   walks=25,
                   facc=0.5,
                   slices=5,
@@ -196,8 +194,8 @@ def NestedSampler(loglikelihood,
         When `ndim < 10`, this defaults to `'unif'`.
         When `10 <= ndim <= 20`, this defaults to `'rwalk'`.
         When `ndim > 20`, this defaults to `'hslice'` if a `gradient` is
-        provided and `'slice'` otherwise. `'rstagger'` and `'rslice'`
-        are provided as alternatives for `'rwalk'` and `'slice'`, respectively.
+        provided and `'rslice'` otherwise. `'rstagger'` and `'slice'`
+        are provided as alternatives for `'rwalk'` and `'rslice'`, respectively.
         Default is `'auto'`.
 
     periodic : iterable, optional
@@ -319,17 +317,6 @@ def NestedSampler(loglikelihood,
         out during each iteration to enlarge the resulting volumes. Can
         lead to unstable bounding ellipsoids. Default is `0` (no bootstrap).
 
-    vol_dec : float, optional
-        For the `'multi'` bounding option, the required fractional reduction
-        in volume after splitting an ellipsoid in order to to accept the split.
-        Default is `0.5`.
-
-    vol_check : float, optional
-        For the `'multi'` bounding option, the factor used when checking if
-        the volume of the original bounding ellipsoid is large enough to
-        warrant `> 2` splits via `ell.vol > vol_check * nlive * pointvol`.
-        Default is `2.0`.
-
     walks : int, optional
         For the `'rwalk'` sampling option, the minimum number of steps
         (minimum 2) before proposing a new live point. Default is `25`.
@@ -394,7 +381,7 @@ def NestedSampler(loglikelihood,
             sample = 'rwalk'
         else:
             if gradient is None:
-                sample = 'slice'
+                sample = 'rslice'
             else:
                 sample = 'hslice'
 
@@ -486,10 +473,6 @@ def NestedSampler(loglikelihood,
         kwargs['enlarge'] = enlarge
     if bootstrap is not None:
         kwargs['bootstrap'] = bootstrap
-    if vol_dec is not None:
-        kwargs['vol_dec'] = vol_dec
-    if vol_check is not None:
-        kwargs['vol_check'] = vol_check
 
     # Sampling.
     if walks is not None:
@@ -647,8 +630,6 @@ def DynamicNestedSampler(loglikelihood,
                          compute_jac=False,
                          enlarge=None,
                          bootstrap=0,
-                         vol_dec=0.5,
-                         vol_check=2.0,
                          walks=25,
                          facc=0.5,
                          slices=5,
@@ -709,8 +690,8 @@ def DynamicNestedSampler(loglikelihood,
         When `ndim < 10`, this defaults to `'unif'`.
         When `10 <= ndim <= 20`, this defaults to `'rwalk'`.
         When `ndim > 20`, this defaults to `'hslice'` if a `gradient` is
-        provided and `'slice'` otherwise. `'rstagger'` and `'rslice'`
-        are provided as alternatives for `'rwalk'` and `'slice'`, respectively.
+        provided and `'rslice'` otherwise. `'rstagger'` and `'slice'`
+        are provided as alternatives for `'rwalk'` and `'rslice'`, respectively.
         Default is `'auto'`.
 
     periodic : iterable, optional
@@ -823,17 +804,6 @@ def DynamicNestedSampler(loglikelihood,
         out during each iteration to enlarge the resulting volumes. Can lead
         to unstable bounding ellipsoids. Default is `0` (no bootstrap).
 
-    vol_dec : float, optional
-        For the `'multi'` bounding option, the required fractional reduction
-        in volume after splitting an ellipsoid in order to to accept the split.
-        Default is `0.5`.
-
-    vol_check : float, optional
-        For the `'multi'` bounding option, the factor used when checking if
-        the volume of the original bounding ellipsoid is large enough to
-        warrant `> 2` splits via `ell.vol > vol_check * nlive * pointvol`.
-        Default is `2.0`.
-
     walks : int, optional
         For the `'rwalk'` sampling option, the minimum number of steps
         (minimum 2) before proposing a new live point. Default is `25`.
@@ -898,7 +868,7 @@ def DynamicNestedSampler(loglikelihood,
             sample = 'rwalk'
         else:
             if gradient is None:
-                sample = 'slice'
+                sample = 'rslice'
             else:
                 sample = 'hslice'
 
@@ -980,10 +950,6 @@ def DynamicNestedSampler(loglikelihood,
         kwargs['enlarge'] = enlarge
     if bootstrap is not None:
         kwargs['bootstrap'] = bootstrap
-    if vol_dec is not None:
-        kwargs['vol_dec'] = vol_dec
-    if vol_check is not None:
-        kwargs['vol_check'] = vol_check
 
     # Sampling.
     if walks is not None:
@@ -1069,7 +1035,7 @@ class _function_wrapper(object):
     def __call__(self, x):
         try:
             return self.func(x, *self.args, **self.kwargs)
-        except:
+        except:  # noqa
             import traceback
             print("Exception while calling {0} function:".format(self.name))
             print("  params:", x)

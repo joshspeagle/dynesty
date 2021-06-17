@@ -20,6 +20,7 @@ from functools import partial
 import math
 import numpy as np
 import copy
+from .utils import get_seed_sequence
 try:
     from scipy.special import logsumexp
 except ImportError:
@@ -34,7 +35,7 @@ from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
                              MultiEllipsoidSampler, RadFriendsSampler,
                              SupFriendsSampler)
 from .results import Results, print_fn
-from .utils import kld_error
+from .utils import kld_error, get_random_generator
 
 __all__ = [
     "DynamicSampler", "weight_function", "stopping_function", "_kld_error"
@@ -51,17 +52,13 @@ _SAMPLERS = {
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
-def __get_generator(seed):
-    return np.random.Generator(np.random.PCG64(seed))
-
-
 def _kld_error(args):
     """ Internal `pool.map`-friendly wrapper for :meth:`kld_error` used by
     :meth:`stopping_function`."""
 
     # Extract arguments.
     results, error, approx, rseed = args
-    rstate = __get_generator(rseed)
+    rstate = get_random_generator(rseed)
     return kld_error(results,
                      error,
                      rstate=rstate,
@@ -272,8 +269,7 @@ def stopping_function(results,
     rlist = [results for i in range(n_mc)]
     error_list = [error for i in range(n_mc)]
     approx_list = [approx for i in range(n_mc)]
-    seeds = np.random.SeedSequence(rstate.integers(0, 2**63 - 1,
-                                                   size=4)).spawn(n_mc)
+    seeds = get_seed_sequence(rstate, n_mc)
     args = zip(rlist, error_list, approx_list, seeds)
     outputs = list(M(_kld_error, args))
     kld_arr, lnz_arr = np.array([(kld[-1], res.logz[-1])

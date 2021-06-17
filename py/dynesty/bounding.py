@@ -33,7 +33,7 @@ from scipy import cluster
 from scipy import linalg as lalg
 from numpy import cov as mle_cov
 from scipy.special import logsumexp, gammaln
-from .utils import unitcheck
+from .utils import unitcheck, get_seed_sequence, get_random_generator
 
 __all__ = [
     "UnitCube", "Ellipsoid", "MultiEllipsoid", "RadFriends", "SupFriends",
@@ -51,10 +51,6 @@ try:
     HAVE_KMEANS = True
 except ImportError:
     HAVE_KMEANS = False
-
-
-def __get_generator(seed):
-    return np.random.Generator(np.random.PCG64(seed))
 
 
 class UnitCube(object):
@@ -333,8 +329,7 @@ class Ellipsoid(object):
             else:
                 M = pool.map
             ps = [points for it in range(bootstrap)]
-            seeds = np.random.SeedSequence(
-                rstate.integers(0, 2**63 - 1, size=4)).spawn(bootstrap)
+            seeds = get_seed_sequence(rstate, bootstrap)
             args = zip(ps, seeds)
             expands = list(M(_ellipsoid_bootstrap_expand, args))
 
@@ -619,8 +614,7 @@ class MultiEllipsoid(object):
             else:
                 M = pool.map
             ps = [points for it in range(bootstrap)]
-            seeds = np.random.SeedSequence(
-                rstate.integers(0, 2**63 - 1, size=4)).spawn(bootstrap)
+            seeds = get_seed_sequence(rstate, bootstrap)
             args = zip(ps, seeds)
             expands = list(M(_ellipsoids_bootstrap_expand, args))
 
@@ -860,8 +854,7 @@ class RadFriends(object):
             # Bootstrap radius using the set of live points.
             ps = [points_t for it in range(bootstrap)]
             ftypes = ['balls' for it in range(bootstrap)]
-            seeds = np.random.SeedSequence(
-                rstate.integers(0, 2**63 - 1, size=4)).spawn(bootstrap)
+            seeds = get_seed_sequence(rstate, bootstrap)
             args = zip(ps, ftypes, seeds)
             radii = list(M(_friends_bootstrap_radius, args))
 
@@ -1141,8 +1134,7 @@ class SupFriends(object):
             # Bootstrap radius using the set of live points.
             ps = [points_t for it in range(bootstrap)]
             ftypes = ['cubes' for it in range(bootstrap)]
-            seeds = np.random.SeedSequence(
-                rstate.integers(0, 2**63 - 1, size=4)).spawn(bootstrap)
+            seeds = get_seed_sequence(rstate, bootstrap)
             args = zip(ps, ftypes, seeds)
             hsides = list(M(_friends_bootstrap_radius, args))
 
@@ -1497,7 +1489,7 @@ def _ellipsoid_bootstrap_expand(args):
 
     # Unzipping.
     points, rseed = args
-    rstate = __get_generator(rseed)
+    rstate = get_random_generator(rseed)
     # Resampling.
     npoints, ndim = points.shape
     idxs = rstate.integers(npoints, size=npoints)  # resample
@@ -1527,7 +1519,7 @@ def _ellipsoids_bootstrap_expand(args):
 
     # Unzipping.
     points, rseed = args
-    rstate = __get_generator(rseed)
+    rstate = get_random_generator(rseed)
     # Resampling.
     npoints, ndim = points.shape
     idxs = rstate.integers(npoints, size=npoints)  # resample
@@ -1560,7 +1552,7 @@ def _friends_bootstrap_radius(args):
 
     # Unzipping.
     points, ftype, rseed = args
-    rstate = __get_generator(rseed)
+    rstate = get_random_generator(rseed)
 
     # Resampling.
     npoints, ndim = points.shape

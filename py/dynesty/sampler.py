@@ -28,6 +28,7 @@ except ImportError:
 from .results import Results, print_fn
 from .bounding import UnitCube
 from .sampling import sample_unif
+from .utils import get_seed_sequence
 
 __all__ = ["Sampler"]
 
@@ -378,8 +379,7 @@ class Sampler(object):
         ptforms = [self.prior_transform for i in range(self.queue_size)]
         logls = [self.loglikelihood for i in range(self.queue_size)]
         kwargs = [self.kwargs for i in range(self.queue_size)]
-        seeds = np.random.SeedSequence(
-            self.rstate.integers(0, 2**63 - 1, size=4)).spawn(self.queue_size)
+        seeds = get_seed_sequence(self.rstate, self.queue_size)
         args = zip(point_queue, loglstars, axes_queue, scales, ptforms, logls,
                    seeds, kwargs)
 

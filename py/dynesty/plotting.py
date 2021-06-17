@@ -22,6 +22,7 @@ from scipy.stats import gaussian_kde
 import warnings
 from .utils import resample_equal, unitcheck
 from .utils import quantile as _quantile
+from .utils import get_random_generator
 
 str_type = str
 float_type = float
@@ -524,7 +525,7 @@ def traceplot(results,
     trace_kwargs['edgecolors'] = trace_kwargs.get('edgecolors', None)
     truth_kwargs['linestyle'] = truth_kwargs.get('linestyle', 'solid')
     truth_kwargs['linewidth'] = truth_kwargs.get('linewidth', 2)
-
+    rstate = get_random_generator()
     # Extract weighted samples.
     samples = results['samples']
     logvol = results['logvol']
@@ -581,7 +582,7 @@ def traceplot(results,
             ids = connect_highlight[0]
             ids = connect_highlight
         except:
-            ids = np.random.choice(uid, size=connect_highlight, replace=False)
+            ids = rstate.choice(uid, size=connect_highlight, replace=False)
 
     # Determine plotting bounds for marginalized 1-D posteriors.
     if span is None:
@@ -1704,7 +1705,7 @@ def boundplot(results,
                 r = -(nbatch + i)
                 uidx = samples_id[r]
                 live_u[uidx] = samples[r]
-    rstate = np.random.default_rng()
+    rstate = get_random_generator()
     # Draw samples from the bounding distribution.
     try:
         # If bound is "fixed", go ahead and draw samples from it.
@@ -2040,7 +2041,7 @@ def cornerbound(results,
                 uidx = samples_id[r]
                 live_u[uidx] = samples[r]
 
-    rstate = np.random.default_rng()
+    rstate = get_random_generator()
     # Draw samples from the bounding distribution.
     try:
         # If bound is "fixed", go ahead and draw samples from it.

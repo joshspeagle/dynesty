@@ -16,7 +16,7 @@ import math
 import numpy as np
 from numpy import linalg
 
-from .utils import unitcheck, reflect
+from .utils import unitcheck, reflect, get_random_generator
 
 __all__ = [
     "sample_unif", "sample_rwalk", "sample_rstagger", "sample_slice",
@@ -25,10 +25,6 @@ __all__ = [
 
 EPS = float(np.finfo(np.float64).eps)
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
-
-
-def __get_generator(seed):
-    return np.random.Generator(np.random.PCG64(seed))
 
 
 def sample_unif(args):
@@ -153,7 +149,7 @@ def sample_rwalk(args):
     # Unzipping.
     (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
      kwargs) = args
-    rstate = __get_generator(rseed)
+    rstate = get_random_generator(rseed)
     scale_init = 1.0 * scale
 
     # Bounds
@@ -312,7 +308,7 @@ def sample_rstagger(args):
     # Unzipping.
     (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
      kwargs) = args
-    rstate = __get_generator(rseed)
+    rstate = get_random_generator(rseed)
     scale_init = 1.0 * scale
 
     # Periodicity.
@@ -591,7 +587,7 @@ def sample_slice(args):
     # Unzipping.
     (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
      kwargs) = args
-    rstate = __get_generator(rseed)
+    rstate = get_random_generator(rseed)
     # Periodicity.
     nonperiodic = kwargs.get('nonperiodic', None)
 
@@ -692,7 +688,7 @@ def sample_rslice(args):
     # Unzipping.
     (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
      kwargs) = args
-    rstate = __get_generator(rseed)
+    rstate = get_random_generator(rseed)
     # Periodicity.
     nonperiodic = kwargs.get('nonperiodic', None)
 
@@ -791,7 +787,7 @@ def sample_hslice(args):
     # Unzipping.
     (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
      kwargs) = args
-    rstate = __get_generator(rseed)
+    rstate = get_random_generator(rseed)
     # Periodicity.
     nonperiodic = kwargs.get('nonperiodic', None)
 

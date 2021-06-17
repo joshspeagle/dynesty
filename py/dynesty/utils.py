@@ -135,6 +135,20 @@ class LogLikelihood:
         return state
 
 
+def get_random_generator(seed=None):
+    return np.random.Generator(np.random.PCG64(seed))
+
+
+def get_seed_sequence(rstate, nitems):
+    """
+    Return the list of seeds to initialize random generators
+    This is useful when distributing work across a pool 
+    """
+    seeds = np.random.SeedSequence(rstate.integers(0, 2**63 - 1,
+                                                   size=4)).spawn(nitems)
+    return seeds
+
+
 def unitcheck(u, nonbounded=None):
     """Check whether `u` is inside the unit cube. Given a masked array
     `nonbounded`, also allows periodic boundaries conditions to exceed
@@ -262,7 +276,7 @@ def resample_equal(samples, weights, rstate=None):
    """
 
     if rstate is None:
-        rstate = np.random
+        rstate = get_random_generator()
 
     if abs(np.sum(weights) - 1.) > SQRTEPS:
         # same tol as in numpy's random.choice.
@@ -446,7 +460,7 @@ def jitter_run(res, rstate=None, approx=False):
     """
 
     if rstate is None:
-        rstate = np.random
+        rstate = get_random_generator()
 
     # Initialize evolution of live points over the course of the run.
     nsamps, samples_n = _get_nsamps_samples_n(res)
@@ -589,7 +603,7 @@ def resample_run(res, rstate=None, return_idx=False):
     """
 
     if rstate is None:
-        rstate = np.random
+        rstate = get_random_generator()
 
     # Check whether the final set of live points were added to the
     # run.
@@ -787,7 +801,7 @@ def simulate_run(res, rstate=None, return_idx=False, approx=False):
     """
 
     if rstate is None:
-        rstate = np.random
+        rstate = get_random_generator()
 
     # Resample run.
     new_res, samp_idx = resample_run(res, rstate=rstate, return_idx=True)

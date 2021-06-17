@@ -1,5 +1,6 @@
 import numpy as np
 import dynesty
+import dynesty.utils as dyutil
 """
 Run a series of basic tests changing various things like
 maxcall options and potentially other things
@@ -57,3 +58,24 @@ def test_inf():
                                            ndim,
                                            nlive=nlive)
     sampler.run_nested(dlogz_init=1)
+
+
+def test_unravel():
+    # hard test of dynamic sampler with high dlogz_init and small number
+    # of live points
+    ndim = 2
+    sampler = dynesty.NestedSampler(loglike,
+                                    prior_transform,
+                                    ndim,
+                                    nlive=nlive)
+    sampler.run_nested()
+    dyutil.unravel_run(sampler.results)
+
+    sampler = dynesty.DynamicNestedSampler(loglike,
+                                           prior_transform,
+                                           ndim,
+                                           nlive=nlive)
+    sampler.run_nested(dlogz_init=1, maxcall=1000)
+    dyutil.unravel_run(sampler.results)
+    logps = sampler.results.logl
+    dyutil.reweight_run(sampler.results, logps / 4.)

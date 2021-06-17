@@ -1,8 +1,8 @@
-from __future__ import (print_function, division)
-from six.moves import range
 import numpy as np
+import pytest
 from numpy import linalg
 import numpy.testing as npt
+import itertools
 from utils import get_rstate
 import matplotlib
 
@@ -172,22 +172,24 @@ def test_gaussian():
     plt.close()
 
 
-def test_bounding_sample():
+@pytest.mark.parametrize(
+    "bound,sample",
+    itertools.product(['none', 'single', 'multi', 'balls', 'cubes'],
+                      ['unif', 'rwalk', 'slice', 'rslice', 'rstagger']))
+def test_bounding_sample(bound, sample):
     # check various bounding methods
     logz_tol = 1
 
-    for bound in ['none', 'single', 'multi', 'balls', 'cubes']:
-        for sample in ['unif', 'rwalk', 'slice', 'rslice', 'rstagger']:
-            rstate = get_rstate()
-            sampler = dynesty.NestedSampler(loglikelihood_gau,
-                                            prior_transform_gau,
-                                            ndim_gau,
-                                            nlive=nlive,
-                                            bound=bound,
-                                            sample=sample,
-                                            rstate=rstate)
-            sampler.run_nested(print_progress=printing)
-            check_results_gau(sampler.results, logz_tol, rstate)
+    rstate = get_rstate()
+    sampler = dynesty.NestedSampler(loglikelihood_gau,
+                                    prior_transform_gau,
+                                    ndim_gau,
+                                    nlive=nlive,
+                                    bound=bound,
+                                    sample=sample,
+                                    rstate=rstate)
+    sampler.run_nested(print_progress=printing)
+    check_results_gau(sampler.results, logz_tol, rstate)
 
 
 def test_bounding_bootstrap():

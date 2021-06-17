@@ -187,7 +187,7 @@ def test_bounding_sample():
                                             sample=sample,
                                             rstate=rstate)
             sampler.run_nested(print_progress=printing)
-            check_results_gau(sampler.results, logz_tol)
+            check_results_gau(sampler.results, logz_tol, rstate)
 
 
 def test_bounding_bootstrap():
@@ -205,7 +205,7 @@ def test_bounding_bootstrap():
                                         bootstrap=5,
                                         rstate=rstate)
         sampler.run_nested(print_progress=printing)
-        check_results_gau(sampler.results, logz_tol)
+        check_results_gau(sampler.results, logz_tol, rstate)
 
 
 # extra checks for gradients
@@ -219,7 +219,7 @@ def test_slice_nograd():
                                     sample='hslice',
                                     rstate=rstate)
     sampler.run_nested(print_progress=printing)
-    check_results_gau(sampler.results, logz_tol)
+    check_results_gau(sampler.results, logz_tol, rstate)
 
 
 def test_slice_grad():
@@ -234,7 +234,7 @@ def test_slice_grad():
                                     compute_jac=True,
                                     rstate=rstate)
     sampler.run_nested(print_progress=printing)
-    check_results_gau(sampler.results, logz_tol)
+    check_results_gau(sampler.results, logz_tol, rstate)
 
 
 def test_slice_grad1():
@@ -248,7 +248,7 @@ def test_slice_grad1():
                                     gradient=grad_u_gau,
                                     rstate=rstate)
     sampler.run_nested(print_progress=printing)
-    check_results_gau(sampler.results, logz_tol)
+    check_results_gau(sampler.results, logz_tol, rstate)
 
 
 def test_dynamic():
@@ -260,15 +260,15 @@ def test_dynamic():
                                             ndim_gau,
                                             rstate=rstate)
     dsampler.run_nested(print_progress=printing)
-    check_results_gau(dsampler.results, logz_tol)
+    check_results_gau(dsampler.results, logz_tol, rstate)
 
     # check error analysis functions
     dres = dyfunc.jitter_run(dsampler.results)
-    check_results_gau(dres, logz_tol)
+    check_results_gau(dres, logz_tol, rstate)
     dres = dyfunc.resample_run(dsampler.results)
-    check_results_gau(dres, logz_tol)
+    check_results_gau(dres, logz_tol, rstate)
     dres = dyfunc.simulate_run(dsampler.results)
-    check_results_gau(dres, logz_tol)
+    check_results_gau(dres, logz_tol, rstate)
     # I bump the threshold
     # because we have the error twice
     dyfunc.kld_error(dsampler.results)

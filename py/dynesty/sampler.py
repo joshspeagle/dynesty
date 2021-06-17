@@ -207,7 +207,7 @@ class Sampler(object):
         """Re-initialize the sampler."""
 
         # live points
-        self.live_u = self.rstate.rand(self.nlive, self.npdim)
+        self.live_u = self.rstate.random(size=(self.nlive, self.npdim))
         if self.use_pool_ptform:
             # Use the pool to compute the prior transform.
             self.live_v = np.array(
@@ -367,7 +367,7 @@ class Sampler(object):
                 evolve_point = self.evolve_point
             else:
                 # Propose/evaluate points directly from the unit cube.
-                point = self.rstate.rand(self.npdim)
+                point = self.rstate.random(size=self.npdim)
                 axes = np.identity(self.ncdim)
                 evolve_point = sample_unif
             point_queue.append(point)
@@ -378,8 +378,10 @@ class Sampler(object):
         ptforms = [self.prior_transform for i in range(self.queue_size)]
         logls = [self.loglikelihood for i in range(self.queue_size)]
         kwargs = [self.kwargs for i in range(self.queue_size)]
+        seeds = np.random.SeedSequence(
+            self.rstate.integers(0, 2**63 - 1, size=4)).spawn(self.queue_size)
         args = zip(point_queue, loglstars, axes_queue, scales, ptforms, logls,
-                   kwargs)
+                   seeds, kwargs)
 
         if self.use_pool_evolve:
             # Use the pool to propose ("evolve") a new live point.

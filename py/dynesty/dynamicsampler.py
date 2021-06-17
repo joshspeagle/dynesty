@@ -697,7 +697,8 @@ class DynamicSampler(object):
                 # sampling from the unit cube.
                 self.nlive_init = nlive
                 for attempt in range(100):
-                    self.live_u = self.rstate.rand(self.nlive_init, self.npdim)
+                    self.live_u = self.rstate.random(size=(self.nlive_init,
+                                                           self.npdim))
                     if self.use_pool_ptform:
                         self.live_v = np.array(
                             list(
@@ -999,7 +1000,7 @@ class DynamicSampler(object):
         if psel:
             # If the lower bound encompasses all saved samples, we want
             # to propose a new set of points from the unit cube.
-            live_u = self.rstate.rand(nlive_new, self.npdim)
+            live_u = self.rstate.random(size=(nlive_new, self.npdim))
             if self.use_pool_ptform:
                 live_v = np.array(
                     list(self.M(self.prior_transform, np.array(live_u))))

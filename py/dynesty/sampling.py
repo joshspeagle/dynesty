@@ -27,6 +27,10 @@ EPS = float(np.finfo(np.float64).eps)
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
+def __get_generator(seed):
+    return np.random.Generator(np.random.PCG64(seed))
+
+
 def sample_unif(args):
     """
     Evaluate a new point sampled uniformly from a bounding proposal
@@ -82,7 +86,8 @@ def sample_unif(args):
     """
 
     # Unzipping.
-    (u, loglstar, axes, scale, prior_transform, loglikelihood, kwargs) = args
+    (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
+     kwargs) = args
 
     # Evaluate.
     v = prior_transform(np.array(u))
@@ -146,8 +151,9 @@ def sample_rwalk(args):
     """
 
     # Unzipping.
-    (u, loglstar, axes, scale, prior_transform, loglikelihood, kwargs) = args
-    rstate = np.random
+    (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
+     kwargs) = args
+    rstate = __get_generator(rseed)
     scale_init = 1.0 * scale
 
     # Bounds
@@ -187,11 +193,11 @@ def sample_rwalk(args):
                                        logl_prop, axes, scale))
 
             # Propose a direction on the unit n-sphere.
-            drhat = rstate.randn(n_cluster)
+            drhat = rstate.standard_normal(size=n_cluster)
             drhat /= linalg.norm(drhat)
 
             # Scale based on dimensionality.
-            dr = drhat * rstate.rand()**(1. / n_cluster)
+            dr = drhat * rstate.uniform()**(1. / n_cluster)
 
             # draw random point for non clustering parameters
             u_non_cluster = rstate.uniform(0, 1, n - n_cluster)
@@ -304,8 +310,9 @@ def sample_rstagger(args):
     """
 
     # Unzipping.
-    (u, loglstar, axes, scale, prior_transform, loglikelihood, kwargs) = args
-    rstate = np.random
+    (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
+     kwargs) = args
+    rstate = __get_generator(rseed)
     scale_init = 1.0 * scale
 
     # Periodicity.
@@ -347,11 +354,11 @@ def sample_rstagger(args):
                                        logl_prop, axes, scale))
 
             # Propose a direction on the unit n-sphere.
-            drhat = rstate.randn(n_cluster)
+            drhat = rstate.standard_normal(size=n_cluster)
             drhat /= linalg.norm(drhat)
 
             # Scale based on dimensionality.
-            dr = drhat * rstate.rand()**(1. / n_cluster)
+            dr = drhat * rstate.uniform()**(1. / n_cluster)
 
             # draw random point for non clustering parameters
             u_non_cluster = rstate.uniform(0, 1, n - n_cluster)
@@ -438,7 +445,7 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
     nc, nexpand, ncontract = 0, 0, 0
     nexpand_threshold = 10000  # Threshold for warning the user
     n = len(u)
-    rand0 = rstate.rand()  # initial scale/offset
+    rand0 = rstate.uniform()  # initial scale/offset
     dirlen = linalg.norm(direction)
     maxlen = np.sqrt(n) / 2.
     # maximum initial interval length (the diagonal of the cube)
@@ -493,7 +500,7 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
         nstep_hat = nstep_r - nstep_l
 
         # Propose new position.
-        nstep_prop = nstep_l + rstate.rand() * nstep_hat  # scale from left
+        nstep_prop = nstep_l + rstate.uniform() * nstep_hat  # scale from left
         u_prop, logl_prop = F(nstep_prop)
         ncontract += 1
 
@@ -582,9 +589,9 @@ def sample_slice(args):
     """
 
     # Unzipping.
-    (u, loglstar, axes, scale, prior_transform, loglikelihood, kwargs) = args
-    rstate = np.random
-
+    (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
+     kwargs) = args
+    rstate = __get_generator(rseed)
     # Periodicity.
     nonperiodic = kwargs.get('nonperiodic', None)
 
@@ -683,9 +690,9 @@ def sample_rslice(args):
     """
 
     # Unzipping.
-    (u, loglstar, axes, scale, prior_transform, loglikelihood, kwargs) = args
-    rstate = np.random
-
+    (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
+     kwargs) = args
+    rstate = __get_generator(rseed)
     # Periodicity.
     nonperiodic = kwargs.get('nonperiodic', None)
 
@@ -702,7 +709,7 @@ def sample_rslice(args):
     for it in range(slices):
 
         # Propose a direction on the unit n-sphere.
-        drhat = rstate.randn(n)
+        drhat = rstate.standard_normal(size=n)
         drhat /= linalg.norm(drhat)
 
         # Transform and scale based on past tuning.
@@ -782,9 +789,9 @@ def sample_hslice(args):
     """
 
     # Unzipping.
-    (u, loglstar, axes, scale, prior_transform, loglikelihood, kwargs) = args
-    rstate = np.random
-
+    (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
+     kwargs) = args
+    rstate = __get_generator(rseed)
     # Periodicity.
     nonperiodic = kwargs.get('nonperiodic', None)
 
@@ -808,7 +815,7 @@ def sample_hslice(args):
         nodes_l, nodes_m, nodes_r = [], [], []
 
         # Propose a direction on the unit n-sphere.
-        drhat = rstate.randn(n)
+        drhat = rstate.standard_normal(size=n)
         drhat /= linalg.norm(drhat)
 
         # Transform and scale based on past tuning.
@@ -1133,7 +1140,7 @@ def sample_hslice(args):
             # Define chord.
             u_l, u_m, u_r = nodes_l[idx], nodes_m[idx], nodes_r[idx]
             u_hat = u_r - u_l
-            rprop = rstate.rand()
+            rprop = rstate.uniform()
             u_prop = u_l + rprop * u_hat  # scale from left
             if unitcheck(u_prop, nonperiodic):
                 v_prop = prior_transform(np.array(u_prop))

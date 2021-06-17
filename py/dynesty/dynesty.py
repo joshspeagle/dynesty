@@ -448,7 +448,7 @@ def NestedSampler(loglikelihood,
 
     # Random state.
     if rstate is None:
-        rstate = np.random
+        rstate = np.random.default_rng()
 
     # Log-likelihood.
     if logl_args is None:
@@ -540,7 +540,8 @@ def NestedSampler(loglikelihood,
         # If no live points are provided, propose them by randomly sampling
         # from the unit cube.
         for attempt in range(100):
-            live_u = rstate.rand(nlive, npdim)  # positions in unit cube
+            live_u = rstate.random(size=(nlive,
+                                         npdim))  # positions in unit cube
             if use_pool.get('prior_transform', True):
                 live_v = np.array(list(M(ptform,
                                          np.array(live_u))))  # parameters
@@ -925,7 +926,7 @@ def DynamicNestedSampler(loglikelihood,
 
     # Random state.
     if rstate is None:
-        rstate = np.random
+        rstate = np.random.default_rng()
 
     # Log-likelihood.
     if logl_args is None:

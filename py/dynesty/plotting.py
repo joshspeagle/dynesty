@@ -1704,11 +1704,11 @@ def boundplot(results,
                 r = -(nbatch + i)
                 uidx = samples_id[r]
                 live_u[uidx] = samples[r]
-
+    rstate = np.random.default_rng()
     # Draw samples from the bounding distribution.
     try:
         # If bound is "fixed", go ahead and draw samples from it.
-        psamps = bound.samples(ndraws)
+        psamps = bound.samples(ndraws, rstate=rstate)
     except:
         # If bound is based on the distribution of live points at a
         # specific iteration, we need to reconstruct what those were.
@@ -1740,7 +1740,7 @@ def boundplot(results,
         # Construct a KDTree to speed up nearest-neighbor searches.
         kdtree = spatial.KDTree(live_u)
         # Draw samples.
-        psamps = bound.samples(ndraws, live_u, kdtree=kdtree)
+        psamps = bound.samples(ndraws, live_u, kdtree=kdtree, rstate=rstate)
 
     # Projecting samples to input dimensions and possibly
     # the native model space.
@@ -2040,10 +2040,11 @@ def cornerbound(results,
                 uidx = samples_id[r]
                 live_u[uidx] = samples[r]
 
+    rstate = np.random.default_rng()
     # Draw samples from the bounding distribution.
     try:
         # If bound is "fixed", go ahead and draw samples from it.
-        psamps = bound.samples(ndraws)
+        psamps = bound.samples(ndraws, rstate=rstate)
     except:
         # If bound is based on the distribution of live points at a
         # specific iteration, we need to reconstruct what those were.

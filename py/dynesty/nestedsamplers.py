@@ -224,7 +224,7 @@ class UnitCubeSampler(Sampler):
         if len(args) > 0:
             i = self.rstate.choice(args[0])
         else:
-            i = self.rstate.randint(self.nlive)
+            i = self.rstate.integers(self.nlive)
         u = self.live_u[i, :]
         ax = np.identity(self.npdim)
 
@@ -466,7 +466,7 @@ class SingleEllipsoidSampler(Sampler):
         if len(args) > 0:
             i = self.rstate.choice(args[0])
         else:
-            i = self.rstate.randint(self.nlive)
+            i = self.rstate.integers(self.nlive)
         u = self.live_u[i, :]
 
         # Choose axes.
@@ -702,7 +702,7 @@ class MultiEllipsoidSampler(Sampler):
             # overlapping ellipsoids `q` at position `u`.
             u, idx, q = self.mell.sample(rstate=self.rstate, return_q=True)
 
-            if q == 1 or self.rstate.rand() < 1.0 / q:
+            if q == 1 or self.rstate.uniform() < 1.0 / q:
                 # Accept the point with probability 1/q to account for
                 # overlapping ellipsoids.
                 # Check if the point is within the unit cube.
@@ -721,7 +721,7 @@ class MultiEllipsoidSampler(Sampler):
         if len(args) > 0:
             i = self.rstate.choice(args[0])
         else:
-            i = self.rstate.randint(self.nlive)
+            i = self.rstate.integers(self.nlive)
         # Copy a random live point.
         u = self.live_u[i, :]
         u_fit = u[:self.ncdim]
@@ -748,7 +748,7 @@ class MultiEllipsoidSampler(Sampler):
                 raise RuntimeError('Update of the ellipsoid failed')
 
         # Pick a random ellipsoid that encompasses `u`.
-        ell_idx = ell_idxs[self.rstate.randint(nidx)]
+        ell_idx = ell_idxs[self.rstate.integers(nidx)]
 
         # Choose axes.
         if self.sampling in ['rwalk', 'rstagger', 'rslice']:
@@ -987,7 +987,7 @@ class RadFriendsSampler(Sampler):
             if unitcheck(u, self.nonbounded):
                 # Accept the point with probability 1/q to account for
                 # overlapping balls.
-                if q == 1 or self.rstate.rand() < 1.0 / q:
+                if q == 1 or self.rstate.uniform() < 1.0 / q:
                     break  # if successful, we're done!
 
         # Define the axes of the N-sphere.
@@ -1006,7 +1006,7 @@ class RadFriendsSampler(Sampler):
             subset = args[0]
             i = self.rstate.choice(subset)
         else:
-            i = self.rstate.randint(self.nlive)
+            i = self.rstate.integers(self.nlive)
         u = self.live_u[i, :]
         ax = self.radfriends.axes
 
@@ -1240,7 +1240,7 @@ class SupFriendsSampler(Sampler):
             if unitcheck(u, self.nonbounded):
                 # Accept the point with probability 1/q to account for
                 # overlapping cubes.
-                if q == 1 or self.rstate.rand() < 1.0 / q:
+                if q == 1 or self.rstate.uniform() < 1.0 / q:
                     break  # if successful, we're done!
 
         # Define the axes of our N-cube.
@@ -1258,7 +1258,7 @@ class SupFriendsSampler(Sampler):
         if len(args) > 0:
             i = self.rstate.choice(args[0])
         else:
-            i = self.rstate.randint(self.nlive)
+            i = self.rstate.integers(self.nlive)
         u = self.live_u[i, :]
         ax = self.supfriends.axes
 

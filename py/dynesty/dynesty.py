@@ -403,10 +403,6 @@ def NestedSampler(loglikelihood,
     # Dimensional warning check.
     if nlive <= 2 * ndim:
         warnings.warn("Beware! Having `nlive <= 2 * ndim` is extremely risky!")
-    elif nlive < ndim * (ndim + 1) // 2 and bound in ['single', 'multi']:
-        warnings.warn("A note of caution: "
-                      "having `nlive < ndim * (ndim + 1) // 2` may result in "
-                      "unconstrained bounding distributions.")
 
     # Gather boundary conditions.
     if periodic is not None and reflective is not None:

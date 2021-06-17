@@ -79,3 +79,27 @@ def test_unravel():
     dyutil.unravel_run(sampler.results)
     logps = sampler.results.logl
     dyutil.reweight_run(sampler.results, logps / 4.)
+
+
+def test_livepoints():
+    # hard test of dynamic sampler with high dlogz_init and small number
+    # of live points
+    ndim = 2
+    live_u = np.random.uniform(size=(ndim, 2))
+    live_v = np.array([prior_transform(_) for _ in live_u])
+    live_logl = np.array([loglike(_) for _ in live_v])
+    live_points = [live_u, live_v, live_logl]
+    sampler = dynesty.NestedSampler(loglike,
+                                    prior_transform,
+                                    ndim,
+                                    nlive=nlive,
+                                    live_points=live_points)
+    sampler.run_nested()
+    dyutil.unravel_run(sampler.results)
+
+    sampler = dynesty.DynamicNestedSampler(loglike,
+                                           prior_transform,
+                                           ndim,
+                                           nlive=nlive,
+                                           live_points=live_points)
+    sampler.run_nested(dlogz_init=1, maxcall=1000)

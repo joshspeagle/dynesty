@@ -1225,7 +1225,7 @@ def logvol_prefactor(n, p=2.):
 def randsphere(n, rstate=None):
     """Draw a point uniformly within an `n`-dimensional unit sphere."""
 
-    z = rstate.standard_normal(n)  # initial n-dim vector
+    z = rstate.standard_normal(size=n)  # initial n-dim vector
     zhat = z / lalg.norm(z)  # normalize
     xhat = zhat * rstate.uniform()**(1. / n)  # scale
 

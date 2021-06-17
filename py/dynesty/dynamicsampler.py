@@ -51,16 +51,20 @@ _SAMPLERS = {
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
+def __get_generator(seed):
+    return np.random.Generator(np.random.PCG64(seed))
+
+
 def _kld_error(args):
     """ Internal `pool.map`-friendly wrapper for :meth:`kld_error` used by
     :meth:`stopping_function`."""
 
     # Extract arguments.
-    results, error, approx = args
-
+    results, error, approx, rseed = args
+    rstate = __get_generator(rseed)
     return kld_error(results,
                      error,
-                     rstate=np.random,
+                     rstate=rstate,
                      return_new=True,
                      approx=approx)
 
@@ -228,8 +232,6 @@ def stopping_function(results,
     # Initialize values.
     if args is None:
         args = dict({})
-    if rstate is None:
-        rstate = np.random
     if M is None:
         M = map
 
@@ -270,7 +272,9 @@ def stopping_function(results,
     rlist = [results for i in range(n_mc)]
     error_list = [error for i in range(n_mc)]
     approx_list = [approx for i in range(n_mc)]
-    args = zip(rlist, error_list, approx_list)
+    seeds = np.random.SeedSequence(rstate.integers(0, 2**63 - 1,
+                                                   size=4)).spawn(n_mc)
+    args = zip(rlist, error_list, approx_list, seeds)
     outputs = list(M(_kld_error, args))
     kld_arr, lnz_arr = np.array([(kld[-1], res.logz[-1])
                                  for kld, res in outputs]).T
@@ -697,8 +701,8 @@ class DynamicSampler(object):
                 # sampling from the unit cube.
                 self.nlive_init = nlive
                 for attempt in range(100):
-                    self.live_u = self.rstate.random(size=(self.nlive_init,
-                                                           self.npdim))
+                    self.live_u = self.rstate.uniform(size=(self.nlive_init,
+                                                            self.npdim))
                     if self.use_pool_ptform:
                         self.live_v = np.array(
                             list(
@@ -1000,7 +1004,7 @@ class DynamicSampler(object):
         if psel:
             # If the lower bound encompasses all saved samples, we want
             # to propose a new set of points from the unit cube.
-            live_u = self.rstate.random(size=(nlive_new, self.npdim))
+            live_u = self.rstate.uniform(size=(nlive_new, self.npdim))
             if self.use_pool_ptform:
                 live_v = np.array(
                     list(self.M(self.prior_transform, np.array(live_u))))

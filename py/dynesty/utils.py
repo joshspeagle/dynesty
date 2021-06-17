@@ -136,6 +136,9 @@ class LogLikelihood:
 
 
 def get_random_generator(seed=None):
+    """
+    Return a random generator (using the seed provided if available)
+    """
     return np.random.Generator(np.random.PCG64(seed))
 
 

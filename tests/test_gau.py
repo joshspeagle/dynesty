@@ -3,6 +3,7 @@ from six.moves import range
 import numpy as np
 from numpy import linalg
 import numpy.testing as npt
+from utils import get_rstate
 import matplotlib
 
 matplotlib.use('Agg')
@@ -19,7 +20,7 @@ nlive = 500
 printing = False
 
 
-def bootstrap_tol(results):
+def bootstrap_tol(results, rstate):
     """ Compute the uncertainty of means/covs by doing bootstrapping """
     n = len(results.logz)
     niter = 50
@@ -31,7 +32,7 @@ def bootstrap_tol(results):
     for i in range(niter):
         #curpos = dyfunc.resample_equal(pos, wts)
         #xid = np.random.randint(len(curpos), size=len(curpos))
-        sub = np.random.uniform(size=n) < wts / wts.max()
+        sub = rstate.uniform(size=n) < wts / wts.max()
         mean = pos[sub].mean(axis=0)
         cov = np.cov(pos[sub].T)
         means.append(mean)
@@ -72,8 +73,8 @@ prior_win = 10  # +/- 10 on both sides
 logz_truth_gau = ndim_gau * (-np.log(2 * prior_win))
 
 
-def check_results_gau(results, logz_tol, sig=5):
-    mean_tol, cov_tol = bootstrap_tol(results)
+def check_results_gau(results, logz_tol, rstate, sig=5):
+    mean_tol, cov_tol = bootstrap_tol(results, rstate)
     check_results(results,
                   mean_gau,
                   cov_gau,
@@ -111,10 +112,12 @@ def grad_u_gau(x):
 
 def test_gaussian():
     logz_tol = 1
+    rstate = get_rstate()
     sampler = dynesty.NestedSampler(loglikelihood_gau,
                                     prior_transform_gau,
                                     ndim_gau,
-                                    nlive=nlive)
+                                    nlive=nlive,
+                                    rstate=rstate)
     sampler.run_nested(print_progress=printing)
     # check that jitter/resample/simulate_run work
     # for not dynamic sampler
@@ -175,12 +178,14 @@ def test_bounding_sample():
 
     for bound in ['none', 'single', 'multi', 'balls', 'cubes']:
         for sample in ['unif', 'rwalk', 'slice', 'rslice', 'rstagger']:
+            rstate = get_rstate()
             sampler = dynesty.NestedSampler(loglikelihood_gau,
                                             prior_transform_gau,
                                             ndim_gau,
                                             nlive=nlive,
                                             bound=bound,
-                                            sample=sample)
+                                            sample=sample,
+                                            rstate=rstate)
             sampler.run_nested(print_progress=printing)
             check_results_gau(sampler.results, logz_tol)
 
@@ -190,13 +195,15 @@ def test_bounding_bootstrap():
     logz_tol = 1
 
     for bound in ['single', 'multi', 'balls']:
+        rstate = get_rstate()
         sampler = dynesty.NestedSampler(loglikelihood_gau,
                                         prior_transform_gau,
                                         ndim_gau,
                                         nlive=nlive,
                                         bound=bound,
                                         sample='unif',
-                                        bootstrap=5)
+                                        bootstrap=5,
+                                        rstate=rstate)
         sampler.run_nested(print_progress=printing)
         check_results_gau(sampler.results, logz_tol)
 
@@ -204,36 +211,42 @@ def test_bounding_bootstrap():
 # extra checks for gradients
 def test_slice_nograd():
     logz_tol = 1
+    rstate = get_rstate()
     sampler = dynesty.NestedSampler(loglikelihood_gau,
                                     prior_transform_gau,
                                     ndim_gau,
                                     nlive=nlive,
-                                    sample='hslice')
+                                    sample='hslice',
+                                    rstate=rstate)
     sampler.run_nested(print_progress=printing)
     check_results_gau(sampler.results, logz_tol)
 
 
 def test_slice_grad():
     logz_tol = 1
+    rstate = get_rstate()
     sampler = dynesty.NestedSampler(loglikelihood_gau,
                                     prior_transform_gau,
                                     ndim_gau,
                                     nlive=nlive,
                                     sample='hslice',
                                     gradient=grad_x_gau,
-                                    compute_jac=True)
+                                    compute_jac=True,
+                                    rstate=rstate)
     sampler.run_nested(print_progress=printing)
     check_results_gau(sampler.results, logz_tol)
 
 
 def test_slice_grad1():
     logz_tol = 1
+    rstate = get_rstate()
     sampler = dynesty.NestedSampler(loglikelihood_gau,
                                     prior_transform_gau,
                                     ndim_gau,
                                     nlive=nlive,
                                     sample='hslice',
-                                    gradient=grad_u_gau)
+                                    gradient=grad_u_gau,
+                                    rstate=rstate)
     sampler.run_nested(print_progress=printing)
     check_results_gau(sampler.results, logz_tol)
 
@@ -241,8 +254,11 @@ def test_slice_grad1():
 def test_dynamic():
     # check dynamic nested sampling behavior
     logz_tol = 1
+    rstate = get_rstate()
     dsampler = dynesty.DynamicNestedSampler(loglikelihood_gau,
-                                            prior_transform_gau, ndim_gau)
+                                            prior_transform_gau,
+                                            ndim_gau,
+                                            rstate=rstate)
     dsampler.run_nested(print_progress=printing)
     check_results_gau(dsampler.results, logz_tol)
 

@@ -1,6 +1,7 @@
 import numpy as np
 import dynesty
 import multiprocessing as mp
+from utils import get_rstate
 """
 Run a series of basic tests to check whether anything huge is broken.
 
@@ -26,6 +27,7 @@ def test_pool():
     # test pool
     ndim = 2
     pool = mp.Pool(2)
+    rstate = get_rstate()
     sampler = dynesty.NestedSampler(loglike_egg,
                                     prior_transform_egg,
                                     ndim,
@@ -33,7 +35,8 @@ def test_pool():
                                     bound='multi',
                                     sample='unif',
                                     pool=pool,
-                                    queue_size=2)
+                                    queue_size=2,
+                                    rstate=rstate)
     sampler.run_nested(dlogz=0.1, print_progress=printing)
     logz_truth = 235.856
     assert (abs(logz_truth - sampler.results.logz[-1]) <
@@ -44,6 +47,7 @@ def test_pool2():
     # test pool
     ndim = 2
     pool = mp.Pool(2)
+    rstate = get_rstate()
     sampler = dynesty.DynamicNestedSampler(loglike_egg,
                                            prior_transform_egg,
                                            ndim,
@@ -51,7 +55,8 @@ def test_pool2():
                                            bound='multi',
                                            sample='unif',
                                            pool=pool,
-                                           queue_size=2)
+                                           queue_size=2,
+                                           rstate=rstate)
     sampler.run_nested(dlogz_init=0.1, print_progress=printing)
     logz_truth = 235.856
     assert (abs(logz_truth - sampler.results.logz[-1]) <

@@ -1,5 +1,6 @@
 import numpy as np
 import dynesty
+from utils import get_rstate
 """
 Run a series of basic tests testing printing output
 """
@@ -20,15 +21,16 @@ def test_printing():
     # hard test of dynamic sampler with high dlogz_init and small number
     # of live points
     ndim = 2
-    sampler = dynesty.DynamicNestedSampler(
-        loglike,
-        prior_transform,
-        ndim,
-        nlive=nlive,
-    )
+    rstate = get_rstate()
+    sampler = dynesty.DynamicNestedSampler(loglike,
+                                           prior_transform,
+                                           ndim,
+                                           nlive=nlive,
+                                           rstate=rstate)
     sampler.run_nested(dlogz_init=1, print_progress=printing)
     sampler = dynesty.NestedSampler(loglike,
                                     prior_transform,
                                     ndim,
-                                    nlive=nlive)
+                                    nlive=nlive,
+                                    rstate=rstate)
     sampler.run_nested(dlogz=1, print_progress=printing)

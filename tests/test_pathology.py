@@ -1,6 +1,7 @@
 from __future__ import (print_function, division)
 import numpy as np
 import dynesty
+from utils import get_rstate
 
 nlive = 1000
 printing = False
@@ -26,12 +27,14 @@ def prior_transform(x):
 def test_pathology():
     ndim = 2
     for sampler in ['unif', 'rslice']:
+        rstate = get_rstate()
         sampler = dynesty.NestedSampler(loglike,
                                         prior_transform,
                                         ndim,
                                         nlive=nlive,
                                         bound='multi',
-                                        sample=sampler)
+                                        sample=sampler,
+                                        rstate=rstate)
         sampler.run_nested(dlogz=0.1, print_progress=printing)
         logz_truth = np.log(1 - np.log(alpha))
         # this the integral
@@ -43,12 +46,14 @@ def test_pathology():
 def test_pathology_dynamic():
     ndim = 2
     for sampler in ['unif', 'rslice']:
+        rstate = get_rstate()
         sampler = dynesty.DynamicNestedSampler(loglike,
                                                prior_transform,
                                                ndim,
                                                nlive=nlive,
                                                bound='multi',
-                                               sample=sampler)
+                                               sample=sampler,
+                                               rstate=rstate)
         sampler.run_nested(dlogz_init=1, print_progress=printing)
         logz_truth = np.log(1 - np.log(alpha))
         # this the integral

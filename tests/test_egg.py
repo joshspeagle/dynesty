@@ -1,5 +1,6 @@
 import numpy as np
 import dynesty
+from utils import get_rstate
 """
 Run a series of basic tests of the 2d eggbox
 """
@@ -24,12 +25,14 @@ def test_bounds():
     # stress test various boundaries
     ndim = 2
     for bound in ['multi', 'balls', 'cubes']:
+        rstate = get_rstate()
         sampler = dynesty.NestedSampler(loglike_egg,
                                         prior_transform_egg,
                                         ndim,
                                         nlive=nlive,
                                         bound=bound,
-                                        sample='unif')
+                                        sample='unif',
+                                        rstate=rstate)
         sampler.run_nested(dlogz=0.01, print_progress=printing)
         logz_truth = 235.856
         assert (abs(logz_truth - sampler.results.logz[-1]) <
@@ -39,13 +42,15 @@ def test_bounds():
 def test_ellipsoids_bootstrap():
     # stress test ellipsoid decompositions with bootstrap
     ndim = 2
+    rstate = get_rstate()
     sampler = dynesty.NestedSampler(loglike_egg,
                                     prior_transform_egg,
                                     ndim,
                                     nlive=nlive,
                                     bound='multi',
                                     sample='unif',
-                                    bootstrap=5)
+                                    bootstrap=5,
+                                    rstate=rstate)
     sampler.run_nested(dlogz=0.01, print_progress=printing)
     logz_truth = 235.856
     assert (abs(logz_truth - sampler.results.logz[-1]) <

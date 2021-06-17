@@ -1,5 +1,6 @@
 import numpy as np
 import dynesty
+from utils import get_rstate
 """
 Run a series of basic tests of the 2d eggbox
 """
@@ -25,12 +26,14 @@ def test_dyn():
     # of live points
     ndim = 2
     bound = 'multi'
+    rstate = get_rstate()
     sampler = dynesty.DynamicNestedSampler(loglike_egg,
                                            prior_transform_egg,
                                            ndim,
                                            nlive=nlive,
                                            bound=bound,
-                                           sample='unif')
+                                           sample='unif',
+                                           rstate=rstate)
     sampler.run_nested(dlogz_init=1, print_progress=printing)
     logz_truth = 235.856
     assert (abs(logz_truth - sampler.results.logz[-1]) <

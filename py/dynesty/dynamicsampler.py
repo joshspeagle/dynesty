@@ -202,8 +202,8 @@ def stopping_function(results,
         `pfrac = 1.0`, `evid_thresh = 0.1`, `post_thresh = 0.02`,
         `n_mc = 128`, `error = 'sim_approx'`, and `approx = True`.
 
-    rstate : `~numpy.random.RandomState`, optional
-        `~numpy.random.RandomState` instance.
+    rstate : `~numpy.random.Generator`, optional
+        `~numpy.random.Generator` instance.
 
     M : `map` function, optional
         An alias to a `map`-like function. This allows users to pass
@@ -360,8 +360,8 @@ class DynamicSampler(object):
         first update the bounding distribution from the unit cube to the one
         specified by the user.
 
-    rstate : `~numpy.random.RandomState`
-        `~numpy.random.RandomState` instance.
+    rstate : `~numpy.random.Generator`
+        `~numpy.random.Generator` instance.
 
     queue_size: int
         Carry out likelihood evaluations in parallel by queueing up new live

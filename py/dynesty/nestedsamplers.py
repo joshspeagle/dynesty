@@ -87,8 +87,8 @@ class UnitCubeSampler(Sampler):
         first update the bounding distribution from the unit cube to the one
         specified by the user.
 
-    rstate : `~numpy.random.RandomState`
-        `~numpy.random.RandomState` instance.
+    rstate : `~numpy.random.Generator`
+        `~numpy.random.Generator` instance.
 
     queue_size: int
         Carry out likelihood evaluations in parallel by queueing up new live
@@ -309,8 +309,8 @@ class SingleEllipsoidSampler(Sampler):
         first update the bounding distribution from the unit cube to the one
         specified by the user.
 
-    rstate : `~numpy.random.RandomState`
-        `~numpy.random.RandomState` instance.
+    rstate : `~numpy.random.Generator`
+        `~numpy.random.Generator` instance.
 
     queue_size: int
         Carry out likelihood evaluations in parallel by queueing up new live
@@ -558,8 +558,8 @@ class MultiEllipsoidSampler(Sampler):
         first update the bounding distribution from the unit cube to the one
         specified by the user.
 
-    rstate : `~numpy.random.RandomState`
-        `~numpy.random.RandomState` instance.
+    rstate : `~numpy.random.Generator`
+        `~numpy.random.Generator` instance.
 
     queue_size: int
         Carry out likelihood evaluations in parallel by queueing up new live
@@ -839,8 +839,8 @@ class RadFriendsSampler(Sampler):
         first update the bounding distribution from the unit cube to the one
         specified by the user.
 
-    rstate : `~numpy.random.RandomState`
-        `~numpy.random.RandomState` instance.
+    rstate : `~numpy.random.Generator`
+        `~numpy.random.Generator` instance.
 
     queue_size: int
         Carry out likelihood evaluations in parallel by queueing up new live
@@ -1091,8 +1091,8 @@ class SupFriendsSampler(Sampler):
         first update the bounding distribution from the unit cube to the one
         specified by the user.
 
-    rstate : `~numpy.random.RandomState`
-        `~numpy.random.RandomState` instance.
+    rstate : `~numpy.random.Generator`
+        `~numpy.random.Generator` instance.
 
     queue_size: int
         Carry out likelihood evaluations in parallel by queueing up new live

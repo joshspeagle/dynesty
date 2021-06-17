@@ -237,8 +237,8 @@ def NestedSampler(loglikelihood,
         upon multiple independently distributed parameters, some of which may
         be nuisance parameters.
 
-    rstate : `~numpy.random.RandomState`, optional
-        `~numpy.random.RandomState` instance. If not given, the
+    rstate : `~numpy.random.Generator`, optional
+        `~numpy.random.Generator` instance. If not given, the
          global random state of the `~numpy.random` module will be used.
 
     queue_size : int, optional
@@ -734,8 +734,8 @@ def DynamicNestedSampler(loglikelihood,
         upon multiple independently distributed parameters, some of which may
         be nuisance parameters.
 
-    rstate : `~numpy.random.RandomState`, optional
-        `~numpy.random.RandomState` instance. If not given, the
+    rstate : `~numpy.random.Generator`, optional
+        `~numpy.random.Generator` instance. If not given, the
          global random state of the `~numpy.random` module will be used.
 
     queue_size : int, optional

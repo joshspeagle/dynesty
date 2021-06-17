@@ -253,8 +253,8 @@ def resample_equal(samples, weights, rstate=None):
     weights : `~numpy.ndarray` with shape (nsamples,)
         Corresponding weight of each sample.
 
-    rstate : `~numpy.random.RandomState`, optional
-        `~numpy.random.RandomState` instance.
+    rstate : `~numpy.random.Generator`, optional
+        `~numpy.random.Generator` instance.
 
     Returns
     -------
@@ -447,8 +447,8 @@ def jitter_run(res, rstate=None, approx=False):
         The :class:`~dynesty.results.Results` instance taken from a previous
         nested sampling run.
 
-    rstate : `~numpy.random.RandomState`, optional
-        `~numpy.random.RandomState` instance.
+    rstate : `~numpy.random.Generator`, optional
+        `~numpy.random.Generator` instance.
 
     approx : bool, optional
         Whether to approximate all sets of uniform order statistics by their
@@ -589,8 +589,8 @@ def resample_run(res, rstate=None, return_idx=False):
         The :class:`~dynesty.results.Results` instance taken from a previous
         nested sampling run.
 
-    rstate : `~numpy.random.RandomState`, optional
-        `~numpy.random.RandomState` instance.
+    rstate : `~numpy.random.Generator`, optional
+        `~numpy.random.Generator` instance.
 
     return_idx : bool, optional
         Whether to return the list of resampled indices used to construct
@@ -656,10 +656,10 @@ def resample_run(res, rstate=None, return_idx=False):
 
     # Resample strands.
     if nbase > 0 and nadd > 0:
-        live_idx = np.append(base_ids[rstate.randint(0, nbase, size=nbase)],
-                             addon_ids[rstate.randint(0, nadd, size=nadd)])
+        live_idx = np.append(base_ids[rstate.integers(0, nbase, size=nbase)],
+                             addon_ids[rstate.integers(0, nadd, size=nadd)])
     elif nbase > 0:
-        live_idx = base_ids[rstate.randint(0, nbase, size=nbase)]
+        live_idx = base_ids[rstate.integers(0, nbase, size=nbase)]
     elif nadd > 0:
         raise ValueError("The provided `Results` does not include any points "
                          "initially sampled from the prior!")
@@ -783,8 +783,8 @@ def simulate_run(res, rstate=None, return_idx=False, approx=False):
         The :class:`~dynesty.results.Results` instance taken from a previous
         nested sampling run.
 
-    rstate : `~numpy.random.RandomState`, optional
-        `~numpy.random.RandomState` instance.
+    rstate : `~numpy.random.Generator`, optional
+        `~numpy.random.Generator` instance.
 
     return_idx : bool, optional
         Whether to return the list of resampled indices used to construct
@@ -1246,8 +1246,8 @@ def kld_error(res,
         :meth:`resample_run`, and :meth:`simulate_run`, respectively.
         Default is `'simulate'`.
 
-    rstate : `~numpy.random.RandomState`, optional
-        `~numpy.random.RandomState` instance.
+    rstate : `~numpy.random.Generator`, optional
+        `~numpy.random.Generator` instance.
 
     return_new : bool, optional
         Whether to return the realization of the run used to compute the

@@ -289,8 +289,8 @@ class Ellipsoid(object):
         points : `~numpy.ndarray` with shape (npoints, ndim)
             The set of points to bound.
 
-        rstate : `~numpy.random.RandomState`, optional
-            `~numpy.random.RandomState` instance.
+        rstate : `~numpy.random.Generator`, optional
+            `~numpy.random.Generator` instance.
 
         bootstrap : int, optional
             The number of bootstrapped realizations of the ellipsoid. The
@@ -557,8 +557,8 @@ class MultiEllipsoid(object):
         points : `~numpy.ndarray` with shape (npoints, ndim)
             The set of points to bound.
 
-        rstate : `~numpy.random.RandomState`, optional
-            `~numpy.random.RandomState` instance.
+        rstate : `~numpy.random.Generator`, optional
+            `~numpy.random.Generator` instance.
 
         bootstrap : int, optional
             The number of bootstrapped realizations of the ellipsoids. The
@@ -806,8 +806,8 @@ class RadFriends(object):
         points : `~numpy.ndarray` with shape (npoints, ndim)
             The set of points to bound.
 
-        rstate : `~numpy.random.RandomState`, optional
-            `~numpy.random.RandomState` instance.
+        rstate : `~numpy.random.Generator`, optional
+            `~numpy.random.Generator` instance.
 
         bootstrap : int, optional
             The number of bootstrapped realizations of the ellipsoids. The
@@ -1086,8 +1086,8 @@ class SupFriends(object):
         points : `~numpy.ndarray` with shape (npoints, ndim)
             The set of points to bound.
 
-        rstate : `~numpy.random.RandomState`, optional
-            `~numpy.random.RandomState` instance.
+        rstate : `~numpy.random.Generator`, optional
+            `~numpy.random.Generator` instance.
 
         bootstrap : int, optional
             The number of bootstrapped realizations of the ellipsoids. The

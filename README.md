@@ -1,3 +1,6 @@
+[![Build Status](https://github.com/joshspeagle/dynesty/workflows/Dynesty/badge.svg)](https://github.com/joshspeagle/dynesty/actions)
+[![Coverage Status](https://coveralls.io/repos/github/joshspeagle/dynesty/badge.svg?branch=master)](https://coveralls.io/github/joshspeagle/dynesty?branch=master)
+
 dynesty
 =======
 
@@ -29,5 +32,5 @@ of the code can be found
 ### Attribution
 
 If you find the package useful in your research, please see the
-[documentation](https://dynesty.readthedocs.io) for papers you
+[documentation](https://dynesty.readthedocs.io/en/latest/references.html) for papers you
 should cite.

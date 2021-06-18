@@ -176,7 +176,8 @@ def __get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
     elif isinstance(update_interval, int):
         update_interval_frac = update_interval * 1. / nlive
     else:
-        raise RuntimeError('Strange update_interval value', update_interval)
+        raise RuntimeError(
+            str.format('Strange update_interval value {}', update_interval))
     if bound == 'none':
         update_interval_frac = np.inf
     return update_interval_frac
@@ -493,6 +494,20 @@ class DynamicSampler(object):
 
         return state
 
+    def __get_update_interval(self, update_interval, nlive):
+        if not isinstance(update_interval, int):
+            if isinstance(update_interval, float):
+                cur_update_interval_ratio = update_interval
+            elif update_interval is None:
+                cur_update_interval_ratio = self.update_interval_ratio
+            else:
+                raise RuntimeError(
+                    str.format('Weird update_interval value {}',
+                               update_interval))
+            update_interval = int(
+                min(np.round(cur_update_interval_ratio * nlive), sys.maxsize))
+        return update_interval
+
     def reset(self):
         """Re-initialize the sampler."""
 
@@ -710,18 +725,7 @@ class DynamicSampler(object):
         if nlive <= 2 * self.ncdim:
             warnings.warn("Beware: `nlive_init <= 2 * ndim`!")
 
-        if not isinstance(update_interval, int):
-            if isinstance(update_interval, float):
-                cur_update_interval_ratio = update_interval
-            elif update_interval is None:
-                cur_update_interval_ratio = self.update_interval_ratio
-            else:
-                raise RuntimeError(
-                    str.format('Weird update_interval value {}',
-                               update_interval))
-            update_interval = int(
-                min(np.round(cur_update_interval_ratio * nlive), sys.maxsize))
-
+        update_interval = self.__get_update_interval(update_interval, nlive)
         if not resume:
             # Reset saved results to avoid any possible conflicts.
             self.reset()
@@ -1010,18 +1014,8 @@ class DynamicSampler(object):
         saved_scale = np.array(self.saved_run.D['scale'])
         nblive = self.nlive_init
 
-        if not isinstance(update_interval, int):
-            if isinstance(update_interval, float):
-                cur_update_interval_ratio = update_interval
-            elif update_interval is None:
-                cur_update_interval_ratio = self.update_interval_ratio
-            else:
-                raise RuntimeError(
-                    str.format('Weird update_interval value {}',
-                               update_interval))
-            update_interval = int(
-                min(np.round(cur_update_interval_ratio * nlive_new),
-                    sys.maxsize))
+        update_interval = self.__get_update_interval(update_interval,
+                                                     nlive_new)
         self.sampler.update_interval = update_interval
 
         # Reset "new" results.

@@ -18,6 +18,7 @@ from scipy.ndimage import gaussian_filter as norm_kde
 from scipy.stats import gaussian_kde
 from .utils import resample_equal, unitcheck
 from .utils import quantile as _quantile
+from .utils import get_random_generator
 
 str_type = str
 float_type = float
@@ -520,7 +521,7 @@ def traceplot(results,
     trace_kwargs['edgecolors'] = trace_kwargs.get('edgecolors', None)
     truth_kwargs['linestyle'] = truth_kwargs.get('linestyle', 'solid')
     truth_kwargs['linewidth'] = truth_kwargs.get('linewidth', 2)
-
+    rstate = get_random_generator()
     # Extract weighted samples.
     samples = results['samples']
     logvol = results['logvol']
@@ -577,7 +578,7 @@ def traceplot(results,
             ids = connect_highlight[0]
             ids = connect_highlight
         except:
-            ids = np.random.choice(uid, size=connect_highlight, replace=False)
+            ids = rstate.choice(uid, size=connect_highlight, replace=False)
 
     # Determine plotting bounds for marginalized 1-D posteriors.
     if span is None:
@@ -1700,11 +1701,11 @@ def boundplot(results,
                 r = -(nbatch + i)
                 uidx = samples_id[r]
                 live_u[uidx] = samples[r]
-
+    rstate = get_random_generator()
     # Draw samples from the bounding distribution.
     try:
         # If bound is "fixed", go ahead and draw samples from it.
-        psamps = bound.samples(ndraws)
+        psamps = bound.samples(ndraws, rstate=rstate)
     except:
         # If bound is based on the distribution of live points at a
         # specific iteration, we need to reconstruct what those were.
@@ -1736,7 +1737,7 @@ def boundplot(results,
         # Construct a KDTree to speed up nearest-neighbor searches.
         kdtree = spatial.KDTree(live_u)
         # Draw samples.
-        psamps = bound.samples(ndraws, live_u, kdtree=kdtree)
+        psamps = bound.samples(ndraws, live_u, kdtree=kdtree, rstate=rstate)
 
     # Projecting samples to input dimensions and possibly
     # the native model space.
@@ -2036,10 +2037,11 @@ def cornerbound(results,
                 uidx = samples_id[r]
                 live_u[uidx] = samples[r]
 
+    rstate = get_random_generator()
     # Draw samples from the bounding distribution.
     try:
         # If bound is "fixed", go ahead and draw samples from it.
-        psamps = bound.samples(ndraws)
+        psamps = bound.samples(ndraws, rstate=rstate)
     except:
         # If bound is based on the distribution of live points at a
         # specific iteration, we need to reconstruct what those were.

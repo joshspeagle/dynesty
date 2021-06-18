@@ -1,6 +1,9 @@
 from __future__ import (print_function, division)
 import numpy as np
 import dynesty
+import pytest
+import itertools
+from utils import get_rstate
 
 nlive = 1000
 printing = False
@@ -23,35 +26,41 @@ def prior_transform(x):
     return x * 2 - 1
 
 
-def test_pathology():
+@pytest.mark.parametrize("bound,sample",
+                         itertools.product(['multi'], ['unif', 'rslice']))
+def test_pathology(bound, sample):
     ndim = 2
-    for sampler in ['unif', 'rslice']:
-        sampler = dynesty.NestedSampler(loglike,
-                                        prior_transform,
-                                        ndim,
-                                        nlive=nlive,
-                                        bound='multi',
-                                        sample=sampler)
-        sampler.run_nested(dlogz=0.1, print_progress=printing)
-        logz_truth = np.log(1 - np.log(alpha))
-        # this the integral
-        logz, logzerr = sampler.results.logz[-1], sampler.results.logzerr[-1]
-        thresh = 4
-        assert (np.abs(logz - logz_truth) < thresh * logzerr)
+    rstate = get_rstate()
+    sampler = dynesty.NestedSampler(loglike,
+                                    prior_transform,
+                                    ndim,
+                                    nlive=nlive,
+                                    bound=bound,
+                                    sample=sample,
+                                    rstate=rstate)
+    sampler.run_nested(dlogz=0.1, print_progress=printing)
+    logz_truth = np.log(1 - np.log(alpha))
+    # this the integral
+    logz, logzerr = sampler.results.logz[-1], sampler.results.logzerr[-1]
+    thresh = 4
+    assert (np.abs(logz - logz_truth) < thresh * logzerr)
 
 
-def test_pathology_dynamic():
+@pytest.mark.parametrize("bound,sample",
+                         itertools.product(['multi'], ['unif', 'rslice']))
+def test_pathology_dynamic(bound, sample):
     ndim = 2
-    for sampler in ['unif', 'rslice']:
-        sampler = dynesty.DynamicNestedSampler(loglike,
-                                               prior_transform,
-                                               ndim,
-                                               nlive=nlive,
-                                               bound='multi',
-                                               sample=sampler)
-        sampler.run_nested(dlogz_init=1, print_progress=printing)
-        logz_truth = np.log(1 - np.log(alpha))
-        # this the integral
-        logz, logzerr = sampler.results.logz[-1], sampler.results.logzerr[-1]
-        thresh = 4
-        assert (np.abs(logz - logz_truth) < thresh * logzerr)
+    rstate = get_rstate()
+    sampler = dynesty.DynamicNestedSampler(loglike,
+                                           prior_transform,
+                                           ndim,
+                                           nlive=nlive,
+                                           bound=bound,
+                                           sample=sample,
+                                           rstate=rstate)
+    sampler.run_nested(dlogz_init=1, print_progress=printing)
+    logz_truth = np.log(1 - np.log(alpha))
+    # this the integral
+    logz, logzerr = sampler.results.logz[-1], sampler.results.logzerr[-1]
+    thresh = 4
+    assert (np.abs(logz - logz_truth) < thresh * logzerr)

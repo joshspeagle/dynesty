@@ -2,6 +2,7 @@ import numpy as np
 import dynesty
 import os
 import multiprocessing as mp
+from utils import get_rstate
 """
 Run a series of basic tests to check whether saving likelikelihood evals
 are broken
@@ -28,6 +29,7 @@ def test_saving():
     # test saving
     ndim = 2
     fname = 'xx.h5'
+    rstate = get_rstate()
     sampler = dynesty.NestedSampler(loglike_egg,
                                     prior_transform_egg,
                                     ndim,
@@ -35,7 +37,8 @@ def test_saving():
                                     bound='multi',
                                     sample='unif',
                                     save_history=True,
-                                    history_filename=fname)
+                                    history_filename=fname,
+                                    rstate=rstate)
     sampler.run_nested(dlogz=1, print_progress=printing)
     assert (os.path.exists(fname))
 

@@ -30,7 +30,7 @@ from scipy import cluster
 from scipy import linalg as lalg
 from numpy import cov as mle_cov
 from scipy.special import logsumexp, gammaln
-from .utils import unitcheck
+from .utils import unitcheck, get_seed_sequence, get_random_generator
 
 __all__ = [
     "UnitCube", "Ellipsoid", "MultiEllipsoid", "RadFriends", "SupFriends",
@@ -73,9 +73,6 @@ class UnitCube(object):
     def randoffset(self, rstate=None):
         """Draw a random offset from the center of the unit cube."""
 
-        if rstate is None:
-            rstate = np.random
-
         return self.sample(rstate=rstate) - 0.5
 
     def sample(self, rstate=None):
@@ -89,10 +86,7 @@ class UnitCube(object):
 
         """
 
-        if rstate is None:
-            rstate = np.random
-
-        return rstate.rand(self.n)
+        return rstate.uniform(size=self.n)
 
     def samples(self, nsamples, rstate=None):
         """
@@ -104,9 +98,6 @@ class UnitCube(object):
             A collection of coordinates within the unit cube.
 
         """
-
-        if rstate is None:
-            rstate = np.random
 
         xs = np.array([self.sample(rstate=rstate) for i in range(nsamples)])
 
@@ -242,9 +233,6 @@ class Ellipsoid(object):
     def randoffset(self, rstate=None):
         """Return a random offset from the center of the ellipsoid."""
 
-        if rstate is None:
-            rstate = np.random
-
         return np.dot(self.axes, randsphere(self.n, rstate=rstate))
 
     def sample(self, rstate=None):
@@ -257,9 +245,6 @@ class Ellipsoid(object):
             A coordinate within the ellipsoid.
 
         """
-
-        if rstate is None:
-            rstate = np.random
 
         return self.ctr + self.randoffset(rstate=rstate)
 
@@ -274,9 +259,6 @@ class Ellipsoid(object):
 
         """
 
-        if rstate is None:
-            rstate = np.random
-
         xs = np.array([self.sample(rstate=rstate) for i in range(nsamples)])
 
         return xs
@@ -284,9 +266,6 @@ class Ellipsoid(object):
     def unitcube_overlap(self, ndraws=10000, rstate=None):
         """Using `ndraws` Monte Carlo draws, estimate the fraction of
         overlap between the ellipsoid and the unit cube."""
-
-        if rstate is None:
-            rstate = np.random
 
         samples = [self.sample(rstate=rstate) for i in range(ndraws)]
         nin = sum([unitcheck(x) for x in samples])
@@ -307,8 +286,8 @@ class Ellipsoid(object):
         points : `~numpy.ndarray` with shape (npoints, ndim)
             The set of points to bound.
 
-        rstate : `~numpy.random.RandomState`, optional
-            `~numpy.random.RandomState` instance.
+        rstate : `~numpy.random.Generator`, optional
+            `~numpy.random.Generator` instance.
 
         bootstrap : int, optional
             The number of bootstrapped realizations of the ellipsoid. The
@@ -325,9 +304,6 @@ class Ellipsoid(object):
             Default is `False`.
 
         """
-
-        if rstate is None:
-            rstate = np.random
 
         # Compute new bounding ellipsoid.
         ell = bounding_ellipsoid(points)
@@ -350,7 +326,8 @@ class Ellipsoid(object):
             else:
                 M = pool.map
             ps = [points for it in range(bootstrap)]
-            args = zip(ps)
+            seeds = get_seed_sequence(rstate, bootstrap)
+            args = zip(ps, seeds)
             expands = list(M(_ellipsoid_bootstrap_expand, args))
 
             # Conservatively set the expansion factor to be the maximum
@@ -483,9 +460,6 @@ class MultiEllipsoid(object):
 
         """
 
-        if rstate is None:
-            rstate = np.random
-
         # If there is only one ellipsoid, sample from it.
         if self.nells == 1:
             x = self.ells[0].sample(rstate=rstate)
@@ -518,7 +492,7 @@ class MultiEllipsoid(object):
         else:
             # If `q` is not being returned, assume the user wants this
             # done internally.
-            while rstate.rand() > (1. / q):
+            while rstate.uniform() > (1. / q):
                 idx = rstate.choice(self.nells,
                                     p=np.exp(self.logvols - self.logvol_tot))
                 x = self.ells[idx].sample(rstate=rstate)
@@ -538,9 +512,6 @@ class MultiEllipsoid(object):
 
         """
 
-        if rstate is None:
-            rstate = np.random
-
         xs = np.array([self.sample(rstate=rstate)[0] for i in range(nsamples)])
 
         return xs
@@ -552,9 +523,6 @@ class MultiEllipsoid(object):
         """Using `ndraws` Monte Carlo draws, estimate the log volume of the
         *union* of ellipsoids. If `return_overlap=True`, also returns the
         estimated fractional overlap with the unit cube."""
-
-        if rstate is None:
-            rstate = np.random
 
         # Estimate volume using Monte Carlo integration.
         samples = [
@@ -586,8 +554,8 @@ class MultiEllipsoid(object):
         points : `~numpy.ndarray` with shape (npoints, ndim)
             The set of points to bound.
 
-        rstate : `~numpy.random.RandomState`, optional
-            `~numpy.random.RandomState` instance.
+        rstate : `~numpy.random.Generator`, optional
+            `~numpy.random.Generator` instance.
 
         bootstrap : int, optional
             The number of bootstrapped realizations of the ellipsoids. The
@@ -604,9 +572,6 @@ class MultiEllipsoid(object):
             with the unit cube. Default is `False`.
 
         """
-
-        if rstate is None:
-            rstate = np.random
 
         if not HAVE_KMEANS:
             raise ValueError("scipy.cluster.vq.kmeans2 is required "
@@ -646,7 +611,8 @@ class MultiEllipsoid(object):
             else:
                 M = pool.map
             ps = [points for it in range(bootstrap)]
-            args = zip(ps, )
+            seeds = get_seed_sequence(rstate, bootstrap)
+            args = zip(ps, seeds)
             expands = list(M(_ellipsoids_bootstrap_expand, args))
 
             # Conservatively set the expansion factor to be the maximum
@@ -739,9 +705,6 @@ class RadFriends(object):
 
         """
 
-        if rstate is None:
-            rstate = np.random
-
         nctrs = len(ctrs)  # number of balls
 
         # If there is only one ball, sample from it.
@@ -755,7 +718,7 @@ class RadFriends(object):
                 return x
 
         # Select a ball at random.
-        idx = rstate.randint(nctrs)
+        idx = rstate.integers(nctrs)
 
         # Select a point from the chosen ball.
         ds = randsphere(self.n, rstate=rstate)
@@ -774,8 +737,8 @@ class RadFriends(object):
         else:
             # If `q` is not being returned, assume the user wants this
             # done internally.
-            while rstate.rand() > (1. / q):
-                idx = rstate.randint(nctrs)
+            while rstate.uniform() > (1. / q):
+                idx = rstate.integers(nctrs)
                 ds = randsphere(self.n, rstate=rstate)
                 dx = np.dot(ds, self.axes)
                 x = ctrs[idx] + dx
@@ -794,9 +757,6 @@ class RadFriends(object):
 
         """
 
-        if rstate is None:
-            rstate = np.random
-
         xs = np.array(
             [self.sample(ctrs, rstate=rstate) for i in range(nsamples)])
 
@@ -810,9 +770,6 @@ class RadFriends(object):
         """Using `ndraws` Monte Carlo draws, estimate the log volume of the
         *union* of balls. If `return_overlap=True`, also returns the
         estimated fractional overlap with the unit cube."""
-
-        if rstate is None:
-            rstate = np.random
 
         # Estimate volume using Monte Carlo integration.
         samples = [
@@ -846,8 +803,8 @@ class RadFriends(object):
         points : `~numpy.ndarray` with shape (npoints, ndim)
             The set of points to bound.
 
-        rstate : `~numpy.random.RandomState`, optional
-            `~numpy.random.RandomState` instance.
+        rstate : `~numpy.random.Generator`, optional
+            `~numpy.random.Generator` instance.
 
         bootstrap : int, optional
             The number of bootstrapped realizations of the ellipsoids. The
@@ -868,9 +825,6 @@ class RadFriends(object):
             modes. Default is `True`.
 
         """
-
-        if rstate is None:
-            rstate = np.random
 
         # If possible, compute bootstraps in parallel using a pool.
         if pool is None:
@@ -897,7 +851,8 @@ class RadFriends(object):
             # Bootstrap radius using the set of live points.
             ps = [points_t for it in range(bootstrap)]
             ftypes = ['balls' for it in range(bootstrap)]
-            args = zip(ps, ftypes)
+            seeds = get_seed_sequence(rstate, bootstrap)
+            args = zip(ps, ftypes, seeds)
             radii = list(M(_friends_bootstrap_radius, args))
 
         # Conservatively set radius to be maximum of the set.
@@ -1030,14 +985,11 @@ class SupFriends(object):
 
         """
 
-        if rstate is None:
-            rstate = np.random
-
         nctrs = len(ctrs)  # number of cubes
 
         # If there is only one cube, sample from it.
         if nctrs == 1:
-            ds = (2. * rstate.rand(self.n) - 1.)
+            ds = (2. * rstate.uniform(size=self.n) - 1.)
             dx = np.dot(ds, self.axes)
             x = ctrs[0] + dx
             if return_q:
@@ -1046,10 +998,10 @@ class SupFriends(object):
                 return x
 
         # Select a cube at random.
-        idx = rstate.randint(nctrs)
+        idx = rstate.integers(nctrs)
 
         # Select a point from the chosen cube.
-        ds = (2. * rstate.rand(self.n) - 1.)
+        ds = (2. * rstate.uniform(size=self.n) - 1.)
         dx = np.dot(ds, self.axes)
         x = ctrs[idx] + dx
 
@@ -1065,9 +1017,9 @@ class SupFriends(object):
         else:
             # If `q` is not being returned, assume the user wants this
             # done internally.
-            while rstate.rand() > (1. / q):
-                idx = rstate.randint(nctrs)
-                ds = (2. * rstate.rand(self.n) - 1.)
+            while rstate.uniform() > (1. / q):
+                idx = rstate.integers(nctrs)
+                ds = (2. * rstate.uniform(size=self.n) - 1.)
                 dx = np.dot(ds, self.axes)
                 x = ctrs[idx] + dx
                 q = self.overlap(x, ctrs)
@@ -1085,9 +1037,6 @@ class SupFriends(object):
 
         """
 
-        if rstate is None:
-            rstate = np.random
-
         xs = np.array(
             [self.sample(ctrs, rstate=rstate) for i in range(nsamples)])
 
@@ -1101,9 +1050,6 @@ class SupFriends(object):
         """Using `ndraws` Monte Carlo draws, estimate the log volume of the
         *union* of cubes. If `return_overlap=True`, also returns the
         estimated fractional overlap with the unit cube."""
-
-        if rstate is None:
-            rstate = np.random
 
         # Estimate the volume using Monte Carlo integration.
         samples = [
@@ -1137,8 +1083,8 @@ class SupFriends(object):
         points : `~numpy.ndarray` with shape (npoints, ndim)
             The set of points to bound.
 
-        rstate : `~numpy.random.RandomState`, optional
-            `~numpy.random.RandomState` instance.
+        rstate : `~numpy.random.Generator`, optional
+            `~numpy.random.Generator` instance.
 
         bootstrap : int, optional
             The number of bootstrapped realizations of the ellipsoids. The
@@ -1159,9 +1105,6 @@ class SupFriends(object):
             modes. Default is `True`.
 
         """
-
-        if rstate is None:
-            rstate = np.random
 
         # If possible, compute bootstraps in parallel using a pool.
         if pool is None:
@@ -1188,7 +1131,8 @@ class SupFriends(object):
             # Bootstrap radius using the set of live points.
             ps = [points_t for it in range(bootstrap)]
             ftypes = ['cubes' for it in range(bootstrap)]
-            args = zip(ps, ftypes)
+            seeds = get_seed_sequence(rstate, bootstrap)
+            args = zip(ps, ftypes, seeds)
             hsides = list(M(_friends_bootstrap_radius, args))
 
         # Conservatively set half-side-length to be maximum of the set.
@@ -1270,12 +1214,9 @@ def logvol_prefactor(n, p=2.):
 def randsphere(n, rstate=None):
     """Draw a point uniformly within an `n`-dimensional unit sphere."""
 
-    if rstate is None:
-        rstate = np.random
-
-    z = rstate.randn(n)  # initial n-dim vector
+    z = rstate.standard_normal(size=n)  # initial n-dim vector
     zhat = z / lalg.norm(z)  # normalize
-    xhat = zhat * rstate.rand()**(1. / n)  # scale
+    xhat = zhat * rstate.uniform()**(1. / n)  # scale
 
     return xhat
 
@@ -1544,12 +1485,11 @@ def _ellipsoid_bootstrap_expand(args):
     ellipsoid based on bootstrapping."""
 
     # Unzipping.
-    points, = args
-    rstate = np.random
-
+    points, rseed = args
+    rstate = get_random_generator(rseed)
     # Resampling.
     npoints, ndim = points.shape
-    idxs = rstate.randint(npoints, size=npoints)  # resample
+    idxs = rstate.integers(npoints, size=npoints)  # resample
     idx_in = np.unique(idxs)  # selected objects
     sel = np.ones(npoints, dtype='bool')
     sel[idx_in] = False
@@ -1575,12 +1515,11 @@ def _ellipsoids_bootstrap_expand(args):
     of bounding ellipsoids using bootstrapping."""
 
     # Unzipping.
-    points, = args
-    rstate = np.random
-
+    points, rseed = args
+    rstate = get_random_generator(rseed)
     # Resampling.
     npoints, ndim = points.shape
-    idxs = rstate.randint(npoints, size=npoints)  # resample
+    idxs = rstate.integers(npoints, size=npoints)  # resample
     idx_in = np.unique(idxs)  # selected objects
     sel = np.ones(npoints, dtype='bool')
     sel[idx_in] = False
@@ -1609,12 +1548,12 @@ def _friends_bootstrap_radius(args):
     bootstrapping."""
 
     # Unzipping.
-    points, ftype = args
-    rstate = np.random
+    points, ftype, rseed = args
+    rstate = get_random_generator(rseed)
 
     # Resampling.
     npoints, ndim = points.shape
-    idxs = rstate.randint(npoints, size=npoints)  # resample
+    idxs = rstate.integers(npoints, size=npoints)  # resample
     idx_in = np.unique(idxs)  # selected objects
     sel = np.ones(npoints, dtype='bool')
     sel[idx_in] = False

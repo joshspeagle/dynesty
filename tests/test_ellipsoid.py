@@ -1,6 +1,7 @@
 import dynesty.bounding as db
 import numpy as np
 import scipy.stats
+from utils import get_rstate
 
 
 def test_sample():
@@ -17,8 +18,9 @@ def test_sample():
     mu = db.MultiEllipsoid(ells)
     R = []
     nsim = 100000
+    rstate = get_rstate()
     for i in range(nsim):
-        R.append(mu.sample()[0])
+        R.append(mu.sample(rstate=rstate)[0])
     R = np.array(R)
     assert (all([mu.contains(_) for _ in R]))
 
@@ -52,10 +54,11 @@ def test_sample_q():
     mu = db.MultiEllipsoid(ells)
     R = []
     nsim = 100000
+    rstate = get_rstate()
     for i in range(nsim):
         while True:
-            x, _, q = mu.sample(return_q=True)
-            if np.random.rand() < 1. / q:
+            x, _, q = mu.sample(return_q=True, rstate=rstate)
+            if rstate.uniform() < 1. / q:
                 R.append(x)
                 break
     R = np.array(R)

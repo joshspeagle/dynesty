@@ -3,6 +3,7 @@ from scipy import linalg
 import scipy.stats
 import dynesty
 import multiprocessing as mp
+from utils import get_rstate
 """
 Run a series of basic tests to check whether anything huge is broken.
 
@@ -82,7 +83,7 @@ def do_gaussians(sample='rslice', bound='single'):
     pool = mp.Pool(36)
     res = []
     for ndim in range(2, 33):
-        rstate = np.random.RandomState(seed=ndim)
+        rstate = np.random.default_rng(ndim)
         co = Config(rstate, ndim)
         res.append(
             (ndim, co,

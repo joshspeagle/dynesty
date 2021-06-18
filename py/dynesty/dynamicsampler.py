@@ -17,6 +17,7 @@ from functools import partial
 import math
 import numpy as np
 import copy
+from .utils import get_seed_sequence
 from scipy.special import logsumexp
 
 try:
@@ -28,7 +29,7 @@ from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
                              MultiEllipsoidSampler, RadFriendsSampler,
                              SupFriendsSampler)
 from .results import Results, print_fn
-from .utils import kld_error
+from .utils import kld_error, get_random_generator
 
 __all__ = [
     "DynamicSampler", "weight_function", "stopping_function", "_kld_error"
@@ -50,11 +51,11 @@ def _kld_error(args):
     :meth:`stopping_function`."""
 
     # Extract arguments.
-    results, error, approx = args
-
+    results, error, approx, rseed = args
+    rstate = get_random_generator(rseed)
     return kld_error(results,
                      error,
-                     rstate=np.random,
+                     rstate=rstate,
                      return_new=True,
                      approx=approx)
 
@@ -195,8 +196,8 @@ def stopping_function(results,
         `pfrac = 1.0`, `evid_thresh = 0.1`, `post_thresh = 0.02`,
         `n_mc = 128`, `error = 'sim_approx'`, and `approx = True`.
 
-    rstate : `~numpy.random.RandomState`, optional
-        `~numpy.random.RandomState` instance.
+    rstate : `~numpy.random.Generator`, optional
+        `~numpy.random.Generator` instance.
 
     M : `map` function, optional
         An alias to a `map`-like function. This allows users to pass
@@ -222,8 +223,6 @@ def stopping_function(results,
     # Initialize values.
     if args is None:
         args = dict({})
-    if rstate is None:
-        rstate = np.random
     if M is None:
         M = map
 
@@ -264,7 +263,8 @@ def stopping_function(results,
     rlist = [results for i in range(n_mc)]
     error_list = [error for i in range(n_mc)]
     approx_list = [approx for i in range(n_mc)]
-    args = zip(rlist, error_list, approx_list)
+    seeds = get_seed_sequence(rstate, n_mc)
+    args = zip(rlist, error_list, approx_list, seeds)
     outputs = list(M(_kld_error, args))
     kld_arr, lnz_arr = np.array([(kld[-1], res.logz[-1])
                                  for kld, res in outputs]).T
@@ -354,8 +354,8 @@ class DynamicSampler(object):
         first update the bounding distribution from the unit cube to the one
         specified by the user.
 
-    rstate : `~numpy.random.RandomState`
-        `~numpy.random.RandomState` instance.
+    rstate : `~numpy.random.Generator`
+        `~numpy.random.Generator` instance.
 
     queue_size: int
         Carry out likelihood evaluations in parallel by queueing up new live
@@ -691,7 +691,8 @@ class DynamicSampler(object):
                 # sampling from the unit cube.
                 self.nlive_init = nlive
                 for attempt in range(100):
-                    self.live_u = self.rstate.rand(self.nlive_init, self.npdim)
+                    self.live_u = self.rstate.uniform(size=(self.nlive_init,
+                                                            self.npdim))
                     if self.use_pool_ptform:
                         self.live_v = np.array(
                             list(
@@ -992,7 +993,7 @@ class DynamicSampler(object):
         if psel:
             # If the lower bound encompasses all saved samples, we want
             # to propose a new set of points from the unit cube.
-            live_u = self.rstate.rand(nlive_new, self.npdim)
+            live_u = self.rstate.uniform(size=(nlive_new, self.npdim))
             if self.use_pool_ptform:
                 live_v = np.array(
                     list(self.M(self.prior_transform, np.array(live_u))))

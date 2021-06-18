@@ -135,6 +135,23 @@ class LogLikelihood:
         return state
 
 
+def get_random_generator(seed=None):
+    """
+    Return a random generator (using the seed provided if available)
+    """
+    return np.random.Generator(np.random.PCG64(seed))
+
+
+def get_seed_sequence(rstate, nitems):
+    """
+    Return the list of seeds to initialize random generators
+    This is useful when distributing work across a pool 
+    """
+    seeds = np.random.SeedSequence(rstate.integers(0, 2**63 - 1,
+                                                   size=4)).spawn(nitems)
+    return seeds
+
+
 def unitcheck(u, nonbounded=None):
     """Check whether `u` is inside the unit cube. Given a masked array
     `nonbounded`, also allows periodic boundaries conditions to exceed
@@ -236,8 +253,8 @@ def resample_equal(samples, weights, rstate=None):
     weights : `~numpy.ndarray` with shape (nsamples,)
         Corresponding weight of each sample.
 
-    rstate : `~numpy.random.RandomState`, optional
-        `~numpy.random.RandomState` instance.
+    rstate : `~numpy.random.Generator`, optional
+        `~numpy.random.Generator` instance.
 
     Returns
     -------
@@ -261,7 +278,7 @@ def resample_equal(samples, weights, rstate=None):
    """
 
     if rstate is None:
-        rstate = np.random
+        rstate = get_random_generator()
 
     if abs(np.sum(weights) - 1.) > SQRTEPS:
         # same tol as in numpy's random.choice.
@@ -429,8 +446,8 @@ def jitter_run(res, rstate=None, approx=False):
         The :class:`~dynesty.results.Results` instance taken from a previous
         nested sampling run.
 
-    rstate : `~numpy.random.RandomState`, optional
-        `~numpy.random.RandomState` instance.
+    rstate : `~numpy.random.Generator`, optional
+        `~numpy.random.Generator` instance.
 
     approx : bool, optional
         Whether to approximate all sets of uniform order statistics by their
@@ -445,7 +462,7 @@ def jitter_run(res, rstate=None, approx=False):
     """
 
     if rstate is None:
-        rstate = np.random
+        rstate = get_random_generator()
 
     # Initialize evolution of live points over the course of the run.
     nsamps, samples_n = _get_nsamps_samples_n(res)
@@ -567,8 +584,8 @@ def resample_run(res, rstate=None, return_idx=False):
         The :class:`~dynesty.results.Results` instance taken from a previous
         nested sampling run.
 
-    rstate : `~numpy.random.RandomState`, optional
-        `~numpy.random.RandomState` instance.
+    rstate : `~numpy.random.Generator`, optional
+        `~numpy.random.Generator` instance.
 
     return_idx : bool, optional
         Whether to return the list of resampled indices used to construct
@@ -584,7 +601,7 @@ def resample_run(res, rstate=None, return_idx=False):
     """
 
     if rstate is None:
-        rstate = np.random
+        rstate = get_random_generator()
 
     # Check whether the final set of live points were added to the
     # run.
@@ -634,10 +651,10 @@ def resample_run(res, rstate=None, return_idx=False):
 
     # Resample strands.
     if nbase > 0 and nadd > 0:
-        live_idx = np.append(base_ids[rstate.randint(0, nbase, size=nbase)],
-                             addon_ids[rstate.randint(0, nadd, size=nadd)])
+        live_idx = np.append(base_ids[rstate.integers(0, nbase, size=nbase)],
+                             addon_ids[rstate.integers(0, nadd, size=nadd)])
     elif nbase > 0:
-        live_idx = base_ids[rstate.randint(0, nbase, size=nbase)]
+        live_idx = base_ids[rstate.integers(0, nbase, size=nbase)]
     elif nadd > 0:
         raise ValueError("The provided `Results` does not include any points "
                          "initially sampled from the prior!")
@@ -760,8 +777,8 @@ def simulate_run(res, rstate=None, return_idx=False, approx=False):
         The :class:`~dynesty.results.Results` instance taken from a previous
         nested sampling run.
 
-    rstate : `~numpy.random.RandomState`, optional
-        `~numpy.random.RandomState` instance.
+    rstate : `~numpy.random.Generator`, optional
+        `~numpy.random.Generator` instance.
 
     return_idx : bool, optional
         Whether to return the list of resampled indices used to construct
@@ -781,7 +798,7 @@ def simulate_run(res, rstate=None, return_idx=False, approx=False):
     """
 
     if rstate is None:
-        rstate = np.random
+        rstate = get_random_generator()
 
     # Resample run.
     new_res, samp_idx = resample_run(res, rstate=rstate, return_idx=True)
@@ -1220,8 +1237,8 @@ def kld_error(res,
         :meth:`resample_run`, and :meth:`simulate_run`, respectively.
         Default is `'simulate'`.
 
-    rstate : `~numpy.random.RandomState`, optional
-        `~numpy.random.RandomState` instance.
+    rstate : `~numpy.random.Generator`, optional
+        `~numpy.random.Generator` instance.
 
     return_new : bool, optional
         Whether to return the realization of the run used to compute the

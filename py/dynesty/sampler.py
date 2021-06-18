@@ -22,6 +22,7 @@ except ImportError:
 from .results import Results, print_fn
 from .bounding import UnitCube
 from .sampling import sample_unif
+from .utils import get_seed_sequence
 
 __all__ = ["Sampler"]
 
@@ -88,8 +89,8 @@ class Sampler(object):
         first update the bounding distribution from the unit cube to the one
         specified by the user.
 
-    rstate : `~numpy.random.RandomState`
-        `~numpy.random.RandomState` instance.
+    rstate : `~numpy.random.Generator`
+        `~numpy.random.Generator` instance.
 
     queue_size: int
         Carry out likelihood evaluations in parallel by queueing up new live
@@ -201,7 +202,7 @@ class Sampler(object):
         """Re-initialize the sampler."""
 
         # live points
-        self.live_u = self.rstate.rand(self.nlive, self.npdim)
+        self.live_u = self.rstate.uniform(size=(self.nlive, self.npdim))
         if self.use_pool_ptform:
             # Use the pool to compute the prior transform.
             self.live_v = np.array(
@@ -361,7 +362,7 @@ class Sampler(object):
                 evolve_point = self.evolve_point
             else:
                 # Propose/evaluate points directly from the unit cube.
-                point = self.rstate.rand(self.npdim)
+                point = self.rstate.uniform(size=self.npdim)
                 axes = np.identity(self.ncdim)
                 evolve_point = sample_unif
             point_queue.append(point)
@@ -372,8 +373,9 @@ class Sampler(object):
         ptforms = [self.prior_transform for i in range(self.queue_size)]
         logls = [self.loglikelihood for i in range(self.queue_size)]
         kwargs = [self.kwargs for i in range(self.queue_size)]
+        seeds = get_seed_sequence(self.rstate, self.queue_size)
         args = zip(point_queue, loglstars, axes_queue, scales, ptforms, logls,
-                   kwargs)
+                   seeds, kwargs)
 
         if self.use_pool_evolve:
             # Use the pool to propose ("evolve") a new live point.

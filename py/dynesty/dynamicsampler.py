@@ -153,6 +153,35 @@ def weight_function(results, args=None, return_weights=False):
         return (logl_min, logl_max)
 
 
+def __get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
+                                slices, walks):
+    """ 
+    Get the update_interval divided by the number of live points
+    """
+    if update_interval is None:
+        if sample == 'unif':
+            update_interval_frac = 1.5
+        elif sample == 'rwalk' or sample == 'rstagger':
+            update_interval_frac = 0.15 * walks
+        elif sample == 'slice':
+            update_interval_frac = 0.9 * ndim * slices
+        elif sample == 'rslice':
+            update_interval_frac = 2.0 * slices
+        elif sample == 'hslice':
+            update_interval_frac = 25.0 * slices
+        else:
+            raise ValueError("Unknown sampling method: '{0}'".format(sample))
+    elif isinstance(update_interval, float):
+        update_interval_frac = update_interval
+    elif isinstance(update_interval, int):
+        update_interval_frac = update_interval * 1. / nlive
+    else:
+        raise RuntimeError('Strange update_interval value', update_interval)
+    if bound == 'none':
+        update_interval_frac = np.inf
+    return update_interval_frac
+
+
 def stopping_function(results,
                       args=None,
                       rstate=None,
@@ -373,7 +402,7 @@ class DynamicSampler(object):
 
     """
     def __init__(self, loglikelihood, prior_transform, npdim, bound, method,
-                 update_interval, first_update, rstate, queue_size, pool,
+                 update_interval_ratio, first_update, rstate, queue_size, pool,
                  use_pool, ncdim, kwargs):
         # distributions
         self.loglikelihood = loglikelihood
@@ -384,7 +413,7 @@ class DynamicSampler(object):
         # bounding/sampling
         self.bounding = bound
         self.method = method
-        self.update_interval = update_interval
+        self.update_interval_ratio = update_interval_ratio
         self.first_update = first_update
 
         # internal sampler object
@@ -681,6 +710,18 @@ class DynamicSampler(object):
         if nlive <= 2 * self.ncdim:
             warnings.warn("Beware: `nlive_init <= 2 * ndim`!")
 
+        if not isinstance(update_interval, int):
+            if isinstance(update_interval, float):
+                cur_update_interval_ratio = update_interval
+            elif update_interval is None:
+                cur_update_interval_ratio = self.update_interval_ratio
+            else:
+                raise RuntimeError(
+                    str.format('Weird update_interval value {}',
+                               update_interval))
+            update_interval = int(
+                min(np.round(cur_update_interval_ratio * nlive), sys.maxsize))
+
         if not resume:
             # Reset saved results to avoid any possible conflicts.
             self.reset()
@@ -760,14 +801,8 @@ class DynamicSampler(object):
             self.live_bound = np.zeros(self.nlive_init, dtype='int')
             self.live_it = np.zeros(self.nlive_init, dtype='int')
 
-            # Initialize the internal `sampler` object.
-            if update_interval is None:
-                update_interval = self.update_interval
-            if isinstance(update_interval, float):
-                update_interval = int(round(self.update_interval * nlive))
             bounding = self.bounding
-            if bounding == 'none':
-                update_interval = np.inf  # no need to update with no bounds
+
             if first_update is None:
                 first_update = self.first_update
             self.sampler = _SAMPLERS[bounding](self.loglikelihood,
@@ -975,6 +1010,20 @@ class DynamicSampler(object):
         saved_scale = np.array(self.saved_run.D['scale'])
         nblive = self.nlive_init
 
+        if not isinstance(update_interval, int):
+            if isinstance(update_interval, float):
+                cur_update_interval_ratio = update_interval
+            elif update_interval is None:
+                cur_update_interval_ratio = self.update_interval_ratio
+            else:
+                raise RuntimeError(
+                    str.format('Weird update_interval value {}',
+                               update_interval))
+            update_interval = int(
+                min(np.round(cur_update_interval_ratio * nlive_new),
+                    sys.maxsize))
+        self.sampler.update_interval = update_interval
+
         # Reset "new" results.
         self.new_run = RunRecord()
         self.new_logl_min, self.new_logl_max = -np.inf, np.inf
@@ -1119,15 +1168,6 @@ class DynamicSampler(object):
 
         # Copy over bound reference.
         self.bound = self.sampler.bound
-
-        # Update `update_interval` based on our new set of live points.
-        if update_interval is None:
-            update_interval = self.update_interval
-        if isinstance(update_interval, float):
-            update_interval = int(round(self.update_interval * nlive_new))
-        if self.bounding == 'none':
-            update_interval = np.inf  # no need to update with no bounds
-        self.sampler.update_interval = update_interval
 
         # Update internal ln(prior volume)-based quantities
         if self.new_logl_min == -np.inf:

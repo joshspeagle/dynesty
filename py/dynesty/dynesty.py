@@ -15,7 +15,7 @@ import numpy as np
 from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
                              MultiEllipsoidSampler, RadFriendsSampler,
                              SupFriendsSampler, _SAMPLING)
-from .dynamicsampler import DynamicSampler
+from .dynamicsampler import DynamicSampler, __get_update_interval_ratio
 from .utils import LogLikelihood, get_random_generator
 
 __all__ = ["NestedSampler", "DynamicNestedSampler", "_function_wrapper"]
@@ -418,25 +418,6 @@ def NestedSampler(loglikelihood,
     kwargs['periodic'] = periodic
     kwargs['reflective'] = reflective
 
-    # Update interval for bounds.
-    if update_interval is None:
-        if sample == 'unif':
-            update_interval = 1.5
-        elif sample == 'rwalk' or sample == 'rstagger':
-            update_interval = 0.15 * walks
-        elif sample == 'slice':
-            update_interval = 0.9 * npdim * slices
-        elif sample == 'rslice':
-            update_interval = 2.0 * slices
-        elif sample == 'hslice':
-            update_interval = 25.0 * slices
-        else:
-            raise ValueError("Unknown sampling method: '{0}'".format(sample))
-    if bound == 'none':
-        update_interval = sys.maxsize  # no need to update with no bounds
-    if isinstance(update_interval, float):
-        update_interval = max(1, round(update_interval * nlive))
-
     # Keyword arguments controlling the first update.
     if first_update is None:
         first_update = dict()
@@ -480,6 +461,11 @@ def NestedSampler(loglikelihood,
         kwargs['fmove'] = fmove
     if max_move is not None:
         kwargs['max_move'] = max_move
+
+    update_interval_ratio = __get_update_interval_ratio(
+        update_interval, sample, bound, nlive, ndim, slices, walks)
+    update_interval = int(
+        min(np.round(update_interval_ratio * nlive), sys.maxsize))
 
     # Set up parallel (or serial) evaluation.
     if queue_size is not None and queue_size < 1:
@@ -872,6 +858,9 @@ def DynamicNestedSampler(loglikelihood,
     if ncdim != npdim and sample in ['slice', 'hslice', 'rslice']:
         raise ValueError('ncdim unsupported for slice sampling')
 
+    update_interval_ratio = __get_update_interval_ratio(
+        update_interval, sample, bound, 1, ndim, slices, walks)
+
     # Custom sampling function.
     if sample not in _SAMPLING and not callable(sample):
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
@@ -898,23 +887,6 @@ def DynamicNestedSampler(loglikelihood,
     kwargs['nonbounded'] = nonbounded
     kwargs['periodic'] = periodic
     kwargs['reflective'] = reflective
-
-    # Update interval for bounds.
-    if update_interval is None:
-        if sample == 'unif':
-            update_interval = 1.5
-        elif sample == 'rwalk' or sample == 'rstagger':
-            update_interval = 0.15 * walks
-        elif sample == 'slice':
-            update_interval = 0.9 * npdim * slices
-        elif sample == 'rslice':
-            update_interval = 2.0 * slices
-        elif sample == 'hslice':
-            update_interval = 25.0 * slices
-        else:
-            raise ValueError("Unknown sampling method: '{0}'".format(sample))
-    if bound == 'none':
-        update_interval = sys.maxsize  # no need to update with no bounds
 
     # Keyword arguments controlling the first update.
     if first_update is None:
@@ -1010,8 +982,8 @@ def DynamicNestedSampler(loglikelihood,
 
     # Initialize our nested sampler.
     sampler = DynamicSampler(loglike, ptform, npdim, bound, sample,
-                             update_interval, first_update, rstate, queue_size,
-                             pool, use_pool, ncdim, kwargs)
+                             update_interval_ratio, first_update, rstate,
+                             queue_size, pool, use_pool, ncdim, kwargs)
 
     return sampler
 

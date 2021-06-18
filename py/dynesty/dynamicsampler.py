@@ -505,7 +505,9 @@ class DynamicSampler(object):
                     str.format('Weird update_interval value {}',
                                update_interval))
             update_interval = int(
-                min(np.round(cur_update_interval_ratio * nlive), sys.maxsize))
+                max(
+                    min(np.round(cur_update_interval_ratio * nlive),
+                        sys.maxsize), 1))
         return update_interval
 
     def reset(self):

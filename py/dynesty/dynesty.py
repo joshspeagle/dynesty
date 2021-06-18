@@ -465,7 +465,7 @@ def NestedSampler(loglikelihood,
     update_interval_ratio = __get_update_interval_ratio(
         update_interval, sample, bound, nlive, ndim, slices, walks)
     update_interval = int(
-        min(np.round(update_interval_ratio * nlive), sys.maxsize))
+        max(min(np.round(update_interval_ratio * nlive), sys.maxsize), 1))
 
     # Set up parallel (or serial) evaluation.
     if queue_size is not None and queue_size < 1:

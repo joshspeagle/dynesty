@@ -135,8 +135,7 @@ def NestedSampler(loglikelihood,
                   update_func=None,
                   ncdim=None,
                   save_history=False,
-                  history_filename=None,
-                  **kwargs):
+                  history_filename=None):
     """
     Initializes and returns a sampler object for Static Nested Sampling.
 
@@ -391,6 +390,7 @@ def NestedSampler(loglikelihood,
     if sample not in _SAMPLING and not callable(sample):
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
 
+    kwargs = {}
     # Custom updating function.
     if update_func is not None and not callable(update_func):
         raise ValueError("Unknown update function: '{0}'".format(update_func))
@@ -591,6 +591,7 @@ def NestedSampler(loglikelihood,
 def DynamicNestedSampler(loglikelihood,
                          prior_transform,
                          ndim,
+                         nlive=None,
                          bound='multi',
                          sample='auto',
                          periodic=None,
@@ -620,8 +621,7 @@ def DynamicNestedSampler(loglikelihood,
                          update_func=None,
                          ncdim=None,
                          save_history=False,
-                         history_filename=None,
-                         **kwargs):
+                         history_filename=None):
     """
     Initializes and returns a sampler object for Dynamic Nested Sampling.
 
@@ -839,6 +839,8 @@ def DynamicNestedSampler(loglikelihood,
     if ncdim is None:
         ncdim = npdim
 
+    nlive = nlive or 500
+
     # Bounding method.
     if bound not in _SAMPLERS:
         raise ValueError("Unknown bounding method: '{0}'".format(bound))
@@ -860,6 +862,8 @@ def DynamicNestedSampler(loglikelihood,
 
     update_interval_ratio = __get_update_interval_ratio(
         update_interval, sample, bound, 1, ndim, slices, walks)
+
+    kwargs = {}
 
     # Custom sampling function.
     if sample not in _SAMPLING and not callable(sample):
@@ -983,7 +987,7 @@ def DynamicNestedSampler(loglikelihood,
     # Initialize our nested sampler.
     sampler = DynamicSampler(loglike, ptform, npdim, bound, sample,
                              update_interval_ratio, first_update, rstate,
-                             queue_size, pool, use_pool, ncdim, kwargs)
+                             queue_size, pool, use_pool, ncdim, nlive, kwargs)
 
     return sampler
 

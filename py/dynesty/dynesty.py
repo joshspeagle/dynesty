@@ -102,7 +102,13 @@ SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
 def __get_auto_sample(ndim, gradient):
-    """ Decode which sampling method to use  """
+    """ Decode which sampling method to use
+
+    Arguments:
+    ndim: int (dimensionality)
+    gradient: (None or function/true)
+    Returns: sampler string
+    """
     if ndim < 10:
         sample = 'unif'
     elif 10 <= ndim <= 20:
@@ -119,6 +125,13 @@ def __get_walks_slices(walks0, slices0, sample, ndim):
     """
     Get the best number of steps for random walk/slicing based on 
     the type of sampler and dimension
+    
+    Arguments:
+    walks0: integer (provided by user or none for auto)
+    slices0: integer (provided by user or none for auto)
+    sample: string (sampler type)
+    ndim: int (dimensionality)
+    Returns the tuple with number of walk steps, number of slice steps
     """
     walks, slices = None, None
     # see https://github.com/joshspeagle/dynesty/issues/289

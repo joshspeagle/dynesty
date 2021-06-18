@@ -21,9 +21,6 @@ useful helper functions. Bounding objects include:
 
 """
 
-from __future__ import (print_function, division)
-from six.moves import range
-
 import warnings
 import math
 import numpy as np

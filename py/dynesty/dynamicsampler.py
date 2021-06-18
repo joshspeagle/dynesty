@@ -11,19 +11,13 @@ by the user.
 
 """
 
-from __future__ import (print_function, division)
-from six.moves import range
-
 import sys
 import warnings
 from functools import partial
 import math
 import numpy as np
 import copy
-try:
-    from scipy.special import logsumexp
-except ImportError:
-    from scipy.misc import logsumexp
+from scipy.special import logsumexp
 
 try:
     import tqdm
@@ -995,7 +989,6 @@ class DynamicSampler(object):
 
         # Check whether the lower bound encompasses all previous saved samples.
         psel = np.all(logl_min <= saved_logl)
-        vol = 1. - 1. / nblive  # starting ln(prior volume)
         if psel:
             # If the lower bound encompasses all saved samples, we want
             # to propose a new set of points from the unit cube.
@@ -1332,10 +1325,11 @@ class DynamicSampler(object):
             logdvol, dlv = logdvols[i], dlvs[i]
             logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
             logz_new = np.logaddexp(logz, logwt)
-            lzterm = (math.exp(loglstar - logz_new) * loglstar +
-                      math.exp(loglstar_new - logz_new) * loglstar_new)
-            h_new = (math.exp(logdvol) * lzterm + math.exp(logz - logz_new) *
-                     (h + logz) - logz_new)
+            lzterm = (
+                math.exp(loglstar - logz_new + logdvol) * loglstar +
+                math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
+            h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) -
+                     logz_new)
             dh = h_new - h
             h = h_new
             logz = logz_new
@@ -1762,5 +1756,5 @@ class DynamicSampler(object):
             return ncall, niter, logl_bounds, results
         else:
             raise RuntimeError(
-                'add_batch called with no leftover function calls or iterations'
-            )
+                'add_batch called with no leftover function calls'
+                'or iterations')

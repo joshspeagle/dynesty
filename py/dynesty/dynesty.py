@@ -7,8 +7,6 @@ provides access to the two main sampler "super-classes" via
 
 """
 
-from __future__ import (print_function, division)
-
 import sys
 import warnings
 import math
@@ -195,7 +193,8 @@ def NestedSampler(loglikelihood,
         When `10 <= ndim <= 20`, this defaults to `'rwalk'`.
         When `ndim > 20`, this defaults to `'hslice'` if a `gradient` is
         provided and `'rslice'` otherwise. `'rstagger'` and `'slice'`
-        are provided as alternatives for `'rwalk'` and `'rslice'`, respectively.
+        are provided as alternatives for `'rwalk'` and `'rslice'`,
+        respectively.
         Default is `'auto'`.
 
     periodic : iterable, optional
@@ -404,10 +403,6 @@ def NestedSampler(loglikelihood,
     # Dimensional warning check.
     if nlive <= 2 * ndim:
         warnings.warn("Beware! Having `nlive <= 2 * ndim` is extremely risky!")
-    elif nlive < ndim * (ndim + 1) // 2 and bound in ['single', 'multi']:
-        warnings.warn("A note of caution: "
-                      "having `nlive < ndim * (ndim + 1) // 2` may result in "
-                      "unconstrained bounding distributions.")
 
     # Gather boundary conditions.
     if periodic is not None and reflective is not None:
@@ -691,7 +686,8 @@ def DynamicNestedSampler(loglikelihood,
         When `10 <= ndim <= 20`, this defaults to `'rwalk'`.
         When `ndim > 20`, this defaults to `'hslice'` if a `gradient` is
         provided and `'rslice'` otherwise. `'rstagger'` and `'slice'`
-        are provided as alternatives for `'rwalk'` and `'rslice'`, respectively.
+        are provided as alternatives for `'rwalk'` and `'rslice'`,
+        respectively.
         Default is `'auto'`.
 
     periodic : iterable, optional

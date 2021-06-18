@@ -35,7 +35,7 @@ class LogLikelihood:
                  save=False,
                  history_filename=None):
         """ Initialize the object.
-        
+
         Parameters:
         loglikelihood: function
         ndim: int
@@ -60,7 +60,7 @@ class LogLikelihood:
             self.history_init()
 
     def map(self, pars):
-        """ Evaluate the likelihood f-n on the list of vectors 
+        """ Evaluate the likelihood f-n on the list of vectors
         The pool is used if it was provided when the object was created
         """
         if self.pool is None:
@@ -258,7 +258,6 @@ def resample_equal(samples, weights, rstate=None):
     -----
     Implements the systematic resampling method described in `Hol, Schon, and
     Gustafsson (2006) <doi:10.1109/NSSPW.2006.4378824>`_.
- 
    """
 
     if rstate is None:
@@ -377,8 +376,8 @@ def _find_decrease(samples_n):
     """
     Find all instances where the number of live points is either constant
     or increasing.
-    Returne the mask, 
-    the values of nlive when nlives starts to decrease 
+    Return the mask,
+    the values of nlive when nlives starts to decrease
     The ranges of decreasing nlives
     v=[3,2,1,13,13,12,23,22];
     > print(dynesty.utils._find_decrease(v))
@@ -525,17 +524,13 @@ def jitter_run(res, rstate=None, approx=False):
 
     # H is defined as
     # H = 1/z int( L * ln(L) dX,X=0..1) - ln(z)
-    # Therefore delta(z(H+ln(z))) = int(L * ln(L), X=X_i..X_i+1)
-    # where delta is a change from iteration to iteration
-    # Therefore z_{i+1}*(H_{i+1}+ln(Z_{i+1})) - z_{i}*(H_{i}+ln(Z_{i}))
-    # equals to L_i ln(L_i) + L_{i+1} * ln(L_{i+1}) * (X_{i+1} - X_i)/2
-    # by doing trapezoid integration
-    zhlnz = np.cumsum(
+    # incomplete H can be defined as
+    # H = int( L/Z * ln(L) dX,X=0..x) - z_x/Z * ln(Z)
+    h_part1 = np.cumsum(
         (np.exp(loglstar_pad[1:] - logzmax + logdvol2) * loglstar_pad[1:] +
          np.exp(loglstar_pad[:-1] - logzmax + logdvol2) * loglstar_pad[:-1]))
     # here we divide the likelihood by zmax to avoid to overflow
-    # print(zhlnz, logzmax, saved_logz)
-    saved_h = zhlnz - logzmax * np.exp(saved_logz - logzmax)
+    saved_h = h_part1 - logzmax * np.exp(saved_logz - logzmax)
     # changes in h in each step
     dh = np.diff(saved_h, prepend=0)
 
@@ -711,10 +706,9 @@ def resample_run(res, rstate=None, return_idx=False):
         logdvol, dlv = logdvols[i], dlvs[i]
         logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
         logz_new = np.logaddexp(logz, logwt)
-        lzterm = (math.exp(loglstar - logz_new) * loglstar +
-                  math.exp(loglstar_new - logz_new) * loglstar_new)
-        h_new = (math.exp(logdvol) * lzterm + math.exp(logz - logz_new) *
-                 (h + logz) - logz_new)
+        lzterm = (math.exp(loglstar - logz_new + logdvol) * loglstar +
+                  math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
+        h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) - logz_new)
         dh = h_new - h
         h = h_new
         logz = logz_new
@@ -851,13 +845,9 @@ def reweight_run(res, logp_new, logp_old=None):
         logdvol, dlv = logdvols[i], dlvs[i]
         logwt = np.logaddexp(loglstar_new, loglstar) + logdvol + logrwt[i]
         logz_new = np.logaddexp(logz, logwt)
-        try:
-            lzterm = (math.exp(loglstar - logz_new) * loglstar +
-                      math.exp(loglstar_new - logz_new) * loglstar_new)
-        except:
-            lzterm = 0.
-        h_new = (math.exp(logdvol) * lzterm + math.exp(logz - logz_new) *
-                 (h + logz) - logz_new)
+        lzterm = (math.exp(loglstar - logz_new + logdvol) * loglstar +
+                  math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
+        h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) - logz_new)
         dh = h_new - h
         h = h_new
         logz = logz_new
@@ -963,10 +953,11 @@ def unravel_run(res, save_proposals=True, print_progress=True):
             logdvol, dlv = logdvols[i], dlvs[i]
             logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
             logz_new = np.logaddexp(logz, logwt)
-            lzterm = (math.exp(loglstar - logz_new) * loglstar +
-                      math.exp(loglstar_new - logz_new) * loglstar_new)
-            h_new = (math.exp(logdvol) * lzterm + math.exp(logz - logz_new) *
-                     (h + logz) - logz_new)
+            lzterm = (
+                math.exp(loglstar - logz_new + logdvol) * loglstar +
+                math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
+            h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) -
+                     logz_new)
             dh = h_new - h
             h = h_new
             logz = logz_new
@@ -998,14 +989,14 @@ def unravel_run(res, save_proposals=True, print_progress=True):
                 r.append(('prop_iter', res.prop_iter[strand]))
                 r.append(('samples_prop', res.samples_prop[strand]))
                 r.append(('scale', res.scale[strand]))
-            except:
+            except AttributeError:
                 pass
 
         # Add on batch information (if available).
         try:
             r.append(('samples_batch', res.samples_batch[strand]))
             r.append(('batch_bounds', res.batch_bounds))
-        except:
+        except AttributeError:
             pass
 
         # Append to list of strands.
@@ -1320,7 +1311,7 @@ def _merge_two(res1, res2, compute_aux=False):
     # Number of live points throughout the run.
     try:
         base_n = res1.samples_n
-    except:
+    except AttributeError:
         niter, nlive = res1.niter, res1.nlive
         if nbase == niter:
             base_n = np.ones(niter, dtype=int) * nlive
@@ -1339,14 +1330,14 @@ def _merge_two(res1, res2, compute_aux=False):
         base_piter = res1.prop_iter
         base_scale = res1.scale
         base_proposals = True
-    except:
+    except AttributeError:
         base_proposals = False
 
     # Batch information (if available).
     try:
         base_batch = res1.samples_batch
         base_bounds = res1.batch_bounds
-    except:
+    except AttributeError:
         base_batch = np.zeros(nbase, dtype=int)
         base_bounds = np.array([(-np.inf, np.inf)])
 
@@ -1362,7 +1353,7 @@ def _merge_two(res1, res2, compute_aux=False):
     # Number of live points throughout the run.
     try:
         new_n = res2.samples_n
-    except:
+    except AttributeError:
         niter, nlive = res2.niter, res2.nlive
         if nnew == niter:
             new_n = np.ones(niter, dtype=int) * nlive
@@ -1381,14 +1372,14 @@ def _merge_two(res1, res2, compute_aux=False):
         new_piter = res2.prop_iter
         new_scale = res2.scale
         new_proposals = True
-    except:
+    except AttributeError:
         new_proposals = False
 
     # Batch information (if available).
     try:
         new_batch = res2.samples_batch
         new_bounds = res2.batch_bounds
-    except:
+    except AttributeError:
         new_batch = np.zeros(nnew, dtype=int)
         new_bounds = np.array([(-np.inf, np.inf)])
 
@@ -1540,10 +1531,11 @@ def _merge_two(res1, res2, compute_aux=False):
             logdvol, dlv = logdvols[i], dlvs[i]
             logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
             logz_new = np.logaddexp(logz, logwt)
-            lzterm = (math.exp(loglstar - logz_new) * loglstar +
-                      math.exp(loglstar_new - logz_new) * loglstar_new)
-            h_new = (math.exp(logdvol) * lzterm + math.exp(logz - logz_new) *
-                     (h + logz) - logz_new)
+            lzterm = (
+                math.exp(loglstar - logz_new + logdvol) * loglstar +
+                math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
+            h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) -
+                     logz_new)
             dh = h_new - h
             h = h_new
             logz = logz_new

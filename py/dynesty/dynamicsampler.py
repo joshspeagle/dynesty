@@ -374,7 +374,7 @@ class DynamicSampler(object):
     """
     def __init__(self, loglikelihood, prior_transform, npdim, bound, method,
                  update_interval, first_update, rstate, queue_size, pool,
-                 use_pool, ncdim, kwargs):
+                 use_pool, ncdim, nlive0, kwargs):
         # distributions
         self.loglikelihood = loglikelihood
         self.prior_transform = prior_transform
@@ -433,6 +433,7 @@ class DynamicSampler(object):
         self.bound = []  # initial states used to compute bounds
         self.eff = 1.  # sampling efficiency
         self.base = False  # base run complete
+        self.nlive0 = nlive0
 
         self.saved_run = RunRecord()
         self.base_run = RunRecord()
@@ -547,7 +548,7 @@ class DynamicSampler(object):
         return self.cite
 
     def sample_initial(self,
-                       nlive=500,
+                       nlive=None,
                        update_interval=None,
                        first_update=None,
                        maxiter=None,
@@ -568,7 +569,7 @@ class DynamicSampler(object):
         ----------
         nlive : int, optional
             The number of live points to use for the baseline nested
-            sampling run. Default is `500`.
+            sampling run. Default is either nlive0 parameter of 500 
 
         update_interval : int or float, optional
             If an integer is passed, only update the bounding distribution
@@ -680,6 +681,8 @@ class DynamicSampler(object):
             maxiter = sys.maxsize
         if nlive <= 2 * self.ncdim:
             warnings.warn("Beware: `nlive_init <= 2 * ndim`!")
+
+        nlive = nlive or self.nlive0
 
         if not resume:
             # Reset saved results to avoid any possible conflicts.
@@ -870,7 +873,7 @@ class DynamicSampler(object):
             (-np.inf, np.inf))  # initial bounds
 
     def sample_batch(self,
-                     nlive_new=500,
+                     nlive_new=None,
                      update_interval=None,
                      logl_bounds=None,
                      maxiter=None,
@@ -953,6 +956,8 @@ class DynamicSampler(object):
             maxcall = sys.maxsize
         if maxiter is None:
             maxiter = sys.maxsize
+        nlive_new = nlive_new or self.nlive0
+
         if nlive_new <= 2 * self.ncdim:
             warnings.warn("Beware: `nlive_batch <= 2 * ndim`!")
         self.sampler.save_bounds = save_bounds
@@ -1364,13 +1369,13 @@ class DynamicSampler(object):
         return pbar, print_func
 
     def run_nested(self,
-                   nlive_init=500,
+                   nlive_init=None,
                    maxiter_init=None,
                    maxcall_init=None,
                    dlogz_init=0.01,
                    logl_max_init=np.inf,
                    n_effective_init=np.inf,
-                   nlive_batch=500,
+                   nlive_batch=None,
                    wt_function=None,
                    wt_kwargs=None,
                    maxiter_batch=None,
@@ -1396,7 +1401,8 @@ class DynamicSampler(object):
         ----------
         nlive_init : int, optional
             The number of live points used during the initial ("baseline")
-            nested sampling run. Default is `500`.
+            nested sampling run. Default is the number provided at 
+            initialization
 
         maxiter_init : int, optional
             Maximum number of iterations for the initial baseline nested
@@ -1431,7 +1437,8 @@ class DynamicSampler(object):
 
         nlive_batch : int, optional
             The number of live points used when adding additional samples
-            from a nested sampling run within each batch. Default is `500`.
+            from a nested sampling run within each batch. Default is the
+            number provided at init
 
         wt_function : func, optional
             A cost function that takes a :class:`Results` instance
@@ -1536,6 +1543,9 @@ class DynamicSampler(object):
             stop_function = stopping_function
         if stop_kwargs is None:
             stop_kwargs = dict()
+
+        nlive_init = nlive_init or self.nlive0
+        nlive_batch = nlive_batch or self.nlive0
 
         # Run the main dynamic nested sampling loop.
         ncall = self.ncall

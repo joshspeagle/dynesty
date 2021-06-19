@@ -5,7 +5,7 @@ from utils import get_rstate
 Run a series of basic tests of the 2d eggbox
 """
 
-nlive = 100
+nlive = 500
 printing = False
 
 # EGGBOX

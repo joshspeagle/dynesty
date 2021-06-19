@@ -153,6 +153,36 @@ def weight_function(results, args=None, return_weights=False):
         return (logl_min, logl_max)
 
 
+def __get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
+                                slices, walks):
+    """ 
+    Get the update_interval divided by the number of live points
+    """
+    if update_interval is None:
+        if sample == 'unif':
+            update_interval_frac = 1.5
+        elif sample == 'rwalk' or sample == 'rstagger':
+            update_interval_frac = 0.15 * walks
+        elif sample == 'slice':
+            update_interval_frac = 0.9 * ndim * slices
+        elif sample == 'rslice':
+            update_interval_frac = 2.0 * slices
+        elif sample == 'hslice':
+            update_interval_frac = 25.0 * slices
+        else:
+            raise ValueError("Unknown sampling method: '{0}'".format(sample))
+    elif isinstance(update_interval, float):
+        update_interval_frac = update_interval
+    elif isinstance(update_interval, int):
+        update_interval_frac = update_interval * 1. / nlive
+    else:
+        raise RuntimeError(
+            str.format('Strange update_interval value {}', update_interval))
+    if bound == 'none':
+        update_interval_frac = np.inf
+    return update_interval_frac
+
+
 def stopping_function(results,
                       args=None,
                       rstate=None,
@@ -373,8 +403,9 @@ class DynamicSampler(object):
 
     """
     def __init__(self, loglikelihood, prior_transform, npdim, bound, method,
-                 update_interval, first_update, rstate, queue_size, pool,
-                 use_pool, ncdim, kwargs):
+                 update_interval_ratio, first_update, rstate, queue_size, pool,
+                 use_pool, ncdim, nlive0, kwargs):
+
         # distributions
         self.loglikelihood = loglikelihood
         self.prior_transform = prior_transform
@@ -384,7 +415,7 @@ class DynamicSampler(object):
         # bounding/sampling
         self.bounding = bound
         self.method = method
-        self.update_interval = update_interval
+        self.update_interval_ratio = update_interval_ratio
         self.first_update = first_update
 
         # internal sampler object
@@ -433,6 +464,7 @@ class DynamicSampler(object):
         self.bound = []  # initial states used to compute bounds
         self.eff = 1.  # sampling efficiency
         self.base = False  # base run complete
+        self.nlive0 = nlive0
 
         self.saved_run = RunRecord()
         self.base_run = RunRecord()
@@ -463,6 +495,22 @@ class DynamicSampler(object):
                 pass
 
         return state
+
+    def __get_update_interval(self, update_interval, nlive):
+        if not isinstance(update_interval, int):
+            if isinstance(update_interval, float):
+                cur_update_interval_ratio = update_interval
+            elif update_interval is None:
+                cur_update_interval_ratio = self.update_interval_ratio
+            else:
+                raise RuntimeError(
+                    str.format('Weird update_interval value {}',
+                               update_interval))
+            update_interval = int(
+                max(
+                    min(np.round(cur_update_interval_ratio * nlive),
+                        sys.maxsize), 1))
+        return update_interval
 
     def reset(self):
         """Re-initialize the sampler."""
@@ -547,7 +595,7 @@ class DynamicSampler(object):
         return self.cite
 
     def sample_initial(self,
-                       nlive=500,
+                       nlive=None,
                        update_interval=None,
                        first_update=None,
                        maxiter=None,
@@ -568,7 +616,7 @@ class DynamicSampler(object):
         ----------
         nlive : int, optional
             The number of live points to use for the baseline nested
-            sampling run. Default is `500`.
+            sampling run. Default is either nlive0 parameter of 500 
 
         update_interval : int or float, optional
             If an integer is passed, only update the bounding distribution
@@ -681,6 +729,9 @@ class DynamicSampler(object):
         if nlive <= 2 * self.ncdim:
             warnings.warn("Beware: `nlive_init <= 2 * ndim`!")
 
+        update_interval = self.__get_update_interval(update_interval, nlive)
+        nlive = nlive or self.nlive0
+
         if not resume:
             # Reset saved results to avoid any possible conflicts.
             self.reset()
@@ -760,14 +811,8 @@ class DynamicSampler(object):
             self.live_bound = np.zeros(self.nlive_init, dtype='int')
             self.live_it = np.zeros(self.nlive_init, dtype='int')
 
-            # Initialize the internal `sampler` object.
-            if update_interval is None:
-                update_interval = self.update_interval
-            if isinstance(update_interval, float):
-                update_interval = int(round(self.update_interval * nlive))
             bounding = self.bounding
-            if bounding == 'none':
-                update_interval = np.inf  # no need to update with no bounds
+
             if first_update is None:
                 first_update = self.first_update
             self.sampler = _SAMPLERS[bounding](self.loglikelihood,
@@ -870,7 +915,7 @@ class DynamicSampler(object):
             (-np.inf, np.inf))  # initial bounds
 
     def sample_batch(self,
-                     nlive_new=500,
+                     nlive_new=None,
                      update_interval=None,
                      logl_bounds=None,
                      maxiter=None,
@@ -953,6 +998,8 @@ class DynamicSampler(object):
             maxcall = sys.maxsize
         if maxiter is None:
             maxiter = sys.maxsize
+        nlive_new = nlive_new or self.nlive0
+
         if nlive_new <= 2 * self.ncdim:
             warnings.warn("Beware: `nlive_batch <= 2 * ndim`!")
         self.sampler.save_bounds = save_bounds
@@ -974,6 +1021,10 @@ class DynamicSampler(object):
         saved_logwt = np.array(self.saved_run.D['logwt'])
         saved_scale = np.array(self.saved_run.D['scale'])
         nblive = self.nlive_init
+
+        update_interval = self.__get_update_interval(update_interval,
+                                                     nlive_new)
+        self.sampler.update_interval = update_interval
 
         # Reset "new" results.
         self.new_run = RunRecord()
@@ -1119,15 +1170,6 @@ class DynamicSampler(object):
 
         # Copy over bound reference.
         self.bound = self.sampler.bound
-
-        # Update `update_interval` based on our new set of live points.
-        if update_interval is None:
-            update_interval = self.update_interval
-        if isinstance(update_interval, float):
-            update_interval = int(round(self.update_interval * nlive_new))
-        if self.bounding == 'none':
-            update_interval = np.inf  # no need to update with no bounds
-        self.sampler.update_interval = update_interval
 
         # Update internal ln(prior volume)-based quantities
         if self.new_logl_min == -np.inf:
@@ -1364,13 +1406,13 @@ class DynamicSampler(object):
         return pbar, print_func
 
     def run_nested(self,
-                   nlive_init=500,
+                   nlive_init=None,
                    maxiter_init=None,
                    maxcall_init=None,
                    dlogz_init=0.01,
                    logl_max_init=np.inf,
                    n_effective_init=np.inf,
-                   nlive_batch=500,
+                   nlive_batch=None,
                    wt_function=None,
                    wt_kwargs=None,
                    maxiter_batch=None,
@@ -1396,7 +1438,8 @@ class DynamicSampler(object):
         ----------
         nlive_init : int, optional
             The number of live points used during the initial ("baseline")
-            nested sampling run. Default is `500`.
+            nested sampling run. Default is the number provided at 
+            initialization
 
         maxiter_init : int, optional
             Maximum number of iterations for the initial baseline nested
@@ -1431,7 +1474,8 @@ class DynamicSampler(object):
 
         nlive_batch : int, optional
             The number of live points used when adding additional samples
-            from a nested sampling run within each batch. Default is `500`.
+            from a nested sampling run within each batch. Default is the
+            number provided at init
 
         wt_function : func, optional
             A cost function that takes a :class:`Results` instance
@@ -1536,6 +1580,9 @@ class DynamicSampler(object):
             stop_function = stopping_function
         if stop_kwargs is None:
             stop_kwargs = dict()
+
+        nlive_init = nlive_init or self.nlive0
+        nlive_batch = nlive_batch or self.nlive0
 
         # Run the main dynamic nested sampling loop.
         ncall = self.ncall

@@ -67,7 +67,7 @@ your sampling. If you're sampling starting from the prior,
 you're starting out from a likelihood of 0 and therefore a 
 log-likelihoof of `-inf`. If you haven't specified a particular `logl_max`
 to terminate sampling, the default value is set to be `+inf` so it will
-never prematurely terminante sampling. These values can change during
+never prematurely terminate sampling. These values can change during
 Dynamic Nested Sampling, at which point they serve as the endpoints between
 which a new batch of live points is allocated.
 
@@ -382,7 +382,7 @@ as the answer below.
 
 Finally, ``dynesty`` regularizes the ellipsoids based on their
 `condition number <https://blogs.mathworks.com/cleve/2017/07/17/what-is-the-condition-number-of-a-matrix/>`_
-to avoid issues involve numerical instability. This can reduce the sampling
+to avoid issues involving numerical instability. This can reduce the sampling
 efficiency for problems with very skewed distributions (i.e. large axis ratios)
 but helps to ensure stable performance.
 

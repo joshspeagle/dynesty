@@ -59,7 +59,7 @@ Overview
 is a method for estimating the Bayesian evidence :math:`\mathcal{Z}` first
 proposed and developed by `John Skilling
 <https://dx.doi.org/10.1063%2F1.1835238>`_. The basic idea
-is to approximate the by integrating
+is to approximate the evidence by integrating
 the prior in nested "shells" of constant likelihood. 
 Unlike `Markov Chain Monte Carlo (MCMC)
 <https://en.wikipedia.org/wiki/Markov_chain_Monte_Carlo>`_ methods
@@ -153,7 +153,7 @@ where :math:`\hat{w}_i` is each point's estimated weight.
 For a simple linear integration scheme using rectangles, we can take
 :math:`f(\mathcal{L}_i) = \mathcal{L}_i` and
 :math:`f(\Delta X_i) = X_{i-1} - X_i`.
-For a quadratic integration scheme using trapeozoids (as used in ``dynesty``),
+For a quadratic integration scheme using trapezoids (as used in ``dynesty``),
 we instead can take
 :math:`f(\mathcal{L}_i) = (\mathcal{L}_{i-1} + \mathcal{L}_i) / 2`.
 

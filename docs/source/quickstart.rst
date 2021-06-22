@@ -1012,7 +1012,7 @@ efficiency, this shows how the procedure helps to ensure no likelihood is
 Alternately, we can generate a corner plot of the bounding distribution using
 :meth:`~dynesty.plotting.cornerbound` via::
 
-    fig, axes = dyplot.cornerprop(res2, it=5000, 
+    fig, axes = dyplot.cornerbound(res2, it=5000, 
                                   prior_transform=prior_transform,
                                   show_live=True, 
                                   span=[(-10, 10), (-10, 10)])

@@ -1130,7 +1130,7 @@ def cornerplot(results,
         Whether to display a title above each 1-D marginalized posterior
         showing the 0.5 quantile along with the upper/lower bounds associated
         with the 0.025 and 0.975 (95%/2-sigma credible interval) quantiles.
-        Default is `True`.
+        Default is `False`.
 
     title_quantiles : iterable, optional
         A list of fractional quantiles to use in the title. Default is

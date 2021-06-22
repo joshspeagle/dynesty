@@ -501,7 +501,7 @@ From left to right, this records: the current iteration (plus the number of
 live points added after stopping), the current bound being used, the number
 of log-likelihood calls made before accepting the last sample, the total number
 of log-likelihood calls, the overall sampling efficiency, 
-the current log-likelihood and log-likelihood bounds (`-inf` and `inf`
+the current log-likelihood bounds (`-inf` and `inf`
 because we began sampling from the prior and didn't declare a `logl_max`),
 the current estimated evidence, and the remaining `dlogz` relative
 to the stopping criterion.

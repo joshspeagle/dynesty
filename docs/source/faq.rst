@@ -65,7 +65,7 @@ In most cases no. As mentioned in :ref:`Running Internally`, these values
 are just the lower and upper limits of the log-likelihood used to limit
 your sampling. If you're sampling starting from the prior, 
 you're starting out from a likelihood of 0 and therefore a 
-log-likelihoof of `-inf`. If you haven't specified a particular `logl_max`
+log-likelihood of `-inf`. If you haven't specified a particular `logl_max`
 to terminate sampling, the default value is set to be `+inf` so it will
 never prematurely terminate sampling. These values can change during
 Dynamic Nested Sampling, at which point they serve as the endpoints between

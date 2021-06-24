@@ -107,11 +107,3 @@ def test_livepoints():
                                     rstate=rstate)
     sampler.run_nested()
     dyutil.unravel_run(sampler.results)
-
-    sampler = dynesty.DynamicNestedSampler(loglike,
-                                           prior_transform,
-                                           ndim,
-                                           nlive=nlive,
-                                           live_points=live_points,
-                                           rstate=rstate)
-    sampler.run_nested(dlogz_init=1, maxcall=1000)

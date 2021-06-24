@@ -101,6 +101,53 @@ _CITES = {'default':  # default set of citations
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
+def __get_auto_sample(ndim, gradient):
+    """ Decode which sampling method to use
+
+    Arguments:
+    ndim: int (dimensionality)
+    gradient: (None or function/true)
+    Returns: sampler string
+    """
+    if ndim < 10:
+        sample = 'unif'
+    elif 10 <= ndim <= 20:
+        sample = 'rwalk'
+    else:
+        if gradient is None:
+            sample = 'rslice'
+        else:
+            sample = 'hslice'
+    return sample
+
+
+def __get_walks_slices(walks0, slices0, sample, ndim):
+    """
+    Get the best number of steps for random walk/slicing based on 
+    the type of sampler and dimension
+    
+    Arguments:
+    walks0: integer (provided by user or none for auto)
+    slices0: integer (provided by user or none for auto)
+    sample: string (sampler type)
+    ndim: int (dimensionality)
+    Returns the tuple with number of walk steps, number of slice steps
+    """
+    walks, slices = None, None
+    # see https://github.com/joshspeagle/dynesty/issues/289
+    if sample in ['hslice', 'rslice']:
+        slices = 3 + ndim
+    elif sample == 'slice':
+        slices = 3
+        # we don't add dimensions, since we loop over them
+    elif sample in ['rwalk', 'rstagger']:
+        # this is technically incorrect a we need to add ndim **2
+        walks = 20 + ndim
+    slices = slices0 or slices
+    walks = walks0 or walks
+    return walks, slices
+
+
 def NestedSampler(loglikelihood,
                   prior_transform,
                   ndim,
@@ -127,9 +174,9 @@ def NestedSampler(loglikelihood,
                   compute_jac=False,
                   enlarge=None,
                   bootstrap=0,
-                  walks=25,
+                  walks=None,
                   facc=0.5,
-                  slices=5,
+                  slices=None,
                   fmove=0.9,
                   max_move=100,
                   update_func=None,
@@ -373,15 +420,9 @@ def NestedSampler(loglikelihood,
 
     # Sampling method.
     if sample == 'auto':
-        if npdim < 10:
-            sample = 'unif'
-        elif 10 <= npdim <= 20:
-            sample = 'rwalk'
-        else:
-            if gradient is None:
-                sample = 'rslice'
-            else:
-                sample = 'hslice'
+        sample = __get_auto_sample(ndim, gradient)
+
+    walks, slices = __get_walks_slices(walks, slices, sample, ndim)
 
     if ncdim != npdim and sample in ['slice', 'hslice', 'rslice']:
         raise ValueError('ncdim unsupported for slice sampling')
@@ -613,9 +654,9 @@ def DynamicNestedSampler(loglikelihood,
                          compute_jac=False,
                          enlarge=None,
                          bootstrap=0,
-                         walks=25,
+                         walks=None,
                          facc=0.5,
-                         slices=5,
+                         slices=None,
                          fmove=0.9,
                          max_move=100,
                          update_func=None,
@@ -847,15 +888,9 @@ def DynamicNestedSampler(loglikelihood,
 
     # Sampling method.
     if sample == 'auto':
-        if npdim < 10:
-            sample = 'unif'
-        elif 10 <= npdim <= 20:
-            sample = 'rwalk'
-        else:
-            if gradient is None:
-                sample = 'rslice'
-            else:
-                sample = 'hslice'
+        sample = __get_auto_sample(ndim, gradient)
+
+    walks, slices = __get_walks_slices(walks, slices, sample, ndim)
 
     if ncdim != npdim and sample in ['slice', 'hslice', 'rslice']:
         raise ValueError('ncdim unsupported for slice sampling')

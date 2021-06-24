@@ -501,7 +501,7 @@ From left to right, this records: the current iteration (plus the number of
 live points added after stopping), the current bound being used, the number
 of log-likelihood calls made before accepting the last sample, the total number
 of log-likelihood calls, the overall sampling efficiency, 
-the current log-likelihood and log-likelihood bounds (`-inf` and `inf`
+the current log-likelihood bounds (`-inf` and `inf`
 because we began sampling from the prior and didn't declare a `logl_max`),
 the current estimated evidence, and the remaining `dlogz` relative
 to the stopping criterion.
@@ -1012,7 +1012,7 @@ efficiency, this shows how the procedure helps to ensure no likelihood is
 Alternately, we can generate a corner plot of the bounding distribution using
 :meth:`~dynesty.plotting.cornerbound` via::
 
-    fig, axes = dyplot.cornerprop(res2, it=5000, 
+    fig, axes = dyplot.cornerbound(res2, it=5000, 
                                   prior_transform=prior_transform,
                                   show_live=True, 
                                   span=[(-10, 10), (-10, 10)])

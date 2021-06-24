@@ -178,7 +178,8 @@ def test_gaussian():
     list(
         itertools.product(['single', 'multi', 'balls', 'cubes'],
                           ['unif', 'rwalk', 'slice', 'rslice', 'rstagger'])) +
-    itertools.product(['none'], ['rwalk', 'slice', 'rslice', 'rstagger']))
+    list(itertools.product(['none'], ['rwalk', 'slice', 'rslice', 'rstagger']))
+)
 def test_bounding_sample(bound, sample):
     # check various bounding methods
     logz_tol = 1

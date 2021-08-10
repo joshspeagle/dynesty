@@ -578,6 +578,9 @@ class MultiEllipsoid(object):
                              "to compute ellipsoid decompositions.")
 
         npoints, ndim = points.shape
+        if npoints == 1:
+            raise RuntimeError('Cannot compute the bounding ellipsoid of '
+                               'a single point.')
 
         # Calculate the bounding ellipsoid for the points, possibly
         # enlarged to a minimum volume.
@@ -1313,8 +1316,8 @@ def bounding_ellipsoid(points):
     npoints, ndim = points.shape
 
     if npoints == 1:
-        raise ValueError("Cannot compute a bounding ellipsoid to a "
-                         "single point if `pointvol` is not specified.")
+        raise ValueError("Cannot compute a bounding ellipsoid of a "
+                         "single point.")
 
     # Calculate covariance of points.
     ctr = np.mean(points, axis=0)

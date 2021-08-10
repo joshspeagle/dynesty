@@ -1108,7 +1108,12 @@ class DynamicSampler(object):
                                         p=cur_wt,
                                         replace=False)
             cur_nblive = len(subset)
-
+            if (cur_nblive == 1):
+                raise RuntimeError('Only one live point is selected\n' +
+                                   'Please report the error on github!' +
+                                   'Diagnostics nblive: %d ' % (nblive) +
+                                   'cur_nblive: %d' % (cur_nblive) +
+                                   'cur_wt: %s' % str(cur_wt))
             live_u = saved_u[subset, :].copy()
             live_v = saved_v[subset, :].copy()
             live_logl = saved_logl[subset].copy()

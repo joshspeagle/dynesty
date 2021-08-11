@@ -155,7 +155,7 @@ def weight_function(results, args=None, return_weights=False):
 
 def __get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
                                 slices, walks):
-    """ 
+    """
     Get the update_interval divided by the number of live points
     """
     if update_interval is None:
@@ -616,7 +616,7 @@ class DynamicSampler(object):
         ----------
         nlive : int, optional
             The number of live points to use for the baseline nested
-            sampling run. Default is either nlive0 parameter of 500 
+            sampling run. Default is either nlive0 parameter of 500
 
         update_interval : int or float, optional
             If an integer is passed, only update the bounding distribution
@@ -1080,39 +1080,49 @@ class DynamicSampler(object):
             # If the lower bound doesn't encompass all base samples,
             # we need to create a uniform sample from the prior subject
             # to the likelihood boundary constraint
-            subset = (saved_logl > logl_min)
-            if subset.sum() == 0:
+            subset0 = (saved_logl > logl_min)
+            n_pt_above = subset0.sum()
+            if n_pt_above == 0:
                 raise RuntimeError(
                     'Could not find live points in the required logl interval')
+            elif n_pt_above == 1:
+                raise RuntimeError('Could only find a single live point in '
+                                   'the required logl interval')
 
-            live_scale = saved_scale[subset][0]
+            live_scale = saved_scale[subset0][0]
             # set the scale based on the lowest point
 
             # we are weighting each point by 1/L_i * 1/W_i to ensure
             # uniform sampling within boundary volume
-            cur_logwt = -saved_logl[subset] - saved_logwt[subset]
+            cur_logwt = -saved_logl[subset0] - saved_logwt[subset0]
             cur_wt = np.exp(cur_logwt - cur_logwt.max())
             cur_wt = cur_wt / cur_wt.sum()
-            # i normalize in linear space rather then using logsumexp
+            # I normalize in linear space rather then using logsumexp
             # because cur_wt.sum() needs to be 1 for random.choice
 
             # we are now randomly sampling with weights
-            # notice that since we are samplign without
+            # notice that since we are sampling without
             # replacement we aren't guaranteed to be able
             # to get nblive points
             # so we get min(nblive,subset.sum())
             # in that case the sample technically won't be
             # uniform
-            subset = self.rstate.choice(np.nonzero(subset)[0],
-                                        size=min(nblive, (cur_wt > 0).sum()),
+            n_pos_weight = (cur_wt > 0).sum()
+
+            subset = self.rstate.choice(np.nonzero(subset0)[0],
+                                        size=min(nblive, n_pos_weight),
                                         p=cur_wt,
                                         replace=False)
+            # subset will now have indices of selected points from
+            # saved_* arrays
             cur_nblive = len(subset)
             if (cur_nblive == 1):
                 raise RuntimeError('Only one live point is selected\n' +
                                    'Please report the error on github!' +
                                    'Diagnostics nblive: %d ' % (nblive) +
                                    'cur_nblive: %d' % (cur_nblive) +
+                                   'n_pt_above: %d' % (n_pt_above) +
+                                   'n_pos_weight: %d' % (n_pos_weight) +
                                    'cur_wt: %s' % str(cur_wt))
             live_u = saved_u[subset, :].copy()
             live_v = saved_v[subset, :].copy()
@@ -1443,7 +1453,7 @@ class DynamicSampler(object):
         ----------
         nlive_init : int, optional
             The number of live points used during the initial ("baseline")
-            nested sampling run. Default is the number provided at 
+            nested sampling run. Default is the number provided at
             initialization
 
         maxiter_init : int, optional

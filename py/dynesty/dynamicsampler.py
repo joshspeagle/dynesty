@@ -132,20 +132,27 @@ def weight_function(results, args=None, return_weights=False):
 
     # Derive posterior weights.
     pweight = np.exp(results.logwt - results.logz[-1])  # importance weight
-    pweight /= sum(pweight)  # normalize
+    pweight /= np.sum(pweight)  # normalize
 
     # Compute combined weights.
     weight = (1. - pfrac) * zweight + pfrac * pweight
 
     # Compute logl bounds
-    nsamps = len(logz)
-    bounds = np.arange(nsamps)[weight > maxfrac * max(weight)]
-    bounds = (min(bounds) - lpad, min(max(bounds) + lpad, nsamps - 1))
+    # we pad by lpad on each side (2lpad total)
+    # if this brings us outside the range on on side, I add it on another
+    nsamps = len(weight)
+    bounds = np.nonzero(weight > maxfrac * np.max(weight))[0]
+    bounds = (bounds[0] - lpad, bounds[-1] + lpad)
+    if bounds[1] > nsamps - 1:
+        # overflow on the RHS, so we move the left side
+        bounds = [bounds[0] - (bounds[1] - nsamps - 1), nsamps - 1]
     if bounds[0] < 0:
+        # if we overflow on the leftside we set the edge to -inf and expand
+        # the RHS
         logl_min = -np.inf
+        logl_max = results.logl[min(bounds[1] - bounds[0], nsamps - 1)]
     else:
-        logl_min = results.logl[bounds[0]]
-    logl_max = results.logl[bounds[1]]
+        logl_min, logl_max = results.logl[bounds[0]], results.logl[bounds[1]]
 
     if return_weights:
         return (logl_min, logl_max), (pweight, zweight, weight)

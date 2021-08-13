@@ -526,7 +526,7 @@ def NestedSampler(loglikelihood,
                                ptform_args,
                                ptform_kwargs,
                                name='prior_transform')
-    if use_pool.get('loglikelihood') or True:
+    if use_pool.get('loglikelihood', True):
         pool_logl = pool
     else:
         pool_logl = None
@@ -988,7 +988,7 @@ def DynamicNestedSampler(loglikelihood,
                                ptform_kwargs,
                                name='prior_transform')
 
-    if use_pool.get('loglikelihood') or True:
+    if use_pool.get('loglikelihood', True):
         pool_logl = pool
     else:
         pool_logl = None

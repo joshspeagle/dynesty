@@ -496,7 +496,7 @@ def NestedSampler(loglikelihood,
         kwargs['max_move'] = max_move
 
     update_interval_ratio = __get_update_interval_ratio(
-        update_interval, sample, bound, nlive, ndim, slices, walks)
+        update_interval, sample, bound, ndim, nlive, slices, walks)
     update_interval = int(
         max(min(np.round(update_interval_ratio * nlive), sys.maxsize), 1))
 
@@ -888,7 +888,7 @@ def DynamicNestedSampler(loglikelihood,
         raise ValueError('ncdim unsupported for slice sampling')
 
     update_interval_ratio = __get_update_interval_ratio(
-        update_interval, sample, bound, 1, ndim, slices, walks)
+        update_interval, sample, bound, ndim, 1, slices, walks)
 
     kwargs = {}
 

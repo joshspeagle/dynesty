@@ -66,7 +66,7 @@ def compute_weights(results):
     """
     logl = results.logl
     logz = results.logz  # final ln(evidence)
-    logvol = results.logvlol
+    logvol = results.logvol
     logwt = results.logwt
     samples_n = results.samples_n
 

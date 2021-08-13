@@ -1391,11 +1391,11 @@ class DynamicSampler(object):
                 logl_n = np.inf
                 nlive_n = 0
         # ensure that we correctly merged
-        assert (self.saved_run['logl'][0] == np.min(new_d['logl'][0],
-                                                    saved_d['logl'][0])
-        assert (self.saved_run['logl'][-1] == np.min(new_d['logl'][-1],
-                                                    saved_d['logl'][-1])
-                
+        assert self.saved_run.D['logl'][0] == min(new_d['logl'][0],
+                                                  saved_d['logl'][0])
+        assert self.saved_run.D['logl'][-1] == max(new_d['logl'][-1],
+                                                   saved_d['logl'][-1])
+
         # Compute quantities of interest.
         h = 0.
         logz = -1.e300

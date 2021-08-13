@@ -1104,7 +1104,8 @@ class DynamicSampler(object):
             n_pt_above = subset0.sum()
             if n_pt_above == 0:
                 raise RuntimeError(
-                    'Could not find live points in the required logl interval. '
+                    'Could not find live points in the '
+                    'required logl interval. Please report!\n'
                     'Diagnostics. logl_min: %s ' % str(logl_min),
                     'logl_bounds: %s ' % str(logl_bounds),
                     'saved_loglmax: %s' % str(saved_logl.max()))
@@ -1389,7 +1390,12 @@ class DynamicSampler(object):
             except IndexError:
                 logl_n = np.inf
                 nlive_n = 0
-
+        # ensure that we correctly merged
+        assert (self.saved_run['logl'][0] == np.min(new_d['logl'][0],
+                                                    saved_d['logl'][0])
+        assert (self.saved_run['logl'][-1] == np.min(new_d['logl'][-1],
+                                                    saved_d['logl'][-1])
+                
         # Compute quantities of interest.
         h = 0.
         logz = -1.e300

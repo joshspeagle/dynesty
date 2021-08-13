@@ -30,8 +30,8 @@ def bootstrap_tol(results, rstate):
     covs = []
 
     for i in range(niter):
-        #curpos = dyfunc.resample_equal(pos, wts)
-        #xid = np.random.randint(len(curpos), size=len(curpos))
+        # curpos = dyfunc.resample_equal(pos, wts)
+        # xid = np.random.randint(len(curpos), size=len(curpos))
         sub = rstate.uniform(size=n) < wts / wts.max()
         mean = pos[sub].mean(axis=0)
         cov = np.cov(pos[sub].T)
@@ -121,9 +121,9 @@ def test_gaussian():
     sampler.run_nested(print_progress=printing)
     # check that jitter/resample/simulate_run work
     # for not dynamic sampler
-    dyfunc.jitter_run(sampler.results)
-    dyfunc.resample_run(sampler.results)
-    dyfunc.simulate_run(sampler.results)
+    dyfunc.jitter_run(sampler.results, rstate=rstate)
+    dyfunc.resample_run(sampler.results, rstate=rstate)
+    dyfunc.simulate_run(sampler.results, rstate=rstate)
 
     # add samples
     # check continuation behavior
@@ -274,12 +274,12 @@ def test_dynamic():
     check_results_gau(dsampler.results, logz_tol, rstate)
 
     # check error analysis functions
-    dres = dyfunc.jitter_run(dsampler.results)
+    dres = dyfunc.jitter_run(dsampler.results, rstate=rstate)
     check_results_gau(dres, logz_tol, rstate)
-    dres = dyfunc.resample_run(dsampler.results)
+    dres = dyfunc.resample_run(dsampler.results, rstate=rstate)
     check_results_gau(dres, logz_tol, rstate)
-    dres = dyfunc.simulate_run(dsampler.results)
+    dres = dyfunc.simulate_run(dsampler.results, rstate=rstate)
     check_results_gau(dres, logz_tol, rstate)
     # I bump the threshold
     # because we have the error twice
-    dyfunc.kld_error(dsampler.results)
+    dyfunc.kld_error(dsampler.results, rstate=rstate)

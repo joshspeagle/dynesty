@@ -3,6 +3,7 @@ from numpy import linalg
 import numpy.testing as npt
 import dynesty
 from dynesty import utils as dyfunc
+from utils import get_rstate
 """
 A rudimentary test that ncdim parameter works
 """
@@ -11,7 +12,7 @@ nlive = 500
 printing = False
 
 
-def bootstrap_tol(results):
+def bootstrap_tol(results, rstate):
     """ Compute the uncertainty of means/covs by doing bootstrapping """
     n = len(results.logz)
     niter = 50
@@ -21,7 +22,7 @@ def bootstrap_tol(results):
     covs = []
 
     for i in range(niter):
-        xid = np.random.randint(n, size=n)
+        xid = rstate.random.randint(n, size=n)
         mean, cov = dyfunc.mean_and_cov(pos[xid], wts[xid])
         means.append(mean)
         covs.append(cov)
@@ -69,8 +70,8 @@ cov_true[-(ntotdim - ndim_gau):,
                                           ndim_gau) * prior_win**2 / 3
 
 
-def check_results_gau(results, logz_tol, sig=5):
-    mean_tol, cov_tol = bootstrap_tol(results)
+def check_results_gau(results, rstate, logz_tol, sig=5):
+    mean_tol, cov_tol = bootstrap_tol(results, rstate)
     check_results(results,
                   mean_vec,
                   cov_true,
@@ -97,17 +98,19 @@ def prior_transform_gau(u):
 
 def test_gaussian():
     logz_tol = 1
+    rstate = get_rstate()
     sampler = dynesty.NestedSampler(loglikelihood_gau,
                                     prior_transform_gau,
                                     ntotdim,
                                     nlive=nlive,
-                                    ncdim=ndim_gau)
+                                    ncdim=ndim_gau,
+                                    rstate=rstate)
     sampler.run_nested(print_progress=printing)
     # check that jitter/resample/simulate_run work
     # for not dynamic sampler
-    dyfunc.jitter_run(sampler.results)
-    dyfunc.resample_run(sampler.results)
-    dyfunc.simulate_run(sampler.results)
+    dyfunc.jitter_run(sampler.results, rstate=rstate)
+    dyfunc.resample_run(sampler.results, rstate=rstate)
+    dyfunc.simulate_run(sampler.results, rstate=rstate)
 
     # add samples
     # check continuation behavior
@@ -136,9 +139,11 @@ def test_gaussian():
 def test_dynamic():
     # check dynamic nested sampling behavior
     logz_tol = 1
+    rstate = get_rstate()
     dsampler = dynesty.DynamicNestedSampler(loglikelihood_gau,
                                             prior_transform_gau,
                                             ntotdim,
-                                            ncdim=ndim_gau)
+                                            ncdim=ndim_gau,
+                                            rstate=rstate)
     dsampler.run_nested(print_progress=printing)
-    check_results_gau(dsampler.results, logz_tol)
+    check_results_gau(dsampler.results, rstate, logz_tol)

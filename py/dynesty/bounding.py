@@ -25,10 +25,10 @@ import warnings
 import math
 import numpy as np
 from numpy import linalg
+from numpy import cov as mle_cov
 from scipy import spatial
 from scipy import cluster
 from scipy import linalg as lalg
-from numpy import cov as mle_cov
 from scipy.special import logsumexp, gammaln
 from .utils import unitcheck, get_seed_sequence, get_random_generator
 
@@ -50,7 +50,7 @@ except ImportError:
     HAVE_KMEANS = False
 
 
-class UnitCube(object):
+class UnitCube:
     """
     An N-dimensional unit cube.
 
@@ -109,7 +109,7 @@ class UnitCube(object):
         pass
 
 
-class Ellipsoid(object):
+class Ellipsoid:
     """
     An N-dimensional ellipsoid defined by::
 
@@ -345,7 +345,7 @@ class Ellipsoid(object):
             self.funit = self.unitcube_overlap()
 
 
-class MultiEllipsoid(object):
+class MultiEllipsoid:
     """
     A collection of M N-dimensional ellipsoids.
 
@@ -401,12 +401,14 @@ class MultiEllipsoid(object):
 
     def scale_to_logvol(self, logvols):
         """Scale ellipoids to a corresponding set of
-        target volumes."""
-        """ IMPORTANT
-        We must also update arrays ams, covs
+        target volumes.
         """
-        [self.ells[i].scale_to_logvol(logvols[i]) for i in range(self.nells)]
+        for i in range(self.nells):
+            self.ells[i].scale_to_logvol(logvols[i])
+
+        # IMPORTANT We must also update arrays ams, covs
         self.__update_arrays()
+
         self.expands = np.array(
             [self.ells[i].expand for i in range(self.nells)])
         logvol_tot = logsumexp(logvols)
@@ -482,7 +484,7 @@ class MultiEllipsoid(object):
         delts = (x[None, :] - self.ctrs)
         q = (np.einsum('ai,aij,aj->a', delts, self.ams, delts) < 1).sum()
 
-        assert (q > 0)  # Should never fail
+        assert q > 0  # Should never fail
 
         if return_q:
             # If `q` is being returned, assume the user wants to
@@ -634,7 +636,7 @@ class MultiEllipsoid(object):
                 return_overlap=True)
 
 
-class RadFriends(object):
+class RadFriends:
     """
     A collection of N-balls of identical size centered on each live point.
 
@@ -658,7 +660,7 @@ class RadFriends(object):
         self.axes_inv = lalg.pinvh(self.axes)
 
         detsign, detln = linalg.slogdet(self.am)
-        # TODO check for finiteness
+        assert detsign > 0
         self.logvol_ball = (logvol_prefactor(self.n) - 0.5 * detln)
         self.expand = 1.
 
@@ -869,7 +871,7 @@ class RadFriends(object):
 
         # Compute volume.
         detsign, detln = linalg.slogdet(self.am)
-        # TODO check finite
+        assert detsign > 0
         self.logvol_ball = (logvol_prefactor(self.n) - 0.5 * detln)
         self.expand = 1.
 
@@ -914,7 +916,7 @@ class RadFriends(object):
             return self._get_covariance_from_all_points(overlapped_points)
 
 
-class SupFriends(object):
+class SupFriends:
     """
     A collection of N-cubes of identical size centered on each live point.
 
@@ -938,6 +940,7 @@ class SupFriends(object):
         self.axes_inv = lalg.pinvh(self.axes)
 
         detsign, detln = linalg.slogdet(self.am)
+        assert detsign > 0
         self.logvol_cube = self.n * np.log(2.) - 0.5 * detln
         self.expand = 1.
 

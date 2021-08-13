@@ -9,10 +9,16 @@ import sys
 import warnings
 import math
 import copy
+from functools import partial
 import numpy as np
 from scipy.special import logsumexp
 
-from .results import Results
+try:
+    import tqdm
+except ImportError:
+    tqdm = None
+
+from .results import Results, print_fn
 
 __all__ = [
     "unitcheck", "resample_equal", "mean_and_cov", "quantile", "jitter_run",
@@ -133,6 +139,17 @@ class LogLikelihood:
         state = self.__dict__.copy()
         del state['pool']
         return state
+
+
+def get_print_func(print_func, print_progress):
+    pbar = None
+    if print_func is None:
+        if tqdm is None or not print_progress:
+            print_func = print_fn
+        else:
+            pbar = tqdm.tqdm()
+            print_func = partial(print_fn, pbar=pbar)
+    return pbar, print_func
 
 
 def get_random_generator(seed=None):

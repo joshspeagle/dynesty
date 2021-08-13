@@ -8,21 +8,15 @@ samplers inherit this class either explicitly or implicitly.
 
 import sys
 import warnings
-from functools import partial
 import math
 import copy
 import numpy as np
 from scipy.special import logsumexp
 
-try:
-    import tqdm
-except ImportError:
-    tqdm = None
-
 from .results import Results, print_fn
 from .bounding import UnitCube
 from .sampling import sample_unif
-from .utils import get_seed_sequence
+from .utils import get_seed_sequence, get_print_func
 
 __all__ = ["Sampler"]
 
@@ -56,6 +50,7 @@ class RunRecord:
     def append(self, newD):
         for k in newD.keys():
             self.D[k].append(newD[k])
+
 
 
 class Sampler(object):
@@ -851,16 +846,6 @@ class Sampler(object):
             yield (worst, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
                    h, nc, worst_it, boundidx, bounditer, self.eff, delta_logz)
 
-    def _get_print_func(self, print_func, print_progress):
-        pbar = None
-        if print_func is None:
-            if tqdm is None or not print_progress:
-                print_func = print_fn
-            else:
-                pbar = tqdm.tqdm()
-                print_func = partial(print_fn, pbar=pbar)
-        return pbar, print_func
-
     def run_nested(self,
                    maxiter=None,
                    maxcall=None,
@@ -934,7 +919,7 @@ class Sampler(object):
                 dlogz = 0.01
 
         # Run the main nested sampling loop.
-        pbar, print_func = self._get_print_func(print_func, print_progress)
+        pbar, print_func = get_print_func(print_func, print_progress)
         try:
             ncall = self.ncall
             for it, results in enumerate(
@@ -1011,7 +996,7 @@ class Sampler(object):
             print_func = print_fn
 
         # Add remaining live points to samples.
-        pbar, print_func = self._get_print_func(print_func, print_progress)
+        pbar, print_func = get_print_func(print_func, print_progress)
         try:
             ncall = self.ncall
             it = self.it - 1

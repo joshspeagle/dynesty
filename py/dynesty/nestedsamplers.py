@@ -24,8 +24,8 @@ Includes:
 """
 
 import math
-import numpy as np
 import copy
+import numpy as np
 
 from .sampler import Sampler
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
@@ -266,8 +266,6 @@ class UnitCubeSampler(Sampler):
 
         if callable(self.custom_update):
             self.scale = self.custom_update(blob, self.scale)
-        else:
-            pass
 
 
 class SingleEllipsoidSampler(Sampler):
@@ -515,8 +513,6 @@ class SingleEllipsoidSampler(Sampler):
 
         if callable(self.custom_update):
             self.scale = self.custom_update(blob, self.scale)
-        else:
-            pass
 
 
 class MultiEllipsoidSampler(Sampler):
@@ -796,8 +792,6 @@ class MultiEllipsoidSampler(Sampler):
 
         if callable(self.custom_update):
             self.scale = self.custom_update(blob, self.scale)
-        else:
-            pass
 
 
 class RadFriendsSampler(Sampler):
@@ -1048,8 +1042,6 @@ class RadFriendsSampler(Sampler):
 
         if callable(self.custom_update):
             self.scale = self.custom_update(blob, self.scale)
-        else:
-            pass
 
 
 class SupFriendsSampler(Sampler):
@@ -1300,5 +1292,3 @@ class SupFriendsSampler(Sampler):
 
         if callable(self.custom_update):
             self.scale = self.custom_update(blob, self.scale)
-        else:
-            pass

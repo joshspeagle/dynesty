@@ -12,21 +12,13 @@ import warnings
 import math
 import numpy as np
 
-from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
-                             MultiEllipsoidSampler, RadFriendsSampler,
-                             SupFriendsSampler, _SAMPLING)
-from .dynamicsampler import DynamicSampler, __get_update_interval_ratio
+from .nestedsamplers import _SAMPLING
+from .dynamicsampler import (DynamicSampler, __get_update_interval_ratio,
+                             _SAMPLERS)
 from .utils import LogLikelihood, get_random_generator
 
 __all__ = ["NestedSampler", "DynamicNestedSampler", "_function_wrapper"]
 
-_SAMPLERS = {
-    'none': UnitCubeSampler,
-    'single': SingleEllipsoidSampler,
-    'multi': MultiEllipsoidSampler,
-    'balls': RadFriendsSampler,
-    'cubes': SupFriendsSampler
-}
 
 _CITES = {'default':  # default set of citations
           "Code and Methods:\n================\n"

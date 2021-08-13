@@ -13,23 +13,17 @@ by the user.
 
 import sys
 import warnings
-from functools import partial
 import math
-import numpy as np
 import copy
-from .utils import get_seed_sequence
+import numpy as np
 from scipy.special import logsumexp
-
-try:
-    import tqdm
-except ImportError:
-    tqdm = None
 
 from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
                              MultiEllipsoidSampler, RadFriendsSampler,
                              SupFriendsSampler)
-from .results import Results, print_fn
-from .utils import kld_error, get_random_generator
+from .results import Results
+from .utils import (get_seed_sequence, get_print_func, kld_error,
+                    get_random_generator)
 
 __all__ = [
     "DynamicSampler", "weight_function", "stopping_function", "_kld_error"
@@ -182,7 +176,7 @@ def __get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
     if update_interval is None:
         if sample == 'unif':
             update_interval_frac = 1.5
-        elif sample == 'rwalk' or sample == 'rstagger':
+        elif sample in ('rwalk', 'rstagger'):
             update_interval_frac = 0.15 * walks
         elif sample == 'slice':
             update_interval_frac = 0.9 * ndim * slices
@@ -296,7 +290,7 @@ def stopping_function(results,
     if n_mc <= 1:
         raise ValueError("The number of realizations {0} must be greater "
                          "than 1.".format(n_mc))
-    elif n_mc < 20:
+    if n_mc < 20:
         warnings.warn("Using a small number of realizations might result in "
                       "excessively noisy stopping value estimates.")
     error = args.get('error', 'sim_approx')
@@ -367,7 +361,7 @@ class RunRecord:
             self.D[k].append(newD[k])
 
 
-class DynamicSampler(object):
+class DynamicSampler:
     """
     A dynamic nested sampler that allocates live points adaptively during
     a single run according to a specified weight function until a specified
@@ -1030,11 +1024,6 @@ class DynamicSampler(object):
         # Previously this was zero, but that could make the sampler stuck
         # if the narrow posterior mode is missed
 
-        # Initialize starting values.
-        h = 0.0  # Information, initially *0.*
-        logz = -1.e300  # ln(evidence), initially *0.*
-        logvol = 0.  # initially contains the whole prior (volume=1.)
-
         # Grab results from saved run.
         saved_u = np.array(self.saved_run.D['u'])
         saved_v = np.array(self.saved_run.D['v'])
@@ -1140,7 +1129,7 @@ class DynamicSampler(object):
             # subset will now have indices of selected points from
             # saved_* arrays
             cur_nblive = len(subset)
-            if (cur_nblive == 1):
+            if cur_nblive == 1:
                 raise RuntimeError('Only one live point is selected\n' +
                                    'Please report the error on github!' +
                                    'Diagnostics nblive: %d ' % (nblive) +
@@ -1439,16 +1428,6 @@ class DynamicSampler(object):
         self.saved_run.D['batch_bounds'] = old_batch_bounds + [(
             (llmin, llmax))]
 
-    def _get_print_func(self, print_func, print_progress):
-        pbar = None
-        if print_func is None:
-            if tqdm is None or not print_progress:
-                print_func = print_fn
-            else:
-                pbar = tqdm.tqdm()
-                print_func = partial(print_fn, pbar=pbar)
-        return pbar, print_func
-
     def run_nested(self,
                    nlive_init=None,
                    maxiter_init=None,
@@ -1636,7 +1615,7 @@ class DynamicSampler(object):
         maxiter_init = min(maxiter_init, maxiter)  # set max iterations
 
         # Baseline run.
-        pbar, print_func = self._get_print_func(print_func, print_progress)
+        pbar, print_func = get_print_func(print_func, print_progress)
         try:
             if not self.base:
                 for results in self.sample_initial(
@@ -1800,7 +1779,7 @@ class DynamicSampler(object):
         # add our new batch of live points.
         ncall, niter, n = self.ncall, self.it - 1, self.batch
         if maxcall > 0 and maxiter > 0:
-            pbar, print_func = self._get_print_func(print_func, print_progress)
+            pbar, print_func = get_print_func(print_func, print_progress)
             try:
                 # Compute our sampling bounds using the provided
                 # weight function.

@@ -186,7 +186,7 @@ def unitcheck(u, nonbounded=None):
                 and np.all(ub < 1.5))
 
 
-def reflect(u):
+def apply_reflect(u):
     """
     Iteratively reflect a number until it is contained in [0, 1].
 

@@ -22,7 +22,7 @@ def bootstrap_tol(results, rstate):
     covs = []
 
     for i in range(niter):
-        xid = rstate.random.randint(n, size=n)
+        xid = rstate.randint(n, size=n)
         mean, cov = dyfunc.mean_and_cov(pos[xid], wts[xid])
         means.append(mean)
         covs.append(cov)

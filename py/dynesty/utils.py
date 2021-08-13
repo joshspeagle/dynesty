@@ -162,7 +162,7 @@ def get_random_generator(seed=None):
 def get_seed_sequence(rstate, nitems):
     """
     Return the list of seeds to initialize random generators
-    This is useful when distributing work across a pool 
+    This is useful when distributing work across a pool
     """
     seeds = np.random.SeedSequence(rstate.integers(0, 2**63 - 1,
                                                    size=4)).spawn(nitems)
@@ -940,7 +940,7 @@ def unravel_run(res, save_proposals=True, print_progress=True):
     try:
         if len(idxs) != (res.niter + res.nlive):
             added_live = False
-    except:
+    except AttributeError:
         pass
 
     # Recreate the nested sampling run for each strand.
@@ -1078,7 +1078,7 @@ def merge_runs(res_list, print_progress=True):
                 rlist_base.append(r)
             else:
                 rlist_add.append(r)
-        except:
+        except AttributeError:
             rlist_base.append(r)
     nbase, nadd = len(rlist_base), len(rlist_add)
     if nbase == 1 and nadd == 1:
@@ -1097,7 +1097,7 @@ def merge_runs(res_list, print_progress=True):
                     r1, r2 = rlist_base[i], rlist_base[i + 1]
                     res = _merge_two(r1, r2, compute_aux=False)
                     rlist_new.append(res)
-                except:
+                except IndexError:
                     # Append the odd run to the new list.
                     rlist_new.append(rlist_base[i])
                 i += 2
@@ -1132,23 +1132,17 @@ def merge_runs(res_list, print_progress=True):
     standard_run = False
 
     # Check if we have a constant number of live points.
-    try:
-        nlive_test = np.ones(niter, dtype=int) * nlive
-        if np.all(samples_n == nlive_test):
-            standard_run = True
-    except:
-        pass
+    nlive_test = np.ones(niter, dtype=int) * nlive
+    if np.all(samples_n == nlive_test):
+        standard_run = True
 
     # Check if we have a constant number of live points where we have
     # recycled the final set of live points.
-    try:
-        nlive_test = np.append(
-            np.ones(niter - nlive, dtype=int) * nlive,
-            np.arange(1, nlive + 1)[::-1])
-        if np.all(samples_n == nlive_test):
-            standard_run = True
-    except:
-        pass
+    nlive_test = np.append(
+        np.ones(niter - nlive, dtype=int) * nlive,
+        np.arange(1, nlive + 1)[::-1])
+    if np.all(samples_n == nlive_test):
+        standard_run = True
 
     # If the number of live points is consistent with a standard nested
     # sampling run, slightly modify the format to keep with previous usage.
@@ -1516,13 +1510,13 @@ def _merge_two(res1, res2, compute_aux=False):
         try:
             logl_b = base_logl[idx_base]
             nlive_b = base_n[idx_base]
-        except:
+        except IndexError:
             logl_b = np.inf
             nlive_b = 0
         try:
             logl_n = new_logl[idx_new]
             nlive_n = new_n[idx_new]
-        except:
+        except IndexError:
             logl_n = np.inf
             nlive_n = 0
 

@@ -466,19 +466,19 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
     nstep_l = -rand0
     nstep_r = (1 - rand0)
 
-    u_l, logl_l = F(nstep_l)
-    u_r, logl_r = F(nstep_r)
+    logl_l = F(nstep_l)[1]
+    logl_r = F(nstep_r)[1]
     nexpand += 1
     # I only expand once
 
     # "Stepping out" the left and right bounds.
     while logl_l > loglstar:
         nstep_l -= 1
-        u_l, logl_l = F(nstep_l)
+        logl_l = F(nstep_l)[1]
         nexpand += 1
     while logl_r > loglstar:
         nstep_r += 1
-        u_r, logl_r = F(nstep_r)
+        logl_r = F(nstep_r)[1]
         nexpand += 1
     if nexpand > nexpand_threshold:
         warnings.warn(

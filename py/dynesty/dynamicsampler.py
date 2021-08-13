@@ -1232,8 +1232,8 @@ class DynamicSampler:
                                         save_bounds=save_bounds)):
 
                 # Grab results.
-                (worst, ustar, vstar, loglstar, logvol, _, logz, _, h, nc,
-                 worst_it, boundidx, bounditer, _, _) = results
+                (worst, ustar, vstar, loglstar, _, _, _, _, _, nc, worst_it,
+                 boundidx, bounditer, _, _) = results
 
                 # Save results.
 
@@ -1264,8 +1264,8 @@ class DynamicSampler:
 
             for it, results in enumerate(self.sampler.add_live_points()):
                 # Grab results.
-                (worst, ustar, vstar, loglstar, logvol, _, logz, _, h, nc,
-                 worst_it, boundidx, bounditer, _, _) = results
+                (worst, ustar, vstar, loglstar, _, _, _, _, _, nc, worst_it,
+                 boundidx, bounditer, _, _) = results
 
                 # Save results.
                 D = dict(id=worst,

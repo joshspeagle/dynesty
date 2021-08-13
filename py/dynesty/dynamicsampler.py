@@ -60,6 +60,32 @@ def _kld_error(args):
                      approx=approx)
 
 
+def compute_weights(results):
+    """ Derive evidence and posterior weights.
+    return two arrays, evidence weights and posterior weights
+    """
+    logl = results.logl
+    logz = results.logz  # final ln(evidence)
+    logvol = results.logvlol
+    logwt = results.logwt
+    samples_n = results.samples_n
+
+    # TODO the logic here needs to be verified
+    logz_remain = logl[-1] + logvol[-1]  # remainder
+    logz_tot = np.logaddexp(logz[-1], logz_remain)  # estimated upper bound
+    lzones = np.ones_like(logz)
+    logzin = logsumexp([lzones * logz_tot, logz], axis=0,
+                       b=[lzones, -lzones])  # ln(remaining evidence)
+    logzweight = logzin - np.log(samples_n)  # ln(evidence weight)
+    logzweight -= logsumexp(logzweight)  # normalize
+    zweight = np.exp(logzweight)  # convert to linear scale
+
+    # Derive posterior weights.
+    pweight = np.exp(logwt - logz[-1])  # importance weight
+    pweight /= np.sum(pweight)  # normalize
+    return zweight, pweight
+
+
 def weight_function(results, args=None, return_weights=False):
     """
     The default weight function utilized by :class:`DynamicSampler`.
@@ -119,20 +145,7 @@ def weight_function(results, args=None, return_weights=False):
     if lpad < 0:
         raise ValueError("`lpad` {0} is less than zero.".format(lpad))
 
-    # Derive evidence weights.
-    logz = results.logz  # final ln(evidence)
-    logz_remain = results.logl[-1] + results.logvol[-1]  # remainder
-    logz_tot = np.logaddexp(logz[-1], logz_remain)  # estimated upper bound
-    lzones = np.ones_like(logz)
-    logzin = logsumexp([lzones * logz_tot, logz], axis=0,
-                       b=[lzones, -lzones])  # ln(remaining evidence)
-    logzweight = logzin - np.log(results.samples_n)  # ln(evidence weight)
-    logzweight -= logsumexp(logzweight)  # normalize
-    zweight = np.exp(logzweight)  # convert to linear scale
-
-    # Derive posterior weights.
-    pweight = np.exp(results.logwt - results.logz[-1])  # importance weight
-    pweight /= np.sum(pweight)  # normalize
+    zweight, pweight = compute_weights(results)
 
     # Compute combined weights.
     weight = (1. - pfrac) * zweight + pfrac * pweight
@@ -143,6 +156,7 @@ def weight_function(results, args=None, return_weights=False):
     nsamps = len(weight)
     bounds = np.nonzero(weight > maxfrac * np.max(weight))[0]
     bounds = (bounds[0] - lpad, bounds[-1] + lpad)
+    logl = results.logl
     if bounds[1] > nsamps - 1:
         # overflow on the RHS, so we move the left side
         bounds = [bounds[0] - (bounds[1] - nsamps - 1), nsamps - 1]
@@ -150,9 +164,9 @@ def weight_function(results, args=None, return_weights=False):
         # if we overflow on the leftside we set the edge to -inf and expand
         # the RHS
         logl_min = -np.inf
-        logl_max = results.logl[min(bounds[1] - bounds[0], nsamps - 1)]
+        logl_max = logl[min(bounds[1] - bounds[0], nsamps - 1)]
     else:
-        logl_min, logl_max = results.logl[bounds[0]], results.logl[bounds[1]]
+        logl_min, logl_max = logl[bounds[0]], logl[bounds[1]]
 
     if return_weights:
         return (logl_min, logl_max), (pweight, zweight, weight)
@@ -1035,7 +1049,6 @@ class DynamicSampler(object):
 
         # Reset "new" results.
         self.new_run = RunRecord()
-        self.new_logl_min, self.new_logl_max = -np.inf, np.inf
 
         # Initialize ln(likelihood) bounds.
         if logl_bounds is None:
@@ -1091,7 +1104,10 @@ class DynamicSampler(object):
             n_pt_above = subset0.sum()
             if n_pt_above == 0:
                 raise RuntimeError(
-                    'Could not find live points in the required logl interval')
+                    'Could not find live points in the required logl interval. '
+                    'Diagnostics. logl_min: %s ' % str(logl_min),
+                    'logl_bounds: %s ' % str(logl_bounds),
+                    'saved_loglmax: %s' % str(saved_logl.max()))
             elif n_pt_above == 1:
                 raise RuntimeError('Could only find a single live point in '
                                    'the required logl interval')

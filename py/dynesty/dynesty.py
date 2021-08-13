@@ -1019,7 +1019,7 @@ def DynamicNestedSampler(loglikelihood,
     return sampler
 
 
-class _function_wrapper(object):
+class _function_wrapper:
     """
     A hack to make functions pickleable when `args` or `kwargs` are
     also included. Based on the implementation in

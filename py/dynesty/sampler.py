@@ -52,8 +52,7 @@ class RunRecord:
             self.D[k].append(newD[k])
 
 
-
-class Sampler(object):
+class Sampler:
     """
     The basic sampler object that performs the actual nested sampling.
 

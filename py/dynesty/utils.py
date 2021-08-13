@@ -571,7 +571,7 @@ def jitter_run(res, rstate=None, approx=False):
     saved_logzvar = np.cumsum(dh * dlogvol_run)
 
     # Copy results.
-    new_res = Results([item for item in res.items()])
+    new_res = Results(list(res.items()))
 
     # Overwrite items with our new estimates.
     new_res.logvol = logvol
@@ -757,7 +757,7 @@ def resample_run(res, rstate=None, return_idx=False):
     eff = 100. * len(res.ncall[samp_idx]) / sum(res.ncall[samp_idx])
 
     # Copy results.
-    new_res = Results([item for item in res.items()])
+    new_res = Results(list(res.items()))
 
     # Overwrite items with our new estimates.
     new_res.niter = len(res.ncall[samp_idx])
@@ -893,7 +893,7 @@ def reweight_run(res, logp_new, logp_old=None):
         saved_h.append(h)
 
     # Copy results.
-    new_res = Results([item for item in res.items()])
+    new_res = Results(list(res.items()))
 
     # Overwrite items with our new estimates.
     new_res.logwt = np.array(saved_logwt)

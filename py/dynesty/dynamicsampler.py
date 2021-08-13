@@ -1787,13 +1787,15 @@ class DynamicSampler:
                 lnz, lnzerr = res.logz[-1], res.logzerr[-1]
                 if logl_bounds is None:
                     logl_bounds = wt_function(res, wt_kwargs)
-                for results in self.sample_batch(nlive_new=nlive,
-                                                 logl_bounds=logl_bounds,
-                                                 maxiter=maxiter,
-                                                 maxcall=maxcall,
-                                                 save_bounds=save_bounds):
+                results = None  # to silence pylint as
+                # sample_batch() should return something given maxiter/maxcall
+                for cur_results in self.sample_batch(nlive_new=nlive,
+                                                     logl_bounds=logl_bounds,
+                                                     maxiter=maxiter,
+                                                     maxcall=maxcall,
+                                                     save_bounds=save_bounds):
                     (worst, ustar, vstar, loglstar, nc, worst_it, boundidx,
-                     bounditer, eff) = results
+                     bounditer, eff) = cur_results
 
                     # When initializing a batch (i.e. when `worst < 0`),
                     # don't increment our call counter or our current

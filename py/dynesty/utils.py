@@ -1555,35 +1555,10 @@ def _merge_two(res1, res2, compute_aux=False):
 
     # Compute the posterior quantities of interest if desired.
     if compute_aux:
-        h = 0.
-        logz = -1.e300
-        loglstar = -1.e300
-        logzvar = 0.
-        logvols_pad = np.concatenate(([0.], combined_logvol))
-        logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
-                             axis=1,
-                             b=np.c_[np.ones(ntot), -np.ones(ntot)])
-        logdvols += math.log(0.5)
-        dlvs = logvols_pad[:-1] - logvols_pad[1:]
-        for i in range(ntot):
-            loglstar_new = combined_logl[i]
-            logdvol, dlv = logdvols[i], dlvs[i]
-            logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
-            logz_new = np.logaddexp(logz, logwt)
-            lzterm = (
-                math.exp(loglstar - logz_new + logdvol) * loglstar +
-                math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
-            h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) -
-                     logz_new)
-            dh = h_new - h
-            h = h_new
-            logz = logz_new
-            logzvar += dh * dlv
-            loglstar = loglstar_new
-            combined_logwt.append(logwt)
-            combined_logz.append(logz)
-            combined_logzvar.append(logzvar)
-            combined_h.append(h)
+
+        (combined_logwt, combined_logz, combined_logzvar,
+         combined_h) = compute_integrals(logvol=combined_logvol,
+                                         logl=combined_logl)
 
         # Compute batch information.
         combined_id = np.array(combined_id)
@@ -1593,10 +1568,10 @@ def _merge_two(res1, res2, compute_aux=False):
         ]
 
         # Add to our results.
-        r.append(('logwt', np.array(combined_logwt)))
-        r.append(('logz', np.array(combined_logz)))
-        r.append(('logzerr', np.sqrt(np.array(combined_logzvar))))
-        r.append(('h', np.array(combined_h)))
+        r.append(('logwt', (combined_logwt)))
+        r.append(('logz', (combined_logz)))
+        r.append(('logzerr', np.sqrt((combined_logzvar))))
+        r.append(('h', (combined_h)))
         r.append(('batch_nlive', np.array(batch_nlive, dtype=int)))
 
     # Combine to form final results object.

@@ -585,6 +585,44 @@ def jitter_run(res, rstate=None, approx=False):
     return new_res
 
 
+def compute_integrals(logl=None, logvol=None):
+    ntot = len(logl)
+    # Compute quantities of interest.
+    h = 0.
+    logz = -1.e300
+    loglstar = -1.e300
+    logzvar = 0.
+    logvols_pad = np.concatenate(([0.], logvol))
+    logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
+                         axis=1,
+                         b=np.c_[np.ones(ntot), -np.ones(ntot)])
+    logdvols += math.log(0.5)
+    dlvs = logvols_pad[:-1] - logvols_pad[1:]
+    res_logwt = np.zeros(ntot)
+    res_logz = np.zeros(ntot)
+    res_logzvar = np.zeros(ntot)
+    res_h = np.zeros(ntot)
+
+    for i in range(ntot):
+        loglstar_new = logl[i]
+        logdvol, dlv = logdvols[i], dlvs[i]
+        logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
+        logz_new = np.logaddexp(logz, logwt)
+        lzterm = (math.exp(loglstar - logz_new + logdvol) * loglstar +
+                  math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
+        h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) - logz_new)
+        dh = h_new - h
+        h = h_new
+        logz = logz_new
+        logzvar += 2. * dh * dlv
+        loglstar = loglstar_new
+        res_logwt[i] = logwt
+        res_logz[i] = logz
+        res_logzvar[i] = logzvar
+        res_h[i] = h
+    return res_logwt, res_logz, res_logzvar, res_h
+
+
 def resample_run(res, rstate=None, return_idx=False):
     """
     Probes **sampling uncertainties** on a nested sampling run using bootstrap
@@ -723,35 +761,8 @@ def resample_run(res, rstate=None, return_idx=False):
     # Assign log(volume) to samples.
     logvol = np.cumsum(np.log(samp_n / (samp_n + 1.)))
 
-    # Computing weights using quadratic estimator.
-    h = 0.
-    logz = -1.e300
-    loglstar = -1.e300
-    logzvar = 0.
-    logvols_pad = np.concatenate(([0.], logvol))
-    logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
-                         axis=1,
-                         b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
-    logdvols += math.log(0.5)
-    dlvs = logvols_pad[:-1] - logvols_pad[1:]
-    saved_logwt, saved_logz, saved_logzvar, saved_h = [], [], [], []
-    for i in range(nsamps):
-        loglstar_new = logl[i]
-        logdvol, dlv = logdvols[i], dlvs[i]
-        logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
-        logz_new = np.logaddexp(logz, logwt)
-        lzterm = (math.exp(loglstar - logz_new + logdvol) * loglstar +
-                  math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
-        h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) - logz_new)
-        dh = h_new - h
-        h = h_new
-        logz = logz_new
-        logzvar += dh * dlv
-        loglstar = loglstar_new
-        saved_logwt.append(logwt)
-        saved_logz.append(logz)
-        saved_logzvar.append(logzvar)
-        saved_h.append(h)
+    saved_logwt, saved_logz, saved_logzvar, saved_h = compute_integrals(
+        logl=logl, logvol=logvol)
 
     # Compute sampling efficiency.
     eff = 100. * len(res.ncall[samp_idx]) / sum(res.ncall[samp_idx])

@@ -38,6 +38,45 @@ _SAMPLERS = {
 }
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
+_LOWL_VAL = -1e300
+
+
+def _compute_integrals(logl=None, logvol=None):
+    ntot = len(logl)
+    # Compute quantities of interest.
+    h = 0.
+    logz = -1.e300
+    loglstar = -1.e300
+    logzvar = 0.
+    logvols_pad = np.concatenate(([0.], logvol))
+    logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
+                         axis=1,
+                         b=np.c_[np.ones(ntot), -np.ones(ntot)])
+    logdvols += math.log(0.5)
+    dlvs = logvols_pad[:-1] - logvols_pad[1:]
+    res_logwt = np.zeros(ntot)
+    res_logz = np.zeros(ntot)
+    res_logzvar = np.zeros(ntot)
+    res_h = np.zeros(ntot)
+
+    for i in range(ntot):
+        loglstar_new = logl[i]
+        logdvol, dlv = logdvols[i], dlvs[i]
+        logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
+        logz_new = np.logaddexp(logz, logwt)
+        lzterm = (math.exp(loglstar - logz_new + logdvol) * loglstar +
+                  math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
+        h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) - logz_new)
+        dh = h_new - h
+        h = h_new
+        logz = logz_new
+        logzvar += 2. * dh * dlv
+        loglstar = loglstar_new
+        res_logwt[i] = logwt
+        res_logz[i] = logz
+        res_logzvar[i] = logzvar
+        res_h[i] = h
+    return res_logwt, res_logz, res_logzvar, res_h
 
 
 def _kld_error(args):
@@ -778,7 +817,7 @@ class DynamicSampler:
                     for i, logl in enumerate(self.live_logl):
                         if not np.isfinite(logl):
                             if np.sign(logl) < 0:
-                                self.live_logl[i] = -1e300
+                                self.live_logl[i] = _LOWL_VAL
                             else:
                                 raise ValueError(
                                     "The log-likelihood ({0}) of live "
@@ -790,7 +829,7 @@ class DynamicSampler:
                     # Check to make sure there is at least one finite
                     # log-likelihood value within the initial set of live
                     # points.
-                    if any(self.live_logl != -1e300):
+                    if any(self.live_logl != _LOWL_VAL):
                         break
                 else:
                     # If we found nothing after many attempts, raise the alarm.
@@ -808,14 +847,14 @@ class DynamicSampler:
                 for i, logl in enumerate(self.live_logl):
                     if not np.isfinite(logl):
                         if np.sign(logl) < 0:
-                            self.live_logl[i] = -1e300
+                            self.live_logl[i] = _LOWL_VAL
                         else:
                             raise ValueError(
                                 "The log-likelihood ({0}) of live "
                                 "point {1} located at u={2} v={3} "
                                 " is invalid.".format(logl, i, self.live_u[i],
                                                       self.live_v[i]))
-                if all(self.live_logl == -1e300):
+                if all(self.live_logl == _LOWL_VAL):
                     raise ValueError("Not a single provided live point has a "
                                      "valid log-likelihood!")
 
@@ -1071,7 +1110,7 @@ class DynamicSampler:
             for i, logl in enumerate(live_logl):
                 if not np.isfinite(logl):
                     if np.sign(logl) < 0:
-                        live_logl[i] = -1e300
+                        live_logl[i] = _LOWL_VAL
                     else:
                         raise ValueError("The log-likelihood ({0}) of live "
                                          "point {1} located at u={2} v={3} "
@@ -1385,36 +1424,12 @@ class DynamicSampler:
         assert self.saved_run.D['logl'][-1] == max(new_d['logl'][-1],
                                                    saved_d['logl'][-1])
 
-        # Compute quantities of interest.
-        h = 0.
-        logz = -1.e300
-        loglstar = -1.e300
-        logzvar = 0.
-        logvols_pad = np.concatenate(([0.], self.saved_run.D['logvol']))
-        logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
-                             axis=1,
-                             b=np.c_[np.ones(ntot), -np.ones(ntot)])
-        logdvols += math.log(0.5)
-        dlvs = logvols_pad[:-1] - logvols_pad[1:]
-        for i in range(ntot):
-            loglstar_new = self.saved_run.D['logl'][i]
-            logdvol, dlv = logdvols[i], dlvs[i]
-            logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
-            logz_new = np.logaddexp(logz, logwt)
-            lzterm = (
-                math.exp(loglstar - logz_new + logdvol) * loglstar +
-                math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
-            h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) -
-                     logz_new)
-            dh = h_new - h
-            h = h_new
-            logz = logz_new
-            logzvar += 2. * dh * dlv
-            loglstar = loglstar_new
-            self.saved_run.D['logwt'].append(logwt)
-            self.saved_run.D['logz'].append(logz)
-            self.saved_run.D['logzvar'].append(logzvar)
-            self.saved_run.D['h'].append(h)
+        new_logwt, new_logz, new_logzvar, new_h = _compute_integrals(
+            logl=self.saved_run.D['logl'], logvol=self.saved_run.D['logvol'])
+        self.saved_run.D['logwt'].extend(new_logwt.tolist())
+        self.saved_run.D['logz'].extend(new_logz.tolist())
+        self.saved_run.D['logzvar'].extend(new_logzvar.tolist())
+        self.saved_run.D['h'].extend(new_h.tolist())
 
         # Reset results.
         self.new_run = RunRecord()

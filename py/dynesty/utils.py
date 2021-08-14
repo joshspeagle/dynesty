@@ -981,37 +981,8 @@ def unravel_run(res, save_proposals=True, print_progress=True):
             niter = nsamps
             logvol = -math.log(2) * (1. + np.arange(niter))
 
-        # Compute weights using quadratic estimator.
-        h = 0.
-        logz = -1.e300
-        loglstar = -1.e300
-        logzvar = 0.
-        logvols_pad = np.concatenate(([0.], logvol))
-        logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
-                             axis=1,
-                             b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
-        logdvols += math.log(0.5)
-        dlvs = logvols_pad[:-1] - logvols_pad[1:]
-        saved_logwt, saved_logz, saved_logzvar, saved_h = [], [], [], []
-        for i in range(nsamps):
-            loglstar_new = logl[i]
-            logdvol, dlv = logdvols[i], dlvs[i]
-            logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
-            logz_new = np.logaddexp(logz, logwt)
-            lzterm = (
-                math.exp(loglstar - logz_new + logdvol) * loglstar +
-                math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
-            h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) -
-                     logz_new)
-            dh = h_new - h
-            h = h_new
-            logz = logz_new
-            logzvar += dh * dlv
-            loglstar = loglstar_new
-            saved_logwt.append(logwt)
-            saved_logz.append(logz)
-            saved_logzvar.append(logzvar)
-            saved_h.append(h)
+        saved_logwt, saved_logz, saved_logzvar, saved_h = compute_integrals(
+            logl=logl, logvol=logvol)
 
         # Compute sampling efficiency.
         eff = 100. * nsamps / sum(res.ncall[strand])
@@ -1021,11 +992,9 @@ def unravel_run(res, save_proposals=True, print_progress=True):
              ('eff', eff), ('samples', res.samples[strand]),
              ('samples_id', res.samples_id[strand]),
              ('samples_it', res.samples_it[strand]),
-             ('samples_u', res.samples_u[strand]),
-             ('logwt', np.array(saved_logwt)), ('logl', logl),
-             ('logvol', logvol), ('logz', np.array(saved_logz)),
-             ('logzerr', np.sqrt(np.array(saved_logzvar))),
-             ('h', np.array(saved_h))]
+             ('samples_u', res.samples_u[strand]), ('logwt', saved_logwt),
+             ('logl', logl), ('logvol', logvol), ('logz', saved_logz),
+             ('logzerr', np.sqrt(saved_logzvar)), ('h', saved_h)]
 
         # Add proposal information (if available).
         if save_proposals:

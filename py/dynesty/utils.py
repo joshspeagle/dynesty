@@ -529,46 +529,8 @@ def jitter_run(res, rstate=None, approx=False):
     # these into associated ln(volumes).
     logvol = np.log(t_arr).cumsum()
 
-    # Compute weights using quadratic estimator.
-    loglstar_pad = np.concatenate([[-1.e300], logl])
-
-    # we want log(exp(logvol_i)-exp(logvol_(i+1)))
-    # assuming that logvol0 = 0
-    # log(exp(LV_{i})-exp(LV_{i+1})) =
-    # = LV{i} + log(1-exp(LV_{i+1}-LV{i}))
-    # = LV_{i+1} - (LV_{i+1} -LV_i) + log(1-exp(LV_{i+1}-LV{i}))
-    dlogvol = np.diff(logvol, prepend=0)
-    logdvol = logvol - dlogvol + np.log1p(-np.exp(dlogvol))
-
-    # logdvol is log(delta(volumes)) i.e. log (X_i-X_{i-1}) for the
-    # newly simulated run
-    logdvol2 = logdvol + math.log(0.5)
-    # These are log(1/2(X_(i+1)-X_i))
-
-    dlogvol_run = -np.diff(res.logvol, prepend=0)
-    # this are delta(log(volumes)) of the run
-
-    # These are log((L_i+L_{i_1})*(X_i+1-X_i)/2)
-    saved_logwt = np.logaddexp(loglstar_pad[1:], loglstar_pad[:-1]) + logdvol2
-    saved_logz = np.logaddexp.accumulate(saved_logwt)
-    # This implements eqn 16 of Speagle2020
-
-    logzmax = saved_logz[-1]
-    # we'll need that to just normalize likelihoods to avoid overflows
-
-    # H is defined as
-    # H = 1/z int( L * ln(L) dX,X=0..1) - ln(z)
-    # incomplete H can be defined as
-    # H = int( L/Z * ln(L) dX,X=0..x) - z_x/Z * ln(Z)
-    h_part1 = np.cumsum(
-        (np.exp(loglstar_pad[1:] - logzmax + logdvol2) * loglstar_pad[1:] +
-         np.exp(loglstar_pad[:-1] - logzmax + logdvol2) * loglstar_pad[:-1]))
-    # here we divide the likelihood by zmax to avoid to overflow
-    saved_h = h_part1 - logzmax * np.exp(saved_logz - logzmax)
-    # changes in h in each step
-    dh = np.diff(saved_h, prepend=0)
-
-    saved_logzvar = np.cumsum(dh * dlogvol_run)
+    (saved_logwt, saved_logz, saved_logzvar,
+     saved_h) = compute_integrals(logl=logl, logvol=logvol)
 
     # Copy results.
     new_res = Results(list(res.items()))

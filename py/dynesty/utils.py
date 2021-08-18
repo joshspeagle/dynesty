@@ -619,6 +619,38 @@ def compute_integrals(logl=None, logvol=None, bias_var=False, reweight=None):
     return saved_logwt, saved_logz, saved_logzvar, saved_h
 
 
+def progress_integration(loglstar,
+                         loglstar_new,
+                         logz,
+                         logzvar,
+                         logvol,
+                         dlogvol,
+                         h,
+                         bias_var=False):
+    """
+    This is the calculation of weights and logz/var estimates one step at the time 
+    Importantly the calculation of H is somewhat different from compute_integrals
+    as incomplete integrals require knowing Z
+
+    Return logwt, logz, logzvar, h
+    """
+    # Compute relative contribution to results.
+    logdvol = logsumexp(a=[logvol + dlogvol, logvol], b=[0.5, -0.5])
+    logwt = np.logaddexp(loglstar_new, loglstar) + logdvol  # weight
+    logz_new = np.logaddexp(logz, logwt)  # ln(evidence)
+    lzterm = (math.exp(loglstar - logz_new + logdvol) * loglstar +
+              math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
+    h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) - logz_new
+             )  # information
+    dh = h_new - h
+    if bias_var:
+        logzvar_mult = 2
+    else:
+        logzvar_mult = 1
+    logzvar_new = logzvar + logzvar_mult * dh * dlogvol  # var[ln(evidence)] estimate
+    return logwt, logz_new, logzvar_new, h_new
+
+
 def resample_run(res, rstate=None, return_idx=False):
     """
     Probes **sampling uncertainties** on a nested sampling run using bootstrap

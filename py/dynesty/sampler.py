@@ -16,7 +16,7 @@ from scipy.special import logsumexp
 from .results import Results, print_fn
 from .bounding import UnitCube
 from .sampling import sample_unif
-from .utils import get_seed_sequence, get_print_func
+from .utils import get_seed_sequence, get_print_func, progress_integration
 
 __all__ = ["Sampler"]
 
@@ -453,11 +453,6 @@ class Sampler:
                           (self.nlive + 1.))
         logvols_pad = np.concatenate(
             ([self.saved_run.D['logvol'][-1]], logvols))
-        logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
-                             axis=1,
-                             b=np.c_[np.ones(self.nlive),
-                                     -np.ones(self.nlive)])
-        logdvols += math.log(0.5)
 
         # Defining change in `logvol` used in `logzvar` approximation.
         dlvs = logvols_pad[:-1] - logvols_pad[1:]
@@ -483,25 +478,16 @@ class Sampler:
             # Grab live point with `i`-th lowest log-likelihood along with
             # ancillary quantities.
             idx = lsort_idx[i]
-            logvol, logdvol, dlv = logvols[i], logdvols[i], dlvs[i]
+            logvol, dlv = logvols[i], dlvs[i]
             ustar = np.array(self.live_u[idx])
             vstar = np.array(self.live_v[idx])
             loglstar_new = self.live_logl[idx]
             boundidx = self.live_bound[idx]
             point_it = self.live_it[idx]
 
-            # Compute relative contribution to results.
-            logwt = np.logaddexp(loglstar_new, loglstar) + logdvol  # weight
-            logz_new = np.logaddexp(logz, logwt)  # ln(evidence)
-            lzterm = (
-                math.exp(loglstar - logz_new + logdvol) * loglstar +
-                math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
-            h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) - logz_new
-                     )  # information
-            dh = h_new - h
-            h = h_new
-            logz = logz_new
-            logzvar += 2. * dh * dlv  # var[ln(evidence)] estimate
+            (logwt, logz, logzvar,
+             h) = progress_integration(loglstar, loglstar_new, logz, logzvar,
+                                       logvol, dlv, h)
             loglstar = loglstar_new
             logz_remain = loglmax + logvol  # remaining ln(evidence)
             delta_logz = np.logaddexp(logz, logz_remain) - logz  # dlogz
@@ -779,11 +765,6 @@ class Sampler:
             vstar = np.array(self.live_v[worst])  # transformed position
             loglstar_new = self.live_logl[worst]  # new likelihood
 
-            # Set our new weight using quadratic estimates (trapezoid rule).
-            logdvol = logsumexp(a=[logvol + self.dlv, logvol],
-                                b=[0.5, -0.5])  # ln(dvol)
-            logwt = np.logaddexp(loglstar_new, loglstar) + logdvol  # ln(wt)
-
             # Sample a new live point from within the likelihood constraint
             # `logl > loglstar` using the bounding distribution and sampling
             # method from our sampler.
@@ -792,17 +773,9 @@ class Sampler:
             self.ncall += nc
             self.since_update += nc
 
-            # Update evidence `logz` and information `h`.
-            logz_new = np.logaddexp(logz, logwt)
-            lzterm = (
-                math.exp(loglstar - logz_new + logdvol) * loglstar +
-                math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
-            h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) -
-                     logz_new)
-            dh = h_new - h
-            h = h_new
-            logz = logz_new
-            logzvar += 2. * dh * self.dlv
+            (logwt, logz, logzvar,
+             h) = progress_integration(loglstar, loglstar_new, logz, logzvar,
+                                       logvol, self.dlv, h)
             loglstar = loglstar_new
 
             # Compute bound index at the current iteration.

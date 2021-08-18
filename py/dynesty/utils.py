@@ -564,7 +564,8 @@ def compute_integrals(logl=None, logvol=None, bias_var=False, reweight=None):
     reweight: array (or None)
         (optional) reweighting array to reweight posterior
     """
-    
+    assert logl is not None
+    assert logvol is not None
     loglstar_pad = np.concatenate([[-1.e300], logl])
 
     # we want log(exp(logvol_i)-exp(logvol_(i+1)))

@@ -115,9 +115,9 @@ def __get_auto_sample(ndim, gradient):
 
 def __get_walks_slices(walks0, slices0, sample, ndim):
     """
-    Get the best number of steps for random walk/slicing based on 
+    Get the best number of steps for random walk/slicing based on
     the type of sampler and dimension
-    
+
     Arguments:
     walks0: integer (provided by user or none for auto)
     slices0: integer (provided by user or none for auto)

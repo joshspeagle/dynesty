@@ -25,6 +25,17 @@ def loglike_inf(x):
     return -0.5 * r2
 
 
+class MyException(Exception):
+    pass
+
+
+def loglike_exc(x):
+    r2 = np.sum(x**2)
+    if r2 < 0.01:
+        raise MyException('ooops')
+    return -0.5 * r2
+
+
 def prior_transform(x):
     return (2 * x - 1) * size
 
@@ -125,3 +136,16 @@ def test_kl():
     assert np.isfinite(kl[-1])
     with pytest.raises(Exception):
         dyutil.kl_divergence(res1, res2)
+
+
+def test_exc():
+    # Test of exceptions that the exception is reraised
+    ndim = 2
+    rstate = get_rstate()
+    sampler = dynesty.NestedSampler(loglike_exc,
+                                    prior_transform,
+                                    ndim,
+                                    nlive=nlive,
+                                    rstate=rstate)
+    with pytest.raises(MyException):
+        sampler.run_nested()

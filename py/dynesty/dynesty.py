@@ -10,6 +10,7 @@ provides access to the two main sampler "super-classes" via
 import sys
 import warnings
 import math
+import traceback
 import numpy as np
 
 from .nestedsamplers import _SAMPLING
@@ -1036,7 +1037,6 @@ class _function_wrapper:
         try:
             return self.func(x, *self.args, **self.kwargs)
         except:  # noqa
-            import traceback
             print("Exception while calling {0} function:".format(self.name))
             print("  params:", x)
             print("  args:", self.args)

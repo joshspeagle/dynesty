@@ -585,42 +585,57 @@ def jitter_run(res, rstate=None, approx=False):
     return new_res
 
 
-def compute_integrals(logl=None, logvol=None):
-    ntot = len(logl)
-    # Compute quantities of interest.
-    h = 0.
-    logz = -1.e300
-    loglstar = -1.e300
-    logzvar = 0.
-    logvols_pad = np.concatenate(([0.], logvol))
-    logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
-                         axis=1,
-                         b=np.c_[np.ones(ntot), -np.ones(ntot)])
-    logdvols += math.log(0.5)
-    dlvs = logvols_pad[:-1] - logvols_pad[1:]
-    res_logwt = np.zeros(ntot)
-    res_logz = np.zeros(ntot)
-    res_logzvar = np.zeros(ntot)
-    res_h = np.zeros(ntot)
+def compute_integrals(logl=None, logvol=None, bias_var=False):
+    # Compute weights using quadratic estimator.
+    loglstar_pad = np.concatenate([[-1.e300], logl])
 
-    for i in range(ntot):
-        loglstar_new = logl[i]
-        logdvol, dlv = logdvols[i], dlvs[i]
-        logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
-        logz_new = np.logaddexp(logz, logwt)
-        lzterm = (math.exp(loglstar - logz_new + logdvol) * loglstar +
-                  math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
-        h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) - logz_new)
-        dh = h_new - h
-        h = h_new
-        logz = logz_new
-        logzvar += 2. * dh * dlv
-        loglstar = loglstar_new
-        res_logwt[i] = logwt
-        res_logz[i] = logz
-        res_logzvar[i] = logzvar
-        res_h[i] = h
-    return res_logwt, res_logz, res_logzvar, res_h
+    # we want log(exp(logvol_i)-exp(logvol_(i+1)))
+    # assuming that logvol0 = 0
+    # log(exp(LV_{i})-exp(LV_{i+1})) =
+    # = LV{i} + log(1-exp(LV_{i+1}-LV{i}))
+    # = LV_{i+1} - (LV_{i+1} -LV_i) + log(1-exp(LV_{i+1}-LV{i}))
+    dlogvol = np.diff(logvol, prepend=0)
+    logdvol = logvol - dlogvol + np.log1p(-np.exp(dlogvol))
+
+    # logdvol is log(delta(volumes)) i.e. log (X_i-X_{i-1})
+    logdvol2 = logdvol + math.log(0.5)
+    # These are log(1/2(X_(i+1)-X_i))
+
+    dlogvol = -np.diff(logvol, prepend=0)
+    # this are delta(log(volumes)) of the run
+
+    # These are log((L_i+L_{i_1})*(X_i+1-X_i)/2)
+    saved_logwt = np.logaddexp(loglstar_pad[1:], loglstar_pad[:-1]) + logdvol2
+    saved_logz = np.logaddexp.accumulate(saved_logwt)
+    # This implements eqn 16 of Speagle2020
+
+    logzmax = saved_logz[-1]
+    # we'll need that to just normalize likelihoods to avoid overflows
+
+    # H is defined as
+    # H = 1/z int( L * ln(L) dX,X=0..1) - ln(z)
+    # incomplete H can be defined as
+    # H = int( L/Z * ln(L) dX,X=0..x) - z_x/Z * ln(Z)
+    h_part1 = np.cumsum(
+        (np.exp(loglstar_pad[1:] - logzmax + logdvol2) * loglstar_pad[1:] +
+         np.exp(loglstar_pad[:-1] - logzmax + logdvol2) * loglstar_pad[:-1]))
+    # here we divide the likelihood by zmax to avoid to overflow
+    saved_h = h_part1 - logzmax * np.exp(saved_logz - logzmax)
+    # changes in h in each step
+    dh = np.diff(saved_h, prepend=0)
+
+    if bias_var:
+        # to take into account the bias by adding it to the
+        # uncertainties (by multiplying errors by 2)
+        # https://github.com/joshspeagle/dynesty/issues/306
+        logzvar_mult = 2
+    else:
+        logzvar_mult = 1
+
+    # I'm applying abs() here to avoid nans down the line
+    # because partial H integrals could be negative
+    saved_logzvar = np.abs(np.cumsum(dh * dlogvol)) * logzvar_mult
+    return saved_logwt, saved_logz, saved_logzvar, saved_h
 
 
 def resample_run(res, rstate=None, return_idx=False):

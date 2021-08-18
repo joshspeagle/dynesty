@@ -48,6 +48,7 @@ def test_saving_pool():
     ndim = 2
     fname = 'xx1.h5'
     pool = mp.Pool(2)
+    rstate = get_rstate()
     sampler = dynesty.NestedSampler(loglike_egg,
                                     prior_transform_egg,
                                     ndim,
@@ -57,6 +58,7 @@ def test_saving_pool():
                                     save_history=True,
                                     history_filename=fname,
                                     pool=pool,
-                                    queue_size=2)
-    sampler.run_nested(dlogz=1, print_progress=printing)
+                                    queue_size=2,
+                                    rstate=rstate)
+    sampler.run_nested(print_progress=printing, maxiter=300)
     assert (os.path.exists(fname))

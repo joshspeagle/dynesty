@@ -548,7 +548,23 @@ def jitter_run(res, rstate=None, approx=False):
 
 
 def compute_integrals(logl=None, logvol=None, bias_var=False, reweight=None):
-    # Compute weights using quadratic estimator.
+    """
+    Compute weights, logzs and variances using quadratic estimator.
+    Returns logwt, logz, logzvar, h
+
+    Parameters:
+    -----------
+    logl: array
+        array of log likelihoods
+    logvol: array
+        array of log volumes
+    bias_var: bool
+        if True the variances take into account the bias of logz
+        estimator
+    reweight: array (or None)
+        (optional) reweighting array to reweight posterior
+    """
+    
     loglstar_pad = np.concatenate([[-1.e300], logl])
 
     # we want log(exp(logvol_i)-exp(logvol_(i+1)))

@@ -628,9 +628,10 @@ def progress_integration(loglstar,
                          h,
                          bias_var=False):
     """
-    This is the calculation of weights and logz/var estimates one step at the time 
-    Importantly the calculation of H is somewhat different from compute_integrals
-    as incomplete integrals require knowing Z
+    This is the calculation of weights and logz/var estimates one step at the
+    time.
+    Importantly the calculation of H is somewhat different from
+    compute_integrals as incomplete integrals of H() of require knowing Z
 
     Return logwt, logz, logzvar, h
     """
@@ -647,7 +648,8 @@ def progress_integration(loglstar,
         logzvar_mult = 2
     else:
         logzvar_mult = 1
-    logzvar_new = logzvar + logzvar_mult * dh * dlogvol  # var[ln(evidence)] estimate
+    logzvar_new = logzvar + logzvar_mult * dh * dlogvol
+    # var[ln(evidence)] estimate
     return logwt, logz_new, logzvar_new, h_new
 
 
@@ -1106,7 +1108,7 @@ def merge_runs(res_list, print_progress=True):
         if print_progress:
             sys.stderr.write('\rMerge: {0}/{1}     '.format(counter, ntot))
 
-    nsamps, samples_n = _get_nsamps_samples_n(res)
+    samples_n = _get_nsamps_samples_n(res)[1]
     nlive = max(samples_n)
     niter = res.niter
     standard_run = False

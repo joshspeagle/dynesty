@@ -125,6 +125,7 @@ class Sampler:
 
         # set to none just for qa
         self.scale = None
+        self.method = None
         self.kwargs = {}
 
         # parallelism

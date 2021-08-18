@@ -41,7 +41,6 @@ SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 _LOWL_VAL = -1e300
 
 
-
 def _kld_error(args):
     """ Internal `pool.map`-friendly wrapper for :meth:`kld_error` used by
     :meth:`stopping_function`."""

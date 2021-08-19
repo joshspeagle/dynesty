@@ -547,7 +547,7 @@ def jitter_run(res, rstate=None, approx=False):
     return new_res
 
 
-def compute_integrals(logl=None, logvol=None, bias_var=False, reweight=None):
+def compute_integrals(logl=None, logvol=None, reweight=None):
     """
     Compute weights, logzs and variances using quadratic estimator.
     Returns logwt, logz, logzvar, h
@@ -558,9 +558,6 @@ def compute_integrals(logl=None, logvol=None, bias_var=False, reweight=None):
         array of log likelihoods
     logvol: array
         array of log volumes
-    bias_var: bool
-        if True the variances take into account the bias of logz
-        estimator
     reweight: array (or None)
         (optional) reweighting array to reweight posterior
     """
@@ -605,28 +602,14 @@ def compute_integrals(logl=None, logvol=None, bias_var=False, reweight=None):
     # changes in h in each step
     dh = np.diff(saved_h, prepend=0)
 
-    if bias_var:
-        # to take into account the bias by adding it to the
-        # uncertainties (by multiplying errors by 2)
-        # https://github.com/joshspeagle/dynesty/issues/306
-        logzvar_mult = 2
-    else:
-        logzvar_mult = 1
-
     # I'm applying abs() here to avoid nans down the line
     # because partial H integrals could be negative
-    saved_logzvar = np.abs(np.cumsum(dh * dlogvol)) * logzvar_mult
+    saved_logzvar = np.abs(np.cumsum(dh * dlogvol))
     return saved_logwt, saved_logz, saved_logzvar, saved_h
 
 
-def progress_integration(loglstar,
-                         loglstar_new,
-                         logz,
-                         logzvar,
-                         logvol,
-                         dlogvol,
-                         h,
-                         bias_var=False):
+def progress_integration(loglstar, loglstar_new, logz, logzvar, logvol,
+                         dlogvol, h):
     """
     This is the calculation of weights and logz/var estimates one step at the
     time.
@@ -644,11 +627,8 @@ def progress_integration(loglstar,
     h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) - logz_new
              )  # information
     dh = h_new - h
-    if bias_var:
-        logzvar_mult = 2
-    else:
-        logzvar_mult = 1
-    logzvar_new = logzvar + logzvar_mult * dh * dlogvol
+
+    logzvar_new = logzvar + dh * dlogvol
     # var[ln(evidence)] estimate
     return logwt, logz_new, logzvar_new, h_new
 

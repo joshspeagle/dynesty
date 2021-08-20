@@ -50,6 +50,9 @@ _SAMPLING = {
 
 
 class SuperSampler(Sampler):
+    """
+    This is a class that provides common functionality to all the implemented samplers
+    """
     def __init__(self,
                  loglikelihood,
                  prior_transform,
@@ -62,7 +65,7 @@ class SuperSampler(Sampler):
                  queue_size,
                  pool,
                  use_pool,
-                 kwargs={},
+                 kwargs=None,
                  ncdim=0):
         # Initialize sampler.
         super().__init__(loglikelihood,
@@ -76,6 +79,22 @@ class SuperSampler(Sampler):
                          pool,
                          use_pool,
                          ncdim=ncdim)
+        # Initialize method to propose a new starting point.
+        self._PROPOSE = {
+            'unif': self.propose_unif,
+            'rwalk': self.propose_live,
+            'rstagger': self.propose_live,
+            'slice': self.propose_live,
+            'rslice': self.propose_live,
+            'hslice': self.propose_live,
+            'user-defined': self.propose_live
+        }
+
+        if callable(method):
+            _SAMPLING["user-defined"] = method
+            method = "user-defined"
+        self.propose_point = self._PROPOSE[method]
+
         # Initialize heuristic used to update our sampling method.
         self._UPDATE = {
             'unif': self.update_unif,
@@ -86,11 +105,33 @@ class SuperSampler(Sampler):
             'hslice': self.update_hslice,
             'user-defined': self.update_user
         }
+        self.kwargs = kwargs or {}
 
-        self.custom_update = kwargs.get('update_func')
+        # please use self.kwargs below
+
+        self.custom_update = self.kwargs.get('update_func')
         self.update_proposal = self._UPDATE[method]
         self.enlarge, self.bootstrap = get_enlarge_bootstrap(
-            method, kwargs.get('enlarge'), kwargs.get('bootstrap'))
+            method, self.kwargs.get('enlarge'), self.kwargs.get('bootstrap'))
+
+        self.cite = self.kwargs.get('cite')
+
+        self.method = method
+        self.nonbounded = self.kwargs.get('nonbounded', None)
+
+        # Gradient.
+        self.grad = self.kwargs.get('grad', None)
+        self.compute_jac = self.kwargs.get('compute_jac', False)
+
+        # Initialize random walk parameters.
+        self.walks = max(2, self.kwargs.get('walks', 25))
+        self.facc = self.kwargs.get('facc', 0.5)
+        self.facc = min(1., max(1. / self.walks, self.facc))
+
+        # Initialize slice parameters.
+        self.slices = self.kwargs.get('slices', 5)
+        self.fmove = self.kwargs.get('fmove', 0.9)
+        self.max_move = self.kwargs.get('max_move', 100)
 
     def update_unif(self, blob):
         """Filler function."""
@@ -197,7 +238,7 @@ class UnitCubeSampler(SuperSampler):
                  queue_size,
                  pool,
                  use_pool,
-                 kwargs={},
+                 kwargs=None,
                  ncdim=0):
 
         # Initialize sampler.
@@ -212,51 +253,17 @@ class UnitCubeSampler(SuperSampler):
                          queue_size,
                          pool,
                          use_pool,
-                         ncdim=ncdim)
-
-        # Initialize method to propose a new starting point.
-        self._PROPOSE = {
-            'unif': self.propose_unif,
-            'rwalk': self.propose_live,
-            'rstagger': self.propose_live,
-            'slice': self.propose_live,
-            'rslice': self.propose_live,
-            'hslice': self.propose_live,
-            'user-defined': self.propose_live
-        }
-
-        if callable(method):
-            _SAMPLING["user-defined"] = method
-            method = "user-defined"
-        self.propose_point = self._PROPOSE[method]
+                         ncdim=ncdim,
+                         kwargs=kwargs or {})
 
         # Initialize method to "evolve" a point to a new position.
         self.sampling, self.evolve_point = method, _SAMPLING[method]
 
         # Initialize other arguments.
-        self.kwargs = kwargs
         self.scale = 1.
-
-        self.cite = self.kwargs.get('cite')
 
         self.unitcube = UnitCube(self.ncdim)
         self.bounding = 'none'
-        self.method = method
-        self.nonbounded = self.kwargs.get('nonbounded', None)
-
-        # Gradient.
-        self.grad = self.kwargs.get('grad', None)
-        self.compute_jac = self.kwargs.get('compute_jac', False)
-
-        # Initialize random walk parameters.
-        self.walks = max(2, self.kwargs.get('walks', 25))
-        self.facc = self.kwargs.get('facc', 0.5)
-        self.facc = min(1., max(1. / self.walks, self.facc))
-
-        # Initialize slice parameters.
-        self.slices = self.kwargs.get('slices', 5)
-        self.fmove = self.kwargs.get('fmove', 0.9)
-        self.max_move = self.kwargs.get('max_move', 100)
 
     def update(self):
         """Update the unit cube bound."""
@@ -356,7 +363,7 @@ class SingleEllipsoidSampler(SuperSampler):
                  queue_size,
                  pool,
                  use_pool,
-                 kwargs={},
+                 kwargs=None,
                  ncdim=0):
 
         # Initialize sampler.
@@ -371,51 +378,18 @@ class SingleEllipsoidSampler(SuperSampler):
                          queue_size,
                          pool,
                          use_pool,
-                         ncdim=ncdim)
-
-        # Initialize method to propose a new starting point.
-        self._PROPOSE = {
-            'unif': self.propose_unif,
-            'rwalk': self.propose_live,
-            'rstagger': self.propose_live,
-            'slice': self.propose_live,
-            'rslice': self.propose_live,
-            'hslice': self.propose_live,
-            'user-defined': self.propose_live
-        }
-
-        if callable(method):
-            _SAMPLING["user-defined"] = method
-            method = "user-defined"
-        self.propose_point = self._PROPOSE[method]
+                         ncdim=ncdim,
+                         kwargs=kwargs or {})
 
         # Initialize method to "evolve" a point to a new position.
         self.sampling, self.evolve_point = method, _SAMPLING[method]
 
         # Initialize other arguments.
-        self.kwargs = kwargs
         self.scale = 1.
-
-        self.cite = self.kwargs.get('cite')
 
         self.ell = Ellipsoid(np.zeros(self.ncdim), np.identity(self.ncdim))
         self.bounding = 'single'
         self.method = method
-        self.nonbounded = self.kwargs.get('nonbounded', None)
-
-        # Gradient.
-        self.grad = self.kwargs.get('grad', None)
-        self.compute_jac = self.kwargs.get('compute_jac', False)
-
-        # Initialize random walk parameters.
-        self.walks = max(2, self.kwargs.get('walks', 25))
-        self.facc = self.kwargs.get('facc', 0.5)
-        self.facc = min(1., max(1. / self.walks, self.facc))
-
-        # Initialize slice parameters.
-        self.slices = self.kwargs.get('slices', 5)
-        self.fmove = self.kwargs.get('fmove', 0.9)
-        self.max_move = self.kwargs.get('max_move', 100)
 
     def update(self):
         """Update the bounding ellipsoid using the current set of
@@ -541,7 +515,7 @@ class MultiEllipsoidSampler(SuperSampler):
                  queue_size,
                  pool,
                  use_pool,
-                 kwargs={},
+                 kwargs=None,
                  ncdim=0):
         # Initialize sampler.
         super().__init__(loglikelihood,
@@ -555,52 +529,18 @@ class MultiEllipsoidSampler(SuperSampler):
                          queue_size,
                          pool,
                          use_pool,
-                         ncdim=ncdim)
-
-        # Initialize method to propose a new starting point.
-        self._PROPOSE = {
-            'unif': self.propose_unif,
-            'rwalk': self.propose_live,
-            'rstagger': self.propose_live,
-            'slice': self.propose_live,
-            'rslice': self.propose_live,
-            'hslice': self.propose_live,
-            'user-defined': self.propose_live
-        }
-
-        if callable(method):
-            _SAMPLING["user-defined"] = method
-            method = "user-defined"
-        self.propose_point = self._PROPOSE[method]
+                         ncdim=ncdim,
+                         kwargs=kwargs or {})
 
         # Initialize method to "evolve" a point to a new position.
         self.sampling, self.evolve_point = method, _SAMPLING[method]
 
         # Initialize other arguments.
-        self.kwargs = kwargs
         self.scale = 1.
-
-        self.cite = self.kwargs.get('cite')
 
         self.mell = MultiEllipsoid(ctrs=[np.zeros(self.ncdim)],
                                    covs=[np.identity(self.ncdim)])
         self.bounding = 'multi'
-        self.method = method
-        self.nonbounded = self.kwargs.get('nonbounded', None)
-
-        # Gradient.
-        self.grad = self.kwargs.get('grad', None)
-        self.compute_jac = self.kwargs.get('compute_jac', False)
-
-        # Initialize random walk parameters.
-        self.walks = max(2, self.kwargs.get('walks', 25))
-        self.facc = self.kwargs.get('facc', 0.5)
-        self.facc = min(1., max(1. / self.walks, self.facc))
-
-        # Initialize slice parameters.
-        self.slices = self.kwargs.get('slices', 5)
-        self.fmove = self.kwargs.get('fmove', 0.9)
-        self.max_move = self.kwargs.get('max_move', 100)
 
     def update(self):
         """Update the bounding ellipsoids using the current set of
@@ -757,7 +697,7 @@ class RadFriendsSampler(SuperSampler):
                  queue_size,
                  pool,
                  use_pool,
-                 kwargs={},
+                 kwargs=None,
                  ncdim=0):
 
         # Initialize sampler.
@@ -772,50 +712,16 @@ class RadFriendsSampler(SuperSampler):
                          queue_size,
                          pool,
                          use_pool,
-                         ncdim=ncdim)
-
-        # Initialize method to propose a new starting point.
-        self._PROPOSE = {
-            'unif': self.propose_unif,
-            'rwalk': self.propose_live,
-            'rstagger': self.propose_live,
-            'slice': self.propose_live,
-            'rslice': self.propose_live,
-            'hslice': self.propose_live,
-            'user-defined': self.propose_live
-        }
-
-        if callable(method):
-            _SAMPLING["user-defined"] = method
-            method = "user-defined"
-        self.propose_point = self._PROPOSE[method]
+                         ncdim=ncdim,
+                         kwargs=kwargs or {})
 
         # Initialize method to "evolve" a point to a new position.
         self.sampling, self.evolve_point = method, _SAMPLING[method]
 
         # Initialize other arguments.
-        self.kwargs = kwargs
         self.scale = 1.
-        self.cite = self.kwargs.get('cite')
-
         self.radfriends = RadFriends(self.ncdim)
         self.bounding = 'balls'
-        self.method = method
-        self.nonbounded = self.kwargs.get('nonbounded', None)
-
-        # Gradient.
-        self.grad = self.kwargs.get('grad', None)
-        self.compute_jac = self.kwargs.get('compute_jac', False)
-
-        # Initialize random walk parameters.
-        self.walks = max(2, self.kwargs.get('walks', 25))
-        self.facc = self.kwargs.get('facc', 0.5)
-        self.facc = min(1., max(1. / self.walks, self.facc))
-
-        # Initialize slice parameters.
-        self.slices = self.kwargs.get('slices', 5)
-        self.fmove = self.kwargs.get('fmove', 0.9)
-        self.max_move = self.kwargs.get('max_move', 100)
 
     def update(self):
         """Update the N-sphere radii using the current set of live points."""
@@ -945,7 +851,7 @@ class SupFriendsSampler(SuperSampler):
                  queue_size,
                  pool,
                  use_pool,
-                 kwargs={},
+                 kwargs=None,
                  ncdim=0):
 
         # Initialize sampler.
@@ -960,51 +866,17 @@ class SupFriendsSampler(SuperSampler):
                          queue_size,
                          pool,
                          use_pool,
-                         ncdim=ncdim)
-
-        # Initialize method to propose a new starting point.
-        self._PROPOSE = {
-            'unif': self.propose_unif,
-            'rwalk': self.propose_live,
-            'rstagger': self.propose_live,
-            'slice': self.propose_live,
-            'rslice': self.propose_live,
-            'hslice': self.propose_live,
-            'user-defined': self.propose_live
-        }
-
-        if callable(method):
-            _SAMPLING["user-defined"] = method
-            method = "user-defined"
-        self.propose_point = self._PROPOSE[method]
+                         ncdim=ncdim,
+                         kwargs=kwargs or {})
 
         # Initialize method to "evolve" a point to a new position.
         self.sampling, self.evolve_point = method, _SAMPLING[method]
 
         # Initialize other arguments.
-        self.kwargs = kwargs
         self.scale = 1.
-
-        self.cite = self.kwargs.get('cite')
 
         self.supfriends = SupFriends(self.ncdim)
         self.bounding = 'cubes'
-        self.method = method
-        self.nonbounded = self.kwargs.get('nonbounded', None)
-
-        # Gradient.
-        self.grad = self.kwargs.get('grad', None)
-        self.compute_jac = self.kwargs.get('compute_jac', False)
-
-        # Initialize random walk parameters.
-        self.walks = max(2, self.kwargs.get('walks', 25))
-        self.facc = self.kwargs.get('facc', 0.5)
-        self.facc = min(1., max(1. / self.walks, self.facc))
-
-        # Initialize slice parameters.
-        self.slices = self.kwargs.get('slices', 5)
-        self.fmove = self.kwargs.get('fmove', 0.9)
-        self.max_move = self.kwargs.get('max_move', 100)
 
     def update(self):
         """Update the N-cube side-lengths using the current set of

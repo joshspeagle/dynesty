@@ -9,7 +9,7 @@ import sys
 import warnings
 import math
 import copy
-import collections
+from collections import namedtuple
 from functools import partial
 import numpy as np
 from scipy.special import logsumexp
@@ -29,21 +29,15 @@ __all__ = [
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
-IteratorResult = collections.namedtuple('IteratorResult', [
+IteratorResult = namedtuple('IteratorResult', [
     'worst', 'ustar', 'vstar', 'loglstar', 'logvol', 'logwt', 'logz',
     'logzvar', 'h', 'nc', 'worst_it', 'boundidx', 'bounditer', 'eff',
     'delta_logz'
 ])
-IteratorResultShort = collections.namedtuple('IteratorResult', [
-    'worst',
-    'ustar',
-    'vstar',
-    'loglstar',
-    'nc',
-    'worst_it',
-    'boundidx',
-    'bounditer',
-    'eff',
+
+IteratorResultShort = namedtuple('IteratorResult', [
+    'worst', 'ustar', 'vstar', 'loglstar', 'nc', 'worst_it', 'boundidx',
+    'bounditer', 'eff'
 ])
 
 

@@ -163,6 +163,7 @@ class Ellipsoid:
         # Amount by which volume was increased after initialization (i.e.
         # cumulative factor from `scale_to_vol`).
         self.expand = 1.
+        self.funit = 1
 
     def scale_to_logvol(self, logvol):
         """Scale ellipsoid to a target volume."""
@@ -389,6 +390,7 @@ class MultiEllipsoid:
         self.expands = np.ones(self.nells)
         self.logvol_tot = logsumexp(self.logvols)
         self.expand_tot = 1.
+        self.funit = 1
 
     def __update_arrays(self):
         """
@@ -632,7 +634,7 @@ class MultiEllipsoid:
         # Estimate the volume and fractional overlap with the unit cube
         # using Monte Carlo integration.
         if mc_integrate:
-            self.logvol, self.funit = self.monte_carlo_logvol(
+            self.logvol_tot, self.funit = self.monte_carlo_logvol(
                 rstate=rstate, return_overlap=True)
 
 
@@ -663,6 +665,7 @@ class RadFriends:
         assert detsign > 0
         self.logvol_ball = (logvol_prefactor(self.n) - 0.5 * detln)
         self.expand = 1.
+        self.funit = 1
 
     def scale_to_logvol(self, logvol):
         """Scale ball to encompass a target volume."""

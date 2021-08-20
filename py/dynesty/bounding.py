@@ -342,7 +342,7 @@ class Ellipsoid:
         # Estimate the fractional overlap with the unit cube using
         # Monte Carlo integration.
         if mc_integrate:
-            self.funit = self.unitcube_overlap()
+            self.funit = self.unitcube_overlap(rstate=rstate)
 
 
 class MultiEllipsoid:

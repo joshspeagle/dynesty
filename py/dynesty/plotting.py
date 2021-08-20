@@ -1610,11 +1610,14 @@ def boundplot(results,
     nsamps = len(results['samples'])
 
     # Gather boundary conditions.
-    nonbounded = np.ones(bounds[0].n, dtype='bool')
-    if periodic is not None:
-        nonbounded[periodic] = False
-    if reflective is not None:
-        nonbounded[reflective] = False
+    if periodic is not None or reflective is not None:
+        nonbounded = np.ones(bounds[0].n, dtype='bool')
+        if periodic is not None:
+            nonbounded[periodic] = False
+        if reflective is not None:
+            nonbounded[reflective] = False
+    else:
+        nonbounded = None
 
     if it is not None:
         if it >= nsamps:
@@ -1937,16 +1940,19 @@ def cornerbound(results,
     # Extract bounding distributions.
     try:
         bounds = results['bound']
-    except:
+    except KeyError:
         raise ValueError("No bounds were saved in the results!")
     nsamps = len(results['samples'])
 
     # Gather boundary conditions.
-    nonbounded = np.ones(bounds[0].n, dtype='bool')
-    if periodic is not None:
-        nonbounded[periodic] = False
-    if reflective is not None:
-        nonbounded[reflective] = False
+    if periodic is not None or reflective is not None:
+        nonbounded = np.ones(bounds[0].n, dtype='bool')
+        if periodic is not None:
+            nonbounded[periodic] = False
+        if reflective is not None:
+            nonbounded[reflective] = False
+    else:
+        nonbounded = None
 
     if it is not None:
         if it >= nsamps:
@@ -1955,7 +1961,7 @@ def cornerbound(results,
         # Extract bound iterations.
         try:
             bound_iter = np.array(results['bound_iter'])
-        except:
+        except KeyError:
             raise ValueError("Cannot reconstruct the bound used at the "
                              "specified iteration since bound "
                              "iterations were not saved in the results.")

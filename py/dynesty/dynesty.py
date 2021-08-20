@@ -16,7 +16,7 @@ import numpy as np
 from .nestedsamplers import _SAMPLING
 from .dynamicsampler import (DynamicSampler, __get_update_interval_ratio,
                              _SAMPLERS)
-from .utils import LogLikelihood, get_random_generator
+from .utils import LogLikelihood, get_random_generator, get_enlarge_bootstrap
 
 __all__ = ["NestedSampler", "DynamicNestedSampler", "_function_wrapper"]
 
@@ -166,7 +166,7 @@ def NestedSampler(loglikelihood,
                   grad_kwargs=None,
                   compute_jac=False,
                   enlarge=None,
-                  bootstrap=0,
+                  bootstrap=None,
                   walks=None,
                   facc=0.5,
                   slices=None,
@@ -353,7 +353,8 @@ def NestedSampler(loglikelihood,
         Compute this many bootstrapped realizations of the bounding
         objects. Use the maximum distance found to the set of points left
         out during each iteration to enlarge the resulting volumes. Can
-        lead to unstable bounding ellipsoids. Default is `0` (no bootstrap).
+        lead to unstable bounding ellipsoids. Default is `None` (no bootstrap
+        unless the sampler is uniform).
 
     walks : int, optional
         For the `'rwalk'` sampling option, the minimum number of steps
@@ -479,10 +480,9 @@ def NestedSampler(loglikelihood,
         grad_kwargs = {}
 
     # Bounding distribution modifications.
-    if enlarge is not None:
-        kwargs['enlarge'] = enlarge
-    if bootstrap is not None:
-        kwargs['bootstrap'] = bootstrap
+    enlarge, bootstrap = get_enlarge_bootstrap(sample, enlarge, bootstrap)
+    kwargs['enlarge'] = enlarge
+    kwargs['bootstrap'] = bootstrap
 
     # Sampling.
     if walks is not None:
@@ -646,7 +646,7 @@ def DynamicNestedSampler(loglikelihood,
                          grad_kwargs=None,
                          compute_jac=False,
                          enlarge=None,
-                         bootstrap=0,
+                         bootstrap=None,
                          walks=None,
                          facc=0.5,
                          slices=None,
@@ -819,7 +819,8 @@ def DynamicNestedSampler(loglikelihood,
         Compute this many bootstrapped realizations of the bounding
         objects. Use the maximum distance found to the set of points left
         out during each iteration to enlarge the resulting volumes. Can lead
-        to unstable bounding ellipsoids. Default is `0` (no bootstrap).
+        to unstable bounding ellipsoids. Default is `None` (no bootstrap unless
+        the sampler is uniform).
 
     walks : int, optional
         For the `'rwalk'` sampling option, the minimum number of steps
@@ -947,10 +948,9 @@ def DynamicNestedSampler(loglikelihood,
         grad_kwargs = {}
 
     # Bounding distribution modifications.
-    if enlarge is not None:
-        kwargs['enlarge'] = enlarge
-    if bootstrap is not None:
-        kwargs['bootstrap'] = bootstrap
+    enlarge, bootstrap = get_enlarge_bootstrap(sample, enlarge, bootstrap)
+    kwargs['enlarge'] = enlarge
+    kwargs['bootstrap'] = bootstrap
 
     # Sampling.
     if walks is not None:

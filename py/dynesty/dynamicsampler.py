@@ -24,7 +24,7 @@ from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
 from .results import Results
 from .utils import (get_seed_sequence, get_print_func, kld_error,
                     get_random_generator, compute_integrals, IteratorResult,
-                    IteratorResultShort)
+                    IteratorResultShort, get_enlarge_bootstrap)
 
 __all__ = [
     "DynamicSampler", "weight_function", "stopping_function", "_kld_error"
@@ -440,17 +440,10 @@ class DynamicSampler:
 
         # extra arguments
         self.kwargs = kwargs
-        if kwargs.get('bootstrap') is None:
-            if self.method == 'unif':
-                self.bootstrap = 20
-            else:
-                self.bootstrap = 0
-        else:
-            self.bootstrap = kwargs.get('bootstrap')
-        if self.bootstrap > 0:
-            self.enlarge = kwargs.get('enlarge', 1.0)
-        else:
-            self.enlarge = kwargs.get('enlarge', 1.25)
+
+        self.enlarge, self.bootstrap = get_enlarge_bootstrap(
+            method, kwargs.get('enlarge'), kwargs.get('bootstrap'))
+
         self.walks = self.kwargs.get('walks', 25)
         self.slices = self.kwargs.get('slices', 3)
         self.cite = self.kwargs.get('cite')

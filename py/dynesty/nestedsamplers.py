@@ -32,7 +32,7 @@ from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
                        SupFriends)
 from .sampling import (sample_unif, sample_rwalk, sample_rstagger,
                        sample_slice, sample_rslice, sample_hslice)
-from .utils import unitcheck
+from .utils import unitcheck, get_enlarge_bootstrap
 
 __all__ = [
     "UnitCubeSampler", "SingleEllipsoidSampler", "MultiEllipsoidSampler",
@@ -167,16 +167,7 @@ class UnitCubeSampler(Sampler):
         # Initialize other arguments.
         self.kwargs = kwargs
         self.scale = 1.
-        self.bootstrap = kwargs.get('bootstrap')
-        if self.bootstrap is None:
-            if method == 'unif':
-                self.bootstrap = 20
-            else:
-                self.bootstrap = 0
-        if self.bootstrap > 0:
-            self.enlarge = kwargs.get('enlarge', 1.0)
-        else:
-            self.enlarge = kwargs.get('enlarge', 1.25)
+
         self.cite = self.kwargs.get('cite')
 
         self.unitcube = UnitCube(self.ncdim)
@@ -371,7 +362,6 @@ class SingleEllipsoidSampler(Sampler):
         self.sampling, self.evolve_point = method, _SAMPLING[method]
 
         # Initialize heuristic used to update our sampling method.
-        # Initialize heuristic used to update our sampling method.
         self._UPDATE = {
             'unif': self.update_unif,
             'rwalk': self.update_rwalk,
@@ -388,16 +378,9 @@ class SingleEllipsoidSampler(Sampler):
         # Initialize other arguments.
         self.kwargs = kwargs
         self.scale = 1.
-        self.bootstrap = kwargs.get('bootstrap')
-        if self.bootstrap is None:
-            if method == 'unif':
-                self.bootstrap = 20
-            else:
-                self.bootstrap = 0
-        if self.bootstrap > 0:
-            self.enlarge = kwargs.get('enlarge', 1.0)
-        else:
-            self.enlarge = kwargs.get('enlarge', 1.25)
+        self.enlarge, self.bootstrap = get_enlarge_bootstrap(
+            method, kwargs.get('enlarge'), kwargs.get('bootstrap'))
+
         self.cite = self.kwargs.get('cite')
 
         self.ell = Ellipsoid(np.zeros(self.ncdim), np.identity(self.ncdim))
@@ -617,7 +600,6 @@ class MultiEllipsoidSampler(Sampler):
         self.sampling, self.evolve_point = method, _SAMPLING[method]
 
         # Initialize heuristic used to update our sampling method.
-        # Initialize heuristic used to update our sampling method.
         self._UPDATE = {
             'unif': self.update_unif,
             'rwalk': self.update_rwalk,
@@ -634,16 +616,9 @@ class MultiEllipsoidSampler(Sampler):
         # Initialize other arguments.
         self.kwargs = kwargs
         self.scale = 1.
-        self.bootstrap = kwargs.get('bootstrap')
-        if self.bootstrap is None:
-            if method == 'unif':
-                self.bootstrap = 20
-            else:
-                self.bootstrap = 0
-        if self.bootstrap > 0:
-            self.enlarge = kwargs.get('enlarge', 1.0)
-        else:
-            self.enlarge = kwargs.get('enlarge', 1.25)
+        self.enlarge, self.bootstrap = get_enlarge_bootstrap(
+            method, kwargs.get('enlarge'), kwargs.get('bootstrap'))
+
         self.cite = self.kwargs.get('cite')
 
         self.mell = MultiEllipsoid(ctrs=[np.zeros(self.ncdim)],
@@ -695,16 +670,15 @@ class MultiEllipsoidSampler(Sampler):
             # Returns the point `u`, ellipsoid index `idx`, and number of
             # overlapping ellipsoids `q` at position `u`.
             u, idx, q = self.mell.sample(rstate=self.rstate, return_q=True)
-
             if q == 1 or self.rstate.uniform() < 1.0 / q:
                 # Accept the point with probability 1/q to account for
                 # overlapping ellipsoids.
                 # Check if the point is within the unit cube.
                 if unitcheck(u, self.nonbounded[:self.ncdim]):
                     break  # if successful, we're done!
-
-        u = np.concatenate(
-            [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])
+        if self.ncdim != self.npdim:
+            u = np.concatenate(
+                [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])
         return u, self.mell.ells[idx].axes
 
     def propose_live(self, *args):
@@ -913,16 +887,8 @@ class RadFriendsSampler(Sampler):
         # Initialize other arguments.
         self.kwargs = kwargs
         self.scale = 1.
-        self.bootstrap = kwargs.get('bootstrap')
-        if self.bootstrap is None:
-            if method == 'unif':
-                self.bootstrap = 20
-            else:
-                self.bootstrap = 0
-        if self.bootstrap > 0:
-            self.enlarge = kwargs.get('enlarge', 1.0)
-        else:
-            self.enlarge = kwargs.get('enlarge', 1.25)
+        self.enlarge, self.bootstrap = get_enlarge_bootstrap(
+            method, kwargs.get('enlarge'), kwargs.get('bootstrap'))
         self.cite = self.kwargs.get('cite')
 
         self.radfriends = RadFriends(self.ncdim)
@@ -1163,16 +1129,9 @@ class SupFriendsSampler(Sampler):
         # Initialize other arguments.
         self.kwargs = kwargs
         self.scale = 1.
-        self.bootstrap = kwargs.get('bootstrap')
-        if self.bootstrap is None:
-            if method == 'unif':
-                self.bootstrap = 20
-            else:
-                self.bootstrap = 0
-        if self.bootstrap > 0:
-            self.enlarge = kwargs.get('enlarge', 1.0)
-        else:
-            self.enlarge = kwargs.get('enlarge', 1.25)
+        self.enlarge, self.bootstrap = get_enlarge_bootstrap(
+            method, kwargs.get('enlarge'), kwargs.get('bootstrap'))
+
         self.cite = self.kwargs.get('cite')
 
         self.supfriends = SupFriends(self.ncdim)

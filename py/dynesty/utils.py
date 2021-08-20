@@ -24,7 +24,8 @@ from .results import Results, print_fn
 __all__ = [
     "unitcheck", "resample_equal", "mean_and_cov", "quantile", "jitter_run",
     "resample_run", "simulate_run", "reweight_run", "unravel_run",
-    "merge_runs", "kld_error", "_merge_two", "_get_nsamps_samples_n"
+    "merge_runs", "kld_error", "_merge_two", "_get_nsamps_samples_n",
+    "get_enlarge_bootstrap"
 ]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
@@ -150,6 +151,32 @@ class LogLikelihood:
         state = self.__dict__.copy()
         del state['pool']
         return state
+
+
+def get_enlarge_bootstrap(sample, enlarge, bootstrap):
+    """
+    Determine the enlarge, boostrap for a given run
+    """
+    # we should make it dimension dependent I think...
+    DEFAULT_ENLARGE = 1.25
+    DEFAULT_UNIF_BOOTSTRAP = 5
+    if enlarge is not None and bootstrap is None:
+        assert enlarge > 1
+        return enlarge, 0
+    elif enlarge is None and bootstrap is not None:
+        assert bootstrap > 1
+        return 1, bootstrap
+    elif enlarge is None and bootstrap is None:
+        if sample == 'unif':
+            return 1, DEFAULT_UNIF_BOOTSTRAP
+        else:
+            return DEFAULT_ENLARGE, 0
+    else:
+        if bootstrap == 0 or enlarge == 1:
+            return enlarge, bootstrap
+        else:
+            raise ValueError('Enlarge and bootstrap together do not make'
+                             'sense unless bootstrap=1 or enlarge = 1')
 
 
 def get_print_func(print_func, print_progress):

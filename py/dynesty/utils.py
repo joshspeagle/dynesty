@@ -215,14 +215,14 @@ def unitcheck(u, nonbounded=None):
 
     if nonbounded is None:
         # No periodic boundary conditions provided.
-        return np.all(u > 0.) and np.all(u < 1.)
+        return np.min(u) > 0 and np.max(u) < 1
     else:
         # Alternating periodic and non-periodic boundary conditions.
         unb = u[nonbounded]
         # pylint: disable=invalid-unary-operand-type
         ub = u[~nonbounded]
-        return (np.all(unb > 0.) and np.all(unb < 1.) and np.all(ub > -0.5)
-                and np.all(ub < 1.5))
+        return (unb.min() > 0 and unb.max() < 1 and ub.min() > -0.5
+                and ub.max() < 1.5)
 
 
 def apply_reflect(u):

@@ -95,6 +95,9 @@ class SuperSampler(Sampler):
             method = "user-defined"
         self.propose_point = self._PROPOSE[method]
 
+        # Initialize method to "evolve" a point to a new position.
+        self.sampling, self.evolve_point = method, _SAMPLING[method]
+
         # Initialize heuristic used to update our sampling method.
         self._UPDATE = {
             'unif': self.update_unif,
@@ -105,8 +108,10 @@ class SuperSampler(Sampler):
             'hslice': self.update_hslice,
             'user-defined': self.update_user
         }
-        self.kwargs = kwargs or {}
+        # Initialize other arguments.
+        self.scale = 1.
 
+        self.kwargs = kwargs or {}
         # please use self.kwargs below
 
         self.custom_update = self.kwargs.get('update_func')
@@ -262,12 +267,6 @@ class UnitCubeSampler(SuperSampler):
                          ncdim=ncdim,
                          kwargs=kwargs or {})
 
-        # Initialize method to "evolve" a point to a new position.
-        self.sampling, self.evolve_point = method, _SAMPLING[method]
-
-        # Initialize other arguments.
-        self.scale = 1.
-
         self.unitcube = UnitCube(self.ncdim)
         self.bounding = 'none'
 
@@ -386,12 +385,6 @@ class SingleEllipsoidSampler(SuperSampler):
                          use_pool,
                          ncdim=ncdim,
                          kwargs=kwargs or {})
-
-        # Initialize method to "evolve" a point to a new position.
-        self.sampling, self.evolve_point = method, _SAMPLING[method]
-
-        # Initialize other arguments.
-        self.scale = 1.
 
         self.ell = Ellipsoid(np.zeros(self.ncdim), np.identity(self.ncdim))
         self.bounding = 'single'
@@ -537,12 +530,6 @@ class MultiEllipsoidSampler(SuperSampler):
                          use_pool,
                          ncdim=ncdim,
                          kwargs=kwargs or {})
-
-        # Initialize method to "evolve" a point to a new position.
-        self.sampling, self.evolve_point = method, _SAMPLING[method]
-
-        # Initialize other arguments.
-        self.scale = 1.
 
         self.mell = MultiEllipsoid(ctrs=[np.zeros(self.ncdim)],
                                    covs=[np.identity(self.ncdim)])
@@ -721,11 +708,6 @@ class RadFriendsSampler(SuperSampler):
                          ncdim=ncdim,
                          kwargs=kwargs or {})
 
-        # Initialize method to "evolve" a point to a new position.
-        self.sampling, self.evolve_point = method, _SAMPLING[method]
-
-        # Initialize other arguments.
-        self.scale = 1.
         self.radfriends = RadFriends(self.ncdim)
         self.bounding = 'balls'
 
@@ -874,12 +856,6 @@ class SupFriendsSampler(SuperSampler):
                          use_pool,
                          ncdim=ncdim,
                          kwargs=kwargs or {})
-
-        # Initialize method to "evolve" a point to a new position.
-        self.sampling, self.evolve_point = method, _SAMPLING[method]
-
-        # Initialize other arguments.
-        self.scale = 1.
 
         self.supfriends = SupFriends(self.ncdim)
         self.bounding = 'cubes'

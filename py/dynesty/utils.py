@@ -24,8 +24,7 @@ from .results import Results, print_fn
 __all__ = [
     "unitcheck", "resample_equal", "mean_and_cov", "quantile", "jitter_run",
     "resample_run", "simulate_run", "reweight_run", "unravel_run",
-    "merge_runs", "kl_divergence", "kld_error", "_merge_two",
-    "_get_nsamps_samples_n"
+    "merge_runs", "kld_error", "_merge_two", "_get_nsamps_samples_n"
 ]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
@@ -1132,78 +1131,6 @@ def merge_runs(res_list, print_progress=True):
         res.niter = niter - nlive
 
     return res
-
-
-def kl_divergence(res1, res2):
-    """
-    Computes the `Kullback-Leibler (KL) divergence
-    <https://en.wikipedia.org/wiki/Kullback-Leibler_divergence>`_ *from* the
-    discrete probability distribution defined by `res2` *to* the discrete
-    probability distribution defined by `res1`.
-
-    Parameters
-    ----------
-    res1 : :class:`~dynesty.results.Results` instance
-        :class:`~dynesty.results.Results` instance for the distribution we are
-        computing the KL divergence *to*. **Note that, by construction,
-        the samples in `res1` *must* be a subset of the samples in `res2`.**
-
-    res2 : :class:`~dynesty.results.Results` instance
-        :class:`~dynesty.results.Results` instance for the distribution we
-        are computing the KL divergence *from*. **Note that, by construction,
-        the samples in `res2` *must* be a superset of the samples in `res1`.**
-
-    Returns
-    -------
-    kld : `~numpy.ndarray` with shape (nsamps,)
-        The cumulative KL divergence defined over `res1`.
-
-    """
-
-    # Define our importance weights.
-    logp1, logp2 = res1.logwt - res1.logz[-1], res2.logwt - res2.logz[-1]
-
-    # Define the positions where the discrete probability distributions exists.
-    samples1, samples2 = res1.samples, res2.samples
-    samples1_id, samples2_id = res1.samples_id, res2.samples_id
-    nsamps1, nsamps2 = len(samples1), len(samples2)
-
-    # Compute the KL divergence.
-    if nsamps1 == nsamps2 and np.all(samples1_id == samples2_id):
-        # If our runs have the same particles in the same order, compute
-        # the KL divergence in one go.
-        kld = np.exp(logp1) * (logp1 - logp2)
-    else:
-        # Otherwise, compute the components of the KL divergence one at a time.
-        uidxs = np.unique(samples1_id)  # unique particle IDs
-        count1, count2 = np.arange(nsamps1), np.arange(nsamps2)
-        kld = np.zeros(nsamps1)
-        for uidx in uidxs:
-
-            # Select matching particles.
-            sel1 = count1[samples1_id == uidx]
-            sel2 = count2[samples2_id == uidx]
-
-            # Select corresponding positions.
-            pos1, pos2 = samples1[sel1], samples2[sel2]
-            for s, p in zip(sel1, pos1):
-                # Search for a matching position.
-                pos_sel = sel2[np.all(np.isclose(pos2, p), axis=1)]
-                npos = len(pos_sel)
-                if npos > 1:
-                    # If there are several possible matches, pick the
-                    # one with the closet importance weight.
-                    diff = logp1[s] - logp2[pos_sel]
-                    # Compute the `s`-th term.
-                    kld[s] = np.exp(logp1[s]) * diff[np.argmin(abs(diff))]
-                elif npos == 1:
-                    # If there is only one match, compute the result directly.
-                    kld[s] = np.exp(logp1[s]) * (logp1[s] - logp2[pos_sel])
-                else:
-                    raise ValueError("Distribution from `res2` undefined at "
-                                     "position {0}.".format(p))
-
-    return np.cumsum(kld)
 
 
 def kld_error(res,

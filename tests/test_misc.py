@@ -118,26 +118,6 @@ def test_livepoints():
     dyutil.unravel_run(sampler.results)
 
 
-def test_kl():
-    # Test the providing of initial live-points to the sampler
-    ndim = 2
-    rstate = get_rstate()
-    sampler1 = dynesty.NestedSampler(loglike,
-                                     prior_transform,
-                                     ndim,
-                                     nlive=nlive,
-                                     rstate=rstate)
-    sampler1.run_nested()
-    res1 = sampler1.results
-    res2 = dyutil.resample_run(res1, rstate=rstate)
-    kl = dyutil.kl_divergence(res2, res1)
-    # TODO Curretly KL>0 divergence check fails
-    # assert kl[-1] > 0
-    assert np.isfinite(kl[-1])
-    with pytest.raises(Exception):
-        dyutil.kl_divergence(res1, res2)
-
-
 def test_exc():
     # Test of exceptions that the exception is reraised
     ndim = 2

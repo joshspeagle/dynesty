@@ -9,10 +9,16 @@ import sys
 import warnings
 import math
 import copy
+from functools import partial
 import numpy as np
 from scipy.special import logsumexp
 
-from .results import Results
+try:
+    import tqdm
+except ImportError:
+    tqdm = None
+
+from .results import Results, print_fn
 
 __all__ = [
     "unitcheck", "resample_equal", "mean_and_cov", "quantile", "jitter_run",
@@ -135,6 +141,17 @@ class LogLikelihood:
         return state
 
 
+def get_print_func(print_func, print_progress):
+    pbar = None
+    if print_func is None:
+        if tqdm is None or not print_progress:
+            print_func = print_fn
+        else:
+            pbar = tqdm.tqdm()
+            print_func = partial(print_fn, pbar=pbar)
+    return pbar, print_func
+
+
 def get_random_generator(seed=None):
     """
     Return a random generator (using the seed provided if available)
@@ -145,7 +162,7 @@ def get_random_generator(seed=None):
 def get_seed_sequence(rstate, nitems):
     """
     Return the list of seeds to initialize random generators
-    This is useful when distributing work across a pool 
+    This is useful when distributing work across a pool
     """
     seeds = np.random.SeedSequence(rstate.integers(0, 2**63 - 1,
                                                    size=4)).spawn(nitems)
@@ -169,7 +186,7 @@ def unitcheck(u, nonbounded=None):
                 and np.all(ub < 1.5))
 
 
-def reflect(u):
+def apply_reflect(u):
     """
     Iteratively reflect a number until it is contained in [0, 1].
 
@@ -512,7 +529,40 @@ def jitter_run(res, rstate=None, approx=False):
     # these into associated ln(volumes).
     logvol = np.log(t_arr).cumsum()
 
-    # Compute weights using quadratic estimator.
+    (saved_logwt, saved_logz, saved_logzvar,
+     saved_h) = compute_integrals(logl=logl, logvol=logvol)
+
+    # Copy results.
+    new_res = Results(list(res.items()))
+
+    # Overwrite items with our new estimates.
+    new_res.logvol = logvol
+    new_res.logwt = saved_logwt
+    new_res.logz = saved_logz
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        new_res.logzerr = np.sqrt(saved_logzvar)
+    new_res.h = saved_h
+
+    return new_res
+
+
+def compute_integrals(logl=None, logvol=None, reweight=None):
+    """
+    Compute weights, logzs and variances using quadratic estimator.
+    Returns logwt, logz, logzvar, h
+
+    Parameters:
+    -----------
+    logl: array
+        array of log likelihoods
+    logvol: array
+        array of log volumes
+    reweight: array (or None)
+        (optional) reweighting array to reweight posterior
+    """
+    assert logl is not None
+    assert logvol is not None
     loglstar_pad = np.concatenate([[-1.e300], logl])
 
     # we want log(exp(logvol_i)-exp(logvol_(i+1)))
@@ -523,16 +573,17 @@ def jitter_run(res, rstate=None, approx=False):
     dlogvol = np.diff(logvol, prepend=0)
     logdvol = logvol - dlogvol + np.log1p(-np.exp(dlogvol))
 
-    # logdvol is log(delta(volumes)) i.e. log (X_i-X_{i-1}) for the
-    # newly simulated run
+    # logdvol is log(delta(volumes)) i.e. log (X_i-X_{i-1})
     logdvol2 = logdvol + math.log(0.5)
     # These are log(1/2(X_(i+1)-X_i))
 
-    dlogvol_run = -np.diff(res.logvol, prepend=0)
+    dlogvol = -np.diff(logvol, prepend=0)
     # this are delta(log(volumes)) of the run
 
     # These are log((L_i+L_{i_1})*(X_i+1-X_i)/2)
     saved_logwt = np.logaddexp(loglstar_pad[1:], loglstar_pad[:-1]) + logdvol2
+    if reweight is not None:
+        saved_logwt = saved_logwt + reweight
     saved_logz = np.logaddexp.accumulate(saved_logwt)
     # This implements eqn 16 of Speagle2020
 
@@ -551,21 +602,35 @@ def jitter_run(res, rstate=None, approx=False):
     # changes in h in each step
     dh = np.diff(saved_h, prepend=0)
 
-    saved_logzvar = np.cumsum(dh * dlogvol_run)
+    # I'm applying abs() here to avoid nans down the line
+    # because partial H integrals could be negative
+    saved_logzvar = np.abs(np.cumsum(dh * dlogvol))
+    return saved_logwt, saved_logz, saved_logzvar, saved_h
 
-    # Copy results.
-    new_res = Results([item for item in res.items()])
 
-    # Overwrite items with our new estimates.
-    new_res.logvol = logvol
-    new_res.logwt = saved_logwt
-    new_res.logz = saved_logz
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        new_res.logzerr = np.sqrt(saved_logzvar)
-    new_res.h = saved_h
+def progress_integration(loglstar, loglstar_new, logz, logzvar, logvol,
+                         dlogvol, h):
+    """
+    This is the calculation of weights and logz/var estimates one step at the
+    time.
+    Importantly the calculation of H is somewhat different from
+    compute_integrals as incomplete integrals of H() of require knowing Z
 
-    return new_res
+    Return logwt, logz, logzvar, h
+    """
+    # Compute relative contribution to results.
+    logdvol = logsumexp(a=[logvol + dlogvol, logvol], b=[0.5, -0.5])
+    logwt = np.logaddexp(loglstar_new, loglstar) + logdvol  # weight
+    logz_new = np.logaddexp(logz, logwt)  # ln(evidence)
+    lzterm = (math.exp(loglstar - logz_new + logdvol) * loglstar +
+              math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
+    h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) - logz_new
+             )  # information
+    dh = h_new - h
+
+    logzvar_new = logzvar + dh * dlogvol
+    # var[ln(evidence)] estimate
+    return logwt, logz_new, logzvar_new, h_new
 
 
 def resample_run(res, rstate=None, return_idx=False):
@@ -706,41 +771,14 @@ def resample_run(res, rstate=None, return_idx=False):
     # Assign log(volume) to samples.
     logvol = np.cumsum(np.log(samp_n / (samp_n + 1.)))
 
-    # Computing weights using quadratic estimator.
-    h = 0.
-    logz = -1.e300
-    loglstar = -1.e300
-    logzvar = 0.
-    logvols_pad = np.concatenate(([0.], logvol))
-    logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
-                         axis=1,
-                         b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
-    logdvols += math.log(0.5)
-    dlvs = logvols_pad[:-1] - logvols_pad[1:]
-    saved_logwt, saved_logz, saved_logzvar, saved_h = [], [], [], []
-    for i in range(nsamps):
-        loglstar_new = logl[i]
-        logdvol, dlv = logdvols[i], dlvs[i]
-        logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
-        logz_new = np.logaddexp(logz, logwt)
-        lzterm = (math.exp(loglstar - logz_new + logdvol) * loglstar +
-                  math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
-        h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) - logz_new)
-        dh = h_new - h
-        h = h_new
-        logz = logz_new
-        logzvar += dh * dlv
-        loglstar = loglstar_new
-        saved_logwt.append(logwt)
-        saved_logz.append(logz)
-        saved_logzvar.append(logzvar)
-        saved_h.append(h)
+    saved_logwt, saved_logz, saved_logzvar, saved_h = compute_integrals(
+        logl=logl, logvol=logvol)
 
     # Compute sampling efficiency.
     eff = 100. * len(res.ncall[samp_idx]) / sum(res.ncall[samp_idx])
 
     # Copy results.
-    new_res = Results([item for item in res.items()])
+    new_res = Results(list(res.items()))
 
     # Overwrite items with our new estimates.
     new_res.niter = len(res.ncall[samp_idx])
@@ -843,40 +881,12 @@ def reweight_run(res, logp_new, logp_old=None):
     logrwt = logp_new - logp_old  # ln(reweight)
     logvol = res['logvol']
     logl = res['logl']
-    nsamps = len(logvol)
 
-    # Compute weights using quadratic estimator.
-    h = 0.
-    logz = -1.e300
-    loglstar = -1.e300
-    logzvar = 0.
-    logvols_pad = np.concatenate(([0.], logvol))
-    logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
-                         axis=1,
-                         b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
-    logdvols += math.log(0.5)
-    dlvs = -np.diff(np.append(0., logvol))
-    saved_logwt, saved_logz, saved_logzvar, saved_h = [], [], [], []
-    for i in range(nsamps):
-        loglstar_new = logl[i]
-        logdvol, dlv = logdvols[i], dlvs[i]
-        logwt = np.logaddexp(loglstar_new, loglstar) + logdvol + logrwt[i]
-        logz_new = np.logaddexp(logz, logwt)
-        lzterm = (math.exp(loglstar - logz_new + logdvol) * loglstar +
-                  math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
-        h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) - logz_new)
-        dh = h_new - h
-        h = h_new
-        logz = logz_new
-        logzvar += dh * dlv
-        loglstar = loglstar_new
-        saved_logwt.append(logwt)
-        saved_logz.append(logz)
-        saved_logzvar.append(logzvar)
-        saved_h.append(h)
+    saved_logwt, saved_logz, saved_logzvar, saved_h = compute_integrals(
+        logl=logl, logvol=logvol, reweight=logrwt)
 
     # Copy results.
-    new_res = Results([item for item in res.items()])
+    new_res = Results(list(res.items()))
 
     # Overwrite items with our new estimates.
     new_res.logwt = np.array(saved_logwt)
@@ -923,7 +933,7 @@ def unravel_run(res, save_proposals=True, print_progress=True):
     try:
         if len(idxs) != (res.niter + res.nlive):
             added_live = False
-    except:
+    except AttributeError:
         pass
 
     # Recreate the nested sampling run for each strand.
@@ -953,37 +963,8 @@ def unravel_run(res, save_proposals=True, print_progress=True):
             niter = nsamps
             logvol = -math.log(2) * (1. + np.arange(niter))
 
-        # Compute weights using quadratic estimator.
-        h = 0.
-        logz = -1.e300
-        loglstar = -1.e300
-        logzvar = 0.
-        logvols_pad = np.concatenate(([0.], logvol))
-        logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
-                             axis=1,
-                             b=np.c_[np.ones(nsamps), -np.ones(nsamps)])
-        logdvols += math.log(0.5)
-        dlvs = logvols_pad[:-1] - logvols_pad[1:]
-        saved_logwt, saved_logz, saved_logzvar, saved_h = [], [], [], []
-        for i in range(nsamps):
-            loglstar_new = logl[i]
-            logdvol, dlv = logdvols[i], dlvs[i]
-            logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
-            logz_new = np.logaddexp(logz, logwt)
-            lzterm = (
-                math.exp(loglstar - logz_new + logdvol) * loglstar +
-                math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
-            h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) -
-                     logz_new)
-            dh = h_new - h
-            h = h_new
-            logz = logz_new
-            logzvar += dh * dlv
-            loglstar = loglstar_new
-            saved_logwt.append(logwt)
-            saved_logz.append(logz)
-            saved_logzvar.append(logzvar)
-            saved_h.append(h)
+        saved_logwt, saved_logz, saved_logzvar, saved_h = compute_integrals(
+            logl=logl, logvol=logvol)
 
         # Compute sampling efficiency.
         eff = 100. * nsamps / sum(res.ncall[strand])
@@ -993,11 +974,9 @@ def unravel_run(res, save_proposals=True, print_progress=True):
              ('eff', eff), ('samples', res.samples[strand]),
              ('samples_id', res.samples_id[strand]),
              ('samples_it', res.samples_it[strand]),
-             ('samples_u', res.samples_u[strand]),
-             ('logwt', np.array(saved_logwt)), ('logl', logl),
-             ('logvol', logvol), ('logz', np.array(saved_logz)),
-             ('logzerr', np.sqrt(np.array(saved_logzvar))),
-             ('h', np.array(saved_h))]
+             ('samples_u', res.samples_u[strand]), ('logwt', saved_logwt),
+             ('logl', logl), ('logvol', logvol), ('logz', saved_logz),
+             ('logzerr', np.sqrt(saved_logzvar)), ('h', saved_h)]
 
         # Add proposal information (if available).
         if save_proposals:
@@ -1061,7 +1040,7 @@ def merge_runs(res_list, print_progress=True):
                 rlist_base.append(r)
             else:
                 rlist_add.append(r)
-        except:
+        except AttributeError:
             rlist_base.append(r)
     nbase, nadd = len(rlist_base), len(rlist_add)
     if nbase == 1 and nadd == 1:
@@ -1080,7 +1059,7 @@ def merge_runs(res_list, print_progress=True):
                     r1, r2 = rlist_base[i], rlist_base[i + 1]
                     res = _merge_two(r1, r2, compute_aux=False)
                     rlist_new.append(res)
-                except:
+                except IndexError:
                     # Append the odd run to the new list.
                     rlist_new.append(rlist_base[i])
                 i += 2
@@ -1109,29 +1088,23 @@ def merge_runs(res_list, print_progress=True):
         if print_progress:
             sys.stderr.write('\rMerge: {0}/{1}     '.format(counter, ntot))
 
-    nsamps, samples_n = _get_nsamps_samples_n(res)
+    samples_n = _get_nsamps_samples_n(res)[1]
     nlive = max(samples_n)
     niter = res.niter
     standard_run = False
 
     # Check if we have a constant number of live points.
-    try:
-        nlive_test = np.ones(niter, dtype=int) * nlive
-        if np.all(samples_n == nlive_test):
-            standard_run = True
-    except:
-        pass
+    nlive_test = np.ones(niter, dtype=int) * nlive
+    if np.all(samples_n == nlive_test):
+        standard_run = True
 
     # Check if we have a constant number of live points where we have
     # recycled the final set of live points.
-    try:
-        nlive_test = np.append(
-            np.ones(niter - nlive, dtype=int) * nlive,
-            np.arange(1, nlive + 1)[::-1])
-        if np.all(samples_n == nlive_test):
-            standard_run = True
-    except:
-        pass
+    nlive_test = np.append(
+        np.ones(niter - nlive, dtype=int) * nlive,
+        np.arange(1, nlive + 1)[::-1])
+    if np.all(samples_n == nlive_test):
+        standard_run = True
 
     # If the number of live points is consistent with a standard nested
     # sampling run, slightly modify the format to keep with previous usage.
@@ -1499,13 +1472,13 @@ def _merge_two(res1, res2, compute_aux=False):
         try:
             logl_b = base_logl[idx_base]
             nlive_b = base_n[idx_base]
-        except:
+        except IndexError:
             logl_b = np.inf
             nlive_b = 0
         try:
             logl_n = new_logl[idx_new]
             nlive_n = new_n[idx_new]
-        except:
+        except IndexError:
             logl_n = np.inf
             nlive_n = 0
 
@@ -1533,35 +1506,10 @@ def _merge_two(res1, res2, compute_aux=False):
 
     # Compute the posterior quantities of interest if desired.
     if compute_aux:
-        h = 0.
-        logz = -1.e300
-        loglstar = -1.e300
-        logzvar = 0.
-        logvols_pad = np.concatenate(([0.], combined_logvol))
-        logdvols = logsumexp(a=np.c_[logvols_pad[:-1], logvols_pad[1:]],
-                             axis=1,
-                             b=np.c_[np.ones(ntot), -np.ones(ntot)])
-        logdvols += math.log(0.5)
-        dlvs = logvols_pad[:-1] - logvols_pad[1:]
-        for i in range(ntot):
-            loglstar_new = combined_logl[i]
-            logdvol, dlv = logdvols[i], dlvs[i]
-            logwt = np.logaddexp(loglstar_new, loglstar) + logdvol
-            logz_new = np.logaddexp(logz, logwt)
-            lzterm = (
-                math.exp(loglstar - logz_new + logdvol) * loglstar +
-                math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
-            h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) -
-                     logz_new)
-            dh = h_new - h
-            h = h_new
-            logz = logz_new
-            logzvar += dh * dlv
-            loglstar = loglstar_new
-            combined_logwt.append(logwt)
-            combined_logz.append(logz)
-            combined_logzvar.append(logzvar)
-            combined_h.append(h)
+
+        (combined_logwt, combined_logz, combined_logzvar,
+         combined_h) = compute_integrals(logvol=combined_logvol,
+                                         logl=combined_logl)
 
         # Compute batch information.
         combined_id = np.array(combined_id)
@@ -1571,10 +1519,10 @@ def _merge_two(res1, res2, compute_aux=False):
         ]
 
         # Add to our results.
-        r.append(('logwt', np.array(combined_logwt)))
-        r.append(('logz', np.array(combined_logz)))
-        r.append(('logzerr', np.sqrt(np.array(combined_logzvar))))
-        r.append(('h', np.array(combined_h)))
+        r.append(('logwt', (combined_logwt)))
+        r.append(('logz', (combined_logz)))
+        r.append(('logzerr', np.sqrt((combined_logzvar))))
+        r.append(('h', (combined_h)))
         r.append(('batch_nlive', np.array(batch_nlive, dtype=int)))
 
     # Combine to form final results object.

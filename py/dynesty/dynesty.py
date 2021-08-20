@@ -10,23 +10,16 @@ provides access to the two main sampler "super-classes" via
 import sys
 import warnings
 import math
+import traceback
 import numpy as np
 
-from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
-                             MultiEllipsoidSampler, RadFriendsSampler,
-                             SupFriendsSampler, _SAMPLING)
-from .dynamicsampler import DynamicSampler, __get_update_interval_ratio
+from .nestedsamplers import _SAMPLING
+from .dynamicsampler import (DynamicSampler, __get_update_interval_ratio,
+                             _SAMPLERS)
 from .utils import LogLikelihood, get_random_generator
 
 __all__ = ["NestedSampler", "DynamicNestedSampler", "_function_wrapper"]
 
-_SAMPLERS = {
-    'none': UnitCubeSampler,
-    'single': SingleEllipsoidSampler,
-    'multi': MultiEllipsoidSampler,
-    'balls': RadFriendsSampler,
-    'cubes': SupFriendsSampler
-}
 
 _CITES = {'default':  # default set of citations
           "Code and Methods:\n================\n"
@@ -123,9 +116,9 @@ def __get_auto_sample(ndim, gradient):
 
 def __get_walks_slices(walks0, slices0, sample, ndim):
     """
-    Get the best number of steps for random walk/slicing based on 
+    Get the best number of steps for random walk/slicing based on
     the type of sampler and dimension
-    
+
     Arguments:
     walks0: integer (provided by user or none for auto)
     slices0: integer (provided by user or none for auto)
@@ -504,7 +497,7 @@ def NestedSampler(loglikelihood,
         kwargs['max_move'] = max_move
 
     update_interval_ratio = __get_update_interval_ratio(
-        update_interval, sample, bound, nlive, ndim, slices, walks)
+        update_interval, sample, bound, ndim, nlive, slices, walks)
     update_interval = int(
         max(min(np.round(update_interval_ratio * nlive), sys.maxsize), 1))
 
@@ -534,7 +527,7 @@ def NestedSampler(loglikelihood,
                                ptform_args,
                                ptform_kwargs,
                                name='prior_transform')
-    if use_pool.get('loglikelihood') or True:
+    if use_pool.get('loglikelihood', True):
         pool_logl = pool
     else:
         pool_logl = None
@@ -896,7 +889,7 @@ def DynamicNestedSampler(loglikelihood,
         raise ValueError('ncdim unsupported for slice sampling')
 
     update_interval_ratio = __get_update_interval_ratio(
-        update_interval, sample, bound, 1, ndim, slices, walks)
+        update_interval, sample, bound, ndim, 1, slices, walks)
 
     kwargs = {}
 
@@ -996,7 +989,7 @@ def DynamicNestedSampler(loglikelihood,
                                ptform_kwargs,
                                name='prior_transform')
 
-    if use_pool.get('loglikelihood') or True:
+    if use_pool.get('loglikelihood', True):
         pool_logl = pool
     else:
         pool_logl = None
@@ -1027,7 +1020,7 @@ def DynamicNestedSampler(loglikelihood,
     return sampler
 
 
-class _function_wrapper(object):
+class _function_wrapper:
     """
     A hack to make functions pickleable when `args` or `kwargs` are
     also included. Based on the implementation in
@@ -1044,7 +1037,6 @@ class _function_wrapper(object):
         try:
             return self.func(x, *self.args, **self.kwargs)
         except:  # noqa
-            import traceback
             print("Exception while calling {0} function:".format(self.name))
             print("  params:", x)
             print("  args:", self.args)

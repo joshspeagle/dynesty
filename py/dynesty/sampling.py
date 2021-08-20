@@ -13,7 +13,7 @@ import math
 import numpy as np
 from numpy import linalg
 
-from .utils import unitcheck, reflect, get_random_generator
+from .utils import unitcheck, apply_reflect, get_random_generator
 
 __all__ = [
     "sample_unif", "sample_rwalk", "sample_rstagger", "sample_slice",
@@ -205,7 +205,7 @@ def sample_rwalk(args):
                 u_prop[periodic] = np.mod(u_prop[periodic], 1)
             # Reflect
             if reflective is not None:
-                u_prop[reflective] = reflect(u_prop[reflective])
+                u_prop[reflective] = apply_reflect(u_prop[reflective])
 
             # Check unit cube constraints.
             if unitcheck(u_prop, nonbounded):
@@ -366,7 +366,7 @@ def sample_rstagger(args):
                 u_prop[periodic] = np.mod(u_prop[periodic], 1)
             # Reflect
             if reflective is not None:
-                u_prop[reflective] = reflect(u_prop[reflective])
+                u_prop[reflective] = apply_reflect(u_prop[reflective])
 
             # Check unit cube constraints.
             if unitcheck(u_prop, nonbounded):
@@ -466,19 +466,19 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
     nstep_l = -rand0
     nstep_r = (1 - rand0)
 
-    u_l, logl_l = F(nstep_l)
-    u_r, logl_r = F(nstep_r)
+    logl_l = F(nstep_l)[1]
+    logl_r = F(nstep_r)[1]
     nexpand += 1
     # I only expand once
 
     # "Stepping out" the left and right bounds.
     while logl_l > loglstar:
         nstep_l -= 1
-        u_l, logl_l = F(nstep_l)
+        logl_l = F(nstep_l)[1]
         nexpand += 1
     while logl_r > loglstar:
         nstep_r += 1
-        u_r, logl_r = F(nstep_r)
+        logl_r = F(nstep_r)[1]
         nexpand += 1
     if nexpand > nexpand_threshold:
         warnings.warn(

@@ -24,8 +24,8 @@ Includes:
 """
 
 import math
-import numpy as np
 import copy
+import numpy as np
 
 from .sampler import Sampler
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
@@ -119,17 +119,17 @@ class UnitCubeSampler(Sampler):
                  ncdim=0):
 
         # Initialize sampler.
-        super(UnitCubeSampler, self).__init__(loglikelihood,
-                                              prior_transform,
-                                              npdim,
-                                              live_points,
-                                              update_interval,
-                                              first_update,
-                                              rstate,
-                                              queue_size,
-                                              pool,
-                                              use_pool,
-                                              ncdim=ncdim)
+        super().__init__(loglikelihood,
+                         prior_transform,
+                         npdim,
+                         live_points,
+                         update_interval,
+                         first_update,
+                         rstate,
+                         queue_size,
+                         pool,
+                         use_pool,
+                         ncdim=ncdim)
 
         # Initialize method to propose a new starting point.
         self._PROPOSE = {
@@ -266,8 +266,6 @@ class UnitCubeSampler(Sampler):
 
         if callable(self.custom_update):
             self.scale = self.custom_update(blob, self.scale)
-        else:
-            pass
 
 
 class SingleEllipsoidSampler(Sampler):
@@ -341,17 +339,17 @@ class SingleEllipsoidSampler(Sampler):
                  ncdim=0):
 
         # Initialize sampler.
-        super(SingleEllipsoidSampler, self).__init__(loglikelihood,
-                                                     prior_transform,
-                                                     npdim,
-                                                     live_points,
-                                                     update_interval,
-                                                     first_update,
-                                                     rstate,
-                                                     queue_size,
-                                                     pool,
-                                                     use_pool,
-                                                     ncdim=ncdim)
+        super().__init__(loglikelihood,
+                         prior_transform,
+                         npdim,
+                         live_points,
+                         update_interval,
+                         first_update,
+                         rstate,
+                         queue_size,
+                         pool,
+                         use_pool,
+                         ncdim=ncdim)
 
         # Initialize method to propose a new starting point.
         self._PROPOSE = {
@@ -515,8 +513,6 @@ class SingleEllipsoidSampler(Sampler):
 
         if callable(self.custom_update):
             self.scale = self.custom_update(blob, self.scale)
-        else:
-            pass
 
 
 class MultiEllipsoidSampler(Sampler):
@@ -589,17 +585,17 @@ class MultiEllipsoidSampler(Sampler):
                  kwargs={},
                  ncdim=0):
         # Initialize sampler.
-        super(MultiEllipsoidSampler, self).__init__(loglikelihood,
-                                                    prior_transform,
-                                                    npdim,
-                                                    live_points,
-                                                    update_interval,
-                                                    first_update,
-                                                    rstate,
-                                                    queue_size,
-                                                    pool,
-                                                    use_pool,
-                                                    ncdim=ncdim)
+        super().__init__(loglikelihood,
+                         prior_transform,
+                         npdim,
+                         live_points,
+                         update_interval,
+                         first_update,
+                         rstate,
+                         queue_size,
+                         pool,
+                         use_pool,
+                         ncdim=ncdim)
 
         # Initialize method to propose a new starting point.
         self._PROPOSE = {
@@ -796,8 +792,6 @@ class MultiEllipsoidSampler(Sampler):
 
         if callable(self.custom_update):
             self.scale = self.custom_update(blob, self.scale)
-        else:
-            pass
 
 
 class RadFriendsSampler(Sampler):
@@ -871,17 +865,17 @@ class RadFriendsSampler(Sampler):
                  ncdim=0):
 
         # Initialize sampler.
-        super(RadFriendsSampler, self).__init__(loglikelihood,
-                                                prior_transform,
-                                                npdim,
-                                                live_points,
-                                                update_interval,
-                                                first_update,
-                                                rstate,
-                                                queue_size,
-                                                pool,
-                                                use_pool,
-                                                ncdim=ncdim)
+        super().__init__(loglikelihood,
+                         prior_transform,
+                         npdim,
+                         live_points,
+                         update_interval,
+                         first_update,
+                         rstate,
+                         queue_size,
+                         pool,
+                         use_pool,
+                         ncdim=ncdim)
 
         # Initialize method to propose a new starting point.
         self._PROPOSE = {
@@ -1048,8 +1042,6 @@ class RadFriendsSampler(Sampler):
 
         if callable(self.custom_update):
             self.scale = self.custom_update(blob, self.scale)
-        else:
-            pass
 
 
 class SupFriendsSampler(Sampler):
@@ -1123,17 +1115,17 @@ class SupFriendsSampler(Sampler):
                  ncdim=0):
 
         # Initialize sampler.
-        super(SupFriendsSampler, self).__init__(loglikelihood,
-                                                prior_transform,
-                                                npdim,
-                                                live_points,
-                                                update_interval,
-                                                first_update,
-                                                rstate,
-                                                queue_size,
-                                                pool,
-                                                use_pool,
-                                                ncdim=ncdim)
+        super().__init__(loglikelihood,
+                         prior_transform,
+                         npdim,
+                         live_points,
+                         update_interval,
+                         first_update,
+                         rstate,
+                         queue_size,
+                         pool,
+                         use_pool,
+                         ncdim=ncdim)
 
         # Initialize method to propose a new starting point.
         self._PROPOSE = {
@@ -1300,5 +1292,3 @@ class SupFriendsSampler(Sampler):
 
         if callable(self.custom_update):
             self.scale = self.custom_update(blob, self.scale)
-        else:
-            pass

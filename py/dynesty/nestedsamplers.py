@@ -49,7 +49,89 @@ _SAMPLING = {
 }
 
 
-class UnitCubeSampler(Sampler):
+class SuperSampler(Sampler):
+    def __init__(self,
+                 loglikelihood,
+                 prior_transform,
+                 npdim,
+                 live_points,
+                 method,
+                 update_interval,
+                 first_update,
+                 rstate,
+                 queue_size,
+                 pool,
+                 use_pool,
+                 kwargs={},
+                 ncdim=0):
+        # Initialize sampler.
+        super().__init__(loglikelihood,
+                         prior_transform,
+                         npdim,
+                         live_points,
+                         update_interval,
+                         first_update,
+                         rstate,
+                         queue_size,
+                         pool,
+                         use_pool,
+                         ncdim=ncdim)
+        # Initialize heuristic used to update our sampling method.
+        self._UPDATE = {
+            'unif': self.update_unif,
+            'rwalk': self.update_rwalk,
+            'rstagger': self.update_rwalk,
+            'slice': self.update_slice,
+            'rslice': self.update_slice,
+            'hslice': self.update_hslice,
+            'user-defined': self.update_user
+        }
+
+        self.custom_update = kwargs.get('update_func')
+        self.update_proposal = self._UPDATE[method]
+        self.enlarge, self.bootstrap = get_enlarge_bootstrap(
+            method, kwargs.get('enlarge'), kwargs.get('bootstrap'))
+
+    def update_unif(self, blob):
+        """Filler function."""
+        pass
+
+    def update_rwalk(self, blob):
+        """Update the random walk proposal scale based on the current
+        number of accepted/rejected steps."""
+
+        self.scale = blob['scale']
+        accept, reject = blob['accept'], blob['reject']
+        facc = (1. * accept) / (accept + reject)
+        norm = max(self.facc, 1. - self.facc) * self.ncdim
+        self.scale *= math.exp((facc - self.facc) / norm)
+        self.scale = min(self.scale, math.sqrt(self.ncdim))
+
+    def update_slice(self, blob):
+        """Update the slice proposal scale based on the relative
+        size of the slices compared to our initial guess."""
+
+        nexpand, ncontract = blob['nexpand'], blob['ncontract']
+        self.scale *= nexpand / (2. * ncontract)
+
+    def update_hslice(self, blob):
+        """Update the Hamiltonian slice proposal scale based
+        on the relative amount of time spent moving vs reflecting."""
+
+        nmove, nreflect = blob['nmove'], blob['nreflect']
+        ncontract = blob.get('ncontract', 0)
+        fmove = (1. * nmove) / (nmove + nreflect + ncontract + 2)
+        norm = max(self.fmove, 1. - self.fmove)
+        self.scale *= math.exp((fmove - self.fmove) / norm)
+
+    def update_user(self, blob):
+        """Update the scale based on the user-defined update function."""
+
+        if callable(self.custom_update):
+            self.scale = self.custom_update(blob, self.scale)
+
+
+class UnitCubeSampler(SuperSampler):
     """
     Samples conditioned on the unit N-cube (i.e. with no bounds).
 
@@ -123,6 +205,7 @@ class UnitCubeSampler(Sampler):
                          prior_transform,
                          npdim,
                          live_points,
+                         method,
                          update_interval,
                          first_update,
                          rstate,
@@ -149,20 +232,6 @@ class UnitCubeSampler(Sampler):
 
         # Initialize method to "evolve" a point to a new position.
         self.sampling, self.evolve_point = method, _SAMPLING[method]
-
-        # Initialize heuristic used to update our sampling method.
-        self._UPDATE = {
-            'unif': self.update_unif,
-            'rwalk': self.update_rwalk,
-            'rstagger': self.update_rwalk,
-            'slice': self.update_slice,
-            'rslice': self.update_slice,
-            'hslice': self.update_hslice,
-            'user-defined': self.update_user
-        }
-
-        self.custom_update = kwargs.get('update_func')
-        self.update_proposal = self._UPDATE[method]
 
         # Initialize other arguments.
         self.kwargs = kwargs
@@ -219,47 +288,8 @@ class UnitCubeSampler(Sampler):
 
         return u, ax
 
-    def update_unif(self, blob):
-        """Filler function."""
 
-        pass
-
-    def update_rwalk(self, blob):
-        """Update the random walk proposal scale based on the current
-        number of accepted/rejected steps."""
-
-        self.scale = blob['scale']
-        accept, reject = blob['accept'], blob['reject']
-        facc = (1. * accept) / (accept + reject)
-        norm = max(self.facc, 1. - self.facc) * self.ncdim
-        self.scale *= math.exp((facc - self.facc) / norm)
-        self.scale = min(self.scale, math.sqrt(self.ncdim))
-
-    def update_slice(self, blob):
-        """Update the slice proposal scale based on the relative
-        size of the slices compared to our initial guess."""
-
-        nexpand, ncontract = blob['nexpand'], blob['ncontract']
-        self.scale *= nexpand / (2. * ncontract)
-
-    def update_hslice(self, blob):
-        """Update the Hamiltonian slice proposal scale based
-        on the relative amount of time spent moving vs reflecting."""
-
-        nmove, nreflect = blob['nmove'], blob['nreflect']
-        ncontract = blob.get('ncontract', 0)
-        fmove = (1. * nmove) / (nmove + nreflect + ncontract + 2)
-        norm = max(self.fmove, 1. - self.fmove)
-        self.scale *= math.exp((fmove - self.fmove) / norm)
-
-    def update_user(self, blob):
-        """Update the scale based on the user-defined update function."""
-
-        if callable(self.custom_update):
-            self.scale = self.custom_update(blob, self.scale)
-
-
-class SingleEllipsoidSampler(Sampler):
+class SingleEllipsoidSampler(SuperSampler):
     """
     Samples conditioned on a single ellipsoid used to bound the
     set of live points.
@@ -334,6 +364,7 @@ class SingleEllipsoidSampler(Sampler):
                          prior_transform,
                          npdim,
                          live_points,
+                         method,
                          update_interval,
                          first_update,
                          rstate,
@@ -361,25 +392,9 @@ class SingleEllipsoidSampler(Sampler):
         # Initialize method to "evolve" a point to a new position.
         self.sampling, self.evolve_point = method, _SAMPLING[method]
 
-        # Initialize heuristic used to update our sampling method.
-        self._UPDATE = {
-            'unif': self.update_unif,
-            'rwalk': self.update_rwalk,
-            'rstagger': self.update_rwalk,
-            'slice': self.update_slice,
-            'rslice': self.update_slice,
-            'hslice': self.update_hslice,
-            'user-defined': self.update_user
-        }
-
-        self.custom_update = kwargs.get('update_func')
-        self.update_proposal = self._UPDATE[method]
-
         # Initialize other arguments.
         self.kwargs = kwargs
         self.scale = 1.
-        self.enlarge, self.bootstrap = get_enlarge_bootstrap(
-            method, kwargs.get('enlarge'), kwargs.get('bootstrap'))
 
         self.cite = self.kwargs.get('cite')
 
@@ -458,47 +473,8 @@ class SingleEllipsoidSampler(Sampler):
 
         return u, ax
 
-    def update_unif(self, blob):
-        """Filler function."""
 
-        pass
-
-    def update_rwalk(self, blob):
-        """Update the random walk proposal scale based on the current
-        number of accepted/rejected steps."""
-
-        self.scale = blob['scale']
-        accept, reject = blob['accept'], blob['reject']
-        facc = (1. * accept) / (accept + reject)
-        norm = max(self.facc, 1. - self.facc) * self.ncdim
-        self.scale *= math.exp((facc - self.facc) / norm)
-        self.scale = min(self.scale, math.sqrt(self.ncdim))
-
-    def update_slice(self, blob):
-        """Update the slice proposal scale based on the relative
-        size of the slices compared to our initial guess."""
-
-        nexpand, ncontract = blob['nexpand'], blob['ncontract']
-        self.scale *= nexpand / (2. * ncontract)
-
-    def update_hslice(self, blob):
-        """Update the Hamiltonian slice proposal scale based
-        on the relative amount of time spent moving vs reflecting."""
-
-        nmove, nreflect = blob['nmove'], blob['nreflect']
-        ncontract = blob.get('ncontract', 0)
-        fmove = (1. * nmove) / (nmove + nreflect + ncontract + 2)
-        norm = max(self.fmove, 1. - self.fmove)
-        self.scale *= math.exp((fmove - self.fmove) / norm)
-
-    def update_user(self, blob):
-        """Update the scale based on the user-defined update function."""
-
-        if callable(self.custom_update):
-            self.scale = self.custom_update(blob, self.scale)
-
-
-class MultiEllipsoidSampler(Sampler):
+class MultiEllipsoidSampler(SuperSampler):
     """
     Samples conditioned on the union of multiple (possibly overlapping)
     ellipsoids used to bound the set of live points.
@@ -572,6 +548,7 @@ class MultiEllipsoidSampler(Sampler):
                          prior_transform,
                          npdim,
                          live_points,
+                         method,
                          update_interval,
                          first_update,
                          rstate,
@@ -599,25 +576,9 @@ class MultiEllipsoidSampler(Sampler):
         # Initialize method to "evolve" a point to a new position.
         self.sampling, self.evolve_point = method, _SAMPLING[method]
 
-        # Initialize heuristic used to update our sampling method.
-        self._UPDATE = {
-            'unif': self.update_unif,
-            'rwalk': self.update_rwalk,
-            'rstagger': self.update_rwalk,
-            'slice': self.update_slice,
-            'rslice': self.update_slice,
-            'hslice': self.update_hslice,
-            'user-defined': self.update_user
-        }
-
-        self.custom_update = kwargs.get('update_func')
-        self.update_proposal = self._UPDATE[method]
-
         # Initialize other arguments.
         self.kwargs = kwargs
         self.scale = 1.
-        self.enlarge, self.bootstrap = get_enlarge_bootstrap(
-            method, kwargs.get('enlarge'), kwargs.get('bootstrap'))
 
         self.cite = self.kwargs.get('cite')
 
@@ -728,47 +689,8 @@ class MultiEllipsoidSampler(Sampler):
 
         return u, ax
 
-    def update_unif(self, blob):
-        """Filler function."""
 
-        pass
-
-    def update_rwalk(self, blob):
-        """Update the random walk proposal scale based on the current
-        number of accepted/rejected steps."""
-
-        self.scale = blob['scale']
-        accept, reject = blob['accept'], blob['reject']
-        facc = (1. * accept) / (accept + reject)
-        norm = max(self.facc, 1. - self.facc) * self.ncdim
-        self.scale *= math.exp((facc - self.facc) / norm)
-        self.scale = min(self.scale, math.sqrt(self.ncdim))
-
-    def update_slice(self, blob):
-        """Update the slice proposal scale based on the relative
-        size of the slices compared to our initial guess."""
-
-        nexpand, ncontract = blob['nexpand'], blob['ncontract']
-        self.scale *= nexpand / (2. * ncontract)
-
-    def update_hslice(self, blob):
-        """Update the Hamiltonian slice proposal scale based
-        on the relative amount of time spent moving vs reflecting."""
-
-        nmove, nreflect = blob['nmove'], blob['nreflect']
-        ncontract = blob.get('ncontract', 0)
-        fmove = (1. * nmove) / (nmove + nreflect + ncontract + 2)
-        norm = max(self.fmove, 1. - self.fmove)
-        self.scale *= math.exp((fmove - self.fmove) / norm)
-
-    def update_user(self, blob):
-        """Update the scale based on the user-defined update function."""
-
-        if callable(self.custom_update):
-            self.scale = self.custom_update(blob, self.scale)
-
-
-class RadFriendsSampler(Sampler):
+class RadFriendsSampler(SuperSampler):
     """
     Samples conditioned on the union of (possibly overlapping) N-spheres
     centered on the current set of live points.
@@ -843,6 +765,7 @@ class RadFriendsSampler(Sampler):
                          prior_transform,
                          npdim,
                          live_points,
+                         method,
                          update_interval,
                          first_update,
                          rstate,
@@ -870,25 +793,9 @@ class RadFriendsSampler(Sampler):
         # Initialize method to "evolve" a point to a new position.
         self.sampling, self.evolve_point = method, _SAMPLING[method]
 
-        # Initialize heuristic used to update our sampling method.
-        self._UPDATE = {
-            'unif': self.update_unif,
-            'rwalk': self.update_rwalk,
-            'rstagger': self.update_rwalk,
-            'slice': self.update_slice,
-            'rslice': self.update_slice,
-            'hslice': self.update_hslice,
-            'user-defined': self.update_user
-        }
-
-        self.custom_update = kwargs.get('update_func')
-        self.update_proposal = self._UPDATE[method]
-
         # Initialize other arguments.
         self.kwargs = kwargs
         self.scale = 1.
-        self.enlarge, self.bootstrap = get_enlarge_bootstrap(
-            method, kwargs.get('enlarge'), kwargs.get('bootstrap'))
         self.cite = self.kwargs.get('cite')
 
         self.radfriends = RadFriends(self.ncdim)
@@ -970,47 +877,8 @@ class RadFriendsSampler(Sampler):
 
         return u, ax
 
-    def update_unif(self, blob):
-        """Filler function."""
 
-        pass
-
-    def update_rwalk(self, blob):
-        """Update the random walk proposal scale based on the current
-        number of accepted/rejected steps."""
-
-        self.scale = blob['scale']
-        accept, reject = blob['accept'], blob['reject']
-        facc = (1. * accept) / (accept + reject)
-        norm = max(self.facc, 1. - self.facc) * self.ncdim
-        self.scale *= math.exp((facc - self.facc) / norm)
-        self.scale = min(self.scale, math.sqrt(self.ncdim))
-
-    def update_slice(self, blob):
-        """Update the slice proposal scale based on the relative
-        size of the slices compared to our initial guess."""
-
-        nexpand, ncontract = blob['nexpand'], blob['ncontract']
-        self.scale *= nexpand / (2. * ncontract)
-
-    def update_hslice(self, blob):
-        """Update the Hamiltonian slice proposal scale based
-        on the relative amount of time spent moving vs reflecting."""
-
-        nmove, nreflect = blob['nmove'], blob['nreflect']
-        ncontract = blob.get('ncontract', 0)
-        fmove = (1. * nmove) / (nmove + nreflect + ncontract + 2)
-        norm = max(self.fmove, 1. - self.fmove)
-        self.scale *= math.exp((fmove - self.fmove) / norm)
-
-    def update_user(self, blob):
-        """Update the scale based on the user-defined update function."""
-
-        if callable(self.custom_update):
-            self.scale = self.custom_update(blob, self.scale)
-
-
-class SupFriendsSampler(Sampler):
+class SupFriendsSampler(SuperSampler):
     """
     Samples conditioned on the union of (possibly overlapping) N-cubes
     centered on the current set of live points.
@@ -1085,6 +953,7 @@ class SupFriendsSampler(Sampler):
                          prior_transform,
                          npdim,
                          live_points,
+                         method,
                          update_interval,
                          first_update,
                          rstate,
@@ -1112,25 +981,9 @@ class SupFriendsSampler(Sampler):
         # Initialize method to "evolve" a point to a new position.
         self.sampling, self.evolve_point = method, _SAMPLING[method]
 
-        # Initialize heuristic used to update our sampling method.
-        self._UPDATE = {
-            'unif': self.update_unif,
-            'rwalk': self.update_rwalk,
-            'rstagger': self.update_rwalk,
-            'slice': self.update_slice,
-            'rslice': self.update_slice,
-            'hslice': self.update_hslice,
-            'user-defined': self.update_user
-        }
-
-        self.custom_update = kwargs.get('update_func')
-        self.update_proposal = self._UPDATE[method]
-
         # Initialize other arguments.
         self.kwargs = kwargs
         self.scale = 1.
-        self.enlarge, self.bootstrap = get_enlarge_bootstrap(
-            method, kwargs.get('enlarge'), kwargs.get('bootstrap'))
 
         self.cite = self.kwargs.get('cite')
 
@@ -1212,42 +1065,3 @@ class SupFriendsSampler(Sampler):
         ax = self.supfriends.axes
 
         return u, ax
-
-    def update_unif(self, blob):
-        """Filler function."""
-
-        pass
-
-    def update_rwalk(self, blob):
-        """Update the random walk proposal scale based on the current
-        number of accepted/rejected steps."""
-
-        self.scale = blob['scale']
-        accept, reject = blob['accept'], blob['reject']
-        facc = (1. * accept) / (accept + reject)
-        norm = max(self.facc, 1. - self.facc) * self.ncdim
-        self.scale *= math.exp((facc - self.facc) / norm)
-        self.scale = min(self.scale, math.sqrt(self.ncdim))
-
-    def update_slice(self, blob):
-        """Update the slice proposal scale based on the relative
-        size of the slices compared to our initial guess."""
-
-        nexpand, ncontract = blob['nexpand'], blob['ncontract']
-        self.scale *= nexpand / (2. * ncontract)
-
-    def update_hslice(self, blob):
-        """Update the Hamiltonian slice proposal scale based
-        on the relative amount of time spent moving vs reflecting."""
-
-        nmove, nreflect = blob['nmove'], blob['nreflect']
-        ncontract = blob.get('ncontract', 0)
-        fmove = (1. * nmove) / (nmove + nreflect + ncontract + 2)
-        norm = max(self.fmove, 1. - self.fmove)
-        self.scale *= math.exp((fmove - self.fmove) / norm)
-
-    def update_user(self, blob):
-        """Update the scale based on the user-defined update function."""
-
-        if callable(self.custom_update):
-            self.scale = self.custom_update(blob, self.scale)

@@ -104,7 +104,7 @@ def test_livepoints():
     # Test the providing of initial live-points to the sampler
     ndim = 2
     rstate = get_rstate()
-    live_u = rstate.uniform(size=(ndim, 2))
+    live_u = rstate.uniform(size=(nlive, ndim))
     live_v = np.array([prior_transform(_) for _ in live_u])
     live_logl = np.array([loglike(_) for _ in live_v])
     live_points = [live_u, live_v, live_logl]

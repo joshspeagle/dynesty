@@ -23,7 +23,8 @@ from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
                              SupFriendsSampler)
 from .results import Results
 from .utils import (get_seed_sequence, get_print_func, kld_error,
-                    get_random_generator, compute_integrals)
+                    get_random_generator, compute_integrals, IteratorResult,
+                    IteratorResultShort)
 
 __all__ = [
     "DynamicSampler", "weight_function", "stopping_function", "_kld_error"
@@ -855,59 +856,64 @@ class DynamicSampler:
                                         dlogz=dlogz,
                                         n_effective=n_effective)):
                 # Grab results.
-                (worst, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
-                 h, nc, worst_it, boundidx, bounditer, eff,
-                 delta_logz) = results
 
                 # Save our base run (which we will use later).
-                add_info = dict(id=worst,
-                                u=ustar,
-                                v=vstar,
-                                logl=loglstar,
-                                logvol=logvol,
-                                logwt=logwt,
-                                logz=logz,
-                                logzvar=logzvar,
-                                h=h,
-                                nc=nc,
-                                it=worst_it,
+                add_info = dict(id=results.worst,
+                                u=results.ustar,
+                                v=results.vstar,
+                                logl=results.loglstar,
+                                logvol=results.logvol,
+                                logwt=results.logwt,
+                                logz=results.logz,
+                                logzvar=results.logzvar,
+                                h=results.h,
+                                nc=results.nc,
+                                it=results.worst_it,
                                 n=self.nlive_init,
-                                boundidx=boundidx,
-                                bounditer=bounditer,
+                                boundidx=results.boundidx,
+                                bounditer=results.bounditer,
                                 scale=self.sampler.scale)
 
                 self.base_run.append(add_info)
                 self.saved_run.append(add_info)
 
                 # Increment relevant counters.
-                self.ncall += nc
+                self.ncall += results.nc
                 self.eff = 100. * self.it / self.ncall
                 self.it += 1
-
-                yield (worst, ustar, vstar, loglstar, logvol, logwt, logz,
-                       logzvar, h, nc, worst_it, boundidx, bounditer, self.eff,
-                       delta_logz)
+                yield IteratorResult(worst=results.worst,
+                                     ustar=results.ustar,
+                                     vstar=results.vstar,
+                                     loglstar=results.loglstar,
+                                     logvol=results.logvol,
+                                     logwt=results.logwt,
+                                     logz=results.logz,
+                                     logzvar=results.logzvar,
+                                     h=results.h,
+                                     nc=results.nc,
+                                     worst_it=results.worst_it,
+                                     boundidx=results.boundidx,
+                                     bounditer=results.bounditer,
+                                     eff=self.eff,
+                                     delta_logz=results.delta_logz)
 
             for it, results in enumerate(self.sampler.add_live_points()):
                 # Grab results.
-                (worst, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
-                 h, nc, worst_it, boundidx, bounditer, eff,
-                 delta_logz) = results
 
-                add_info = dict(id=worst,
-                                u=ustar,
-                                v=vstar,
-                                logl=loglstar,
-                                logvol=logvol,
-                                logwt=logwt,
-                                logz=logz,
-                                logzvar=logzvar,
-                                h=h,
-                                nc=nc,
-                                it=worst_it,
+                add_info = dict(id=results.worst,
+                                u=results.ustar,
+                                v=results.vstar,
+                                logl=results.loglstar,
+                                logvol=results.logvol,
+                                logwt=results.logwt,
+                                logz=results.logz,
+                                logzvar=results.logzvar,
+                                h=results.h,
+                                nc=results.nc,
+                                it=results.worst_it,
                                 n=self.nlive_init - it,
-                                boundidx=boundidx,
-                                bounditer=bounditer,
+                                boundidx=results.boundidx,
+                                bounditer=results.bounditer,
                                 scale=self.sampler.scale)
 
                 self.base_run.append(add_info)
@@ -916,10 +922,21 @@ class DynamicSampler:
                 # Increment relevant counters.
                 self.eff = 100. * self.it / self.ncall
                 self.it += 1
-
-                yield (worst, ustar, vstar, loglstar, logvol, logwt, logz,
-                       logzvar, h, nc, worst_it, boundidx, bounditer, self.eff,
-                       delta_logz)
+                yield IteratorResult(worst=results.worst,
+                                     ustar=results.ustar,
+                                     vstar=results.vstar,
+                                     loglstar=results.loglstar,
+                                     logvol=results.logvol,
+                                     logwt=results.logwt,
+                                     logz=results.logz,
+                                     logzvar=results.logzvar,
+                                     h=results.h,
+                                     nc=results.nc,
+                                     worst_it=results.worst_it,
+                                     boundidx=results.boundidx,
+                                     bounditer=results.bounditer,
+                                     eff=self.eff,
+                                     delta_logz=results.delta_logz)
 
         self.base = True  # baseline run complete
         self.saved_run.D['batch'] = np.zeros(len(self.saved_run.D['id']),
@@ -1084,8 +1101,15 @@ class DynamicSampler:
             self.ncall += nlive_new
             # Return live points in generator format.
             for i in range(nlive_new):
-                yield (-i - 1, live_u[i], live_v[i], live_logl[i], live_nc[i],
-                       live_it[i], 0, 0, self.eff)
+                yield IteratorResultShort(worst=-i - 1,
+                                          ustar=live_u[i],
+                                          vstar=live_v[i],
+                                          loglstar=live_logl[i],
+                                          nc=live_nc[i],
+                                          worst_it=live_it[i],
+                                          boundidx=0,
+                                          bounditer=0,
+                                          eff=self.eff)
         else:
             # If the lower bound doesn't encompass all base samples,
             # we need to create a uniform sample from the prior subject
@@ -1176,8 +1200,15 @@ class DynamicSampler:
                 live_it[i] = self.it
                 self.ncall += live_nc[i]
                 # Return live points in generator format.
-                yield (-i - 1, live_u[i], live_v[i], live_logl[i], live_nc[i],
-                       live_it[i], live_bound[i], live_bound[i], self.eff)
+                yield IteratorResultShort(worst=-i - 1,
+                                          ustar=live_u[i],
+                                          vstar=live_v[i],
+                                          loglstar=live_logl[i],
+                                          nc=live_nc[i],
+                                          worst_it=live_it[i],
+                                          boundidx=live_bound[i],
+                                          bounditer=live_bound[i],
+                                          eff=self.eff)
 
         # Overwrite the previous set of live points in our internal sampler
         # with the new batch of points we just generated.
@@ -1233,60 +1264,69 @@ class DynamicSampler:
                                         save_bounds=save_bounds)):
 
                 # Grab results.
-                (worst, ustar, vstar, loglstar, _, _, _, _, _, nc, worst_it,
-                 boundidx, bounditer, _, _) = results
 
                 # Save results.
 
-                D = dict(id=worst,
-                         u=ustar,
-                         v=vstar,
-                         logl=loglstar,
-                         nc=nc,
-                         it=worst_it,
+                D = dict(id=results.worst,
+                         u=results.ustar,
+                         v=results.vstar,
+                         logl=results.loglstar,
+                         nc=results.nc,
+                         it=results.worst_it,
                          n=nlive_new,
-                         boundidx=boundidx,
-                         bounditer=bounditer,
+                         boundidx=results.boundidx,
+                         bounditer=results.bounditer,
                          scale=self.sampler.scale)
                 self.new_run.append(D)
 
                 # Increment relevant counters.
-                self.ncall += nc
+                self.ncall += results.nc
                 self.eff = 100. * self.it / self.ncall
                 self.it += 1
                 iterated_batch = True
-                yield (worst, ustar, vstar, loglstar, nc, worst_it, boundidx,
-                       bounditer, self.eff)
+                yield IteratorResultShort(worst=results.worst,
+                                          ustar=results.ustar,
+                                          vstar=results.vstar,
+                                          loglstar=results.loglstar,
+                                          nc=results.nc,
+                                          worst_it=results.worst_it,
+                                          boundidx=results.boundidx,
+                                          bounditer=results.bounditer,
+                                          eff=self.eff)
 
-            if iterated_batch and loglstar < logl_max:
+            if iterated_batch and results.loglstar < logl_max:
                 warnings.warn('Warning. The maximum likelihood not reached '
                               'in the batch. '
                               'You may not have enough livepoints')
 
             for it, results in enumerate(self.sampler.add_live_points()):
                 # Grab results.
-                (worst, ustar, vstar, loglstar, _, _, _, _, _, nc, worst_it,
-                 boundidx, bounditer, _, _) = results
 
                 # Save results.
-                D = dict(id=worst,
-                         u=ustar,
-                         v=vstar,
-                         logl=loglstar,
-                         nc=live_nc[worst],
-                         it=worst_it,
+                D = dict(id=results.worst,
+                         u=results.ustar,
+                         v=results.vstar,
+                         logl=results.loglstar,
+                         nc=live_nc[results.worst],
+                         it=results.worst_it,
                          n=nlive_new - it,
-                         boundidx=boundidx,
-                         bounditer=bounditer,
+                         boundidx=results.boundidx,
+                         bounditer=results.bounditer,
                          scale=self.sampler.scale)
                 self.new_run.append(D)
 
                 # Increment relevant counters.
                 self.eff = 100. * self.it / self.ncall
                 self.it += 1
-
-                yield (worst, ustar, vstar, loglstar, live_nc[worst], worst_it,
-                       boundidx, bounditer, self.eff)
+                yield IteratorResultShort(worst=results.worst,
+                                          ustar=results.ustar,
+                                          vstar=results.vstar,
+                                          loglstar=results.loglstar,
+                                          nc=live_nc[results.worst],
+                                          worst_it=results.worst_it,
+                                          boundidx=results.boundidx,
+                                          bounditer=results.bounditer,
+                                          eff=self.eff)
 
     def combine_runs(self):
         """ Merge the most recent run into the previous (combined) run by
@@ -1761,7 +1801,7 @@ class DynamicSampler:
                 # Compute our sampling bounds using the provided
                 # weight function.
                 res = self.results
-                lnz, lnzerr = res.logz[-1], res.logzerr[-1]
+                logz, logzerr = res.logz[-1], res.logzerr[-1]
                 if logl_bounds is None:
                     logl_bounds = wt_function(res, wt_kwargs)
                 results = None  # to silence pylint as
@@ -1771,20 +1811,26 @@ class DynamicSampler:
                                                      maxiter=maxiter,
                                                      maxcall=maxcall,
                                                      save_bounds=save_bounds):
-                    (worst, ustar, vstar, loglstar, nc, worst_it, boundidx,
-                     bounditer, eff) = cur_results
-
-                    # When initializing a batch (i.e. when `worst < 0`),
-                    # don't increment our call counter or our current
-                    # number of iterations.
-                    if worst >= 0:
-                        ncall += nc
+                    if cur_results.worst >= 0:
+                        ncall += cur_results.nc
                         niter += 1
 
                     # Reorganize results.
-                    results = (worst, ustar, vstar, loglstar, np.nan, np.nan,
-                               lnz, lnzerr**2, np.nan, nc, worst_it, boundidx,
-                               bounditer, eff, np.nan)
+                    results = IteratorResult(worst=cur_results.worst,
+                                             ustar=cur_results.ustar,
+                                             vstar=cur_results.vstar,
+                                             loglstar=cur_results.loglstar,
+                                             logvol=np.nan,
+                                             logwt=np.nan,
+                                             logz=logz,
+                                             logzvar=logzerr**2,
+                                             h=np.nan,
+                                             nc=cur_results.nc,
+                                             worst_it=cur_results.worst_it,
+                                             boundidx=cur_results.boundidx,
+                                             bounditer=cur_results.bounditer,
+                                             eff=cur_results.eff,
+                                             delta_logz=np.nan)
 
                     # Print progress.
                     if print_progress:

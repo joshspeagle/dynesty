@@ -12,11 +12,11 @@ import math
 import copy
 import numpy as np
 from scipy.special import logsumexp
-
 from .results import Results, print_fn
 from .bounding import UnitCube
 from .sampling import sample_unif
-from .utils import get_seed_sequence, get_print_func, progress_integration
+from .utils import (get_seed_sequence, get_print_func, progress_integration,
+                    IteratorResult)
 
 __all__ = ["Sampler"]
 
@@ -513,8 +513,21 @@ class Sampler:
             self.eff = 100. * (self.it + i) / self.ncall  # efficiency
 
             # Return our new "dead" point and ancillary quantities.
-            yield (idx, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
-                   h, 1, point_it, boundidx, bounditer, self.eff, delta_logz)
+            yield IteratorResult(worst=idx,
+                                 ustar=ustar,
+                                 vstar=vstar,
+                                 loglstar=loglstar,
+                                 logvol=logvol,
+                                 logwt=logwt,
+                                 logz=logz,
+                                 logzvar=logzvar,
+                                 h=h,
+                                 nc=1,
+                                 worst_it=point_it,
+                                 boundidx=boundidx,
+                                 bounditer=bounditer,
+                                 eff=self.eff,
+                                 delta_logz=delta_logz)
 
     def _remove_live_points(self):
         """Remove the final set of live points if they were
@@ -816,8 +829,21 @@ class Sampler:
             self.it += 1
 
             # Return dead point and ancillary quantities.
-            yield (worst, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
-                   h, nc, worst_it, boundidx, bounditer, self.eff, delta_logz)
+            yield IteratorResult(worst=worst,
+                                 ustar=ustar,
+                                 vstar=vstar,
+                                 loglstar=loglstar,
+                                 logvol=logvol,
+                                 logwt=logwt,
+                                 logz=logz,
+                                 logzvar=logzvar,
+                                 h=h,
+                                 nc=nc,
+                                 worst_it=worst_it,
+                                 boundidx=boundidx,
+                                 bounditer=bounditer,
+                                 eff=self.eff,
+                                 delta_logz=delta_logz)
 
     def run_nested(self,
                    maxiter=None,
@@ -904,14 +930,7 @@ class Sampler:
                                 save_samples=True,
                                 n_effective=n_effective,
                                 add_live=add_live)):
-                (worst, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
-                 h, nc, worst_it, boundidx, bounditer, eff,
-                 delta_logz) = results
-                ncall += nc
-                if delta_logz > 1e6:
-                    delta_logz = np.inf
-                if logz <= -1e6:
-                    logz = -np.inf
+                ncall += results.nc
 
                 # Print progress.
                 if print_progress:
@@ -926,13 +945,7 @@ class Sampler:
             if add_live:
                 it = self.it - 1
                 for i, results in enumerate(self.add_live_points()):
-                    (worst, ustar, vstar, loglstar, logvol, logwt, logz,
-                     logzvar, h, nc, worst_it, boundidx, bounditer, eff,
-                     delta_logz) = results
-                    if delta_logz > 1e6:
-                        delta_logz = np.inf
-                    if logz <= -1e6:
-                        logz = -np.inf
+                    ncall += results.nc
 
                     # Print progress.
                     if print_progress:
@@ -974,13 +987,6 @@ class Sampler:
             ncall = self.ncall
             it = self.it - 1
             for i, results in enumerate(self.add_live_points()):
-                (worst, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
-                 h, nc, worst_it, boundidx, bounditer, eff,
-                 delta_logz) = results
-                if delta_logz > 1e6:
-                    delta_logz = np.inf
-                if logz <= -1e6:
-                    logz = -np.inf
 
                 # Print progress.
                 if print_progress:

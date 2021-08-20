@@ -559,6 +559,10 @@ class MultiEllipsoidSampler(SuperSampler):
         """Propose a new live point by sampling *uniformly* within
         the union of ellipsoids."""
 
+        if self.ncdim != self.npdim and self.nonbounded is not None:
+            nonb = self.nonbounded[:self.ncdim]
+        else:
+            nonb = self.nonbounded
         while True:
             # Sample a point from the union of ellipsoids.
             # Returns the point `u`, ellipsoid index `idx`, and number of
@@ -568,7 +572,7 @@ class MultiEllipsoidSampler(SuperSampler):
                 # Accept the point with probability 1/q to account for
                 # overlapping ellipsoids.
                 # Check if the point is within the unit cube.
-                if unitcheck(u, self.nonbounded[:self.ncdim]):
+                if unitcheck(u, nonb):
                     break  # if successful, we're done!
         if self.ncdim != self.npdim:
             u = np.concatenate(

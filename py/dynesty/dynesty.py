@@ -444,11 +444,15 @@ def NestedSampler(loglikelihood,
         if np.intersect1d(periodic, reflective) != 0:
             raise ValueError("You have specified a parameter as both "
                              "periodic and reflective.")
-    nonbounded = np.ones(npdim, dtype='bool')
-    if periodic is not None:
-        nonbounded[periodic] = False
-    if reflective is not None:
-        nonbounded[reflective] = False
+
+    if periodic is not None or reflective is not None:
+        nonbounded = np.ones(npdim, dtype='bool')
+        if periodic is not None:
+            nonbounded[periodic] = False
+        if reflective is not None:
+            nonbounded[reflective] = False
+    else:
+        nonbounded = None
     kwargs['nonbounded'] = nonbounded
     kwargs['periodic'] = periodic
     kwargs['reflective'] = reflective
@@ -912,11 +916,16 @@ def DynamicNestedSampler(loglikelihood,
         if np.intersect1d(periodic, reflective) != 0:
             raise ValueError("You have specified a parameter as both "
                              "periodic and reflective.")
-    nonbounded = np.ones(npdim, dtype='bool')
-    if periodic is not None:
-        nonbounded[periodic] = False
-    if reflective is not None:
-        nonbounded[reflective] = False
+
+    if periodic is not None or reflective is not None:
+        nonbounded = np.ones(npdim, dtype='bool')
+        if periodic is not None:
+            nonbounded[periodic] = False
+        if reflective is not None:
+            nonbounded[reflective] = False
+    else:
+        nonbounded = None
+
     kwargs['nonbounded'] = nonbounded
     kwargs['periodic'] = periodic
     kwargs['reflective'] = reflective

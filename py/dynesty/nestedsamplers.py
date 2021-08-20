@@ -133,6 +133,12 @@ class SuperSampler(Sampler):
         self.fmove = self.kwargs.get('fmove', 0.9)
         self.max_move = self.kwargs.get('max_move', 100)
 
+    def propose_unif(self, *args):
+        pass
+
+    def propose_live(self, *args):
+        pass
+
     def update_unif(self, blob):
         """Filler function."""
         pass

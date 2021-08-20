@@ -133,6 +133,7 @@ class LogLikelihood:
         import h5py
         try:
             with h5py.File(self.history_filename, mode='a') as fp:
+                # pylint: disable=no-member
                 nadd = len(self.history_logl)
                 fp['param'].resize(self.history_counter + nadd, axis=0)
                 fp['logl'].resize(self.history_counter + nadd, axis=0)
@@ -599,8 +600,11 @@ def compute_integrals(logl=None, logvol=None, reweight=None):
     reweight: array (or None)
         (optional) reweighting array to reweight posterior
     """
+    # pylint: disable=invalid-unary-operand-type
+    # Unfortunately pylint doesn't get the asserts
     assert logl is not None
     assert logvol is not None
+
     loglstar_pad = np.concatenate([[-1.e300], logl])
 
     # we want log(exp(logvol_i)-exp(logvol_(i+1)))

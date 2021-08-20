@@ -881,8 +881,9 @@ class RadFriends:
         # Estimate the volume and fractional overlap with the unit cube
         # using Monte Carlo integration.
         if mc_integrate:
-            self.logvol, self.funit = self.monte_carlo_logvol(
-                points, return_overlap=True, rstate=rstate)
+            self.funit = self.monte_carlo_logvol(points,
+                                                 return_overlap=True,
+                                                 rstate=rstate)[1]
 
     def _get_covariance_from_all_points(self, points):
         """Compute covariance using all points."""
@@ -946,6 +947,7 @@ class SupFriends:
         assert detsign > 0
         self.logvol_cube = self.n * np.log(2.) - 0.5 * detln
         self.expand = 1.
+        self.funit = 1
 
     def scale_to_logvol(self, logvol):
         """Scale cube to encompass a target volume."""
@@ -1160,8 +1162,9 @@ class SupFriends:
         # Estimate the volume and fractional overlap with the unit cube
         # using Monte Carlo integration.
         if mc_integrate:
-            self.logvol, self.funit = self.monte_carlo_logvol(
-                points, return_overlap=True, rstate=rstate)
+            self.funit = self.monte_carlo_logvol(points,
+                                                 return_overlap=True,
+                                                 rstate=rstate)[1]
 
     def _get_covariance_from_all_points(self, points):
         """Compute covariance using all points."""

@@ -170,7 +170,7 @@ class Sampler:
     def update_proposal(self, *args):
         raise RuntimeError('Should be overriden')
 
-    def update(self, *args):
+    def update(self):
         raise RuntimeError('Should be overriden')
 
     def __getstate__(self):

@@ -633,7 +633,7 @@ class MultiEllipsoid:
         # using Monte Carlo integration.
         if mc_integrate:
             self.logvol, self.funit = self.monte_carlo_logvol(
-                return_overlap=True)
+                rstate=rstate, return_overlap=True)
 
 
 class RadFriends:
@@ -879,7 +879,7 @@ class RadFriends:
         # using Monte Carlo integration.
         if mc_integrate:
             self.logvol, self.funit = self.monte_carlo_logvol(
-                points, return_overlap=True)
+                points, return_overlap=True, rstate=rstate)
 
     def _get_covariance_from_all_points(self, points):
         """Compute covariance using all points."""
@@ -1158,7 +1158,7 @@ class SupFriends:
         # using Monte Carlo integration.
         if mc_integrate:
             self.logvol, self.funit = self.monte_carlo_logvol(
-                points, return_overlap=True)
+                points, return_overlap=True, rstate=rstate)
 
     def _get_covariance_from_all_points(self, points):
         """Compute covariance using all points."""

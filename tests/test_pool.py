@@ -17,7 +17,7 @@ gau_s = 0.01
 
 def loglike_gau(x):
     return (-0.5 * np.log(2 * np.pi) * ndim - np.log(gau_s) * ndim -
-            0.5 * np.sum(x**2) / gau_s**2)
+            0.5 * np.sum((x - 0.5)**2) / gau_s**2)
 
 
 def prior_transform_gau(x):

@@ -480,8 +480,10 @@ class Sampler:
             # ancillary quantities.
             idx = lsort_idx[i]
             logvol, dlv = logvols[i], dlvs[i]
-            ustar = np.asarray(self.live_u[idx])
-            vstar = np.asarray(self.live_v[idx])
+            # we are doing copies here, because live_u/live_v are
+            # updated in place
+            ustar = self.live_u[idx].copy()
+            vstar = self.live_v[idx].copy()
             loglstar_new = self.live_logl[idx]
             boundidx = self.live_bound[idx]
             point_it = self.live_it[idx]
@@ -775,8 +777,10 @@ class Sampler:
             boundidx = self.live_bound[worst]  # associated bound index
 
             # Set our new worst likelihood constraint.
-            ustar = np.asarray(self.live_u[worst])  # unit cube position
-            vstar = np.asarray(self.live_v[worst])  # transformed position
+            # Notice we are doing copies here because live_u and live_v
+            # are updated in-place
+            ustar = self.live_u[worst].copy()  # unit cube position
+            vstar = self.live_v[worst].copy()  # transformed position
             loglstar_new = self.live_logl[worst]  # new likelihood
 
             # Sample a new live point from within the likelihood constraint

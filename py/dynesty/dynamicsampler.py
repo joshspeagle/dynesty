@@ -1155,6 +1155,8 @@ class DynamicSampler:
                                    'n_pt_above: %d' % (n_pt_above) +
                                    'n_pos_weight: %d' % (n_pos_weight) +
                                    'cur_wt: %s' % str(cur_wt))
+            # We are doing copies here, because live_* stuff is
+            # updated in place
             live_u = saved_u[subset, :].copy()
             live_v = saved_v[subset, :].copy()
             live_logl = saved_logl[subset].copy()
@@ -1206,11 +1208,14 @@ class DynamicSampler:
         # Overwrite the previous set of live points in our internal sampler
         # with the new batch of points we just generated.
         self.sampler.nlive = nlive_new
-        self.sampler.live_u = np.asarray(live_u)
-        self.sampler.live_v = np.asarray(live_v)
-        self.sampler.live_logl = np.asarray(live_logl)
-        self.sampler.live_bound = np.asarray(live_bound)
-        self.sampler.live_it = np.asarray(live_it)
+
+        # All the arrays are newly created in this function
+        # We don't need to worry about them being parts of other arrays
+        self.sampler.live_u = live_u
+        self.sampler.live_v = live_v
+        self.sampler.live_logl = live_logl
+        self.sampler.live_bound = live_bound
+        self.sampler.live_it = live_it
 
         # Trigger an update of the internal bounding distribution (again).
         live_logl_min = min(live_logl)
@@ -1255,11 +1260,7 @@ class DynamicSampler:
                                         maxcall=maxcall - sum(live_nc),
                                         save_samples=False,
                                         save_bounds=save_bounds)):
-
-                # Grab results.
-
                 # Save results.
-
                 D = dict(id=results.worst,
                          u=results.ustar,
                          v=results.vstar,
@@ -1293,8 +1294,6 @@ class DynamicSampler:
                               'You may not have enough livepoints')
 
             for it, results in enumerate(self.sampler.add_live_points()):
-                # Grab results.
-
                 # Save results.
                 D = dict(id=results.worst,
                          u=results.ustar,

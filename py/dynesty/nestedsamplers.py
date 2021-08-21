@@ -567,13 +567,10 @@ class MultiEllipsoidSampler(SuperSampler):
             # Sample a point from the union of ellipsoids.
             # Returns the point `u`, ellipsoid index `idx`, and number of
             # overlapping ellipsoids `q` at position `u`.
-            u, idx, q = self.mell.sample(rstate=self.rstate, return_q=True)
-            if q == 1 or self.rstate.uniform() < 1.0 / q:
-                # Accept the point with probability 1/q to account for
-                # overlapping ellipsoids.
-                # Check if the point is within the unit cube.
-                if unitcheck(u, nonb):
-                    break  # if successful, we're done!
+            u, idx = self.mell.sample(rstate=self.rstate)
+            # Check if the point is within the unit cube.
+            if unitcheck(u, nonb):
+                break  # if successful, we're done!
         if self.ncdim != self.npdim:
             u = np.concatenate(
                 [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])

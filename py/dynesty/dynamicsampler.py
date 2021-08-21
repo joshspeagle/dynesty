@@ -363,6 +363,71 @@ class RunRecord:
             self.D[k].append(newD[k])
 
 
+def sample_init(live_points,
+                prior_transform,
+                loglikelihood,
+                M,
+                nlive=None,
+                npdim=None,
+                rstate=None,
+                use_pool_ptform=None):
+    # Initialize the first set of live points.
+    if live_points is None:
+        # If no live points are provided, propose them by randomly
+        # sampling from the unit cube.
+        for attempt in range(100):
+            live_u = rstate.uniform(size=(nlive, npdim))
+            if use_pool_ptform:
+                live_v = np.array(list(M(prior_transform, np.asarray(live_u))))
+            else:
+                live_v = np.array(
+                    list(map(prior_transform, np.asarray(live_u))))
+            live_logl = np.array(loglikelihood.map(np.asarray(live_v)))
+
+            # Convert all `-np.inf` log-likelihoods to finite large
+            # numbers. Necessary to keep estimators in our sampler from
+            # breaking.
+            for i, logl in enumerate(live_logl):
+                if not np.isfinite(logl):
+                    if np.sign(logl) < 0:
+                        live_logl[i] = _LOWL_VAL
+                    else:
+                        raise ValueError("The log-likelihood ({0}) of live "
+                                         "point {1} located at u={2} v={3} "
+                                         " is invalid.".format(
+                                             logl, i, live_u[i], live_v[i]))
+
+            # Check to make sure there is at least one finite
+            # log-likelihood value within the initial set of live
+            # points.
+            if np.any(live_logl != _LOWL_VAL):
+                break
+        else:
+            # If we found nothing after many attempts, raise the alarm.
+            raise RuntimeError("After many attempts, not a single live "
+                               "point had a valid log-likelihood! Please "
+                               "check your prior transform and/or "
+                               "log-likelihood.")
+    else:
+        # If live points were provided, convert the log-likelihoods and
+        # then run a quick safety check.
+        live_u, live_v, live_logl = live_points
+
+        for i, logl in enumerate(live_logl):
+            if not np.isfinite(logl):
+                if np.sign(logl) < 0:
+                    live_logl[i] = _LOWL_VAL
+                else:
+                    raise ValueError("The log-likelihood ({0}) of live "
+                                     "point {1} located at u={2} v={3} "
+                                     " is invalid.".format(
+                                         logl, i, live_u[i], live_v[i]))
+        if all(live_logl == _LOWL_VAL):
+            raise ValueError("Not a single provided live point has a "
+                             "valid log-likelihood!")
+    return [live_u, live_v, live_logl]
+
+
 class DynamicSampler:
     """
     A dynamic nested sampler that allocates live points adaptively during
@@ -746,73 +811,17 @@ class DynamicSampler:
             # Reset saved results to avoid any possible conflicts.
             self.reset()
 
-            # Initialize the first set of live points.
-            if live_points is None:
-                # If no live points are provided, propose them by randomly
-                # sampling from the unit cube.
-                self.nlive_init = nlive
-                for attempt in range(100):
-                    self.live_u = self.rstate.uniform(size=(self.nlive_init,
-                                                            self.npdim))
-                    if self.use_pool_ptform:
-                        self.live_v = np.array(
-                            list(
-                                self.M(self.prior_transform,
-                                       np.asarray(self.live_u))))
-                    else:
-                        self.live_v = np.array(
-                            list(
-                                map(self.prior_transform,
-                                    np.asarray(self.live_u))))
-                    self.live_logl = np.array(
-                        self.loglikelihood.map(np.asarray(self.live_v)))
+            self.live_u, self.live_v, self.live_logl = sample_init(
+                live_points,
+                self.prior_transform,
+                self.loglikelihood,
+                self.M,
+                nlive=nlive,
+                npdim=self.npdim,
+                rstate=self.rstate,
+                use_pool_ptform=self.use_pool_ptform)
 
-                    # Convert all `-np.inf` log-likelihoods to finite large
-                    # numbers. Necessary to keep estimators in our sampler from
-                    # breaking.
-                    for i, logl in enumerate(self.live_logl):
-                        if not np.isfinite(logl):
-                            if np.sign(logl) < 0:
-                                self.live_logl[i] = _LOWL_VAL
-                            else:
-                                raise ValueError(
-                                    "The log-likelihood ({0}) of live "
-                                    "point {1} located at u={2} v={3} "
-                                    " is invalid.".format(
-                                        logl, i, self.live_u[i],
-                                        self.live_v[i]))
-
-                    # Check to make sure there is at least one finite
-                    # log-likelihood value within the initial set of live
-                    # points.
-                    if any(self.live_logl != _LOWL_VAL):
-                        break
-                else:
-                    # If we found nothing after many attempts, raise the alarm.
-                    raise RuntimeError(
-                        "After many attempts, not a single live "
-                        "point had a valid log-likelihood! Please "
-                        "check your prior transform and/or "
-                        "log-likelihood.")
-            else:
-                # If live points were provided, convert the log-likelihoods and
-                # then run a quick safety check.
-                self.live_u, self.live_v, self.live_logl = live_points
-                self.nlive_init = len(self.live_u)
-
-                for i, logl in enumerate(self.live_logl):
-                    if not np.isfinite(logl):
-                        if np.sign(logl) < 0:
-                            self.live_logl[i] = _LOWL_VAL
-                        else:
-                            raise ValueError(
-                                "The log-likelihood ({0}) of live "
-                                "point {1} located at u={2} v={3} "
-                                " is invalid.".format(logl, i, self.live_u[i],
-                                                      self.live_v[i]))
-                if all(self.live_logl == _LOWL_VAL):
-                    raise ValueError("Not a single provided live point has a "
-                                     "valid log-likelihood!")
+            self.nlive_init = len(self.live_u)
 
             # (Re-)bundle live points.
             live_points = [self.live_u, self.live_v, self.live_logl]

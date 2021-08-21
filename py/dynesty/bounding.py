@@ -1231,7 +1231,10 @@ def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
     Given the covariance matrix improve it, if it is not invertable
     or eigen values are negative or condition number that is above the limit
     Returns:
-    updated matrix and its inverse
+    a tuple with three elements
+    1) a boolean flag if a matrix is 'good', so it didn't need adjustments
+    2) updated matrix
+    3) its inverse
     """
     ndim = covar0.shape[0]
     covar = np.array(covar0)
@@ -1250,7 +1253,8 @@ def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
         failed = 0
         try:
             # Check if matrix is invertible.
-            eigval, eigvec = lalg.eigh(covar)  # compute eigenvalues/vectors
+            eigval, eigvec = lalg.eigh(covar, check_finite=False)
+            # compute eigenvalues/vectors
             maxval = eigval.max()
             minval = eigval.min()
             # Check if eigen values are good
@@ -1266,7 +1270,9 @@ def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
                     else:
                         # eigen values are all right
                         # checking if cholesky works
-                        axes = lalg.cholesky(covar, lower=True)
+                        axes = lalg.cholesky(covar,
+                                             lower=True,
+                                             check_finite=False)
                         # if we are here we are done
                         break
             else:
@@ -1296,7 +1302,9 @@ def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
     else:
         # invert the matrix using eigen decomposition
         am = eigvec @ np.diag(1. / eigval) @ eigvec.T
-    return covar, am, axes
+    good_mat = trial == 0
+    # if True it means no adjustments were necessary
+    return good_mat, covar, am, axes
 
 
 def bounding_ellipsoid(points):
@@ -1339,9 +1347,11 @@ def bounding_ellipsoid(points):
     one_minus_a_bit = 1. - ROUND_DELTA
 
     for i in range(2):
+        # If the matrix needs improvement
         # we improve the matrix twice, first before rescaling
-        # and second after rescaling
-        covar, am, axes = improve_covar_mat(covar)
+        # and second after rescaling. If matrix is okay, we do
+        # the loop once
+        good_mat, covar, am, axes = improve_covar_mat(covar)
 
         # Calculate expansion factor necessary to bound each point.
         # Points should obey `(x-v)^T A (x-v) <= 1`, so we calculate this for
@@ -1355,11 +1365,19 @@ def bounding_ellipsoid(points):
         # in the first iteration we just try to adjust the matrix
         # if it didn't work again, we bail out
         if i == 0 and fmax > one_minus_a_bit:
-            covar *= fmax / one_minus_a_bit
+            mult = fmax / one_minus_a_bit
+            # IMPORTANT that we need to update the cov, its inverse and axes
+            # as those are used directly
+            covar *= mult
+            am /= mult
+            axes *= np.sqrt(mult)
         if i == 1 and fmax >= 1:
             raise RuntimeError(
                 "Failed to initialize the ellipsoid to contain all the points")
-
+        if good_mat:
+            # I only need to run through the loop twice if the matrix
+            # is problematic
+            break
     # Initialize our ellipsoid with *safe* covariance matrix.
     ell = Ellipsoid(ctr, covar, am=am, axes=axes)
 

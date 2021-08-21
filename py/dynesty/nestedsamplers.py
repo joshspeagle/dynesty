@@ -281,8 +281,9 @@ class UnitCubeSampler(SuperSampler):
 
         u = self.unitcube.sample(rstate=self.rstate)
         ax = np.identity(self.npdim)
-        u = np.concatenate(
-            [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])
+        if self.npdim != self.ncdim:
+            u = np.concatenate(
+                [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])
 
         return u, ax
 
@@ -421,9 +422,9 @@ class SingleEllipsoidSampler(SuperSampler):
             # Check if `u` is within the unit cube.
             if unitcheck(u, self.nonbounded):
                 break  # if it is, we're done!
-
-        u = np.concatenate(
-            [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])
+        if self.npdim != self.ncdim:
+            u = np.concatenate(
+                [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])
         return u, self.ell.axes
 
     def propose_live(self, *args):
@@ -905,9 +906,9 @@ class SupFriendsSampler(SuperSampler):
 
         # Define the axes of our N-cube.
         ax = self.supfriends.axes
-
-        u = np.concatenate(
-            [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])
+        if self.npdim != self.ncdim:
+            u = np.concatenate(
+                [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])
         return u, ax
 
     def propose_live(self, *args):

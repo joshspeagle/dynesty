@@ -340,7 +340,7 @@ def resample_equal(samples, weights, rstate=None):
         # same tol as in numpy's random.choice.
         # Guarantee that the weights will sum to 1.
         warnings.warn("Weights do not sum to 1 and have been renormalized.")
-        weights = np.array(weights) / np.sum(weights)
+        weights = np.asarray(weights) / np.sum(weights)
 
     # Make N subdivisions and choose positions with a consistent random offset.
     nsamples = len(weights)
@@ -831,14 +831,14 @@ def resample_run(res, rstate=None, return_idx=False):
     new_res.samples_it = res.samples_it[samp_idx]
     new_res.samples_u = res.samples_u[samp_idx]
     new_res.samples_n = samp_n
-    new_res.logwt = np.array(saved_logwt)
+    new_res.logwt = np.asarray(saved_logwt)
     new_res.logl = logl
     new_res.logvol = logvol
-    new_res.logz = np.array(saved_logz)
+    new_res.logz = np.asarray(saved_logz)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        new_res.logzerr = np.sqrt(np.array(saved_logzvar))
-    new_res.h = np.array(saved_h)
+        new_res.logzerr = np.sqrt(np.asarray(saved_logzvar))
+    new_res.h = np.asarray(saved_h)
 
     if return_idx:
         return new_res, samp_idx
@@ -931,10 +931,10 @@ def reweight_run(res, logp_new, logp_old=None):
     new_res = Results(list(res.items()))
 
     # Overwrite items with our new estimates.
-    new_res.logwt = np.array(saved_logwt)
-    new_res.logz = np.array(saved_logz)
-    new_res.logzerr = np.sqrt(np.array(saved_logzvar))
-    new_res.h = np.array(saved_h)
+    new_res.logwt = np.asarray(saved_logwt)
+    new_res.logz = np.asarray(saved_logz)
+    new_res.logzerr = np.sqrt(np.asarray(saved_logzvar))
+    new_res.h = np.asarray(saved_h)
 
     return new_res
 
@@ -1456,23 +1456,23 @@ def _merge_two(res1, res2, compute_aux=False):
     eff = 100. * ntot / sum(combined_nc)
 
     # Save results.
-    r = [('niter', ntot), ('ncall', np.array(combined_nc)), ('eff', eff),
-         ('samples', np.array(combined_v)),
-         ('samples_id', np.array(combined_id)),
-         ('samples_it', np.array(combined_it)),
-         ('samples_n', np.array(combined_n)),
-         ('samples_u', np.array(combined_u)),
-         ('samples_batch', np.array(combined_batch)),
-         ('logl', np.array(combined_logl)),
-         ('logvol', np.array(combined_logvol)),
-         ('batch_bounds', np.array(bounds))]
+    r = [('niter', ntot), ('ncall', np.asarray(combined_nc)), ('eff', eff),
+         ('samples', np.asarray(combined_v)),
+         ('samples_id', np.asarray(combined_id)),
+         ('samples_it', np.asarray(combined_it)),
+         ('samples_n', np.asarray(combined_n)),
+         ('samples_u', np.asarray(combined_u)),
+         ('samples_batch', np.asarray(combined_batch)),
+         ('logl', np.asarray(combined_logl)),
+         ('logvol', np.asarray(combined_logvol)),
+         ('batch_bounds', np.asarray(bounds))]
 
     # Add proposal information (if available).
     if base_proposals and new_proposals:
         r.append(('prop', prop))
-        r.append(('prop_iter', np.array(combined_piter)))
-        r.append(('samples_prop', np.array(combined_propidx)))
-        r.append(('scale', np.array(combined_scale)))
+        r.append(('prop_iter', np.asarray(combined_piter)))
+        r.append(('samples_prop', np.asarray(combined_propidx)))
+        r.append(('scale', np.asarray(combined_scale)))
 
     # Compute the posterior quantities of interest if desired.
     if compute_aux:
@@ -1482,17 +1482,17 @@ def _merge_two(res1, res2, compute_aux=False):
                                          logl=combined_logl)
 
         # Compute batch information.
-        combined_id = np.array(combined_id)
+        combined_id = np.asarray(combined_id)
         batch_nlive = [
             len(np.unique(combined_id[combined_batch == i]))
             for i in np.unique(combined_batch)
         ]
 
         # Add to our results.
-        r.append(('logwt', (combined_logwt)))
-        r.append(('logz', (combined_logz)))
-        r.append(('logzerr', np.sqrt((combined_logzvar))))
-        r.append(('h', (combined_h)))
+        r.append(('logwt', combined_logwt))
+        r.append(('logz', combined_logz))
+        r.append(('logzerr', np.sqrt(combined_logzvar)))
+        r.append(('h', combined_h))
         r.append(('batch_nlive', np.array(batch_nlive, dtype=int)))
 
     # Combine to form final results object.

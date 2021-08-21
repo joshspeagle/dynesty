@@ -201,12 +201,12 @@ class Sampler:
         if self.use_pool_ptform:
             # Use the pool to compute the prior transform.
             self.live_v = np.array(
-                list(self.M(self.prior_transform, np.array(self.live_u))))
+                list(self.M(self.prior_transform, np.asarray(self.live_u))))
         else:
             # Compute the prior transform using the default `map` function.
             self.live_v = np.array(
-                list(map(self.prior_transform, np.array(self.live_u))))
-        self.live_logl = self.loglikelihood.map(np.array(self.live_v))
+                list(map(self.prior_transform, np.asarray(self.live_u))))
+        self.live_logl = self.loglikelihood.map(np.asarray(self.live_v))
 
         self.live_bound = np.zeros(self.nlive, dtype='int')
         self.live_it = np.zeros(self.nlive, dtype='int')
@@ -480,8 +480,8 @@ class Sampler:
             # ancillary quantities.
             idx = lsort_idx[i]
             logvol, dlv = logvols[i], dlvs[i]
-            ustar = np.array(self.live_u[idx])
-            vstar = np.array(self.live_v[idx])
+            ustar = np.asarray(self.live_u[idx])
+            vstar = np.asarray(self.live_v[idx])
             loglstar_new = self.live_logl[idx]
             boundidx = self.live_bound[idx]
             point_it = self.live_it[idx]
@@ -775,8 +775,8 @@ class Sampler:
             boundidx = self.live_bound[worst]  # associated bound index
 
             # Set our new worst likelihood constraint.
-            ustar = np.array(self.live_u[worst])  # unit cube position
-            vstar = np.array(self.live_v[worst])  # transformed position
+            ustar = np.asarray(self.live_u[worst])  # unit cube position
+            vstar = np.asarray(self.live_v[worst])  # transformed position
             loglstar_new = self.live_logl[worst]  # new likelihood
 
             # Sample a new live point from within the likelihood constraint

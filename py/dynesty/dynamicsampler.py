@@ -758,14 +758,14 @@ class DynamicSampler:
                         self.live_v = np.array(
                             list(
                                 self.M(self.prior_transform,
-                                       np.array(self.live_u))))
+                                       np.asarray(self.live_u))))
                     else:
                         self.live_v = np.array(
                             list(
                                 map(self.prior_transform,
-                                    np.array(self.live_u))))
+                                    np.asarray(self.live_u))))
                     self.live_logl = np.array(
-                        self.loglikelihood.map(np.array(self.live_v)))
+                        self.loglikelihood.map(np.asarray(self.live_v)))
 
                     # Convert all `-np.inf` log-likelihoods to finite large
                     # numbers. Necessary to keep estimators in our sampler from
@@ -1067,16 +1067,16 @@ class DynamicSampler:
             live_u = self.rstate.uniform(size=(nlive_new, self.npdim))
             if self.use_pool_ptform:
                 live_v = np.array(
-                    list(self.M(self.prior_transform, np.array(live_u))))
+                    list(self.M(self.prior_transform, np.asarray(live_u))))
             else:
                 live_v = np.array(
-                    list(map(self.prior_transform, np.array(live_u))))
+                    list(map(self.prior_transform, np.asarray(live_u))))
             if self.use_pool_logl:
                 live_logl = np.array(
-                    list(self.M(self.loglikelihood, np.array(live_v))))
+                    list(self.M(self.loglikelihood, np.asarray(live_v))))
             else:
                 live_logl = np.array(
-                    list(map(self.loglikelihood, np.array(live_v))))
+                    list(map(self.loglikelihood, np.asarray(live_v))))
             # Convert all `-np.inf` log-likelihoods to finite large numbers.
             # Necessary to keep estimators in our sampler from breaking.
             for i, logl in enumerate(live_logl):
@@ -1206,11 +1206,11 @@ class DynamicSampler:
         # Overwrite the previous set of live points in our internal sampler
         # with the new batch of points we just generated.
         self.sampler.nlive = nlive_new
-        self.sampler.live_u = np.array(live_u)
-        self.sampler.live_v = np.array(live_v)
-        self.sampler.live_logl = np.array(live_logl)
-        self.sampler.live_bound = np.array(live_bound)
-        self.sampler.live_it = np.array(live_it)
+        self.sampler.live_u = np.asarray(live_u)
+        self.sampler.live_v = np.asarray(live_v)
+        self.sampler.live_logl = np.asarray(live_logl)
+        self.sampler.live_bound = np.asarray(live_bound)
+        self.sampler.live_it = np.asarray(live_it)
 
         # Trigger an update of the internal bounding distribution (again).
         live_logl_min = min(live_logl)

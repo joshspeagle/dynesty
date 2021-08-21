@@ -474,35 +474,30 @@ class MultiEllipsoid:
             else:
                 return x, idx
 
-        # Select an ellipsoid at random proportional to its volume.
-        idx = rstate.choice(self.nells,
-                            p=np.exp(self.logvols - self.logvol_tot))
+        probs = np.exp(self.logvols - self.logvol_tot)
+        while True:
+            # Select an ellipsoid at random proportional to its volume.
+            idx = rstate.choice(self.nells, p=probs)
 
-        # Select a point from the chosen ellipsoid.
-        x = self.ells[idx].sample(rstate=rstate)
+            # Select a point from the chosen ellipsoid.
+            x = self.ells[idx].sample(rstate=rstate)
 
-        # Check how many ellipsoids the point lies within, passing over
-        # the `idx`-th ellipsoid `x` was sampled from.
-        delts = (x[None, :] - self.ctrs)
-        q = (np.einsum('ai,aij,aj->a', delts, self.ams, delts) < 1).sum()
+            # Check how many ellipsoids the point lies within
+            delts = (x[None, :] - self.ctrs)
+            q = (np.einsum('ai,aij,aj->a', delts, self.ams, delts) < 1).sum()
 
-        assert q > 0  # Should never fail
+            assert q > 0  # Should never fail
 
-        if return_q:
-            # If `q` is being returned, assume the user wants to
-            # explicitly apply the `1. / q` acceptance criterion to
-            # properly sample from the union of ellipsoids.
-            return x, idx, q
-        else:
-            # If `q` is not being returned, assume the user wants this
-            # done internally.
-            while rstate.uniform() > (1. / q):
-                idx = rstate.choice(self.nells,
-                                    p=np.exp(self.logvols - self.logvol_tot))
-                x = self.ells[idx].sample(rstate=rstate)
-                q = self.overlap(x, j=idx) + 1
-
-            return x, idx
+            if return_q:
+                # If `q` is being returned, assume the user wants to
+                # explicitly apply the `1. / q` acceptance criterion to
+                # properly sample from the union of ellipsoids.
+                return x, idx, q
+            else:
+                # If `q` is not being returned, assume the user wants this
+                # done internally so we repeat the loop if needed
+                if rstate.uniform() < (1. / q):
+                    return x, idx
 
     def samples(self, nsamples, rstate=None):
         """

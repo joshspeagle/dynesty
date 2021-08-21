@@ -389,7 +389,6 @@ class SingleEllipsoidSampler(SuperSampler):
 
         self.ell = Ellipsoid(np.zeros(self.ncdim), np.identity(self.ncdim))
         self.bounding = 'single'
-        self.method = method
 
     def update(self):
         """Update the bounding ellipsoid using the current set of

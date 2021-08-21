@@ -496,7 +496,7 @@ class MultiEllipsoid:
             else:
                 # If `q` is not being returned, assume the user wants this
                 # done internally so we repeat the loop if needed
-                if rstate.uniform() < (1. / q):
+                if q == 1 or rstate.uniform() < (1. / q):
                     return x, idx
 
     def samples(self, nsamples, rstate=None):

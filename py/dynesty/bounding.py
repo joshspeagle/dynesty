@@ -1227,7 +1227,7 @@ def randsphere(n, rstate=None):
 
 
 def rand_choice(pb, rstate):
-    """ Optimized version of np.random.choice
+    """ Optimized version of numpy's random.choice
     Return an index of a point selected with the probability pb
     The pb must sum to 1
     """

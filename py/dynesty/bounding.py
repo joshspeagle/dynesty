@@ -477,7 +477,7 @@ class MultiEllipsoid:
         probs = np.exp(self.logvols - self.logvol_tot)
         while True:
             # Select an ellipsoid at random proportional to its volume.
-            idx = rstate.choice(self.nells, p=probs)
+            idx = rand_choice(probs, rstate)
 
             # Select a point from the chosen ellipsoid.
             x = self.ells[idx].sample(rstate=rstate)
@@ -1224,6 +1224,16 @@ def randsphere(n, rstate=None):
     z = rstate.standard_normal(size=n)  # initial n-dim vector
     xhat = z * (rstate.uniform()**(1. / n) / lalg.norm(z))  # scale
     return xhat
+
+
+def rand_choice(pb, rstate):
+    """ Optimized version of np.random.choice
+    Return an index of a point selected with the probability pb
+    The pb must sum to 1
+    """
+    p1 = np.cumsum(pb)
+    xr = rstate.uniform()
+    return min(np.searchsorted(p1, xr), len(pb) - 1)
 
 
 def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):

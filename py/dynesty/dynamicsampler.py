@@ -155,7 +155,7 @@ def weight_function(results, args=None, return_weights=False):
     logl = results.logl
     if bounds[1] > nsamps - 1:
         # overflow on the RHS, so we move the left side
-        bounds = [bounds[0] - (bounds[1] - nsamps - 1), nsamps - 1]
+        bounds = [bounds[0] + (bounds[1] - (nsamps - 1)), nsamps - 1]
     if bounds[0] < 0:
         # if we overflow on the leftside we set the edge to -inf and expand
         # the RHS

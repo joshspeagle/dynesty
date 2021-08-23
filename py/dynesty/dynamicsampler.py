@@ -1116,20 +1116,12 @@ class DynamicSampler:
             # If the lower bound doesn't encompass all base samples,
             # we need to create a uniform sample from the prior subject
             # to the likelihood boundary constraint
-            subset0 = (saved_logl > logl_min)
-            n_pt_above = subset0.sum()
-            if n_pt_above == 0:
-                raise RuntimeError(
-                    'Could not find live points in the '
-                    'required logl interval. Please report!\n'
-                    'Diagnostics. logl_min: %s ' % str(logl_min),
-                    'logl_bounds: %s ' % str(logl_bounds),
-                    'saved_loglmax: %s' % str(saved_logl.max()))
-            elif n_pt_above == 1:
-                raise RuntimeError('Could only find a single live point in '
-                                   'the required logl interval')
-
-            live_scale = saved_scale[subset0][0]
+            subset0 = np.nonzero(saved_logl > logl_min)[0]
+            if len(subset0) < nblive:
+                subset0 = subset0[-1] - np.arange(nblive)[::-1]
+                if subset0[0] < 0:
+                    subset0[subset0 >= 0]
+            live_scale = saved_scale[subset0[0]]
             # set the scale based on the lowest point
 
             # we are weighting each point by 1/L_i * 1/W_i to ensure
@@ -1149,7 +1141,7 @@ class DynamicSampler:
             # uniform
             n_pos_weight = (cur_wt > 0).sum()
 
-            subset = self.rstate.choice(np.nonzero(subset0)[0],
+            subset = self.rstate.choice(subset0,
                                         size=min(nblive, n_pos_weight),
                                         p=cur_wt,
                                         replace=False)

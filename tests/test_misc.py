@@ -31,7 +31,7 @@ class MyException(Exception):
 
 def loglike_exc(x):
     r2 = np.sum(x**2)
-    if r2 < 0.01:
+    if r2 < 0.1:
         raise MyException('ooops')
     return -0.5 * r2
 

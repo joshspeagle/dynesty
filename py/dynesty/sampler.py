@@ -12,11 +12,11 @@ import math
 import copy
 import numpy as np
 from scipy.special import logsumexp
-
 from .results import Results, print_fn
 from .bounding import UnitCube
 from .sampling import sample_unif
-from .utils import get_seed_sequence, get_print_func, progress_integration
+from .utils import (get_seed_sequence, get_print_func, progress_integration,
+                    IteratorResult)
 
 __all__ = ["Sampler"]
 
@@ -170,7 +170,7 @@ class Sampler:
     def update_proposal(self, *args):
         raise RuntimeError('Should be overriden')
 
-    def update(self, *args):
+    def update(self):
         raise RuntimeError('Should be overriden')
 
     def __getstate__(self):
@@ -201,12 +201,12 @@ class Sampler:
         if self.use_pool_ptform:
             # Use the pool to compute the prior transform.
             self.live_v = np.array(
-                list(self.M(self.prior_transform, np.array(self.live_u))))
+                list(self.M(self.prior_transform, np.asarray(self.live_u))))
         else:
             # Compute the prior transform using the default `map` function.
             self.live_v = np.array(
-                list(map(self.prior_transform, np.array(self.live_u))))
-        self.live_logl = self.loglikelihood.map(np.array(self.live_v))
+                list(map(self.prior_transform, np.asarray(self.live_u))))
+        self.live_logl = self.loglikelihood.map(np.asarray(self.live_v))
 
         self.live_bound = np.zeros(self.nlive, dtype='int')
         self.live_it = np.zeros(self.nlive, dtype='int')
@@ -480,8 +480,10 @@ class Sampler:
             # ancillary quantities.
             idx = lsort_idx[i]
             logvol, dlv = logvols[i], dlvs[i]
-            ustar = np.array(self.live_u[idx])
-            vstar = np.array(self.live_v[idx])
+            # we are doing copies here, because live_u/live_v are
+            # updated in place
+            ustar = self.live_u[idx].copy()
+            vstar = self.live_v[idx].copy()
             loglstar_new = self.live_logl[idx]
             boundidx = self.live_bound[idx]
             point_it = self.live_it[idx]
@@ -513,8 +515,21 @@ class Sampler:
             self.eff = 100. * (self.it + i) / self.ncall  # efficiency
 
             # Return our new "dead" point and ancillary quantities.
-            yield (idx, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
-                   h, 1, point_it, boundidx, bounditer, self.eff, delta_logz)
+            yield IteratorResult(worst=idx,
+                                 ustar=ustar,
+                                 vstar=vstar,
+                                 loglstar=loglstar,
+                                 logvol=logvol,
+                                 logwt=logwt,
+                                 logz=logz,
+                                 logzvar=logzvar,
+                                 h=h,
+                                 nc=1,
+                                 worst_it=point_it,
+                                 boundidx=boundidx,
+                                 bounditer=bounditer,
+                                 eff=self.eff,
+                                 delta_logz=delta_logz)
 
     def _remove_live_points(self):
         """Remove the final set of live points if they were
@@ -762,8 +777,10 @@ class Sampler:
             boundidx = self.live_bound[worst]  # associated bound index
 
             # Set our new worst likelihood constraint.
-            ustar = np.array(self.live_u[worst])  # unit cube position
-            vstar = np.array(self.live_v[worst])  # transformed position
+            # Notice we are doing copies here because live_u and live_v
+            # are updated in-place
+            ustar = self.live_u[worst].copy()  # unit cube position
+            vstar = self.live_v[worst].copy()  # transformed position
             loglstar_new = self.live_logl[worst]  # new likelihood
 
             # Sample a new live point from within the likelihood constraint
@@ -816,8 +833,21 @@ class Sampler:
             self.it += 1
 
             # Return dead point and ancillary quantities.
-            yield (worst, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
-                   h, nc, worst_it, boundidx, bounditer, self.eff, delta_logz)
+            yield IteratorResult(worst=worst,
+                                 ustar=ustar,
+                                 vstar=vstar,
+                                 loglstar=loglstar,
+                                 logvol=logvol,
+                                 logwt=logwt,
+                                 logz=logz,
+                                 logzvar=logzvar,
+                                 h=h,
+                                 nc=nc,
+                                 worst_it=worst_it,
+                                 boundidx=boundidx,
+                                 bounditer=bounditer,
+                                 eff=self.eff,
+                                 delta_logz=delta_logz)
 
     def run_nested(self,
                    maxiter=None,
@@ -904,14 +934,7 @@ class Sampler:
                                 save_samples=True,
                                 n_effective=n_effective,
                                 add_live=add_live)):
-                (worst, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
-                 h, nc, worst_it, boundidx, bounditer, eff,
-                 delta_logz) = results
-                ncall += nc
-                if delta_logz > 1e6:
-                    delta_logz = np.inf
-                if logz <= -1e6:
-                    logz = -np.inf
+                ncall += results.nc
 
                 # Print progress.
                 if print_progress:
@@ -926,13 +949,7 @@ class Sampler:
             if add_live:
                 it = self.it - 1
                 for i, results in enumerate(self.add_live_points()):
-                    (worst, ustar, vstar, loglstar, logvol, logwt, logz,
-                     logzvar, h, nc, worst_it, boundidx, bounditer, eff,
-                     delta_logz) = results
-                    if delta_logz > 1e6:
-                        delta_logz = np.inf
-                    if logz <= -1e6:
-                        logz = -np.inf
+                    ncall += results.nc
 
                     # Print progress.
                     if print_progress:
@@ -974,13 +991,6 @@ class Sampler:
             ncall = self.ncall
             it = self.it - 1
             for i, results in enumerate(self.add_live_points()):
-                (worst, ustar, vstar, loglstar, logvol, logwt, logz, logzvar,
-                 h, nc, worst_it, boundidx, bounditer, eff,
-                 delta_logz) = results
-                if delta_logz > 1e6:
-                    delta_logz = np.inf
-                if logz <= -1e6:
-                    logz = -np.inf
 
                 # Print progress.
                 if print_progress:

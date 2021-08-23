@@ -110,8 +110,13 @@ def get_print_fn_args(results,
                       logl_min=-np.inf,
                       logl_max=np.inf):
     # Extract results at the current iteration.
-    (worst, ustar, vstar, loglstar, logvol, logwt, logz, logzvar, h, nc,
-     worst_it, boundidx, bounditer, eff, delta_logz) = results
+    loglstar = results.loglstar
+    logz = results.logz
+    logzvar = results.logzvar
+    delta_logz = results.delta_logz
+    bounditer = results.bounditer
+    nc = results.nc
+    eff = results.eff
 
     # Adjusting outputs for printing.
     if delta_logz > 1e6:

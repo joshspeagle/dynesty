@@ -9,6 +9,7 @@ import sys
 import warnings
 import math
 import copy
+from collections import namedtuple
 from functools import partial
 import numpy as np
 from scipy.special import logsumexp
@@ -23,11 +24,22 @@ from .results import Results, print_fn
 __all__ = [
     "unitcheck", "resample_equal", "mean_and_cov", "quantile", "jitter_run",
     "resample_run", "simulate_run", "reweight_run", "unravel_run",
-    "merge_runs", "kl_divergence", "kld_error", "_merge_two",
-    "_get_nsamps_samples_n"
+    "merge_runs", "kld_error", "_merge_two", "_get_nsamps_samples_n",
+    "get_enlarge_bootstrap"
 ]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
+
+IteratorResult = namedtuple('IteratorResult', [
+    'worst', 'ustar', 'vstar', 'loglstar', 'logvol', 'logwt', 'logz',
+    'logzvar', 'h', 'nc', 'worst_it', 'boundidx', 'bounditer', 'eff',
+    'delta_logz'
+])
+
+IteratorResultShort = namedtuple('IteratorResult', [
+    'worst', 'ustar', 'vstar', 'loglstar', 'nc', 'worst_it', 'boundidx',
+    'bounditer', 'eff'
+])
 
 
 class LogLikelihood:
@@ -121,6 +133,7 @@ class LogLikelihood:
         import h5py
         try:
             with h5py.File(self.history_filename, mode='a') as fp:
+                # pylint: disable=no-member
                 nadd = len(self.history_logl)
                 fp['param'].resize(self.history_counter + nadd, axis=0)
                 fp['logl'].resize(self.history_counter + nadd, axis=0)
@@ -139,6 +152,32 @@ class LogLikelihood:
         state = self.__dict__.copy()
         del state['pool']
         return state
+
+
+def get_enlarge_bootstrap(sample, enlarge, bootstrap):
+    """
+    Determine the enlarge, boostrap for a given run
+    """
+    # we should make it dimension dependent I think...
+    DEFAULT_ENLARGE = 1.25
+    DEFAULT_UNIF_BOOTSTRAP = 5
+    if enlarge is not None and bootstrap is None:
+        assert enlarge > 1
+        return enlarge, 0
+    elif enlarge is None and bootstrap is not None:
+        assert bootstrap > 1
+        return 1, bootstrap
+    elif enlarge is None and bootstrap is None:
+        if sample == 'unif':
+            return 1, DEFAULT_UNIF_BOOTSTRAP
+        else:
+            return DEFAULT_ENLARGE, 0
+    else:
+        if bootstrap == 0 or enlarge == 1:
+            return enlarge, bootstrap
+        else:
+            raise ValueError('Enlarge and bootstrap together do not make'
+                             'sense unless bootstrap=1 or enlarge = 1')
 
 
 def get_print_func(print_func, print_progress):
@@ -176,14 +215,14 @@ def unitcheck(u, nonbounded=None):
 
     if nonbounded is None:
         # No periodic boundary conditions provided.
-        return np.all(u > 0.) and np.all(u < 1.)
+        return np.min(u) > 0 and np.max(u) < 1
     else:
         # Alternating periodic and non-periodic boundary conditions.
         unb = u[nonbounded]
         # pylint: disable=invalid-unary-operand-type
         ub = u[~nonbounded]
-        return (np.all(unb > 0.) and np.all(unb < 1.) and np.all(ub > -0.5)
-                and np.all(ub < 1.5))
+        return (unb.min() > 0 and unb.max() < 1 and ub.min() > -0.5
+                and ub.max() < 1.5)
 
 
 def apply_reflect(u):
@@ -301,7 +340,7 @@ def resample_equal(samples, weights, rstate=None):
         # same tol as in numpy's random.choice.
         # Guarantee that the weights will sum to 1.
         warnings.warn("Weights do not sum to 1 and have been renormalized.")
-        weights = np.array(weights) / np.sum(weights)
+        weights = np.asarray(weights) / np.sum(weights)
 
     # Make N subdivisions and choose positions with a consistent random offset.
     nsamples = len(weights)
@@ -561,8 +600,11 @@ def compute_integrals(logl=None, logvol=None, reweight=None):
     reweight: array (or None)
         (optional) reweighting array to reweight posterior
     """
+    # pylint: disable=invalid-unary-operand-type
+    # Unfortunately pylint doesn't get the asserts
     assert logl is not None
     assert logvol is not None
+
     loglstar_pad = np.concatenate([[-1.e300], logl])
 
     # we want log(exp(logvol_i)-exp(logvol_(i+1)))
@@ -789,14 +831,14 @@ def resample_run(res, rstate=None, return_idx=False):
     new_res.samples_it = res.samples_it[samp_idx]
     new_res.samples_u = res.samples_u[samp_idx]
     new_res.samples_n = samp_n
-    new_res.logwt = np.array(saved_logwt)
+    new_res.logwt = np.asarray(saved_logwt)
     new_res.logl = logl
     new_res.logvol = logvol
-    new_res.logz = np.array(saved_logz)
+    new_res.logz = np.asarray(saved_logz)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        new_res.logzerr = np.sqrt(np.array(saved_logzvar))
-    new_res.h = np.array(saved_h)
+        new_res.logzerr = np.sqrt(np.asarray(saved_logzvar))
+    new_res.h = np.asarray(saved_h)
 
     if return_idx:
         return new_res, samp_idx
@@ -889,10 +931,10 @@ def reweight_run(res, logp_new, logp_old=None):
     new_res = Results(list(res.items()))
 
     # Overwrite items with our new estimates.
-    new_res.logwt = np.array(saved_logwt)
-    new_res.logz = np.array(saved_logz)
-    new_res.logzerr = np.sqrt(np.array(saved_logzvar))
-    new_res.h = np.array(saved_h)
+    new_res.logwt = np.asarray(saved_logwt)
+    new_res.logz = np.asarray(saved_logz)
+    new_res.logzerr = np.sqrt(np.asarray(saved_logzvar))
+    new_res.h = np.asarray(saved_h)
 
     return new_res
 
@@ -1114,78 +1156,6 @@ def merge_runs(res_list, print_progress=True):
         res.niter = niter - nlive
 
     return res
-
-
-def kl_divergence(res1, res2):
-    """
-    Computes the `Kullback-Leibler (KL) divergence
-    <https://en.wikipedia.org/wiki/Kullback-Leibler_divergence>`_ *from* the
-    discrete probability distribution defined by `res2` *to* the discrete
-    probability distribution defined by `res1`.
-
-    Parameters
-    ----------
-    res1 : :class:`~dynesty.results.Results` instance
-        :class:`~dynesty.results.Results` instance for the distribution we are
-        computing the KL divergence *to*. **Note that, by construction,
-        the samples in `res1` *must* be a subset of the samples in `res2`.**
-
-    res2 : :class:`~dynesty.results.Results` instance
-        :class:`~dynesty.results.Results` instance for the distribution we
-        are computing the KL divergence *from*. **Note that, by construction,
-        the samples in `res2` *must* be a superset of the samples in `res1`.**
-
-    Returns
-    -------
-    kld : `~numpy.ndarray` with shape (nsamps,)
-        The cumulative KL divergence defined over `res1`.
-
-    """
-
-    # Define our importance weights.
-    logp1, logp2 = res1.logwt - res1.logz[-1], res2.logwt - res2.logz[-1]
-
-    # Define the positions where the discrete probability distributions exists.
-    samples1, samples2 = res1.samples, res2.samples
-    samples1_id, samples2_id = res1.samples_id, res2.samples_id
-    nsamps1, nsamps2 = len(samples1), len(samples2)
-
-    # Compute the KL divergence.
-    if nsamps1 == nsamps2 and np.all(samples1_id == samples2_id):
-        # If our runs have the same particles in the same order, compute
-        # the KL divergence in one go.
-        kld = np.exp(logp1) * (logp1 - logp2)
-    else:
-        # Otherwise, compute the components of the KL divergence one at a time.
-        uidxs = np.unique(samples1_id)  # unique particle IDs
-        count1, count2 = np.arange(nsamps1), np.arange(nsamps2)
-        kld = np.zeros(nsamps1)
-        for uidx in uidxs:
-
-            # Select matching particles.
-            sel1 = count1[samples1_id == uidx]
-            sel2 = count2[samples2_id == uidx]
-
-            # Select corresponding positions.
-            pos1, pos2 = samples1[sel1], samples2[sel2]
-            for s, p in zip(sel1, pos1):
-                # Search for a matching position.
-                pos_sel = sel2[np.all(np.isclose(pos2, p), axis=1)]
-                npos = len(pos_sel)
-                if npos > 1:
-                    # If there are several possible matches, pick the
-                    # one with the closet importance weight.
-                    diff = logp1[s] - logp2[pos_sel]
-                    # Compute the `s`-th term.
-                    kld[s] = np.exp(logp1[s]) * diff[np.argmin(abs(diff))]
-                elif npos == 1:
-                    # If there is only one match, compute the result directly.
-                    kld[s] = np.exp(logp1[s]) * (logp1[s] - logp2[pos_sel])
-                else:
-                    raise ValueError("Distribution from `res2` undefined at "
-                                     "position {0}.".format(p))
-
-    return np.cumsum(kld)
 
 
 def kld_error(res,
@@ -1486,23 +1456,23 @@ def _merge_two(res1, res2, compute_aux=False):
     eff = 100. * ntot / sum(combined_nc)
 
     # Save results.
-    r = [('niter', ntot), ('ncall', np.array(combined_nc)), ('eff', eff),
-         ('samples', np.array(combined_v)),
-         ('samples_id', np.array(combined_id)),
-         ('samples_it', np.array(combined_it)),
-         ('samples_n', np.array(combined_n)),
-         ('samples_u', np.array(combined_u)),
-         ('samples_batch', np.array(combined_batch)),
-         ('logl', np.array(combined_logl)),
-         ('logvol', np.array(combined_logvol)),
-         ('batch_bounds', np.array(bounds))]
+    r = [('niter', ntot), ('ncall', np.asarray(combined_nc)), ('eff', eff),
+         ('samples', np.asarray(combined_v)),
+         ('samples_id', np.asarray(combined_id)),
+         ('samples_it', np.asarray(combined_it)),
+         ('samples_n', np.asarray(combined_n)),
+         ('samples_u', np.asarray(combined_u)),
+         ('samples_batch', np.asarray(combined_batch)),
+         ('logl', np.asarray(combined_logl)),
+         ('logvol', np.asarray(combined_logvol)),
+         ('batch_bounds', np.asarray(bounds))]
 
     # Add proposal information (if available).
     if base_proposals and new_proposals:
         r.append(('prop', prop))
-        r.append(('prop_iter', np.array(combined_piter)))
-        r.append(('samples_prop', np.array(combined_propidx)))
-        r.append(('scale', np.array(combined_scale)))
+        r.append(('prop_iter', np.asarray(combined_piter)))
+        r.append(('samples_prop', np.asarray(combined_propidx)))
+        r.append(('scale', np.asarray(combined_scale)))
 
     # Compute the posterior quantities of interest if desired.
     if compute_aux:
@@ -1512,17 +1482,17 @@ def _merge_two(res1, res2, compute_aux=False):
                                          logl=combined_logl)
 
         # Compute batch information.
-        combined_id = np.array(combined_id)
+        combined_id = np.asarray(combined_id)
         batch_nlive = [
             len(np.unique(combined_id[combined_batch == i]))
             for i in np.unique(combined_batch)
         ]
 
         # Add to our results.
-        r.append(('logwt', (combined_logwt)))
-        r.append(('logz', (combined_logz)))
-        r.append(('logzerr', np.sqrt((combined_logzvar))))
-        r.append(('h', (combined_h)))
+        r.append(('logwt', combined_logwt))
+        r.append(('logz', combined_logz))
+        r.append(('logzerr', np.sqrt(combined_logzvar)))
+        r.append(('h', combined_h))
         r.append(('batch_nlive', np.array(batch_nlive, dtype=int)))
 
     # Combine to form final results object.

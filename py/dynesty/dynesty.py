@@ -15,8 +15,8 @@ import numpy as np
 
 from .nestedsamplers import _SAMPLING
 from .dynamicsampler import (DynamicSampler, __get_update_interval_ratio,
-                             _SAMPLERS)
-from .utils import LogLikelihood, get_random_generator
+                             _SAMPLERS, sample_init)
+from .utils import LogLikelihood, get_random_generator, get_enlarge_bootstrap
 
 __all__ = ["NestedSampler", "DynamicNestedSampler", "_function_wrapper"]
 
@@ -166,7 +166,7 @@ def NestedSampler(loglikelihood,
                   grad_kwargs=None,
                   compute_jac=False,
                   enlarge=None,
-                  bootstrap=0,
+                  bootstrap=None,
                   walks=None,
                   facc=0.5,
                   slices=None,
@@ -353,7 +353,8 @@ def NestedSampler(loglikelihood,
         Compute this many bootstrapped realizations of the bounding
         objects. Use the maximum distance found to the set of points left
         out during each iteration to enlarge the resulting volumes. Can
-        lead to unstable bounding ellipsoids. Default is `0` (no bootstrap).
+        lead to unstable bounding ellipsoids. Default is `None` (no bootstrap
+        unless the sampler is uniform).
 
     walks : int, optional
         For the `'rwalk'` sampling option, the minimum number of steps
@@ -443,11 +444,15 @@ def NestedSampler(loglikelihood,
         if np.intersect1d(periodic, reflective) != 0:
             raise ValueError("You have specified a parameter as both "
                              "periodic and reflective.")
-    nonbounded = np.ones(npdim, dtype='bool')
-    if periodic is not None:
-        nonbounded[periodic] = False
-    if reflective is not None:
-        nonbounded[reflective] = False
+
+    if periodic is not None or reflective is not None:
+        nonbounded = np.ones(npdim, dtype='bool')
+        if periodic is not None:
+            nonbounded[periodic] = False
+        if reflective is not None:
+            nonbounded[reflective] = False
+    else:
+        nonbounded = None
     kwargs['nonbounded'] = nonbounded
     kwargs['periodic'] = periodic
     kwargs['reflective'] = reflective
@@ -479,10 +484,9 @@ def NestedSampler(loglikelihood,
         grad_kwargs = {}
 
     # Bounding distribution modifications.
-    if enlarge is not None:
-        kwargs['enlarge'] = enlarge
-    if bootstrap is not None:
-        kwargs['bootstrap'] = bootstrap
+    enlarge, bootstrap = get_enlarge_bootstrap(sample, enlarge, bootstrap)
+    kwargs['enlarge'] = enlarge
+    kwargs['bootstrap'] = bootstrap
 
     # Sampling.
     if walks is not None:
@@ -550,59 +554,15 @@ def NestedSampler(loglikelihood,
         kwargs['grad'] = grad
         kwargs['compute_jac'] = compute_jac
 
-    # Initialize live points and calculate log-likelihoods.
-    if live_points is None:
-        # If no live points are provided, propose them by randomly sampling
-        # from the unit cube.
-        for attempt in range(100):
-            live_u = rstate.uniform(size=(nlive,
-                                          npdim))  # positions in unit cube
-            if use_pool.get('prior_transform', True):
-                live_v = np.array(list(M(ptform,
-                                         np.array(live_u))))  # parameters
-            else:
-                live_v = np.array(list(map(ptform, np.array(live_u))))
-            live_logl = loglike.map(np.array(live_v))  # log-like
-            live_points = [live_u, live_v, live_logl]
-
-            # Convert all `-np.inf` log-likelihoods to finite large numbers.
-            # Necessary to keep estimators in our sampler from breaking.
-            for i, logl in enumerate(live_points[2]):
-                if not np.isfinite(logl):
-                    if np.sign(logl) < 0:
-                        live_points[2][i] = -1e300
-                    else:
-                        raise ValueError("The log-likelihood ({0}) of live "
-                                         "point {1} located at u={2} v={3} "
-                                         "is invalid.".format(
-                                             logl, i, live_points[0][i],
-                                             live_points[1][i]))
-
-            # Check to make sure there is at least one finite log-likelihood
-            # value within the initial set of live points.
-            if any(live_points[2] != -1e300):
-                break
-        else:
-            # If we found nothing after many attempts, raise the alarm.
-            raise RuntimeError("After many attempts, not a single live point "
-                               "had a valid log-likelihood! Please check your "
-                               "prior transform and/or log-likelihood.")
-    else:
-        # If live points were provided, convert the log-likelihoods and then
-        # run a quick safety check.
-        for i, logl in enumerate(live_points[2]):
-            if not np.isfinite(logl):
-                if np.sign(logl) < 0:
-                    live_points[2][i] = -1e300
-                else:
-                    raise ValueError("The log-likelihood ({0}) of live "
-                                     "point {1} located at u={2} v={3} "
-                                     "is invalid.".format(
-                                         logl, i, live_points[0][i],
-                                         live_points[1][i]))
-        if all(live_points[2] == -1e300):
-            raise ValueError("Not a single provided live point has a valid "
-                             "log-likelihood!")
+    live_points = sample_init(live_points,
+                              ptform,
+                              loglike,
+                              M,
+                              nlive=nlive,
+                              npdim=npdim,
+                              rstate=rstate,
+                              use_pool_ptform=use_pool.get(
+                                  'prior_transform', True))
 
     # Initialize our nested sampler.
     sampler = _SAMPLERS[bound](loglike,
@@ -646,7 +606,7 @@ def DynamicNestedSampler(loglikelihood,
                          grad_kwargs=None,
                          compute_jac=False,
                          enlarge=None,
-                         bootstrap=0,
+                         bootstrap=None,
                          walks=None,
                          facc=0.5,
                          slices=None,
@@ -819,7 +779,8 @@ def DynamicNestedSampler(loglikelihood,
         Compute this many bootstrapped realizations of the bounding
         objects. Use the maximum distance found to the set of points left
         out during each iteration to enlarge the resulting volumes. Can lead
-        to unstable bounding ellipsoids. Default is `0` (no bootstrap).
+        to unstable bounding ellipsoids. Default is `None` (no bootstrap unless
+        the sampler is uniform).
 
     walks : int, optional
         For the `'rwalk'` sampling option, the minimum number of steps
@@ -911,11 +872,16 @@ def DynamicNestedSampler(loglikelihood,
         if np.intersect1d(periodic, reflective) != 0:
             raise ValueError("You have specified a parameter as both "
                              "periodic and reflective.")
-    nonbounded = np.ones(npdim, dtype='bool')
-    if periodic is not None:
-        nonbounded[periodic] = False
-    if reflective is not None:
-        nonbounded[reflective] = False
+
+    if periodic is not None or reflective is not None:
+        nonbounded = np.ones(npdim, dtype='bool')
+        if periodic is not None:
+            nonbounded[periodic] = False
+        if reflective is not None:
+            nonbounded[reflective] = False
+    else:
+        nonbounded = None
+
     kwargs['nonbounded'] = nonbounded
     kwargs['periodic'] = periodic
     kwargs['reflective'] = reflective
@@ -947,10 +913,9 @@ def DynamicNestedSampler(loglikelihood,
         grad_kwargs = {}
 
     # Bounding distribution modifications.
-    if enlarge is not None:
-        kwargs['enlarge'] = enlarge
-    if bootstrap is not None:
-        kwargs['bootstrap'] = bootstrap
+    enlarge, bootstrap = get_enlarge_bootstrap(sample, enlarge, bootstrap)
+    kwargs['enlarge'] = enlarge
+    kwargs['bootstrap'] = bootstrap
 
     # Sampling.
     if walks is not None:

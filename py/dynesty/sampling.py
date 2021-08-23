@@ -83,8 +83,8 @@ def sample_unif(args):
      kwargs) = args
 
     # Evaluate.
-    v = prior_transform(np.array(u))
-    logl = loglikelihood(np.array(v))
+    v = prior_transform(np.asarray(u))
+    logl = loglikelihood(np.asarray(v))
     nc = 1
     blob = None
 
@@ -223,8 +223,8 @@ def sample_rwalk(args):
                 scale *= math.exp(-1. / n_cluster)
 
         # Check proposed point.
-        v_prop = prior_transform(np.array(u_prop))
-        logl_prop = loglikelihood(np.array(v_prop))
+        v_prop = prior_transform(np.asarray(u_prop))
+        logl_prop = loglikelihood(np.asarray(v_prop))
         if logl_prop > loglstar:
             u = u_prop
             v = v_prop
@@ -384,8 +384,8 @@ def sample_rstagger(args):
                 scale *= math.exp(-1. / n_cluster)
 
         # Check proposed point.
-        v_prop = prior_transform(np.array(u_prop))
-        logl_prop = loglikelihood(np.array(v_prop))
+        v_prop = prior_transform(np.asarray(u_prop))
+        logl_prop = loglikelihood(np.asarray(v_prop))
         if logl_prop > loglstar:
             u = u_prop
             v = v_prop
@@ -838,8 +838,8 @@ def sample_hslice(args):
                 u_r += rstate.uniform(1. - jitter, 1. + jitter) * vel
                 # Evaluate point.
                 if unitcheck(u_r, nonperiodic):
-                    v_r = prior_transform(np.array(u_r))
-                    logl_r = loglikelihood(np.array(v_r))
+                    v_r = prior_transform(np.asarray(u_r))
+                    logl_r = loglikelihood(np.asarray(v_r))
                     nc += 1
                     ncall += 1
                     nmove += 1
@@ -895,8 +895,8 @@ def sample_hslice(args):
                     # right side
                     u_r_r[i] += 1e-10
                     if unitcheck(u_r_r, nonperiodic):
-                        v_r_r = prior_transform(np.array(u_r_r))
-                        logl_r_r = loglikelihood(np.array(v_r_r))
+                        v_r_r = prior_transform(np.asarray(u_r_r))
+                        logl_r_r = loglikelihood(np.asarray(v_r_r))
                     else:
                         logl_r_r = -np.inf
                         reverse = True  # can't compute gradient
@@ -904,8 +904,8 @@ def sample_hslice(args):
                     # left side
                     u_r_l[i] -= 1e-10
                     if unitcheck(u_r_l, nonperiodic):
-                        v_r_l = prior_transform(np.array(u_r_l))
-                        logl_r_l = loglikelihood(np.array(v_r_l))
+                        v_r_l = prior_transform(np.asarray(u_r_l))
+                        logl_r_l = loglikelihood(np.asarray(v_r_l))
                     else:
                         logl_r_l = -np.inf
                         reverse = True  # can't compute gradient
@@ -926,14 +926,14 @@ def sample_hslice(args):
                         # right side
                         u_r_r[i] += 1e-10
                         if unitcheck(u_r_r, nonperiodic):
-                            v_r_r = prior_transform(np.array(u_r_r))
+                            v_r_r = prior_transform(np.asarray(u_r_r))
                         else:
                             reverse = True  # can't compute Jacobian
                             v_r_r = np.array(v_r)  # assume no movement
                         # left side
                         u_r_l[i] -= 1e-10
                         if unitcheck(u_r_l, nonperiodic):
-                            v_r_l = prior_transform(np.array(u_r_l))
+                            v_r_l = prior_transform(np.asarray(u_r_l))
                         else:
                             reverse = True  # can't compute Jacobian
                             v_r_r = np.array(v_r)  # assume no movement
@@ -977,8 +977,8 @@ def sample_hslice(args):
                 u_l += rstate.uniform(1. - jitter, 1. + jitter) * vel
                 # Evaluate point.
                 if unitcheck(u_l, nonperiodic):
-                    v_l = prior_transform(np.array(u_l))
-                    logl_l = loglikelihood(np.array(v_l))
+                    v_l = prior_transform(np.asarray(u_l))
+                    logl_l = loglikelihood(np.asarray(v_l))
                     nc += 1
                     ncall += 1
                     nmove += 1
@@ -1034,8 +1034,8 @@ def sample_hslice(args):
                     # right side
                     u_l_r[i] += 1e-10
                     if unitcheck(u_l_r, nonperiodic):
-                        v_l_r = prior_transform(np.array(u_l_r))
-                        logl_l_r = loglikelihood(np.array(v_l_r))
+                        v_l_r = prior_transform(np.asarray(u_l_r))
+                        logl_l_r = loglikelihood(np.asarray(v_l_r))
                     else:
                         logl_l_r = -np.inf
                         reverse = True  # can't compute gradient
@@ -1043,8 +1043,8 @@ def sample_hslice(args):
                     # left side
                     u_l_l[i] -= 1e-10
                     if unitcheck(u_l_l, nonperiodic):
-                        v_l_l = prior_transform(np.array(u_l_l))
-                        logl_l_l = loglikelihood(np.array(v_l_l))
+                        v_l_l = prior_transform(np.asarray(u_l_l))
+                        logl_l_l = loglikelihood(np.asarray(v_l_l))
                     else:
                         logl_l_l = -np.inf
                         reverse = True  # can't compute gradient
@@ -1065,14 +1065,14 @@ def sample_hslice(args):
                         # right side
                         u_l_r[i] += 1e-10
                         if unitcheck(u_l_r, nonperiodic):
-                            v_l_r = prior_transform(np.array(u_l_r))
+                            v_l_r = prior_transform(np.asarray(u_l_r))
                         else:
                             reverse = True  # can't compute Jacobian
                             v_l_r = np.array(v_l)  # assume no movement
                         # left side
                         u_l_l[i] -= 1e-10
                         if unitcheck(u_l_l, nonperiodic):
-                            v_l_l = prior_transform(np.array(u_l_l))
+                            v_l_l = prior_transform(np.asarray(u_l_l))
                         else:
                             reverse = True  # can't compute Jacobian
                             v_l_r = np.array(v_l)  # assume no movement
@@ -1136,8 +1136,8 @@ def sample_hslice(args):
             rprop = rstate.uniform()
             u_prop = u_l + rprop * u_hat  # scale from left
             if unitcheck(u_prop, nonperiodic):
-                v_prop = prior_transform(np.array(u_prop))
-                logl_prop = loglikelihood(np.array(v_prop))
+                v_prop = prior_transform(np.asarray(u_prop))
+                logl_prop = loglikelihood(np.asarray(v_prop))
             else:
                 logl_prop = -np.inf
             nc += 1

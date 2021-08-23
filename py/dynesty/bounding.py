@@ -163,6 +163,7 @@ class Ellipsoid:
         # Amount by which volume was increased after initialization (i.e.
         # cumulative factor from `scale_to_vol`).
         self.expand = 1.
+        self.funit = 1
 
     def scale_to_logvol(self, logvol):
         """Scale ellipsoid to a target volume."""
@@ -342,7 +343,7 @@ class Ellipsoid:
         # Estimate the fractional overlap with the unit cube using
         # Monte Carlo integration.
         if mc_integrate:
-            self.funit = self.unitcube_overlap()
+            self.funit = self.unitcube_overlap(rstate=rstate)
 
 
 class MultiEllipsoid:
@@ -389,6 +390,7 @@ class MultiEllipsoid:
         self.expands = np.ones(self.nells)
         self.logvol_tot = logsumexp(self.logvols)
         self.expand_tot = 1.
+        self.funit = 1
 
     def __update_arrays(self):
         """
@@ -472,35 +474,30 @@ class MultiEllipsoid:
             else:
                 return x, idx
 
-        # Select an ellipsoid at random proportional to its volume.
-        idx = rstate.choice(self.nells,
-                            p=np.exp(self.logvols - self.logvol_tot))
+        probs = np.exp(self.logvols - self.logvol_tot)
+        while True:
+            # Select an ellipsoid at random proportional to its volume.
+            idx = rand_choice(probs, rstate)
 
-        # Select a point from the chosen ellipsoid.
-        x = self.ells[idx].sample(rstate=rstate)
+            # Select a point from the chosen ellipsoid.
+            x = self.ells[idx].sample(rstate=rstate)
 
-        # Check how many ellipsoids the point lies within, passing over
-        # the `idx`-th ellipsoid `x` was sampled from.
-        delts = (x[None, :] - self.ctrs)
-        q = (np.einsum('ai,aij,aj->a', delts, self.ams, delts) < 1).sum()
+            # Check how many ellipsoids the point lies within
+            delts = (x[None, :] - self.ctrs)
+            q = (np.einsum('ai,aij,aj->a', delts, self.ams, delts) < 1).sum()
 
-        assert q > 0  # Should never fail
+            assert q > 0  # Should never fail
 
-        if return_q:
-            # If `q` is being returned, assume the user wants to
-            # explicitly apply the `1. / q` acceptance criterion to
-            # properly sample from the union of ellipsoids.
-            return x, idx, q
-        else:
-            # If `q` is not being returned, assume the user wants this
-            # done internally.
-            while rstate.uniform() > (1. / q):
-                idx = rstate.choice(self.nells,
-                                    p=np.exp(self.logvols - self.logvol_tot))
-                x = self.ells[idx].sample(rstate=rstate)
-                q = self.overlap(x, j=idx) + 1
-
-            return x, idx
+            if return_q:
+                # If `q` is being returned, assume the user wants to
+                # explicitly apply the `1. / q` acceptance criterion to
+                # properly sample from the union of ellipsoids.
+                return x, idx, q
+            else:
+                # If `q` is not being returned, assume the user wants this
+                # done internally so we repeat the loop if needed
+                if q == 1 or rstate.uniform() < (1. / q):
+                    return x, idx
 
     def samples(self, nsamples, rstate=None):
         """
@@ -632,8 +629,8 @@ class MultiEllipsoid:
         # Estimate the volume and fractional overlap with the unit cube
         # using Monte Carlo integration.
         if mc_integrate:
-            self.logvol, self.funit = self.monte_carlo_logvol(
-                return_overlap=True)
+            self.logvol_tot, self.funit = self.monte_carlo_logvol(
+                rstate=rstate, return_overlap=True)
 
 
 class RadFriends:
@@ -663,6 +660,7 @@ class RadFriends:
         assert detsign > 0
         self.logvol_ball = (logvol_prefactor(self.n) - 0.5 * detln)
         self.expand = 1.
+        self.funit = 1
 
     def scale_to_logvol(self, logvol):
         """Scale ball to encompass a target volume."""
@@ -878,8 +876,9 @@ class RadFriends:
         # Estimate the volume and fractional overlap with the unit cube
         # using Monte Carlo integration.
         if mc_integrate:
-            self.logvol, self.funit = self.monte_carlo_logvol(
-                points, return_overlap=True)
+            self.funit = self.monte_carlo_logvol(points,
+                                                 return_overlap=True,
+                                                 rstate=rstate)[1]
 
     def _get_covariance_from_all_points(self, points):
         """Compute covariance using all points."""
@@ -943,6 +942,7 @@ class SupFriends:
         assert detsign > 0
         self.logvol_cube = self.n * np.log(2.) - 0.5 * detln
         self.expand = 1.
+        self.funit = 1
 
     def scale_to_logvol(self, logvol):
         """Scale cube to encompass a target volume."""
@@ -1157,8 +1157,9 @@ class SupFriends:
         # Estimate the volume and fractional overlap with the unit cube
         # using Monte Carlo integration.
         if mc_integrate:
-            self.logvol, self.funit = self.monte_carlo_logvol(
-                points, return_overlap=True)
+            self.funit = self.monte_carlo_logvol(points,
+                                                 return_overlap=True,
+                                                 rstate=rstate)[1]
 
     def _get_covariance_from_all_points(self, points):
         """Compute covariance using all points."""
@@ -1221,10 +1222,18 @@ def randsphere(n, rstate=None):
     """Draw a point uniformly within an `n`-dimensional unit sphere."""
 
     z = rstate.standard_normal(size=n)  # initial n-dim vector
-    zhat = z / lalg.norm(z)  # normalize
-    xhat = zhat * rstate.uniform()**(1. / n)  # scale
-
+    xhat = z * (rstate.uniform()**(1. / n) / lalg.norm(z))  # scale
     return xhat
+
+
+def rand_choice(pb, rstate):
+    """ Optimized version of numpy's random.choice
+    Return an index of a point selected with the probability pb
+    The pb must sum to 1
+    """
+    p1 = np.cumsum(pb)
+    xr = rstate.uniform()
+    return min(np.searchsorted(p1, xr), len(pb) - 1)
 
 
 def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
@@ -1232,7 +1241,10 @@ def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
     Given the covariance matrix improve it, if it is not invertable
     or eigen values are negative or condition number that is above the limit
     Returns:
-    updated matrix and its inverse
+    a tuple with three elements
+    1) a boolean flag if a matrix is 'good', so it didn't need adjustments
+    2) updated matrix
+    3) its inverse
     """
     ndim = covar0.shape[0]
     covar = np.array(covar0)
@@ -1251,7 +1263,8 @@ def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
         failed = 0
         try:
             # Check if matrix is invertible.
-            eigval, eigvec = lalg.eigh(covar)  # compute eigenvalues/vectors
+            eigval, eigvec = lalg.eigh(covar, check_finite=False)
+            # compute eigenvalues/vectors
             maxval = eigval.max()
             minval = eigval.min()
             # Check if eigen values are good
@@ -1267,7 +1280,9 @@ def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
                     else:
                         # eigen values are all right
                         # checking if cholesky works
-                        axes = lalg.cholesky(covar, lower=True)
+                        axes = lalg.cholesky(covar,
+                                             lower=True,
+                                             check_finite=False)
                         # if we are here we are done
                         break
             else:
@@ -1297,7 +1312,9 @@ def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
     else:
         # invert the matrix using eigen decomposition
         am = eigvec @ np.diag(1. / eigval) @ eigvec.T
-    return covar, am, axes
+    good_mat = trial == 0
+    # if True it means no adjustments were necessary
+    return good_mat, covar, am, axes
 
 
 def bounding_ellipsoid(points):
@@ -1340,9 +1357,11 @@ def bounding_ellipsoid(points):
     one_minus_a_bit = 1. - ROUND_DELTA
 
     for i in range(2):
+        # If the matrix needs improvement
         # we improve the matrix twice, first before rescaling
-        # and second after rescaling
-        covar, am, axes = improve_covar_mat(covar)
+        # and second after rescaling. If matrix is okay, we do
+        # the loop once
+        good_mat, covar, am, axes = improve_covar_mat(covar)
 
         # Calculate expansion factor necessary to bound each point.
         # Points should obey `(x-v)^T A (x-v) <= 1`, so we calculate this for
@@ -1356,11 +1375,19 @@ def bounding_ellipsoid(points):
         # in the first iteration we just try to adjust the matrix
         # if it didn't work again, we bail out
         if i == 0 and fmax > one_minus_a_bit:
-            covar *= fmax / one_minus_a_bit
+            mult = fmax / one_minus_a_bit
+            # IMPORTANT that we need to update the cov, its inverse and axes
+            # as those are used directly
+            covar *= mult
+            am /= mult
+            axes *= np.sqrt(mult)
         if i == 1 and fmax >= 1:
             raise RuntimeError(
                 "Failed to initialize the ellipsoid to contain all the points")
-
+        if good_mat:
+            # I only need to run through the loop twice if the matrix
+            # is problematic
+            break
     # Initialize our ellipsoid with *safe* covariance matrix.
     ell = Ellipsoid(ctr, covar, am=am, axes=axes)
 

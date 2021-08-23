@@ -1117,10 +1117,19 @@ class DynamicSampler:
             # we need to create a uniform sample from the prior subject
             # to the likelihood boundary constraint
             subset0 = np.nonzero(saved_logl > logl_min)[0]
+
+            # Also if we don't have enough live points above the boundary
+            # we simply go down to collect our nblive points
             if len(subset0) < nblive:
-                subset0 = subset0[-1] - np.arange(nblive)[::-1]
-                if subset0[0] < 0:
-                    subset0[subset0 >= 0]
+                if subset0[-1] < nblive:
+                    # It means we don't even have nblive points
+                    # in our base runs so we just take everything
+                    subset0 = np.arange(len(saved_logl))
+                else:
+                    # otherwise we just move the boundary down
+                    # to collect our nblive points
+                    subset0 = np.arange(subset0[-1] - nblive + 1,
+                                        subset0[-1] + 1)
             live_scale = saved_scale[subset0[0]]
             # set the scale based on the lowest point
 

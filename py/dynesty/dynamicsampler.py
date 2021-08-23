@@ -1116,7 +1116,16 @@ class DynamicSampler:
             # If the lower bound doesn't encompass all base samples,
             # we need to create a uniform sample from the prior subject
             # to the likelihood boundary constraint
+
             subset0 = np.nonzero(saved_logl > logl_min)[0]
+
+            if len(subset0) == 0:
+                raise RuntimeError(
+                    'Could not find live points in the '
+                    'required logl interval. Please report!\n'
+                    'Diagnostics. logl_min: %s ' % str(logl_min),
+                    'logl_bounds: %s ' % str(logl_bounds),
+                    'saved_loglmax: %s' % str(saved_logl.max()))
 
             # Also if we don't have enough live points above the boundary
             # we simply go down to collect our nblive points

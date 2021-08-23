@@ -1049,6 +1049,7 @@ class DynamicSampler:
         saved_v = np.array(self.saved_run.D['v'])
         saved_logl = np.array(self.saved_run.D['logl'])
         saved_logwt = np.array(self.saved_run.D['logwt'])
+        saved_logvol = np.array(self.saved_run.D['logvol'])
         saved_scale = np.array(self.saved_run.D['scale'])
         nblive = self.nlive_init
 
@@ -1135,7 +1136,7 @@ class DynamicSampler:
 
             # we are weighting each point by 1/L_i * 1/W_i to ensure
             # uniform sampling within boundary volume
-            cur_logwt = -saved_logl[subset0] - saved_logwt[subset0]
+            cur_logwt = saved_logvol[subset0]
             cur_wt = np.exp(cur_logwt - cur_logwt.max())
             cur_wt = cur_wt / cur_wt.sum()
             # I normalize in linear space rather then using logsumexp
@@ -1162,7 +1163,6 @@ class DynamicSampler:
                                    'Please report the error on github!' +
                                    'Diagnostics nblive: %d ' % (nblive) +
                                    'cur_nblive: %d' % (cur_nblive) +
-                                   'n_pt_above: %d' % (n_pt_above) +
                                    'n_pos_weight: %d' % (n_pos_weight) +
                                    'cur_wt: %s' % str(cur_wt))
             # We are doing copies here, because live_* stuff is

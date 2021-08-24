@@ -1524,12 +1524,17 @@ def _ellipsoid_bootstrap_expand(args):
     npoints, ndim = points.shape
     idxs = rstate.integers(npoints, size=npoints)  # resample
     idx_in = np.unique(idxs)  # selected objects
-    sel = np.ones(npoints, dtype='bool')
-    sel[idx_in] = False
-    idx_out = np.arange(npoints)[sel]  # "missing" objects
-    if len(idx_out) < 2:  # edge case
-        idx_out = np.append(idx_out, [0, 1])
-    points_in, points_out = points[idx_in], points[idx_out]
+    sel = np.zeros(npoints, dtype='bool')
+    sel[idx_in] = True
+    # in the crazy case of not having selected more than one
+    # points I just arbitrary add points to have at least two in idx_in
+    # and at least 1 in idx_out
+    n_in = idx_in.sum()
+    if n_in < 2:
+        sel[:2] = True
+    if n_in > npoints - 1:
+        sel[0] = False
+    points_in, points_out = points[sel], points[~sel]
 
     # Compute bounding ellipsoid.
     ell = bounding_ellipsoid(points_in)

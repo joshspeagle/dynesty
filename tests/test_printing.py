@@ -1,5 +1,3 @@
-import importlib
-import sys
 import numpy as np
 import pytest
 import dynesty
@@ -25,13 +23,11 @@ def test_printing(withtqdm):
     # hard test of dynamic sampler with high dlogz_init and small number
     # of live points
     if withtqdm:
-        import dynesty
+        import dynesty.utils
     else:
         import dynesty.utils
         import tqdm
-        sys.modules['tqdm'] = None
-        importlib.reload(dynesty.utils)
-        import dynesty
+        dynesty.utils.tqdm = None
     ndim = 2
     rstate = get_rstate()
     sampler = dynesty.DynamicNestedSampler(loglike,
@@ -49,5 +45,4 @@ def test_printing(withtqdm):
     if withtqdm:
         pass
     else:
-        sys.modules['tqdm'] = tqdm
-        importlib.reload(dynesty.utils)
+        dynesty.utils.tqdm = tqdm

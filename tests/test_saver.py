@@ -2,6 +2,7 @@ import numpy as np
 import dynesty
 import os
 import multiprocessing as mp
+import pytest
 from utils import get_rstate
 """
 Run a series of basic tests to check whether saving likelikelihood evals
@@ -25,40 +26,35 @@ def prior_transform_egg(x):
     return x * 10 * np.pi
 
 
-def test_saving():
+@pytest.mark.parametrize('dopool', [False, True])
+def test_saving(dopool):
     # test saving
     ndim = 2
-    fname = 'xx.h5'
+    fname = 'dynesty_test_%d.h5' % (os.getpid())
     rstate = get_rstate()
+    kw = {}
+    if dopool:
+        pool = mp.Pool(2)
+        kw['pool'] = pool
+        kw['queue_size'] = 2
+
     sampler = dynesty.NestedSampler(loglike_egg,
                                     prior_transform_egg,
                                     ndim,
                                     nlive=nlive,
-                                    bound='multi',
-                                    sample='unif',
                                     save_history=True,
                                     history_filename=fname,
-                                    rstate=rstate)
-    sampler.run_nested(dlogz=1, print_progress=printing)
+                                    rstate=rstate,
+                                    **kw)
+    sampler.run_nested(dlogz=1, print_progress=printing, maxiter=300)
     assert (os.path.exists(fname))
-
-
-def test_saving_pool():
-    # test saving
-    ndim = 2
-    fname = 'xx1.h5'
-    pool = mp.Pool(2)
-    rstate = get_rstate()
-    sampler = dynesty.NestedSampler(loglike_egg,
-                                    prior_transform_egg,
-                                    ndim,
-                                    nlive=nlive,
-                                    bound='multi',
-                                    sample='unif',
-                                    save_history=True,
-                                    history_filename=fname,
-                                    pool=pool,
-                                    queue_size=2,
-                                    rstate=rstate)
-    sampler.run_nested(print_progress=printing, maxiter=300)
-    assert (os.path.exists(fname))
+    try:
+        os.unlink(fname)
+    except FileNotFoundError:
+        pass
+    if dopool:
+        try:
+            pool.close()
+            pool.join()
+        except Exception:
+            pass

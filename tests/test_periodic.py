@@ -5,7 +5,7 @@ from utils import get_rstate
 
 nlive = 100
 printing = True
-win = 10
+win = 100
 
 
 def loglike(x):

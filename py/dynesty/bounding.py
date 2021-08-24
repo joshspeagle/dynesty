@@ -1438,8 +1438,8 @@ def _bounding_ellipsoids(points, ell):
     # Get points in each cluster.
     points_k = [points[labels == k, :] for k in (0, 1)]
 
-    # If either cluster has less than ndim+1 points, the bounding ellipsoid
-    # will be ill-constrained. Reject the split and simply return the
+    # If either cluster has less than 2*ndim points, the bounding ellipsoid
+    # will be poorly-constrained. Reject the split and simply return the
     # original ellipsoid bounding all the points.
     if points_k[0].shape[0] < 2 * ndim or points_k[1].shape[0] < 2 * ndim:
         return [ell]
@@ -1517,19 +1517,25 @@ def bounding_ellipsoids(points):
 
 def _ellipsoid_bootstrap_expand(args):
     """Internal method used to compute the expansion factor for a bounding
-    ellipsoid based on bootstrapping."""
+    ellipsoid or ellipsoids based on bootstrapping.
+    The argument is a tuple:
+    multi: boolean flag if we are doing multiell or single ell decomposition
+    points: 2d array of points
+    rseed: seed to initialize the random generator
+    """
 
     # Unzipping.
     multi, points, rseed = args
     rstate = get_random_generator(rseed)
-    # Resampling.
     npoints, ndim = points.shape
-    idxs = rstate.integers(npoints, size=npoints)  # resample
+
+    # Resampling.
+    idxs = rstate.integers(npoints, size=npoints)
     idx_in = np.unique(idxs)  # selected objects
-    sel = np.zeros(npoints, dtype='bool')
+    sel = np.zeros(npoints, dtype=bool)
     sel[idx_in] = True
     # in the crazy case of not having selected more than one
-    # points I just arbitrary add points to have at least two in idx_in
+    # point I just arbitrary add points to have at least two in idx_in
     # and at least 1 in idx_out
     n_in = idx_in.sum()
     if n_in < 2:

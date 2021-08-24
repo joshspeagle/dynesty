@@ -36,8 +36,8 @@ __all__ = [
     "UnitCube", "Ellipsoid", "MultiEllipsoid", "RadFriends", "SupFriends",
     "logvol_prefactor", "randsphere", "bounding_ellipsoid",
     "bounding_ellipsoids", "_bounding_ellipsoids",
-    "_ellipsoid_bootstrap_expand", "_ellipsoids_bootstrap_expand",
-    "_friends_bootstrap_radius", "_friends_leaveoneout_radius"
+    "_ellipsoid_bootstrap_expand", "_friends_bootstrap_radius",
+    "_friends_leaveoneout_radius"
 ]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
@@ -326,9 +326,10 @@ class Ellipsoid:
                 M = map
             else:
                 M = pool.map
+            multis = [False for it in range(bootstrap)]
             ps = [points for it in range(bootstrap)]
             seeds = get_seed_sequence(rstate, bootstrap)
-            args = zip(ps, seeds)
+            args = zip(multis, ps, seeds)
             expands = list(M(_ellipsoid_bootstrap_expand, args))
 
             # Conservatively set the expansion factor to be the maximum
@@ -612,10 +613,11 @@ class MultiEllipsoid:
                 M = map
             else:
                 M = pool.map
+            multis = [True for it in range(bootstrap)]
             ps = [points for it in range(bootstrap)]
             seeds = get_seed_sequence(rstate, bootstrap)
-            args = zip(ps, seeds)
-            expands = list(M(_ellipsoids_bootstrap_expand, args))
+            args = zip(multis, ps, seeds)
+            expands = list(M(_ellipsoid_bootstrap_expand, args))
 
             # Conservatively set the expansion factor to be the maximum
             # factor derived from our set of bootstraps.
@@ -1518,7 +1520,7 @@ def _ellipsoid_bootstrap_expand(args):
     ellipsoid based on bootstrapping."""
 
     # Unzipping.
-    points, rseed = args
+    multi, points, rseed = args
     rstate = get_random_generator(rseed)
     # Resampling.
     npoints, ndim = points.shape
@@ -1539,43 +1541,17 @@ def _ellipsoid_bootstrap_expand(args):
     # Compute bounding ellipsoid.
     ell = bounding_ellipsoid(points_in)
 
-    # Compute normalized distances to missing points.
-    dists = ell.distance_many(points_out)
+    if not multi:
+        # Compute normalized distances to missing points.
+        dists = ell.distance_many(points_out)
+    else:
+        ells = _bounding_ellipsoids(points_in, ell)
+        # Compute normalized distances to missing points.
+        dists = np.min(np.array([el.distance_many(points_out) for el in ells]),
+                       axis=0)
 
     # Compute expansion factor.
     expand = max(1., np.max(dists))
-
-    return expand
-
-
-def _ellipsoids_bootstrap_expand(args):
-    """Internal method used to compute the expansion factor(s) for a collection
-    of bounding ellipsoids using bootstrapping."""
-
-    # Unzipping.
-    points, rseed = args
-    rstate = get_random_generator(rseed)
-    # Resampling.
-    npoints, ndim = points.shape
-    idxs = rstate.integers(npoints, size=npoints)  # resample
-    idx_in = np.unique(idxs)  # selected objects
-    sel = np.ones(npoints, dtype='bool')
-    sel[idx_in] = False
-    idx_out = np.where(sel)[0]  # "missing" objects
-    if len(idx_out) < 2:  # edge case
-        idx_out = np.append(idx_out, [0, 1])
-    points_in, points_out = points[idx_in], points[idx_out]
-
-    # Compute bounding ellipsoids.
-    ell = bounding_ellipsoid(points_in)
-    ells = _bounding_ellipsoids(points_in, ell)
-
-    # Compute normalized distances to missing points.
-    dists = np.min(np.array([el.distance_many(points_out) for el in ells]),
-                   axis=0)
-
-    # Compute expansion factor.
-    expand = max(1., max(dists))
 
     return expand
 

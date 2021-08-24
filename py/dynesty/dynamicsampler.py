@@ -155,7 +155,7 @@ def weight_function(results, args=None, return_weights=False):
     logl = results.logl
     if bounds[1] > nsamps - 1:
         # overflow on the RHS, so we move the left side
-        bounds = [bounds[0] - (bounds[1] - nsamps - 1), nsamps - 1]
+        bounds = [bounds[0] - (bounds[1] - (nsamps - 1)), nsamps - 1]
     if bounds[0] < 0:
         # if we overflow on the leftside we set the edge to -inf and expand
         # the RHS
@@ -1048,7 +1048,7 @@ class DynamicSampler:
         saved_u = np.array(self.saved_run.D['u'])
         saved_v = np.array(self.saved_run.D['v'])
         saved_logl = np.array(self.saved_run.D['logl'])
-        saved_logwt = np.array(self.saved_run.D['logwt'])
+        saved_logvol = np.array(self.saved_run.D['logvol'])
         saved_scale = np.array(self.saved_run.D['scale'])
         nblive = self.nlive_init
 
@@ -1116,29 +1116,47 @@ class DynamicSampler:
             # If the lower bound doesn't encompass all base samples,
             # we need to create a uniform sample from the prior subject
             # to the likelihood boundary constraint
-            subset0 = (saved_logl > logl_min)
-            n_pt_above = subset0.sum()
-            if n_pt_above == 0:
+
+            subset0 = np.nonzero(saved_logl > logl_min)[0]
+
+            if len(subset0) == 0:
                 raise RuntimeError(
                     'Could not find live points in the '
                     'required logl interval. Please report!\n'
                     'Diagnostics. logl_min: %s ' % str(logl_min),
                     'logl_bounds: %s ' % str(logl_bounds),
                     'saved_loglmax: %s' % str(saved_logl.max()))
-            elif n_pt_above == 1:
-                raise RuntimeError('Could only find a single live point in '
-                                   'the required logl interval')
 
-            live_scale = saved_scale[subset0][0]
+            # Also if we don't have enough live points above the boundary
+            # we simply go down to collect our nblive points
+            if len(subset0) < nblive:
+                if subset0[-1] < nblive:
+                    # It means we don't even have nblive points
+                    # in our base runs so we just take everything
+                    subset0 = np.arange(len(saved_logl))
+                else:
+                    # otherwise we just move the boundary down
+                    # to collect our nblive points
+                    subset0 = np.arange(subset0[-1] - nblive + 1,
+                                        subset0[-1] + 1)
+                # IMPORTANT We have to update the lower bound for sampling
+                # otherwise some of our live points do not satisfy it
+
+                logl_min = saved_logl[subset0[0]]
+                self.new_logl_min = logl_min
+
+            live_scale = saved_scale[subset0[0]]
             # set the scale based on the lowest point
 
-            # we are weighting each point by 1/L_i * 1/W_i to ensure
-            # uniform sampling within boundary volume
-            cur_logwt = -saved_logl[subset0] - saved_logwt[subset0]
-            cur_wt = np.exp(cur_logwt - cur_logwt.max())
-            cur_wt = cur_wt / cur_wt.sum()
+            # we are weighting each point by X_i to ensure
+            # uniformyish sampling within boundary volume
+            # It doesn't have to be super uniform as we'll sample
+            # again, but still
+            cur_log_uniwt = saved_logvol[subset0]
+            cur_uniwt = np.exp(cur_log_uniwt - cur_log_uniwt.max())
+            cur_uniwt = cur_uniwt / cur_uniwt.sum()
             # I normalize in linear space rather then using logsumexp
-            # because cur_wt.sum() needs to be 1 for random.choice
+            # because cur_uniwt.sum() needs to be 1 for random.choice
 
             # we are now randomly sampling with weights
             # notice that since we are sampling without
@@ -1147,11 +1165,11 @@ class DynamicSampler:
             # so we get min(nblive,subset.sum())
             # in that case the sample technically won't be
             # uniform
-            n_pos_weight = (cur_wt > 0).sum()
+            n_pos_weight = (cur_uniwt > 0).sum()
 
-            subset = self.rstate.choice(np.nonzero(subset0)[0],
+            subset = self.rstate.choice(subset0,
                                         size=min(nblive, n_pos_weight),
-                                        p=cur_wt,
+                                        p=cur_uniwt,
                                         replace=False)
             # subset will now have indices of selected points from
             # saved_* arrays
@@ -1161,9 +1179,8 @@ class DynamicSampler:
                                    'Please report the error on github!' +
                                    'Diagnostics nblive: %d ' % (nblive) +
                                    'cur_nblive: %d' % (cur_nblive) +
-                                   'n_pt_above: %d' % (n_pt_above) +
                                    'n_pos_weight: %d' % (n_pos_weight) +
-                                   'cur_wt: %s' % str(cur_wt))
+                                   'cur_wt: %s' % str(cur_uniwt))
             # We are doing copies here, because live_* stuff is
             # updated in place
             live_u = saved_u[subset, :].copy()

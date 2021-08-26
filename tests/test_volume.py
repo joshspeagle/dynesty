@@ -1,10 +1,11 @@
-import dynesty.bounding as db
+import math
 import numpy as np
 import scipy.special
 import matplotlib.pyplot as plt
+import dynesty.bounding as db
 """
 This is the code that allows to calibrate how much volume we are missing
-with ellipsoidal representation 
+with ellipsoidal representation
 
 This is not part of the test suite
 """
@@ -32,7 +33,7 @@ def genshell(r1, r2, npt, ndim, rstate=None):
 
 
 def gen_data(npt, typ, ndim, rstate=None):
-    """ Simulate points with different topologies 
+    """ Simulate points with different topologies
     typ can be ball/shell/pin/torus
     """
     mid = .5  # i'm placing in unit cube
@@ -46,7 +47,7 @@ def gen_data(npt, typ, ndim, rstate=None):
         a = 1
         pts = np.zeros((npt, ndim))
         pts[:, 1:] = genball(npt, ndim - 1, rstate=rstate) * w + mid
-        pts[:, 0] = (rstate.uniform(size=npt) - .5) * a + mid
+        pts[:, 0] = (rstate.uniform(size=npt) - 0.5) * a + mid
         volume = (np.pi**((ndim - 1) / 2) /
                   scipy.special.gamma((ndim - 1) / 2 + 1) * w**(ndim - 1) * a)
     elif typ == 'torus':
@@ -58,6 +59,15 @@ def gen_data(npt, typ, ndim, rstate=None):
         pts[:,
             2:] = (rstate.uniform(size=(npt, ndim - 2)) * 2 - 1) * w / 2 + mid
         volume = w**(ndim - 2) * np.pi * ((r0 + w / 2)**2 - (r0 - w / 2)**2)
+    elif typ == 'cylinder':
+        w = 0.01
+        r0 = 0.45
+        a = 1
+        pts = np.zeros((npt, ndim))
+        pts[:, :2] = genshell(r0 - w / 2, r0 + w / 2, npt, 2,
+                              rstate=rstate) + mid
+        pts[:, 2:] = rstate.uniform(size=(npt, ndim - 2)) * a
+        volume = np.pi * ((r0 + w / 2)**2 - (r0 - w / 2)**2)
     elif typ == 'shell':
         r1 = 0.45
         r2 = 0.46
@@ -82,9 +92,12 @@ def plotter(ndim, bound, bootstrap=5, seed=None, ngrid=40):
     nlives = np.unique((10**np.linspace(np.log10(minnlive), np.log10(maxnlive),
                                         ngrid)).astype(int))
     plt.clf()
-    objs = ['ball', 'pin', 'shell', 'torus']
-    for i in range(4):
-        plt.subplot(2, 2, 1 + i)
+    objs = ['ball', 'pin', 'shell', 'torus', 'cylinder']
+    nobs = len(objs)
+    ny = int(math.floor(np.sqrt(nobs)))
+    nx = int(math.ceil(nobs * 1. / ny))
+    for i in range(nobs):
+        plt.subplot(ny, nx, 1 + i)
         curo = objs[i]
         fracs = np.array([
             1 - doit(_,
@@ -118,7 +131,7 @@ def doit(nlive,
     """ Simulate  10 times nlive points with a given topology
     Then use nlive points to get the ellipsoid or multiellipsoid representation
     and then return the tuple with
-    1) volume fraction. ie dynesty volume estimate over true volume 
+    1) volume fraction. ie dynesty volume estimate over true volume
     2) point fraction. I.e fraction of unused points falling outside the
     dynesty bound (it should be zero in theory
     """
@@ -149,16 +162,11 @@ def computer(fitpts, testpts, bound='multi', bootstrap=None, rstate=None):
         curb.update(fitpts, rstate=rstate, bootstrap=bootstrap)
     if bound not in ['single', 'multi']:
         raise RuntimeError('unknown bound', bound)
-    # if bound == 'multi':
-    #    logvol = curb.monte_carlo_logvol()[0]
-    # elif bound == 'ell':
-    # logvol = curb.logvol
-    # fraction of test points in the boundary
     frac = np.array([curb.contains(_) for _ in testpts]).sum() / len(testpts)
     if bound == 'single':
         nell = 1
-        vol = curb.logvol
+        logvol = curb.logvol
     else:
         nell = len(curb.ells)
-        vol = curb.logvol_tot
-    return vol, frac, nell
+        logvol = curb.logvol_tot
+    return logvol, frac, nell

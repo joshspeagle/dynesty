@@ -186,7 +186,6 @@ def test_gaussian():
 )
 def test_bounding_sample(bound, sample):
     # check various bounding methods
-    logz_tol = 1
 
     rstate = get_rstate()
     sampler = dynesty.NestedSampler(loglikelihood_gau,
@@ -197,10 +196,7 @@ def test_bounding_sample(bound, sample):
                                     sample=sample,
                                     rstate=rstate)
     sampler.run_nested(print_progress=printing)
-    # NOTICE I bump the significance to 5.5 because
-    # bound=none, sample=slice was failing at 5...
-    # it is worth investigating
-    check_results_gau(sampler.results, rstate, sig=5.5)
+    check_results_gau(sampler.results, rstate)
 
 
 @pytest.mark.parametrize("bound,sample",

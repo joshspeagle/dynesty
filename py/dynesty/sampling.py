@@ -359,7 +359,7 @@ def sample_rstagger(args):
             # Transform to proposal distribution.
             du = np.dot(axes, dr)
             u_prop = np.concatenate(
-                [u[:n_cluster] + scale * du, u_non_cluster])
+                [u[:n_cluster] + stagger * scale * du, u_non_cluster])
 
             # Wrap periodic parameters
             if periodic is not None:

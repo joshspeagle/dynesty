@@ -1532,7 +1532,7 @@ def _bootstrap_points(points, rseed):
     # in the crazy case of not having selected more than one
     # point I just arbitrary add points to have at least two in idx_in
     # and at least 1 in idx_out
-    n_in = sel.sum()
+    n_in = sel_in.sum()
     if n_in < 2:
         sel_in[:2] = True
     if n_in > npoints - 1:
@@ -1553,7 +1553,7 @@ def _ellipsoid_bootstrap_expand(args):
     # Unzipping.
     multi, points, rseed = args
 
-    points_in, points_out = _bootstrap_points(rseed, points)
+    points_in, points_out = _bootstrap_points(points, rseed)
 
     # Compute bounding ellipsoid.
     ell = bounding_ellipsoid(points_in)
@@ -1581,7 +1581,7 @@ def _friends_bootstrap_radius(args):
     # Unzipping.
     points, ftype, rseed = args
 
-    points_in, points_out = _bootstrap_points(rseed, points)
+    points_in, points_out = _bootstrap_points(points, rseed)
 
     # Construct KDTree to enable quick nearest-neighbor lookup for
     # our resampled objects.

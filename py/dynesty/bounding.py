@@ -1515,6 +1515,32 @@ def bounding_ellipsoids(points):
     return MultiEllipsoid(ells=ells)
 
 
+def _bootstrap_points(points, rseed):
+    """
+    Select the bootstrap set from points.
+    Return:
+    Tuple with selected, and not-selected points
+    """
+    rstate = get_random_generator(rseed)
+    npoints, ndim = points.shape
+
+    # Resampling.
+    idxs = rstate.integers(npoints, size=npoints)
+    idx_in = np.unique(idxs)  # selected objects
+    sel_in = np.zeros(npoints, dtype=bool)
+    sel_in[idx_in] = True
+    # in the crazy case of not having selected more than one
+    # point I just arbitrary add points to have at least two in idx_in
+    # and at least 1 in idx_out
+    n_in = idx_in.sum()
+    if n_in < 2:
+        sel_in[:2] = True
+    if n_in > npoints - 1:
+        sel_in[0] = False
+    points_in, points_out = points[sel_in], points[~sel_in]
+    return points_in, points_out
+
+
 def _ellipsoid_bootstrap_expand(args):
     """Internal method used to compute the expansion factor for a bounding
     ellipsoid or ellipsoids based on bootstrapping.
@@ -1526,23 +1552,8 @@ def _ellipsoid_bootstrap_expand(args):
 
     # Unzipping.
     multi, points, rseed = args
-    rstate = get_random_generator(rseed)
-    npoints, ndim = points.shape
 
-    # Resampling.
-    idxs = rstate.integers(npoints, size=npoints)
-    idx_in = np.unique(idxs)  # selected objects
-    sel = np.zeros(npoints, dtype=bool)
-    sel[idx_in] = True
-    # in the crazy case of not having selected more than one
-    # point I just arbitrary add points to have at least two in idx_in
-    # and at least 1 in idx_out
-    n_in = idx_in.sum()
-    if n_in < 2:
-        sel[:2] = True
-    if n_in > npoints - 1:
-        sel[0] = False
-    points_in, points_out = points[sel], points[~sel]
+    points_in, points_out = _bootstrap_points(rseed, points)
 
     # Compute bounding ellipsoid.
     ell = bounding_ellipsoid(points_in)
@@ -1569,18 +1580,8 @@ def _friends_bootstrap_radius(args):
 
     # Unzipping.
     points, ftype, rseed = args
-    rstate = get_random_generator(rseed)
 
-    # Resampling.
-    npoints, ndim = points.shape
-    idxs = rstate.integers(npoints, size=npoints)  # resample
-    idx_in = np.unique(idxs)  # selected objects
-    sel = np.ones(npoints, dtype='bool')
-    sel[idx_in] = False
-    idx_out = np.where(sel)[0]  # "missing" objects
-    if len(idx_out) < 2:  # edge case
-        idx_out = np.append(idx_out, [0, 1])
-    points_in, points_out = points[idx_in], points[idx_out]
+    points_in, points_out = _bootstrap_points(rseed, points)
 
     # Construct KDTree to enable quick nearest-neighbor lookup for
     # our resampled objects.

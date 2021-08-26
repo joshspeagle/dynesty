@@ -1532,7 +1532,7 @@ def _bootstrap_points(points, rseed):
     # in the crazy case of not having selected more than one
     # point I just arbitrary add points to have at least two in idx_in
     # and at least 1 in idx_out
-    n_in = idx_in.sum()
+    n_in = sel.sum()
     if n_in < 2:
         sel_in[:2] = True
     if n_in > npoints - 1:

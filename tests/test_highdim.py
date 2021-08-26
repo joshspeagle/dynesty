@@ -87,16 +87,21 @@ def do_gaussian(co, sample=None, bound=None, rstate=None, slices=None):
     return res.logz[-1], res.logzerr[-1]
 
 
-def do_gaussians(sample='rslice', bound='single'):
+def do_gaussians(sample='rslice',
+                 bound='single',
+                 nthreads=36,
+                 ndim_min=2,
+                 ndim_max=100):
     """
     Run many tests 
     """
-    pool = mp.Pool(36)
+    pool = mp.Pool(nthreads)
     res = []
-    for ndim in range(2, 33):
+    ndims = np.arange(ndim_min, ndim_max + 1)
+    for ndim in ndims:
         rstate = get_rstate(ndim)
         co = Config(rstate, ndim)
-        slices = max(5, ndim)
+        slices = None
         res.append((ndim, co,
                     pool.apply_async(
                         do_gaussian, (co, ),
@@ -106,4 +111,4 @@ def do_gaussians(sample='rslice', bound='single'):
                              slices=slices))))
     for ndim, co, curres in res:
         curres = curres.get()
-        print('RESULTS', ndim, curres, co.logz_truth_gau)
+        print(ndim, curres[0], curres[1], co.logz_truth_gau)

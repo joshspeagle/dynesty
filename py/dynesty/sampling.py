@@ -293,7 +293,7 @@ def generic_random_walk(u,
         Collection of ancillary quantities used to tune :data:`scale`.
 
     """
-    scale = scale_init
+    scale = scale_init * 1
 
     # Periodicity.
     nonbounded = kwargs.get('nonbounded')
@@ -304,14 +304,15 @@ def generic_random_walk(u,
     n = len(u)
     n_cluster = axes.shape[0]
     walks = kwargs.get('walks', 25)  # number of steps
-    accept = 0
-    reject = 0
-    nproposal = 0
+
+    naccept = 0
+    nreject = 0
+    nreject_before_rescale = 0
     ncall = 0
-
     nfail = 0  # failures of ellipsoid points not being in the cube
+    MAX_REJECT_RESCALE = 50 * walks
 
-    while nc < walks or accept == 0:
+    while naccept < walks:
 
         # This proposes a new point within the ellipsoid
         # This also potentially modifies the scale
@@ -328,36 +329,40 @@ def generic_random_walk(u,
         nfail += new_nfail
 
         # Check proposed point.
-        v_prop = prior_transform(np.asarray(u_prop))
-        logl_prop = loglikelihood(np.asarray(v_prop))
-        nc += 1
+        v_prop = prior_transform(u_prop)
+        logl_prop = loglikelihood(v_prop)
         ncall += 1
 
         if logl_prop > loglstar:
             u = u_prop
             v = v_prop
             logl = logl_prop
-            accept += 1
+            naccept += 1
         else:
-            reject += 1
+            nreject += 1
+            nreject_before_rescale += 1
 
         # Adjust `stagger` to target an acceptance ratio of `facc_target`.
-        facc = 1. * accept / (accept + reject)
+        facc = naccept * 1. / (naccept + nreject)
         if stagger:
             if facc > facc_target:
-                scale *= np.exp(1. / accept)
+                scale *= np.exp(1. / naccept)
             if facc < facc_target:
-                scale /= np.exp(1. / reject)
-
-        # Check if we're stuck generating bad points.
-        if nc > 50 * walks:
-            scale *= math.exp(-1. / n_cluster)
-            warnings.warn("Random walk proposals appear to be "
-                          "extremely inefficient. Adjusting the "
-                          "scale-factor accordingly.")
-            nc, accept, reject = 0, 0, 0  # reset values
-
-    blob = {'accept': accept, 'reject': reject, 'fail': nfail, 'scale': scale}
+                scale /= np.exp(1. / nreject)
+        else:
+            if nreject_before_rescale > MAX_REJECT_RESCALE:
+                # Check if we're stuck generating bad points.
+                scale *= math.exp(-1. / n_cluster)
+                warnings.warn("Random walk proposals appear to be "
+                              "extremely inefficient. Adjusting the "
+                              "scale-factor accordingly.")
+                nreject_before_rescale = 0
+    blob = {
+        'accept': naccept,
+        'reject': nreject,
+        'fail': nfail,
+        'scale': scale
+    }
 
     return u, v, logl, ncall, blob
 
@@ -381,6 +386,12 @@ def propose_ball_point(u,
     MAX_FAIL = 100
     # The number of failures before we start shrinking the ellipsoid
 
+    # draw random point for non clustering parameters
+    u_cluster = u[:n_cluster]
+    u_prop = np.zeros(n)
+    # we only need to generate them once
+    u_non_cluster = rstate.uniform(0, 1, n - n_cluster)
+    u_prop[n_cluster:] = u_non_cluster
     while True:
         # Check scale-factor. If we've shrunk too much, terminate.
         if scale < 1e-5 * scale_init:
@@ -389,17 +400,12 @@ def propose_ball_point(u,
         # Propose a direction on the unit n-sphere.
         drhat = rstate.standard_normal(size=n_cluster)
         drhat /= linalg.norm(drhat)
-
-        # Scale based on dimensionality.
         dr = drhat * rstate.uniform()**(1. / n_cluster)
         # This generates uniform distribution within n-d ball
 
-        # draw random point for non clustering parameters
-        u_non_cluster = rstate.uniform(0, 1, n - n_cluster)
-
         # Transform to proposal distribution.
         du = np.dot(axes, dr)
-        u_prop = np.concatenate([u[:n_cluster] + scale * du, u_non_cluster])
+        u_prop[:n_cluster] = u_cluster + scale * du
 
         # Wrap periodic parameters
         if periodic is not None:

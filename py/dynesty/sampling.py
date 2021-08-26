@@ -312,7 +312,7 @@ def generic_random_walk(u,
     nfail = 0  # failures of ellipsoid points not being in the cube
     MAX_REJECT_RESCALE = 50 * walks
 
-    while naccept < walks:
+    while ncall < walks or naccept == 0:
 
         # This proposes a new point within the ellipsoid
         # This also potentially modifies the scale
@@ -325,7 +325,6 @@ def generic_random_walk(u,
                                                       periodic=periodic,
                                                       reflective=reflective,
                                                       nonbounded=nonbounded)
-
         nfail += new_nfail
 
         # Check proposed point.
@@ -342,9 +341,9 @@ def generic_random_walk(u,
             nreject += 1
             nreject_before_rescale += 1
 
-        # Adjust `stagger` to target an acceptance ratio of `facc_target`.
-        facc = naccept * 1. / (naccept + nreject)
         if stagger:
+            # Adjust `stagger` to target an acceptance ratio of `facc_target`.
+            facc = naccept * 1. / (naccept + nreject)
             if facc > facc_target:
                 scale *= np.exp(1. / naccept)
             if facc < facc_target:
@@ -380,17 +379,17 @@ def propose_ball_point(u,
     Here we are proposing points uniformly within an n-d ellipsoid
     We stop as soon we get a point within unit cube.
     """
-    scale = scale_init
+    scale = scale_init * 1
     nfail = 0
     nfail_accum = 0
-    MAX_FAIL = 100
+    MAX_FAIL = 1000
     # The number of failures before we start shrinking the ellipsoid
 
     # draw random point for non clustering parameters
     u_cluster = u[:n_cluster]
-    u_prop = np.zeros(n)
     # we only need to generate them once
     u_non_cluster = rstate.uniform(0, 1, n - n_cluster)
+    u_prop = np.zeros(n)
     u_prop[n_cluster:] = u_non_cluster
     while True:
         # Check scale-factor. If we've shrunk too much, terminate.

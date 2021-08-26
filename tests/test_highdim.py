@@ -9,7 +9,6 @@ Run a series of basic tests to check whether anything huge is broken.
 
 """
 
-nlive = 5000
 printing = False
 
 
@@ -66,7 +65,12 @@ class Prior:
         return self.config.prior_win * (2. * x - 1.)
 
 
-def do_gaussian(co, sample=None, bound=None, rstate=None, slices=None):
+def do_gaussian(co,
+                sample=None,
+                bound=None,
+                rstate=None,
+                slices=None,
+                nlive=None):
     """
     Run one gaussian test
     Return logz logzerr
@@ -84,14 +88,15 @@ def do_gaussian(co, sample=None, bound=None, rstate=None, slices=None):
                                            slices=slices)
     sampler.run_nested(print_progress=printing)
     res = sampler.results
-    return res.logz[-1], res.logzerr[-1]
+    return np.sum(res.ncall), res.logz[-1], res.logzerr[-1]
 
 
 def do_gaussians(sample='rslice',
                  bound='single',
                  nthreads=36,
                  ndim_min=2,
-                 ndim_max=100):
+                 ndim_max=30,
+                 nlive=5000):
     """
     Run many tests 
     """
@@ -108,7 +113,8 @@ def do_gaussians(sample='rslice',
                         dict(sample=sample,
                              bound=bound,
                              rstate=rstate,
-                             slices=slices))))
+                             slices=slices,
+                             nlive=nlive))))
     for ndim, co, curres in res:
         curres = curres.get()
-        print(ndim, curres[0], curres[1], co.logz_truth_gau)
+        print(ndim, curres[0], curres[1], curres[2], co.logz_truth_gau)

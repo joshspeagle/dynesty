@@ -147,105 +147,15 @@ def sample_rwalk(args):
     (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
      kwargs) = args
     rstate = get_random_generator(rseed)
-    scale_init = 1.0 * scale
-
-    # Bounds
-    nonbounded = kwargs.get('nonbounded', None)
-    periodic = kwargs.get('periodic', None)
-    reflective = kwargs.get('reflective', None)
-
-    # Setup.
-    n = len(u)
-    n_cluster = axes.shape[0]
-    walks = kwargs.get('walks', 25)  # number of steps
-    accept = 0
-    reject = 0
-    fail = 0
-    nfail = 0
-    nc = 0
-    ncall = 0
-
-    drhat, dr, du, u_prop, logl_prop = np.nan, np.nan, np.nan, np.nan, np.nan
-    while nc < walks or accept == 0:
-        while True:
-
-            # Check scale-factor. If we've shrunk too much, terminate.
-            if scale < 1e-5 * scale_init:
-                raise RuntimeError("Random walk sampling appears to be stuck! "
-                                   "Some useful output quantities:\n"
-                                   "u: {0}\n"
-                                   "drhat: {1}\n"
-                                   "dr: {2}\n"
-                                   "du: {3}\n"
-                                   "u_prop: {4}\n"
-                                   "loglstar: {5}\n"
-                                   "logl_prop: {6}\n"
-                                   "axes: {7}\n"
-                                   "scale: {8}.".format(
-                                       u, drhat, dr, du, u_prop, loglstar,
-                                       logl_prop, axes, scale))
-
-            # Propose a direction on the unit n-sphere.
-            drhat = rstate.standard_normal(size=n_cluster)
-            drhat /= linalg.norm(drhat)
-
-            # Scale based on dimensionality.
-            dr = drhat * rstate.uniform()**(1. / n_cluster)
-
-            # draw random point for non clustering parameters
-            u_non_cluster = rstate.uniform(0, 1, n - n_cluster)
-
-            # Transform to proposal distribution.
-            du = np.dot(axes, dr)
-            u_prop = np.concatenate(
-                [u[:n_cluster] + scale * du, u_non_cluster])
-
-            # Wrap periodic parameters
-            if periodic is not None:
-                u_prop[periodic] = np.mod(u_prop[periodic], 1)
-            # Reflect
-            if reflective is not None:
-                u_prop[reflective] = apply_reflect(u_prop[reflective])
-
-            # Check unit cube constraints.
-            if unitcheck(u_prop, nonbounded):
-                break
-            else:
-                fail += 1
-                nfail += 1
-
-            # Check if we're stuck generating bad numbers.
-            if fail > 100 * walks:
-                warnings.warn("Random number generation appears to be "
-                              "extremely inefficient. Adjusting the "
-                              "scale-factor accordingly.")
-                fail = 0
-                scale *= math.exp(-1. / n_cluster)
-
-        # Check proposed point.
-        v_prop = prior_transform(np.asarray(u_prop))
-        logl_prop = loglikelihood(np.asarray(v_prop))
-        if logl_prop > loglstar:
-            u = u_prop
-            v = v_prop
-            logl = logl_prop
-            accept += 1
-        else:
-            reject += 1
-        nc += 1
-        ncall += 1
-
-        # Check if we're stuck generating bad points.
-        if nc > 50 * walks:
-            scale *= math.exp(-1. / n_cluster)
-            warnings.warn("Random walk proposals appear to be "
-                          "extremely inefficient. Adjusting the "
-                          "scale-factor accordingly.")
-            nc, accept, reject = 0, 0, 0  # reset values
-
-    blob = {'accept': accept, 'reject': reject, 'fail': nfail, 'scale': scale}
-
-    return u, v, logl, ncall, blob
+    return generic_random_walk(u,
+                               loglstar,
+                               axes,
+                               scale,
+                               prior_transform,
+                               loglikelihood,
+                               rstate,
+                               kwargs,
+                               stagger=False)
 
 
 def sample_rstagger(args):
@@ -306,6 +216,30 @@ def sample_rstagger(args):
     (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
      kwargs) = args
     rstate = get_random_generator(rseed)
+    facc_target = kwargs.get('facc', 0.5)  # acceptance fraction
+    return generic_random_walk(u,
+                               loglstar,
+                               axes,
+                               scale,
+                               prior_transform,
+                               loglikelihood,
+                               rstate,
+                               kwargs,
+                               stagger=True,
+                               facc_target=facc_target)
+
+
+def generic_random_walk(u,
+                        loglstar,
+                        axes,
+                        scale,
+                        prior_transform,
+                        loglikelihood,
+                        rstate,
+                        kwargs,
+                        stagger=False,
+                        facc_target=None):
+
     scale_init = 1.0 * scale
 
     # Periodicity.
@@ -317,14 +251,13 @@ def sample_rstagger(args):
     n = len(u)
     n_cluster = axes.shape[0]
     walks = kwargs.get('walks', 25)  # number of steps
-    facc_target = kwargs.get('facc', 0.5)  # acceptance fraction
     accept = 0
     reject = 0
     fail = 0
     nfail = 0
     nc = 0
     ncall = 0
-    stagger = 1.  # adaptive scale
+    stagger_scale = 1.  # adaptive scale
 
     drhat, dr, du, u_prop, logl_prop = np.nan, np.nan, np.nan, np.nan, np.nan
     while nc < walks or accept == 0:
@@ -359,7 +292,7 @@ def sample_rstagger(args):
             # Transform to proposal distribution.
             du = np.dot(axes, dr)
             u_prop = np.concatenate(
-                [u[:n_cluster] + stagger * scale * du, u_non_cluster])
+                [u[:n_cluster] + stagger_scale * scale * du, u_non_cluster])
 
             # Wrap periodic parameters
             if periodic is not None:
@@ -398,10 +331,11 @@ def sample_rstagger(args):
 
         # Adjust `stagger` to target an acceptance ratio of `facc_target`.
         facc = 1. * accept / (accept + reject)
-        if facc > facc_target:
-            stagger *= np.exp(1. / accept)
-        if facc < facc_target:
-            stagger /= math.exp(1. / reject)
+        if stagger:
+            if facc > facc_target:
+                stagger_scale *= np.exp(1. / accept)
+            if facc < facc_target:
+                stagger_scale /= math.exp(1. / reject)
 
         # Check if we're stuck generating bad points.
         if nc > 50 * walks:

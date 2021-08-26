@@ -239,13 +239,66 @@ def generic_random_walk(u,
                         kwargs,
                         stagger=False,
                         facc_target=None):
+    """
+    Generic random walk step
+    Parameters
+    ----------
+    u : `~numpy.ndarray` with shape (npdim,)
+        Position of the initial sample. **This is a copy of an existing live
+        point.**
 
+    loglstar : float
+        Ln(likelihood) bound.
+
+    axes : `~numpy.ndarray` with shape (ndim, ndim)
+        Axes used to propose new points. For random walks new positions are
+        proposed using the :class:`~dynesty.bounding.Ellipsoid` whose
+        shape is defined by axes.
+
+    scale : float
+        Value used to scale the provided axes.
+
+    prior_transform : function
+        Function transforming a sample from the a unit cube to the parameter
+        space of interest according to the prior.
+
+    loglikelihood : function
+        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
+        array of length `ndim`.
+
+    kwargs : dict
+        A dictionary of additional method-specific parameters.
+
+    stagger : bool
+        If true do stagger steps vs random walk
+
+    facc_target: float (optional)
+        Target acceptance rate for stagger
+
+    Returns
+    -------
+    u : `~numpy.ndarray` with shape (npdim,)
+        Position of the final proposed point within the unit cube.
+
+    v : `~numpy.ndarray` with shape (ndim,)
+        Position of the final proposed point in the target parameter space.
+
+    logl : float
+        Ln(likelihood) of the final proposed point.
+
+    nc : int
+        Number of function calls used to generate the sample.
+
+    blob : dict
+        Collection of ancillary quantities used to tune :data:`scale`.
+
+    """
     scale_init = 1.0 * scale
 
     # Periodicity.
-    nonbounded = kwargs.get('nonbounded', None)
-    periodic = kwargs.get('periodic', None)
-    reflective = kwargs.get('reflective', None)
+    nonbounded = kwargs.get('nonbounded')
+    periodic = kwargs.get('periodic')
+    reflective = kwargs.get('reflective')
 
     # Setup.
     n = len(u)
@@ -261,6 +314,9 @@ def generic_random_walk(u,
 
     drhat, dr, du, u_prop, logl_prop = np.nan, np.nan, np.nan, np.nan, np.nan
     while nc < walks or accept == 0:
+
+        # Here we are proposing points uniformly within an n-d ellipsoid
+        # We stop as soon we get a point within unit cube.
         while True:
 
             # Check scale-factor. If we've shrunk too much, terminate.
@@ -285,6 +341,7 @@ def generic_random_walk(u,
 
             # Scale based on dimensionality.
             dr = drhat * rstate.uniform()**(1. / n_cluster)
+            # This generates uniform distribution within n-d ball
 
             # draw random point for non clustering parameters
             u_non_cluster = rstate.uniform(0, 1, n - n_cluster)
@@ -297,6 +354,7 @@ def generic_random_walk(u,
             # Wrap periodic parameters
             if periodic is not None:
                 u_prop[periodic] = np.mod(u_prop[periodic], 1)
+
             # Reflect
             if reflective is not None:
                 u_prop[reflective] = apply_reflect(u_prop[reflective])
@@ -310,7 +368,7 @@ def generic_random_walk(u,
 
             # Check if we're stuck generating bad numbers.
             if fail > 100 * walks:
-                warnings.warn("Random number generation appears to be "
+                warnings.warn("Random walk point generation appears to be "
                               "extremely inefficient. Adjusting the "
                               "scale-factor accordingly.")
                 fail = 0
@@ -319,6 +377,9 @@ def generic_random_walk(u,
         # Check proposed point.
         v_prop = prior_transform(np.asarray(u_prop))
         logl_prop = loglikelihood(np.asarray(v_prop))
+        nc += 1
+        ncall += 1
+
         if logl_prop > loglstar:
             u = u_prop
             v = v_prop
@@ -326,8 +387,6 @@ def generic_random_walk(u,
             accept += 1
         else:
             reject += 1
-        nc += 1
-        ncall += 1
 
         # Adjust `stagger` to target an acceptance ratio of `facc_target`.
         facc = 1. * accept / (accept + reject)
@@ -335,7 +394,7 @@ def generic_random_walk(u,
             if facc > facc_target:
                 stagger_scale *= np.exp(1. / accept)
             if facc < facc_target:
-                stagger_scale /= math.exp(1. / reject)
+                stagger_scale /= np.exp(1. / reject)
 
         # Check if we're stuck generating bad points.
         if nc > 50 * walks:

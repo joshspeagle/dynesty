@@ -1,3 +1,4 @@
+import pickle
 import numpy as np
 import pytest
 import dynesty
@@ -129,3 +130,37 @@ def test_exc():
                                     rstate=rstate)
     with pytest.raises(MyException):
         sampler.run_nested()
+
+
+def test_pickle():
+    # test of maxcall functionality
+    ndim = 2
+    rstate = get_rstate()
+    sampler = dynesty.NestedSampler(loglike,
+                                    prior_transform,
+                                    ndim,
+                                    nlive=nlive,
+                                    rstate=rstate)
+    sampler.run_nested(dlogz=1, maxcall=1000)
+    with open('test_pickle.pkl', 'wb') as fp:
+        pickle.dump(sampler, fp)
+    with open('test_pickle.pkl', 'rb') as fp:
+        pickle.load(fp)
+    with open('test_pickle.pkl', 'wb') as fp:
+        pickle.dump(sampler.results, fp)
+    with open('test_pickle.pkl', 'rb') as fp:
+        pickle.load(fp)
+
+    sampler = dynesty.DynamicNestedSampler(loglike,
+                                           prior_transform,
+                                           ndim,
+                                           nlive=nlive)
+    sampler.run_nested(dlogz_init=1, maxcall=1000)
+    with open('test_pickle.pkl', 'wb') as fp:
+        pickle.dump(sampler, fp)
+    with open('test_pickle.pkl', 'rb') as fp:
+        pickle.load(fp)
+    with open('test_pickle.pkl', 'wb') as fp:
+        pickle.dump(sampler.results, fp)
+    with open('test_pickle.pkl', 'rb') as fp:
+        pickle.load(fp)

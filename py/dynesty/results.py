@@ -225,37 +225,84 @@ def print_fn_fallback(results,
     sys.stderr.flush()
 
 
-class Results(dict):
+class Results:
     """Contains the full output of a run along with a set of helper
     functions for summarizing the output."""
-    def __getattr__(self, name):
-        try:
-            return self[name]
-        except KeyError:
-            raise AttributeError(name)
+    def __init__(self, key_values):
+        self._keys = []
+        self._initialized = False
+        for k, v in key_values:
+            self._keys.append(k)
+            setattr(self, k, v)
+        required_keys = [
+            'samples_u', 'samples_id', 'logl', 'logwt', 'logz', 'logzerr',
+            'samples'
+        ]
+        for k in required_keys:
+            if k not in self._keys:
+                raise ValueError('Key %s must be provided' % k)
+        if 'nlive' in self._keys:
+            self._dynamic = False
+        elif 'samples_n' in self._keys:
+            self._dynamic = True
+        else:
+            raise ValueError(
+                'Trying to construct results object without nlive '
+                'or batch_nlive information')
+        self._initialized = True
 
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
+    def __setattr__(self, name, value):
+        if name[0] != '_' and self._initialized:
+            raise RuntimeError("Cannot set attributes directly")
+        super().__setattr__(name, value)
+
+    def __getitem__(self, name):
+        if name in self._keys:
+            return getattr(self, name)
+        else:
+            raise KeyError(name)
 
     def __repr__(self):
-        if self.keys():
-            m = max(list(map(len, list(self.keys())))) + 1
-            return '\n'.join(
-                [k.rjust(m) + ': ' + repr(v) for k, v in self.items()])
-        else:
-            return self.__class__.__name__ + "()"
+        m = max(list(map(len, list(self._keys)))) + 1
+        return '\n'.join(
+            [k.rjust(m) + ': ' + repr(getattr(self, k)) for k in self._keys])
+
+    def items(self):
+        return ((k, getattr(self, k)) for k in self._keys)
+
+    def isdynamic(self):
+        return self._dynamic
 
     def summary(self):
         """Return a formatted string giving a quick summary
         of the results."""
 
-        res = ("nlive: {:d}\n"
-               "niter: {:d}\n"
-               "ncall: {:d}\n"
-               "eff(%): {:6.3f}\n"
-               "logz: {:6.3f} +/- {:6.3f}".format(self.nlive, self.niter,
-                                                  sum(self.ncall), self.eff,
-                                                  self.logz[-1],
-                                                  self.logzerr[-1]))
+        if self._dynamic:
+            res = ("niter: {:d}\n"
+                   "ncall: {:d}\n"
+                   "eff(%): {:6.3f}\n"
+                   "logz: {:6.3f} +/- {:6.3f}".format(self.niter,
+                                                      sum(self.ncall),
+                                                      self.eff, self.logz[-1],
+                                                      self.logzerr[-1]))
+        else:
+            res = ("nlive: {:d}\n"
+                   "niter: {:d}\n"
+                   "ncall: {:d}\n"
+                   "eff(%): {:6.3f}\n"
+                   "logz: {:6.3f} +/- {:6.3f}".format(self.nlive, self.niter,
+                                                      sum(self.ncall),
+                                                      self.eff, self.logz[-1],
+                                                      self.logzerr[-1]))
 
         print('Summary\n=======\n' + res)
+
+
+def results_substitute(results, kw_dict):
+    new_list = []
+    for k, w in results.items():
+        if k not in kw_dict:
+            new_list.append((k, w))
+        else:
+            new_list.append((k, kw_dict[k]))
+    return Results(new_list)

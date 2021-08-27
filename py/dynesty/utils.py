@@ -19,7 +19,7 @@ try:
 except ImportError:
     tqdm = None
 
-from .results import Results, print_fn
+from .results import Results, print_fn, results_substitute
 
 __all__ = [
     "unitcheck", "resample_equal", "mean_and_cov", "quantile", "jitter_run",
@@ -571,18 +571,16 @@ def jitter_run(res, rstate=None, approx=False):
     (saved_logwt, saved_logz, saved_logzvar,
      saved_h) = compute_integrals(logl=logl, logvol=logvol)
 
-    # Copy results.
-    new_res = Results(list(res.items()))
-
     # Overwrite items with our new estimates.
-    new_res.logvol = logvol
-    new_res.logwt = saved_logwt
-    new_res.logz = saved_logz
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        new_res.logzerr = np.sqrt(saved_logzvar)
-    new_res.h = saved_h
+    substitute = {
+        'logvol': logvol,
+        'logwt': saved_logwt,
+        'logz': saved_logz,
+        'logzerr': np.sqrt(np.maximum(saved_logzvar, 0)),
+        'h': saved_h
+    }
 
+    new_res = results_substitute(res, substitute)
     return new_res
 
 
@@ -820,26 +818,20 @@ def resample_run(res, rstate=None, return_idx=False):
     eff = 100. * len(res.ncall[samp_idx]) / sum(res.ncall[samp_idx])
 
     # Copy results.
-    new_res = Results(list(res.items()))
-
     # Overwrite items with our new estimates.
-    new_res.niter = len(res.ncall[samp_idx])
-    new_res.ncall = res.ncall[samp_idx]
-    new_res.eff = eff
-    new_res.samples = res.samples[samp_idx]
-    new_res.samples_id = res.samples_id[samp_idx]
-    new_res.samples_it = res.samples_it[samp_idx]
-    new_res.samples_u = res.samples_u[samp_idx]
-    new_res.samples_n = samp_n
-    new_res.logwt = np.asarray(saved_logwt)
-    new_res.logl = logl
-    new_res.logvol = logvol
-    new_res.logz = np.asarray(saved_logz)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        new_res.logzerr = np.sqrt(np.asarray(saved_logzvar))
-    new_res.h = np.asarray(saved_h)
-
+    new_res_list = [('niter', len(res.ncall[samp_idx])),
+                    ('ncall', res.ncall[samp_idx]), ('eff', eff),
+                    ('samples', res.samples[samp_idx]),
+                    ('samples_id', res.samples_id[samp_idx]),
+                    ('samples_it', res.samples_it[samp_idx]),
+                    ('samples_u', res.samples_u[samp_idx]),
+                    ('samples_n', samp_n), ('logwt', np.asarray(saved_logwt)),
+                    ('logl', logl), ('logvol', logvol),
+                    ('logz', np.asarray(saved_logz)),
+                    ('logzerr',
+                     np.sqrt(np.maximum(np.asarray(saved_logzvar), 0))),
+                    ('h', np.asarray(saved_h))]
+    new_res = Results(new_res_list)
     if return_idx:
         return new_res, samp_idx
     else:
@@ -927,15 +919,16 @@ def reweight_run(res, logp_new, logp_old=None):
     saved_logwt, saved_logz, saved_logzvar, saved_h = compute_integrals(
         logl=logl, logvol=logvol, reweight=logrwt)
 
-    # Copy results.
-    new_res = Results(list(res.items()))
-
     # Overwrite items with our new estimates.
-    new_res.logwt = np.asarray(saved_logwt)
-    new_res.logz = np.asarray(saved_logz)
-    new_res.logzerr = np.sqrt(np.asarray(saved_logzvar))
-    new_res.h = np.asarray(saved_h)
+    substitute = {
+        'logvol': logvol,
+        'logwt': saved_logwt,
+        'logz': saved_logz,
+        'logzerr': np.sqrt(np.maximum(saved_logzvar, 0)),
+        'h': saved_h
+    }
 
+    new_res = results_substitute(res, substitute)
     return new_res
 
 

@@ -312,6 +312,9 @@ def generic_random_walk(u,
     nfail = 0  # failures of ellipsoid points not being in the cube
     MAX_REJECT_RESCALE = 50 * walks
 
+    # Here we loop till either
+    # 1) we did exactly 'walks' proposals and collected  >= 1 sample
+    # or 2) we run for as long as we need (>walks) to collect one single point
     while ncall < walks or naccept == 0:
 
         # This proposes a new point within the ellipsoid
@@ -342,7 +345,7 @@ def generic_random_walk(u,
             nreject_before_rescale += 1
 
         if stagger:
-            # Adjust `stagger` to target an acceptance ratio of `facc_target`.
+            # Adjust scale to target an acceptance ratio of `facc_target`.
             facc = naccept * 1. / (naccept + nreject)
             if facc > facc_target:
                 scale *= np.exp(1. / naccept)
@@ -350,7 +353,9 @@ def generic_random_walk(u,
                 scale /= np.exp(1. / nreject)
         else:
             if nreject_before_rescale > MAX_REJECT_RESCALE:
-                # Check if we're stuck generating bad points.
+                # We end up here *ONLY* if we ran for MAX_REJECT_RESCALE
+                # and didnt' collect *any* points
+                # so we try to adjust the scale
                 scale *= math.exp(-1. / n_cluster)
                 warnings.warn("Random walk proposals appear to be "
                               "extremely inefficient. Adjusting the "
@@ -358,7 +363,7 @@ def generic_random_walk(u,
                 nreject_before_rescale = 0
     blob = {
         'accept': naccept,
-        'reject': nreject,
+        'reject': nreject_before_rescale,
         'fail': nfail,
         'scale': scale
     }

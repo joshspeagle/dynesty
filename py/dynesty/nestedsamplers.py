@@ -163,9 +163,11 @@ class SuperSampler(Sampler):
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
         size of the slices compared to our initial guess."""
-
+        # see https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4063214/
+        # also 2002.06212
+        # and https://github.com/joshspeagle/dynesty/issues/260
         nexpand, ncontract = blob['nexpand'], blob['ncontract']
-        self.scale *= nexpand / (2. * ncontract)
+        self.scale *= nexpand * 1. / (nexpand + ncontract)
 
     def update_hslice(self, blob):
         """Update the Hamiltonian slice proposal scale based

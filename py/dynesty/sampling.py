@@ -14,6 +14,7 @@ import numpy as np
 from numpy import linalg
 
 from .utils import unitcheck, apply_reflect, get_random_generator
+from .bounding import randsphere
 
 __all__ = [
     "sample_unif", "sample_rwalk", "sample_rstagger", "sample_slice",
@@ -402,9 +403,7 @@ def propose_ball_point(u,
             raise RuntimeError(
                 "Random walk sampling within the ellipsoid is stuck!")
         # Propose a direction on the unit n-sphere.
-        drhat = rstate.standard_normal(size=n_cluster)
-        drhat /= linalg.norm(drhat)
-        dr = drhat * rstate.uniform()**(1. / n_cluster)
+        dr = randsphere(n_cluster, rstate=rstate)
         # This generates uniform distribution within n-d ball
 
         # Transform to proposal distribution.

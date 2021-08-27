@@ -165,9 +165,10 @@ class SuperSampler(Sampler):
         size of the slices compared to our initial guess."""
         # see https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4063214/
         # also 2002.06212
+        # https://www.tandfonline.com/doi/full/10.1080/10618600.2013.791193
         # and https://github.com/joshspeagle/dynesty/issues/260
-        nexpand, ncontract = blob['nexpand'], blob['ncontract']
-        self.scale *= nexpand * 1. / (nexpand + ncontract)
+        nexpand, ncontract = max(blob['nexpand'], 1), blob['ncontract']
+        self.scale *= nexpand * 2. / (nexpand + ncontract)
 
     def update_hslice(self, blob):
         """Update the Hamiltonian slice proposal scale based

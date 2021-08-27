@@ -390,6 +390,9 @@ def propose_ball_point(u,
     nfail_accum = 0
     MAX_FAIL = 1000
     # The number of failures before we start shrinking the ellipsoid
+    MIN_SCALE_FACTOR = 1e-5
+    # if the scale factor decreased by more than that
+    # we throw an exception
 
     # draw random point for non clustering parameters
     u_cluster = u[:n_cluster]
@@ -399,7 +402,7 @@ def propose_ball_point(u,
     u_prop[n_cluster:] = u_non_cluster
     while True:
         # Check scale-factor. If we've shrunk too much, terminate.
-        if scale < 1e-5 * scale_init:
+        if scale < MIN_SCALE_FACTOR * scale_init:
             raise RuntimeError(
                 "Random walk sampling within the ellipsoid is stuck!")
         # Propose a direction on the unit n-sphere.

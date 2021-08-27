@@ -51,7 +51,8 @@ _SAMPLING = {
 
 class SuperSampler(Sampler):
     """
-    This is a class that provides common functionality to all the implemented samplers
+    This is a class that provides common functionality to all the
+    implemented samplers
     """
     def __init__(self,
                  loglikelihood,

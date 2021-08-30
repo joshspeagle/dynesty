@@ -339,11 +339,12 @@ class Sampler:
         point_queue = []
         axes_queue = []
 
-        # Slice samplers must have have a starting point
-        # satisfying a strict logl>loglstar criterion othwise they can fail
+        # All the samplers should have have a starting point
+        # satisfying a strict logl>loglstar criterion
+        # The slice sampler will just fail if it's not the case
         # therefore we provide those subsets of points to choose from.
 
-        if self.method in ['rslice', 'slice', 'hslice']:
+        if self.method != 'unif':
             args = (np.nonzero(self.live_logl > loglstar)[0], )
             if len(args[0]) == 0:
                 raise RuntimeError('No live points are above loglstar. '

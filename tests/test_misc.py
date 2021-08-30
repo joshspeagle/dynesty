@@ -123,12 +123,12 @@ def test_exc():
     # Test of exceptions that the exception is reraised
     ndim = 2
     rstate = get_rstate()
-    sampler = dynesty.NestedSampler(loglike_exc,
-                                    prior_transform,
-                                    ndim,
-                                    nlive=nlive,
-                                    rstate=rstate)
     with pytest.raises(MyException):
+        sampler = dynesty.NestedSampler(loglike_exc,
+                                        prior_transform,
+                                        ndim,
+                                        nlive=nlive,
+                                        rstate=rstate)
         sampler.run_nested()
 
 

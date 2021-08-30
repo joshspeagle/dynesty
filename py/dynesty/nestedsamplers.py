@@ -51,7 +51,8 @@ _SAMPLING = {
 
 class SuperSampler(Sampler):
     """
-    This is a class that provides common functionality to all the implemented samplers
+    This is a class that provides common functionality to all the
+    implemented samplers
     """
     def __init__(self,
                  loglikelihood,
@@ -162,9 +163,12 @@ class SuperSampler(Sampler):
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
         size of the slices compared to our initial guess."""
-
-        nexpand, ncontract = blob['nexpand'], blob['ncontract']
-        self.scale *= nexpand / (2. * ncontract)
+        # see https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4063214/
+        # also 2002.06212
+        # https://www.tandfonline.com/doi/full/10.1080/10618600.2013.791193
+        # and https://github.com/joshspeagle/dynesty/issues/260
+        nexpand, ncontract = max(blob['nexpand'], 1), blob['ncontract']
+        self.scale *= nexpand * 2. / (nexpand + ncontract)
 
     def update_hslice(self, blob):
         """Update the Hamiltonian slice proposal scale based

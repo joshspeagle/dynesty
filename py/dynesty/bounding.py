@@ -36,8 +36,8 @@ __all__ = [
     "UnitCube", "Ellipsoid", "MultiEllipsoid", "RadFriends", "SupFriends",
     "logvol_prefactor", "randsphere", "bounding_ellipsoid",
     "bounding_ellipsoids", "_bounding_ellipsoids",
-    "_ellipsoid_bootstrap_expand", "_ellipsoids_bootstrap_expand",
-    "_friends_bootstrap_radius", "_friends_leaveoneout_radius"
+    "_ellipsoid_bootstrap_expand", "_friends_bootstrap_radius",
+    "_friends_leaveoneout_radius"
 ]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
@@ -326,9 +326,10 @@ class Ellipsoid:
                 M = map
             else:
                 M = pool.map
+            multis = [False for it in range(bootstrap)]
             ps = [points for it in range(bootstrap)]
             seeds = get_seed_sequence(rstate, bootstrap)
-            args = zip(ps, seeds)
+            args = zip(multis, ps, seeds)
             expands = list(M(_ellipsoid_bootstrap_expand, args))
 
             # Conservatively set the expansion factor to be the maximum
@@ -612,10 +613,11 @@ class MultiEllipsoid:
                 M = map
             else:
                 M = pool.map
+            multis = [True for it in range(bootstrap)]
             ps = [points for it in range(bootstrap)]
             seeds = get_seed_sequence(rstate, bootstrap)
-            args = zip(ps, seeds)
-            expands = list(M(_ellipsoids_bootstrap_expand, args))
+            args = zip(multis, ps, seeds)
+            expands = list(M(_ellipsoid_bootstrap_expand, args))
 
             # Conservatively set the expansion factor to be the maximum
             # factor derived from our set of bootstraps.
@@ -1436,8 +1438,8 @@ def _bounding_ellipsoids(points, ell):
     # Get points in each cluster.
     points_k = [points[labels == k, :] for k in (0, 1)]
 
-    # If either cluster has less than ndim+1 points, the bounding ellipsoid
-    # will be ill-constrained. Reject the split and simply return the
+    # If either cluster has less than 2*ndim points, the bounding ellipsoid
+    # will be poorly-constrained. Reject the split and simply return the
     # original ellipsoid bounding all the points.
     if points_k[0].shape[0] < 2 * ndim or points_k[1].shape[0] < 2 * ndim:
         return [ell]
@@ -1513,64 +1515,60 @@ def bounding_ellipsoids(points):
     return MultiEllipsoid(ells=ells)
 
 
+def _bootstrap_points(points, rseed):
+    """
+    Select the bootstrap set from points.
+    Return:
+    Tuple with selected, and not-selected points
+    """
+    rstate = get_random_generator(rseed)
+    npoints, ndim = points.shape
+
+    # Resampling.
+    idxs = rstate.integers(npoints, size=npoints)
+    idx_in = np.unique(idxs)  # selected objects
+    sel_in = np.zeros(npoints, dtype=bool)
+    sel_in[idx_in] = True
+    # in the crazy case of not having selected more than one
+    # point I just arbitrary add points to have at least two in idx_in
+    # and at least 1 in idx_out
+    n_in = sel_in.sum()
+    if n_in < 2:
+        sel_in[:2] = True
+    if n_in > npoints - 1:
+        sel_in[0] = False
+    points_in, points_out = points[sel_in], points[~sel_in]
+    return points_in, points_out
+
+
 def _ellipsoid_bootstrap_expand(args):
     """Internal method used to compute the expansion factor for a bounding
-    ellipsoid based on bootstrapping."""
+    ellipsoid or ellipsoids based on bootstrapping.
+    The argument is a tuple:
+    multi: boolean flag if we are doing multiell or single ell decomposition
+    points: 2d array of points
+    rseed: seed to initialize the random generator
+    """
 
     # Unzipping.
-    points, rseed = args
-    rstate = get_random_generator(rseed)
-    # Resampling.
-    npoints, ndim = points.shape
-    idxs = rstate.integers(npoints, size=npoints)  # resample
-    idx_in = np.unique(idxs)  # selected objects
-    sel = np.ones(npoints, dtype='bool')
-    sel[idx_in] = False
-    idx_out = np.arange(npoints)[sel]  # "missing" objects
-    if len(idx_out) < 2:  # edge case
-        idx_out = np.append(idx_out, [0, 1])
-    points_in, points_out = points[idx_in], points[idx_out]
+    multi, points, rseed = args
+
+    points_in, points_out = _bootstrap_points(points, rseed)
 
     # Compute bounding ellipsoid.
     ell = bounding_ellipsoid(points_in)
 
-    # Compute normalized distances to missing points.
-    dists = ell.distance_many(points_out)
+    if not multi:
+        # Compute normalized distances to missing points.
+        dists = ell.distance_many(points_out)
+    else:
+        ells = _bounding_ellipsoids(points_in, ell)
+        # Compute normalized distances to missing points.
+        dists = np.min(np.array([el.distance_many(points_out) for el in ells]),
+                       axis=0)
 
     # Compute expansion factor.
     expand = max(1., np.max(dists))
-
-    return expand
-
-
-def _ellipsoids_bootstrap_expand(args):
-    """Internal method used to compute the expansion factor(s) for a collection
-    of bounding ellipsoids using bootstrapping."""
-
-    # Unzipping.
-    points, rseed = args
-    rstate = get_random_generator(rseed)
-    # Resampling.
-    npoints, ndim = points.shape
-    idxs = rstate.integers(npoints, size=npoints)  # resample
-    idx_in = np.unique(idxs)  # selected objects
-    sel = np.ones(npoints, dtype='bool')
-    sel[idx_in] = False
-    idx_out = np.where(sel)[0]  # "missing" objects
-    if len(idx_out) < 2:  # edge case
-        idx_out = np.append(idx_out, [0, 1])
-    points_in, points_out = points[idx_in], points[idx_out]
-
-    # Compute bounding ellipsoids.
-    ell = bounding_ellipsoid(points_in)
-    ells = _bounding_ellipsoids(points_in, ell)
-
-    # Compute normalized distances to missing points.
-    dists = np.min(np.array([el.distance_many(points_out) for el in ells]),
-                   axis=0)
-
-    # Compute expansion factor.
-    expand = max(1., max(dists))
 
     return expand
 
@@ -1582,18 +1580,8 @@ def _friends_bootstrap_radius(args):
 
     # Unzipping.
     points, ftype, rseed = args
-    rstate = get_random_generator(rseed)
 
-    # Resampling.
-    npoints, ndim = points.shape
-    idxs = rstate.integers(npoints, size=npoints)  # resample
-    idx_in = np.unique(idxs)  # selected objects
-    sel = np.ones(npoints, dtype='bool')
-    sel[idx_in] = False
-    idx_out = np.where(sel)[0]  # "missing" objects
-    if len(idx_out) < 2:  # edge case
-        idx_out = np.append(idx_out, [0, 1])
-    points_in, points_out = points[idx_in], points[idx_out]
+    points_in, points_out = _bootstrap_points(points, rseed)
 
     # Construct KDTree to enable quick nearest-neighbor lookup for
     # our resampled objects.

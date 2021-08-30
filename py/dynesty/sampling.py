@@ -307,12 +307,24 @@ def generic_random_walk(u,
     walks = kwargs.get('walks', 25)  # number of steps
 
     naccept = 0
-    nreject = 0
-    nreject_before_rescale = 0
-    ncall = 0
-    nfail = 0  # failures of ellipsoid points not being in the cube
-    MAX_REJECT_RESCALE = 50 * walks
+    # Total number of accepted points with L>L*
 
+    nreject = 0
+    # Total number of points proposed to within the ellipsoid and cube
+    # but rejected due to L<=L* condition
+
+    nreject_before_rescale = 0
+    # Accumulator for when we decide to give up on getting L>L* points
+    # and we reduce the scale
+
+    ncall = 0
+    # Total number of Likelihood calls (proposals evaluated)
+
+    nfail = 0
+    # failures of ellipsoid points not being in the cube
+
+    MAX_REJECT_RESCALE = 50 * walks
+    stagger_mult = 1.
     # Here we loop till either
     # 1) we did exactly 'walks' proposals and collected  >= 1 sample
     # or 2) we run for as long as we need (>walks) to collect one single point
@@ -320,15 +332,20 @@ def generic_random_walk(u,
 
         # This proposes a new point within the ellipsoid
         # This also potentially modifies the scale
-        u_prop, scale, new_nfail = propose_ball_point(u,
-                                                      scale,
-                                                      axes,
-                                                      n,
-                                                      n_cluster,
-                                                      rstate=rstate,
-                                                      periodic=periodic,
-                                                      reflective=reflective,
-                                                      nonbounded=nonbounded)
+        u_prop, scale_mult, new_nfail = propose_ball_point(
+            u,
+            scale * stagger_mult,
+            axes,
+            n,
+            n_cluster,
+            rstate=rstate,
+            periodic=periodic,
+            reflective=reflective,
+            nonbounded=nonbounded)
+        # If generation of points within an ellipsoid was
+        # highly inefficient we adjust the scale
+        scale *= scale_mult
+
         nfail += new_nfail
 
         # Check proposed point.
@@ -349,9 +366,9 @@ def generic_random_walk(u,
             # Adjust scale to target an acceptance ratio of `facc_target`.
             facc = naccept * 1. / (naccept + nreject)
             if facc > facc_target:
-                scale *= np.exp(1. / naccept)
+                stagger_mult *= np.exp(1. / naccept)
             if facc < facc_target:
-                scale /= np.exp(1. / nreject)
+                stagger_mult /= np.exp(1. / nreject)
         else:
             if nreject_before_rescale > MAX_REJECT_RESCALE:
                 # We end up here *ONLY* if we ran for MAX_REJECT_RESCALE
@@ -381,11 +398,16 @@ def propose_ball_point(u,
                        periodic=None,
                        reflective=None,
                        nonbounded=None):
-    """ 
+    """
     Here we are proposing points uniformly within an n-d ellipsoid
     We stop as soon we get a point within unit cube.
+    We return the tuple with
+    1) proposed point.
+    2) the adjustment to the scale (needs to be multiplied)
+    3) The total number of failures of generating a point within the
+    cube
     """
-    scale = scale_init * 1
+    scale = scale_init * 1.
     nfail = 0
     nfail_accum = 0
     MAX_FAIL = 1000
@@ -394,12 +416,15 @@ def propose_ball_point(u,
     # if the scale factor decreased by more than that
     # we throw an exception
 
-    # draw random point for non clustering parameters
+    # starting point for clustered dimensions
     u_cluster = u[:n_cluster]
+
+    # draw random point for non clustering parameters
     # we only need to generate them once
     u_non_cluster = rstate.uniform(0, 1, n - n_cluster)
     u_prop = np.zeros(n)
     u_prop[n_cluster:] = u_non_cluster
+
     while True:
         # Check scale-factor. If we've shrunk too much, terminate.
         if scale < MIN_SCALE_FACTOR * scale_init:
@@ -436,7 +461,7 @@ def propose_ball_point(u,
             nfail = 0
             scale *= math.exp(-1. / n_cluster)
 
-    return u_prop, scale, nfail_accum
+    return u_prop, scale / scale_init, nfail_accum
 
 
 def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,

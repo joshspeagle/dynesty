@@ -33,8 +33,10 @@ def bootstrap_tol(results, rstate):
         # curpos = dyfunc.resample_equal(pos, wts)
         # xid = np.random.randint(len(curpos), size=len(curpos))
         sub = rstate.uniform(size=n) < wts / wts.max()
-        mean = pos[sub].mean(axis=0)
-        cov = np.cov(pos[sub].T)
+        ind0 = np.nonzero(sub)[0]
+        ind1 = rstate.choice(ind0, size=len(ind0), replace=True)
+        mean = pos[ind1].mean(axis=0)
+        cov = np.cov(pos[ind1].T)
         means.append(mean)
         covs.append(cov)
     return np.std(means, axis=0), np.std(covs, axis=0)
@@ -73,7 +75,9 @@ prior_win = 10  # +/- 10 on both sides
 logz_truth_gau = ndim_gau * (-np.log(2 * prior_win))
 
 
-def check_results_gau(results, logz_tol, rstate, sig=5):
+def check_results_gau(results, rstate, sig=5, logz_tol=None):
+    if logz_tol is None:
+        logz_tol = sig * results.logzerr[-1]
     mean_tol, cov_tol = bootstrap_tol(results, rstate)
     check_results(results,
                   mean_gau,
@@ -130,7 +134,7 @@ def test_gaussian():
     sampler.run_nested(dlogz=0.1, print_progress=printing)
 
     # get errors
-    nerr = 2
+    nerr = 3
     result_list = []
     for i in range(nerr):
         sampler.reset()
@@ -182,7 +186,6 @@ def test_gaussian():
 )
 def test_bounding_sample(bound, sample):
     # check various bounding methods
-    logz_tol = 1
 
     rstate = get_rstate()
     sampler = dynesty.NestedSampler(loglikelihood_gau,
@@ -193,10 +196,7 @@ def test_bounding_sample(bound, sample):
                                     sample=sample,
                                     rstate=rstate)
     sampler.run_nested(print_progress=printing)
-    # NOTICE I bump the significance to 5.5 because
-    # bound=none, sample=slice was failing at 5...
-    # it is worth investigating
-    check_results_gau(sampler.results, logz_tol, rstate, sig=5.5)
+    check_results_gau(sampler.results, rstate)
 
 
 @pytest.mark.parametrize("bound,sample",
@@ -204,7 +204,6 @@ def test_bounding_sample(bound, sample):
                              ['single', 'multi', 'balls', 'cubes'], ['unif']))
 def test_bounding_bootstrap(bound, sample):
     # check various bounding methods
-    logz_tol = 1
 
     rstate = get_rstate()
     sampler = dynesty.NestedSampler(loglikelihood_gau,
@@ -216,12 +215,11 @@ def test_bounding_bootstrap(bound, sample):
                                     bootstrap=5,
                                     rstate=rstate)
     sampler.run_nested(print_progress=printing)
-    check_results_gau(sampler.results, logz_tol, rstate)
+    check_results_gau(sampler.results, rstate)
 
 
 # extra checks for gradients
 def test_slice_nograd():
-    logz_tol = 1
     rstate = get_rstate()
     sampler = dynesty.NestedSampler(loglikelihood_gau,
                                     prior_transform_gau,
@@ -230,11 +228,10 @@ def test_slice_nograd():
                                     sample='hslice',
                                     rstate=rstate)
     sampler.run_nested(print_progress=printing)
-    check_results_gau(sampler.results, logz_tol, rstate)
+    check_results_gau(sampler.results, rstate)
 
 
 def test_slice_grad():
-    logz_tol = 1
     rstate = get_rstate()
     sampler = dynesty.NestedSampler(loglikelihood_gau,
                                     prior_transform_gau,
@@ -245,11 +242,10 @@ def test_slice_grad():
                                     compute_jac=True,
                                     rstate=rstate)
     sampler.run_nested(print_progress=printing)
-    check_results_gau(sampler.results, logz_tol, rstate)
+    check_results_gau(sampler.results, rstate)
 
 
 def test_slice_grad1():
-    logz_tol = 1
     rstate = get_rstate()
     sampler = dynesty.NestedSampler(loglikelihood_gau,
                                     prior_transform_gau,
@@ -259,27 +255,25 @@ def test_slice_grad1():
                                     gradient=grad_u_gau,
                                     rstate=rstate)
     sampler.run_nested(print_progress=printing)
-    check_results_gau(sampler.results, logz_tol, rstate)
+    check_results_gau(sampler.results, rstate)
 
 
 def test_dynamic():
     # check dynamic nested sampling behavior
-    logz_tol = 1
     rstate = get_rstate()
     dsampler = dynesty.DynamicNestedSampler(loglikelihood_gau,
                                             prior_transform_gau,
                                             ndim_gau,
                                             rstate=rstate)
     dsampler.run_nested(print_progress=printing)
-    check_results_gau(dsampler.results, logz_tol, rstate)
+    check_results_gau(dsampler.results, rstate)
 
     # check error analysis functions
     dres = dyfunc.jitter_run(dsampler.results, rstate=rstate)
-    check_results_gau(dres, logz_tol, rstate)
+    check_results_gau(dres, rstate)
     dres = dyfunc.resample_run(dsampler.results, rstate=rstate)
-    check_results_gau(dres, logz_tol, rstate)
+    check_results_gau(dres, rstate)
     dres = dyfunc.simulate_run(dsampler.results, rstate=rstate)
-    check_results_gau(dres, logz_tol, rstate)
-    # I bump the threshold
-    # because we have the error twice
+    check_results_gau(dres, rstate)
+
     dyfunc.kld_error(dsampler.results, rstate=rstate)

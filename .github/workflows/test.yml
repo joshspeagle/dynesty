@@ -34,6 +34,7 @@ jobs:
           pip install pylint
           pip install pytest-cov
           pip install coveralls
+          pip install tqdm
           pip install .
       - name: pylint
         run: pylint --fail-under=8 --extension-pkg-whitelist=scipy.special  py/dynesty/*py

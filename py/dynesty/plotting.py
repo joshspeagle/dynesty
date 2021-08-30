@@ -164,7 +164,7 @@ def runplot(results,
     try:
         nlive = results['samples_n']
         mark_final_live = False
-    except:
+    except KeyError:
         nlive = np.ones(niter) * results['nlive']
         if nsamps - niter == results['nlive']:
             nlive_final = np.arange(1, results['nlive'] + 1)[::-1]
@@ -217,7 +217,7 @@ def runplot(results,
         fig, axes = fig
         try:
             axes.reshape(4, 1)
-        except:
+        except ValueError:
             raise ValueError("Provided axes do not match the required shape "
                              "for plotting samples.")
         # If figure is provided, keep previous bounds if they were larger.
@@ -527,7 +527,7 @@ def traceplot(results,
     logvol = results['logvol']
     try:
         weights = np.exp(results['logwt'] - results['logz'][-1])
-    except:
+    except KeyError:
         weights = results['weights']
     if kde:
         # Derive kernel density estimate.

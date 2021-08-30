@@ -30,8 +30,8 @@ import numpy as np
 from .sampler import Sampler
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
                        SupFriends)
-from .sampling import (sample_unif, sample_rwalk, sample_rstagger,
-                       sample_slice, sample_rslice, sample_hslice)
+from .sampling import (sample_unif, sample_rwalk, sample_slice, sample_rslice,
+                       sample_hslice)
 from .utils import unitcheck, get_enlarge_bootstrap
 
 __all__ = [
@@ -42,7 +42,6 @@ __all__ = [
 _SAMPLING = {
     'unif': sample_unif,
     'rwalk': sample_rwalk,
-    'rstagger': sample_rstagger,
     'slice': sample_slice,
     'rslice': sample_rslice,
     'hslice': sample_hslice
@@ -84,7 +83,6 @@ class SuperSampler(Sampler):
         self._PROPOSE = {
             'unif': self.propose_unif,
             'rwalk': self.propose_live,
-            'rstagger': self.propose_live,
             'slice': self.propose_live,
             'rslice': self.propose_live,
             'hslice': self.propose_live,
@@ -103,7 +101,6 @@ class SuperSampler(Sampler):
         self._UPDATE = {
             'unif': self.update_unif,
             'rwalk': self.update_rwalk,
-            'rstagger': self.update_rwalk,
             'slice': self.update_slice,
             'rslice': self.update_slice,
             'hslice': self.update_hslice,
@@ -209,7 +206,7 @@ class UnitCubeSampler(SuperSampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {`'unif'`, `'rwalk'`, `'rstagger'`,
+    method : {`'unif'`, `'rwalk'`,
               `'slice'`, `'rslice'`, `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds.
@@ -329,7 +326,7 @@ class SingleEllipsoidSampler(SuperSampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {`'unif'`, `'rwalk'`, `'rstagger'`,
+    method : {`'unif'`, `'rwalk'`,
               `'slice'`, `'rslice'`, `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds.
@@ -441,7 +438,7 @@ class SingleEllipsoidSampler(SuperSampler):
         u = self.live_u[i, :]
 
         # Choose axes.
-        if self.sampling in ['rwalk', 'rstagger', 'rslice']:
+        if self.sampling in ['rwalk', 'rslice']:
             ax = self.ell.axes
         elif self.sampling == 'slice':
             ax = self.ell.paxes
@@ -474,7 +471,7 @@ class MultiEllipsoidSampler(SuperSampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {`'unif'`, `'rwalk'`, `'rstagger'`,
+    method : {`'unif'`, `'rwalk'`,
               `'slice'`, `'rslice'`, `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds.
@@ -618,7 +615,7 @@ class MultiEllipsoidSampler(SuperSampler):
         ell_idx = ell_idxs[self.rstate.integers(nidx)]
 
         # Choose axes.
-        if self.sampling in ['rwalk', 'rstagger', 'rslice']:
+        if self.sampling in ['rwalk', 'rslice']:
             ax = self.mell.ells[ell_idx].axes
         elif self.sampling == 'slice':
             ax = self.mell.ells[ell_idx].paxes
@@ -651,7 +648,7 @@ class RadFriendsSampler(SuperSampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {`'unif'`, `'rwalk'`, `'rstagger'`,
+    method : {`'unif'`, `'rwalk'`,
               `'slice'`, `'rslice'`, `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds.
@@ -800,7 +797,7 @@ class SupFriendsSampler(SuperSampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {`'unif'`, `'rwalk'`, `'rstagger'`,
+    method : {`'unif'`, `'rwalk'`,
               `'slice'`, `'rslice'`, `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds.

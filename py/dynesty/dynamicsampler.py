@@ -178,7 +178,7 @@ def __get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
     if update_interval is None:
         if sample == 'unif':
             update_interval_frac = 1.5
-        elif sample in ('rwalk', 'rstagger'):
+        elif sample == 'rwalk':
             update_interval_frac = 0.15 * walks
         elif sample == 'slice':
             update_interval_frac = 0.9 * ndim * slices
@@ -452,7 +452,7 @@ class DynamicSampler:
         set of live points. Conditions the sampling methods used to
         propose new live points.
 
-    method : {`'unif'`, `'rwalk'`, `'rstagger'`,
+    method : {`'unif'`, `'rwalk'`,
               `'slice'`, `'rslice'`, `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds.

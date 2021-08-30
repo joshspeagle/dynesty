@@ -60,10 +60,6 @@ _CITES = {'default':  # default set of citations
           "Sampling Method:\n===============\n"
           "Skilling (2006): "
           "projecteuclid.org/euclid.ba/1340370944\n",
-          'rstagger':  # random stagger
-          "Sampling Method:\n===============\n"
-          "Skilling (2006): "
-          "projecteuclid.org/euclid.ba/1340370944\n",
           'slice':  # multivariate slice
           "Sampling Method:\n===============\n"
           "Neal (2003): "
@@ -133,7 +129,7 @@ def __get_walks_slices(walks0, slices0, sample, ndim):
     elif sample == 'slice':
         slices = 3
         # we don't add dimensions, since we loop over them
-    elif sample in ['rwalk', 'rstagger']:
+    elif sample == 'rwalk':
         # this is technically incorrect a we need to add ndim **2
         walks = 20 + ndim
     slices = slices0 or slices
@@ -214,13 +210,12 @@ def NestedSampler(loglikelihood,
         (`'multi'`), balls centered on each live point (`'balls'`), and
         cubes centered on each live point (`'cubes'`). Default is `'multi'`.
 
-    sample : {`'auto'`, `'unif'`, `'rwalk'`, `'rstagger'`,
+    sample : {`'auto'`, `'unif'`, `'rwalk'`,
               `'slice'`, `'rslice'`, `'hslice'`, callable}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds. Unique methods available are:
         uniform sampling within the bounds(`'unif'`),
         random walks with fixed proposals (`'rwalk'`),
-        random walks with variable ("staggering") proposals (`'rstagger'`),
         multivariate slice sampling along preferred orientations (`'slice'`),
         "random" slice sampling along all orientations (`'rslice'`),
         "Hamiltonian" slices along random trajectories (`'hslice'`), and
@@ -231,9 +226,8 @@ def NestedSampler(loglikelihood,
         When `ndim < 10`, this defaults to `'unif'`.
         When `10 <= ndim <= 20`, this defaults to `'rwalk'`.
         When `ndim > 20`, this defaults to `'hslice'` if a `gradient` is
-        provided and `'rslice'` otherwise. `'rstagger'` and `'slice'`
-        are provided as alternatives for `'rwalk'` and `'rslice'`,
-        respectively.
+        provided and `'rslice'` otherwise. `'slice'`
+        is provided as alternatives for`'rslice'`.
         Default is `'auto'`.
 
     periodic : iterable, optional
@@ -257,7 +251,7 @@ def NestedSampler(loglikelihood,
         call. Larger update intervals larger can be more efficient
         when the likelihood function is quick to evaluate. Default behavior
         is to target a roughly constant change in prior volume, with
-        `1.5` for `'unif'`, `0.15 * walks` for `'rwalk'` and `'rstagger'`,
+        `1.5` for `'unif'`, `0.15 * walks` for `'rwalk'`.
         `0.9 * ndim * slices` for `'slice'`, `2.0 * slices` for `'rslice'`,
         and `25.0 * slices` for `'hslice'`.
 
@@ -649,13 +643,12 @@ def DynamicNestedSampler(loglikelihood,
         (`'multi'`), balls centered on each live point (`'balls'`), and
         cubes centered on each live point (`'cubes'`). Default is `'multi'`.
 
-    sample : {`'auto'`, `'unif'`, `'rwalk'`, `'rstagger'`,
+    sample : {`'auto'`, `'unif'`, `'rwalk'`,
               `'slice'`, `'rslice'`, `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds. Unique methods available are:
         uniform sampling within the bounds(`'unif'`),
         random walks with fixed proposals (`'rwalk'`),
-        random walks with variable ("staggering") proposals (`'rstagger'`),
         multivariate slice sampling along preferred orientations (`'slice'`),
         "random" slice sampling along all orientations (`'rslice'`),
         "Hamiltonian" slices along random trajectories (`'hslice'`), and
@@ -666,9 +659,8 @@ def DynamicNestedSampler(loglikelihood,
         When `ndim < 10`, this defaults to `'unif'`.
         When `10 <= ndim <= 20`, this defaults to `'rwalk'`.
         When `ndim > 20`, this defaults to `'hslice'` if a `gradient` is
-        provided and `'rslice'` otherwise. `'rstagger'` and `'slice'`
-        are provided as alternatives for `'rwalk'` and `'rslice'`,
-        respectively.
+        provided and `'rslice'` otherwise. `'slice'`
+        is provided as alternative for `'rslice'`.
         Default is `'auto'`.
 
     periodic : iterable, optional
@@ -692,7 +684,7 @@ def DynamicNestedSampler(loglikelihood,
         call. Larger update intervals larger can be more efficient
         when the likelihood function is quick to evaluate. Default behavior
         is to target a roughly constant change in prior volume, with
-        `1.5` for `'unif'`, `0.15 * walks` for `'rwalk'` and `'rstagger'`,
+        `1.5` for `'unif'`, `0.15 * walks` for `'rwalk'`.
         `0.9 * ndim * slices` for `'slice'`, `2.0 * slices` for `'rslice'`,
         and `25.0 * slices` for `'hslice'`.
 

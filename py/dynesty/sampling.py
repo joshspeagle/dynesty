@@ -17,8 +17,8 @@ from .utils import unitcheck, apply_reflect, get_random_generator
 from .bounding import randsphere
 
 __all__ = [
-    "sample_unif", "sample_rwalk", "sample_rstagger", "sample_slice",
-    "sample_rslice", "sample_hslice"
+    "sample_unif", "sample_rwalk", "sample_slice", "sample_rslice",
+    "sample_hslice"
 ]
 
 EPS = float(np.finfo(np.float64).eps)
@@ -148,98 +148,12 @@ def sample_rwalk(args):
     (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
      kwargs) = args
     rstate = get_random_generator(rseed)
-    return generic_random_walk(u,
-                               loglstar,
-                               axes,
-                               scale,
-                               prior_transform,
-                               loglikelihood,
-                               rstate,
-                               kwargs,
-                               stagger=False)
+    return generic_random_walk(u, loglstar, axes, scale, prior_transform,
+                               loglikelihood, rstate, kwargs)
 
 
-def sample_rstagger(args):
-    """
-    Return a new live point proposed by random "staggering" away from an
-    existing live point. The difference between this and the random walk is
-    the step size is exponentially adjusted to reach a target acceptance rate
-    *during* each proposal (in addition to *between* proposals).
-
-    Parameters
-    ----------
-    u : `~numpy.ndarray` with shape (npdim,)
-        Position of the initial sample. **This is a copy of an existing live
-        point.**
-
-    loglstar : float
-        Ln(likelihood) bound.
-
-    axes : `~numpy.ndarray` with shape (ndim, ndim)
-        Axes used to propose new points. For random walks new positions are
-        proposed using the :class:`~dynesty.bounding.Ellipsoid` whose
-        shape is defined by axes.
-
-    scale : float
-        Value used to scale the provided axes.
-
-    prior_transform : function
-        Function transforming a sample from the a unit cube to the parameter
-        space of interest according to the prior.
-
-    loglikelihood : function
-        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
-        array of length `ndim`.
-
-    kwargs : dict
-        A dictionary of additional method-specific parameters.
-
-    Returns
-    -------
-    u : `~numpy.ndarray` with shape (npdim,)
-        Position of the final proposed point within the unit cube.
-
-    v : `~numpy.ndarray` with shape (ndim,)
-        Position of the final proposed point in the target parameter space.
-
-    logl : float
-        Ln(likelihood) of the final proposed point.
-
-    nc : int
-        Number of function calls used to generate the sample.
-
-    blob : dict
-        Collection of ancillary quantities used to tune :data:`scale`.
-
-    """
-
-    # Unzipping.
-    (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
-     kwargs) = args
-    rstate = get_random_generator(rseed)
-    facc_target = kwargs.get('facc', 0.5)  # acceptance fraction
-    return generic_random_walk(u,
-                               loglstar,
-                               axes,
-                               scale,
-                               prior_transform,
-                               loglikelihood,
-                               rstate,
-                               kwargs,
-                               stagger=True,
-                               facc_target=facc_target)
-
-
-def generic_random_walk(u,
-                        loglstar,
-                        axes,
-                        scale_init,
-                        prior_transform,
-                        loglikelihood,
-                        rstate,
-                        kwargs,
-                        stagger=False,
-                        facc_target=None):
+def generic_random_walk(u, loglstar, axes, scale_init, prior_transform,
+                        loglikelihood, rstate, kwargs):
     """
     Generic random walk step
     Parameters
@@ -269,12 +183,6 @@ def generic_random_walk(u,
 
     kwargs : dict
         A dictionary of additional method-specific parameters.
-
-    stagger : bool
-        If true do stagger steps vs random walk
-
-    facc_target: float (optional)
-        Target acceptance rate for stagger
 
     Returns
     -------
@@ -324,7 +232,6 @@ def generic_random_walk(u,
     # failures of ellipsoid points not being in the cube
 
     MAX_REJECT_RESCALE = 50 * walks
-    stagger_mult = 1.
     # Here we loop till either
     # 1) we did exactly 'walks' proposals and collected  >= 1 sample
     # or 2) we run for as long as we need (>walks) to collect one single point
@@ -334,7 +241,7 @@ def generic_random_walk(u,
         # This also potentially modifies the scale
         u_prop, scale_mult, new_nfail = propose_ball_point(
             u,
-            scale * stagger_mult,
+            scale,
             axes,
             n,
             n_cluster,
@@ -362,23 +269,15 @@ def generic_random_walk(u,
             nreject += 1
             nreject_before_rescale += 1
 
-        if stagger:
-            # Adjust scale to target an acceptance ratio of `facc_target`.
-            facc = naccept * 1. / (naccept + nreject)
-            if facc > facc_target:
-                stagger_mult *= np.exp(1. / naccept)
-            if facc < facc_target:
-                stagger_mult /= np.exp(1. / nreject)
-        else:
-            if nreject_before_rescale > MAX_REJECT_RESCALE:
-                # We end up here *ONLY* if we ran for MAX_REJECT_RESCALE
-                # and didnt' collect *any* points
-                # so we try to adjust the scale
-                scale *= math.exp(-1. / n_cluster)
-                warnings.warn("Random walk proposals appear to be "
-                              "extremely inefficient. Adjusting the "
-                              "scale-factor accordingly.")
-                nreject_before_rescale = 0
+        if nreject_before_rescale > MAX_REJECT_RESCALE:
+            # We end up here *ONLY* if we ran for MAX_REJECT_RESCALE
+            # and didnt' collect *any* points
+            # so we try to adjust the scale
+            scale *= math.exp(-1. / n_cluster)
+            warnings.warn("Random walk proposals appear to be "
+                          "extremely inefficient. Adjusting the "
+                          "scale-factor accordingly.")
+            nreject_before_rescale = 0
     blob = {
         'accept': naccept,
         'reject': nreject_before_rescale,

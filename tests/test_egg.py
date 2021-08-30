@@ -26,7 +26,7 @@ def prior_transform_egg(x):
 @pytest.mark.parametrize(
     "bound,sample",
     itertools.product(['multi', 'balls', 'cubes'],
-                      ['unif', 'rwalk', 'slice', 'rslice', 'rstagger']))
+                      ['unif', 'rwalk', 'slice', 'rslice']))
 def test_bounds(bound, sample):
     # stress test various boundaries
     ndim = 2

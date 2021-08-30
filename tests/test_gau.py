@@ -115,7 +115,7 @@ def grad_u_gau(x):
 
 
 def test_gaussian():
-    logz_tol = 1
+    sig = 5
     rstate = get_rstate()
     sampler = dynesty.NestedSampler(loglikelihood_gau,
                                     prior_transform_gau,
@@ -145,9 +145,10 @@ def test_gaussian():
         wts = np.exp(results.logwt - results.logz[-1])
         mean, cov = dyfunc.mean_and_cov(pos, wts)
         logz = results.logz[-1]
-        assert (np.abs(logz - logz_truth_gau) < logz_tol)
+        assert (np.abs(logz - logz_truth_gau) < sig * results.logzerr[-1])
     res_comb = dyfunc.merge_runs(result_list)
-    assert (np.abs(res_comb.logz[-1] - logz_truth_gau) < logz_tol)
+    assert (np.abs(res_comb.logz[-1] - logz_truth_gau) <
+            sig * results.logzerr[-1])
     # check summary
     res = sampler.results
     res.summary()

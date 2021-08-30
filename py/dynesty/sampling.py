@@ -14,6 +14,7 @@ import numpy as np
 from numpy import linalg
 
 from .utils import unitcheck, apply_reflect, get_random_generator
+from .bounding import randsphere
 
 __all__ = [
     "sample_unif", "sample_rwalk", "sample_rstagger", "sample_slice",
@@ -232,7 +233,7 @@ def sample_rstagger(args):
 def generic_random_walk(u,
                         loglstar,
                         axes,
-                        scale,
+                        scale_init,
                         prior_transform,
                         loglikelihood,
                         rstate,
@@ -293,7 +294,7 @@ def generic_random_walk(u,
         Collection of ancillary quantities used to tune :data:`scale`.
 
     """
-    scale_init = 1.0 * scale
+    scale = scale_init * 1
 
     # Periodicity.
     nonbounded = kwargs.get('nonbounded')
@@ -304,109 +305,138 @@ def generic_random_walk(u,
     n = len(u)
     n_cluster = axes.shape[0]
     walks = kwargs.get('walks', 25)  # number of steps
-    accept = 0
-    reject = 0
-    fail = 0
-    nfail = 0
-    nc = 0
+
+    naccept = 0
+    nreject = 0
+    nreject_before_rescale = 0
     ncall = 0
-    stagger_scale = 1.  # adaptive scale
+    nfail = 0  # failures of ellipsoid points not being in the cube
+    MAX_REJECT_RESCALE = 50 * walks
 
-    drhat, dr, du, u_prop, logl_prop = np.nan, np.nan, np.nan, np.nan, np.nan
-    while nc < walks or accept == 0:
+    # Here we loop till either
+    # 1) we did exactly 'walks' proposals and collected  >= 1 sample
+    # or 2) we run for as long as we need (>walks) to collect one single point
+    while ncall < walks or naccept == 0:
 
-        # Here we are proposing points uniformly within an n-d ellipsoid
-        # We stop as soon we get a point within unit cube.
-        while True:
-
-            # Check scale-factor. If we've shrunk too much, terminate.
-            if scale < 1e-5 * scale_init:
-                raise RuntimeError("Random walk sampling appears to be stuck! "
-                                   "Some useful output quantities:\n"
-                                   "u: {0}\n"
-                                   "drhat: {1}\n"
-                                   "dr: {2}\n"
-                                   "du: {3}\n"
-                                   "u_prop: {4}\n"
-                                   "loglstar: {5}\n"
-                                   "logl_prop: {6}\n"
-                                   "axes: {7}\n"
-                                   "scale: {8}.".format(
-                                       u, drhat, dr, du, u_prop, loglstar,
-                                       logl_prop, axes, scale))
-
-            # Propose a direction on the unit n-sphere.
-            drhat = rstate.standard_normal(size=n_cluster)
-            drhat /= linalg.norm(drhat)
-
-            # Scale based on dimensionality.
-            dr = drhat * rstate.uniform()**(1. / n_cluster)
-            # This generates uniform distribution within n-d ball
-
-            # draw random point for non clustering parameters
-            u_non_cluster = rstate.uniform(0, 1, n - n_cluster)
-
-            # Transform to proposal distribution.
-            du = np.dot(axes, dr)
-            u_prop = np.concatenate(
-                [u[:n_cluster] + stagger_scale * scale * du, u_non_cluster])
-
-            # Wrap periodic parameters
-            if periodic is not None:
-                u_prop[periodic] = np.mod(u_prop[periodic], 1)
-
-            # Reflect
-            if reflective is not None:
-                u_prop[reflective] = apply_reflect(u_prop[reflective])
-
-            # Check unit cube constraints.
-            if unitcheck(u_prop, nonbounded):
-                break
-            else:
-                fail += 1
-                nfail += 1
-
-            # Check if we're stuck generating bad numbers.
-            if fail > 100 * walks:
-                warnings.warn("Random walk point generation appears to be "
-                              "extremely inefficient. Adjusting the "
-                              "scale-factor accordingly.")
-                fail = 0
-                scale *= math.exp(-1. / n_cluster)
+        # This proposes a new point within the ellipsoid
+        # This also potentially modifies the scale
+        u_prop, scale, new_nfail = propose_ball_point(u,
+                                                      scale,
+                                                      axes,
+                                                      n,
+                                                      n_cluster,
+                                                      rstate=rstate,
+                                                      periodic=periodic,
+                                                      reflective=reflective,
+                                                      nonbounded=nonbounded)
+        nfail += new_nfail
 
         # Check proposed point.
-        v_prop = prior_transform(np.asarray(u_prop))
-        logl_prop = loglikelihood(np.asarray(v_prop))
-        nc += 1
+        v_prop = prior_transform(u_prop)
+        logl_prop = loglikelihood(v_prop)
         ncall += 1
 
         if logl_prop > loglstar:
             u = u_prop
             v = v_prop
             logl = logl_prop
-            accept += 1
+            naccept += 1
         else:
-            reject += 1
+            nreject += 1
+            nreject_before_rescale += 1
 
-        # Adjust `stagger` to target an acceptance ratio of `facc_target`.
-        facc = 1. * accept / (accept + reject)
         if stagger:
+            # Adjust scale to target an acceptance ratio of `facc_target`.
+            facc = naccept * 1. / (naccept + nreject)
             if facc > facc_target:
-                stagger_scale *= np.exp(1. / accept)
+                scale *= np.exp(1. / naccept)
             if facc < facc_target:
-                stagger_scale /= np.exp(1. / reject)
-
-        # Check if we're stuck generating bad points.
-        if nc > 50 * walks:
-            scale *= math.exp(-1. / n_cluster)
-            warnings.warn("Random walk proposals appear to be "
-                          "extremely inefficient. Adjusting the "
-                          "scale-factor accordingly.")
-            nc, accept, reject = 0, 0, 0  # reset values
-
-    blob = {'accept': accept, 'reject': reject, 'fail': nfail, 'scale': scale}
+                scale /= np.exp(1. / nreject)
+        else:
+            if nreject_before_rescale > MAX_REJECT_RESCALE:
+                # We end up here *ONLY* if we ran for MAX_REJECT_RESCALE
+                # and didnt' collect *any* points
+                # so we try to adjust the scale
+                scale *= math.exp(-1. / n_cluster)
+                warnings.warn("Random walk proposals appear to be "
+                              "extremely inefficient. Adjusting the "
+                              "scale-factor accordingly.")
+                nreject_before_rescale = 0
+    blob = {
+        'accept': naccept,
+        'reject': nreject_before_rescale,
+        'fail': nfail,
+        'scale': scale
+    }
 
     return u, v, logl, ncall, blob
+
+
+def propose_ball_point(u,
+                       scale_init,
+                       axes,
+                       n,
+                       n_cluster,
+                       rstate=None,
+                       periodic=None,
+                       reflective=None,
+                       nonbounded=None):
+    """ 
+    Here we are proposing points uniformly within an n-d ellipsoid
+    We stop as soon we get a point within unit cube.
+    """
+    scale = scale_init * 1
+    nfail = 0
+    nfail_accum = 0
+    MAX_FAIL = 1000
+    # The number of failures before we start shrinking the ellipsoid
+    MIN_SCALE_FACTOR = 1e-5
+    # if the scale factor decreased by more than that
+    # we throw an exception
+
+    # draw random point for non clustering parameters
+    u_cluster = u[:n_cluster]
+    # we only need to generate them once
+    u_non_cluster = rstate.uniform(0, 1, n - n_cluster)
+    u_prop = np.zeros(n)
+    u_prop[n_cluster:] = u_non_cluster
+    while True:
+        # Check scale-factor. If we've shrunk too much, terminate.
+        if scale < MIN_SCALE_FACTOR * scale_init:
+            raise RuntimeError(
+                "Random walk sampling within the ellipsoid is stuck!")
+        # Propose a direction on the unit n-sphere.
+        dr = randsphere(n_cluster, rstate=rstate)
+        # This generates uniform distribution within n-d ball
+
+        # Transform to proposal distribution.
+        du = np.dot(axes, dr)
+        u_prop[:n_cluster] = u_cluster + scale * du
+
+        # Wrap periodic parameters
+        if periodic is not None:
+            u_prop[periodic] = np.mod(u_prop[periodic], 1)
+
+        # Reflect
+        if reflective is not None:
+            u_prop[reflective] = apply_reflect(u_prop[reflective])
+
+        # Check unit cube constraints.
+        if unitcheck(u_prop, nonbounded):
+            break
+        else:
+            nfail += 1
+            nfail_accum += 1
+
+        # Check if we're stuck generating bad numbers.
+        if nfail > MAX_FAIL:
+            warnings.warn("Random walk point generation appears to be "
+                          "extremely inefficient. Adjusting the "
+                          "scale-factor accordingly.")
+            nfail = 0
+            scale *= math.exp(-1. / n_cluster)
+
+    return u_prop, scale, nfail_accum
 
 
 def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
@@ -461,8 +491,6 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
 
     logl_l = F(nstep_l)[1]
     logl_r = F(nstep_r)[1]
-    nexpand += 1
-    # I only expand once
 
     # "Stepping out" the left and right bounds.
     while logl_l > loglstar:

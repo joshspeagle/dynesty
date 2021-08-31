@@ -148,18 +148,37 @@ class SuperSampler(Sampler):
 
     def update_rwalk(self, blob):
         """Update the random walk proposal scale based on the current
-        number of accepted/rejected steps."""
-
+        number of accepted/rejected steps.
+        For rwalk the scale is important because it
+        determines the speed of diffusion of points.
+        I.e. if scale is too large, the proposal efficiency will be very low
+        so it's likely that we'll only do one random walk step at the time,
+        thus producing very correlated chain.
+        """
         self.scale = blob['scale']
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
-        norm = max(self.facc, 1. - self.facc) * self.ncdim
-        self.scale *= math.exp((facc - self.facc) / norm)
-        self.scale = min(self.scale, math.sqrt(self.ncdim))
+        # Here we are now trying to solve the Eqn
+        # f0 = F(s) where F is the function
+        # providing the acceptance rate given logscale
+        # and f0 is our target acceptance rate
+        # in this case a Newton like update to s
+        # is s_{k+1} = s_k - 1/F'(s_k) * (F_k - F_0)
+        # We can speculate that F(s)~ C*exp(-Ns)
+        # i.e. it's inversely proportional to volume
+        # Then F'(s) = -N * F \approx N * F_0
+        # Therefore s_{k+1} = s_k + 1/(N*F_0) * (F_k-F0)
+        # See also Robbins-Munro recursion which we don't follow
+        # here because our coefficients a_k do not obey \sum a_k^2 = \infty
+        self.scale *= math.exp((facc - self.facc) / self.ncdim / self.facc)
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
-        size of the slices compared to our initial guess."""
+        size of the slices compared to our initial guess.
+        For slice sampling the scale is only 'advisory' in the sense that
+        the right scale will just speed up sampling as we'll have to expand
+        or contract less. It won't affect the quality of the samples much.
+        """
         # see https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4063214/
         # also 2002.06212
         # https://www.tandfonline.com/doi/full/10.1080/10618600.2013.791193

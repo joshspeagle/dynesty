@@ -231,11 +231,10 @@ def generic_random_walk(u, loglstar, axes, scale_init, prior_transform,
     nfail = 0
     # failures of ellipsoid points not being in the cube
 
-    MAX_REJECT_RESCALE = 50 * walks
     # Here we loop till either
     # 1) we did exactly 'walks' proposals and collected  >= 1 sample
     # or 2) we run for as long as we need (>walks) to collect one single point
-    while ncall < walks or naccept == 0:
+    while ncall < walks:
 
         # This proposes a new point within the ellipsoid
         # This also potentially modifies the scale
@@ -251,7 +250,10 @@ def generic_random_walk(u, loglstar, axes, scale_init, prior_transform,
             nonbounded=nonbounded)
         # If generation of points within an ellipsoid was
         # highly inefficient we adjust the scale
-        scale *= scale_mult
+        if new_nfail == 1:
+            nreject += 1
+            ncall += 1
+            continue
 
         nfail += new_nfail
 
@@ -267,20 +269,13 @@ def generic_random_walk(u, loglstar, axes, scale_init, prior_transform,
             naccept += 1
         else:
             nreject += 1
-            nreject_before_rescale += 1
+    if naccept == 0:
+        v = prior_transform(u)
+        logl = loglikelihood(v)
 
-        if nreject_before_rescale > MAX_REJECT_RESCALE:
-            # We end up here *ONLY* if we ran for MAX_REJECT_RESCALE
-            # and didnt' collect *any* points
-            # so we try to adjust the scale
-            scale *= math.exp(-1. / n_cluster)
-            warnings.warn("Random walk proposals appear to be "
-                          "extremely inefficient. Adjusting the "
-                          "scale-factor accordingly.")
-            nreject_before_rescale = 0
     blob = {
         'accept': naccept,
-        'reject': nreject_before_rescale,
+        'reject': nreject,
         'fail': nfail,
         'scale': scale
     }
@@ -324,7 +319,7 @@ def propose_ball_point(u,
     u_prop = np.zeros(n)
     u_prop[n_cluster:] = u_non_cluster
 
-    while True:
+    for i in range(1):
         # Check scale-factor. If we've shrunk too much, terminate.
         if scale < MIN_SCALE_FACTOR * scale_init:
             raise RuntimeError(
@@ -351,14 +346,6 @@ def propose_ball_point(u,
         else:
             nfail += 1
             nfail_accum += 1
-
-        # Check if we're stuck generating bad numbers.
-        if nfail > MAX_FAIL:
-            warnings.warn("Random walk point generation appears to be "
-                          "extremely inefficient. Adjusting the "
-                          "scale-factor accordingly.")
-            nfail = 0
-            scale *= math.exp(-1. / n_cluster)
 
     return u_prop, scale / scale_init, nfail_accum
 

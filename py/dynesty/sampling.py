@@ -152,7 +152,7 @@ def sample_rwalk(args):
                                loglikelihood, rstate, kwargs)
 
 
-def generic_random_walk(u, loglstar, axes, scale_init, prior_transform,
+def generic_random_walk(u, loglstar, axes, scale, prior_transform,
                         loglikelihood, rstate, kwargs):
     """
     Generic random walk step
@@ -202,7 +202,6 @@ def generic_random_walk(u, loglstar, axes, scale_init, prior_transform,
         Collection of ancillary quantities used to tune :data:`scale`.
 
     """
-    scale = scale_init * 1
 
     # Periodicity.
     nonbounded = kwargs.get('nonbounded')
@@ -221,39 +220,29 @@ def generic_random_walk(u, loglstar, axes, scale_init, prior_transform,
     # Total number of points proposed to within the ellipsoid and cube
     # but rejected due to L<=L* condition
 
-    nreject_before_rescale = 0
-    # Accumulator for when we decide to give up on getting L>L* points
-    # and we reduce the scale
-
     ncall = 0
     # Total number of Likelihood calls (proposals evaluated)
 
-    nfail = 0
-    # failures of ellipsoid points not being in the cube
-
-    MAX_REJECT_RESCALE = 50 * walks
-    # Here we loop till either
-    # 1) we did exactly 'walks' proposals and collected  >= 1 sample
-    # or 2) we run for as long as we need (>walks) to collect one single point
-    while ncall < walks or naccept == 0:
+    # Here we loop for exactly walks iterations.
+    while ncall < walks:
 
         # This proposes a new point within the ellipsoid
         # This also potentially modifies the scale
-        u_prop, scale_mult, new_nfail = propose_ball_point(
-            u,
-            scale,
-            axes,
-            n,
-            n_cluster,
-            rstate=rstate,
-            periodic=periodic,
-            reflective=reflective,
-            nonbounded=nonbounded)
+        u_prop, fail = propose_ball_point(u,
+                                          scale,
+                                          axes,
+                                          n,
+                                          n_cluster,
+                                          rstate=rstate,
+                                          periodic=periodic,
+                                          reflective=reflective,
+                                          nonbounded=nonbounded)
         # If generation of points within an ellipsoid was
         # highly inefficient we adjust the scale
-        scale *= scale_mult
-
-        nfail += new_nfail
+        if fail:
+            nreject += 1
+            ncall += 1
+            continue
 
         # Check proposed point.
         v_prop = prior_transform(u_prop)
@@ -267,29 +256,20 @@ def generic_random_walk(u, loglstar, axes, scale_init, prior_transform,
             naccept += 1
         else:
             nreject += 1
-            nreject_before_rescale += 1
+    if naccept == 0:
+        # Technically we can find out the likelihood value
+        # stored somewhere
+        # But I'm currently recomputing it
+        v = prior_transform(u)
+        logl = loglikelihood(v)
 
-        if nreject_before_rescale > MAX_REJECT_RESCALE:
-            # We end up here *ONLY* if we ran for MAX_REJECT_RESCALE
-            # and didnt' collect *any* points
-            # so we try to adjust the scale
-            scale *= math.exp(-1. / n_cluster)
-            warnings.warn("Random walk proposals appear to be "
-                          "extremely inefficient. Adjusting the "
-                          "scale-factor accordingly.")
-            nreject_before_rescale = 0
-    blob = {
-        'accept': naccept,
-        'reject': nreject_before_rescale,
-        'fail': nfail,
-        'scale': scale
-    }
+    blob = {'accept': naccept, 'reject': nreject, 'scale': scale}
 
     return u, v, logl, ncall, blob
 
 
 def propose_ball_point(u,
-                       scale_init,
+                       scale,
                        axes,
                        n,
                        n_cluster,
@@ -298,22 +278,12 @@ def propose_ball_point(u,
                        reflective=None,
                        nonbounded=None):
     """
-    Here we are proposing points uniformly within an n-d ellipsoid
-    We stop as soon we get a point within unit cube.
+    Here we are proposing points uniformly within an n-d ellipsoid.
+    We are only trying once.
     We return the tuple with
-    1) proposed point.
-    2) the adjustment to the scale (needs to be multiplied)
-    3) The total number of failures of generating a point within the
-    cube
+    1) proposed point or None
+    2) failure flag (if True, the generated point was outside bounds)
     """
-    scale = scale_init * 1.
-    nfail = 0
-    nfail_accum = 0
-    MAX_FAIL = 1000
-    # The number of failures before we start shrinking the ellipsoid
-    MIN_SCALE_FACTOR = 1e-5
-    # if the scale factor decreased by more than that
-    # we throw an exception
 
     # starting point for clustered dimensions
     u_cluster = u[:n_cluster]
@@ -324,43 +294,27 @@ def propose_ball_point(u,
     u_prop = np.zeros(n)
     u_prop[n_cluster:] = u_non_cluster
 
-    while True:
-        # Check scale-factor. If we've shrunk too much, terminate.
-        if scale < MIN_SCALE_FACTOR * scale_init:
-            raise RuntimeError(
-                "Random walk sampling within the ellipsoid is stuck!")
-        # Propose a direction on the unit n-sphere.
-        dr = randsphere(n_cluster, rstate=rstate)
-        # This generates uniform distribution within n-d ball
+    # Propose a direction on the unit n-sphere.
+    dr = randsphere(n_cluster, rstate=rstate)
+    # This generates uniform distribution within n-d ball
 
-        # Transform to proposal distribution.
-        du = np.dot(axes, dr)
-        u_prop[:n_cluster] = u_cluster + scale * du
+    # Transform to proposal distribution.
+    du = np.dot(axes, dr)
+    u_prop[:n_cluster] = u_cluster + scale * du
 
-        # Wrap periodic parameters
-        if periodic is not None:
-            u_prop[periodic] = np.mod(u_prop[periodic], 1)
+    # Wrap periodic parameters
+    if periodic is not None:
+        u_prop[periodic] = np.mod(u_prop[periodic], 1)
 
-        # Reflect
-        if reflective is not None:
-            u_prop[reflective] = apply_reflect(u_prop[reflective])
+    # Reflect
+    if reflective is not None:
+        u_prop[reflective] = apply_reflect(u_prop[reflective])
 
-        # Check unit cube constraints.
-        if unitcheck(u_prop, nonbounded):
-            break
-        else:
-            nfail += 1
-            nfail_accum += 1
-
-        # Check if we're stuck generating bad numbers.
-        if nfail > MAX_FAIL:
-            warnings.warn("Random walk point generation appears to be "
-                          "extremely inefficient. Adjusting the "
-                          "scale-factor accordingly.")
-            nfail = 0
-            scale *= math.exp(-1. / n_cluster)
-
-    return u_prop, scale / scale_init, nfail_accum
+    # Check unit cube constraints.
+    if unitcheck(u_prop, nonbounded):
+        return u_prop, False
+    else:
+        return None, True
 
 
 def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,

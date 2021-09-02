@@ -3,10 +3,10 @@ import numpy as np
 import dynesty
 import pytest
 import itertools
-from utils import get_rstate
+from utils import get_rstate, get_printing
 
 nlive = 1000
-printing = False
+printing = get_printing()
 alpha = 1e-8
 
 

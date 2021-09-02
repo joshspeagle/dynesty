@@ -3,13 +3,13 @@ from scipy import linalg
 import scipy.stats
 import dynesty
 import multiprocessing as mp
-from utils import get_rstate
+from utils import get_rstate, get_printing
 """
 Run a series of basic tests to check whether anything huge is broken.
 
 """
 
-printing = False
+printing = get_printing()
 
 
 def get_covar(rstate, ndim):

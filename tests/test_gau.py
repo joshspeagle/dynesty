@@ -3,7 +3,7 @@ import pytest
 from numpy import linalg
 import numpy.testing as npt
 import itertools
-from utils import get_rstate
+from utils import get_rstate, get_printing
 import matplotlib
 
 matplotlib.use('Agg')
@@ -17,7 +17,7 @@ Run a series of basic tests to check whether anything huge is broken.
 """
 
 nlive = 500
-printing = False
+printing = get_printing()
 
 
 def bootstrap_tol(results, rstate):

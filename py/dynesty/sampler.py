@@ -669,7 +669,7 @@ class Sampler:
         ncall = 0
 
         # Check whether we're starting fresh or continuing a previous run.
-        if self.it == 1:
+        if self.it == 1 or len(self.saved_run.D['logl']) == 0:
             # Initialize values for nested sampling loop.
             h = 0.  # information, initially *0.*
             logz = -1.e300  # ln(evidence), initially *0.*

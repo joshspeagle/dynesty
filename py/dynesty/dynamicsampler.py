@@ -1255,13 +1255,16 @@ class DynamicSampler:
 
         # Update internal ln(prior volume)-based quantities
         if self.new_logl_min == -np.inf:
-            bound_logvol = 0.
+            vol_idx = 0
         else:
             vol_idx = np.argmin(
-                abs(self.saved_run.D['logl'] - self.new_logl_min))
-            bound_logvol = self.saved_run.D['logvol'][vol_idx]
+                abs(self.saved_run.D['logl'] - self.new_logl_min)) + 1
+
+        # truncate information in the saver of the internal sampler
+        for k in self.sampler.saved_run.D.keys():
+            self.sampler.saved_run.D[k] = self.saved_run.D[k][:vol_idx]
         bound_dlv = math.log((nlive_new + 1.) / nlive_new)
-        self.sampler.saved_run.D['logvol'][-1] = bound_logvol
+
         self.sampler.dlv = bound_dlv
 
         # Tell the sampler *not* to try and remove the previous addition of

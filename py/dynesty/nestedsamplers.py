@@ -184,7 +184,12 @@ class SuperSampler(Sampler):
         # https://www.tandfonline.com/doi/full/10.1080/10618600.2013.791193
         # and https://github.com/joshspeagle/dynesty/issues/260
         nexpand, ncontract = max(blob['nexpand'], 1), blob['ncontract']
-        self.scale *= nexpand * 2. / (nexpand + ncontract)
+        mult = (nexpand * 2. / (nexpand + ncontract))
+        # avoid drastic updates to the scale factor limiting to factor
+        # of two
+        mult = np.clip(mult, 0.5, 2)
+        # No need to set the scale to be larger than half cube diagonal
+        self.scale = np.minimum(self.scale * mult, np.sqrt(self.npdim) / 2.)
 
     def update_hslice(self, blob):
         """Update the Hamiltonian slice proposal scale based

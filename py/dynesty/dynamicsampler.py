@@ -951,6 +951,7 @@ class DynamicSampler:
             (-np.inf, np.inf))  # initial bounds
 
     def sample_batch(self,
+                     dlogz=0.01,
                      nlive_new=None,
                      update_interval=None,
                      logl_bounds=None,
@@ -994,6 +995,9 @@ class DynamicSampler:
         save_bounds : bool, optional
             Whether or not to save past distributions used to bound
             the live points internally. Default is `True`.
+
+        dlogz : float, optional
+            The stopping point in terms of remaining delta(logz)
 
         Returns
         -------
@@ -1039,11 +1043,6 @@ class DynamicSampler:
         if nlive_new <= 2 * self.ncdim:
             warnings.warn("Beware: `nlive_batch <= 2 * ndim`!")
         self.sampler.save_bounds = save_bounds
-
-        dlogz_batch = 1e-4
-        # This is the target dlogz in batch
-        # Previously this was zero, but that could make the sampler stuck
-        # if the narrow posterior mode is missed
 
         # Grab results from saved run.
         saved_u = np.array(self.saved_run.D['u'])
@@ -1279,7 +1278,7 @@ class DynamicSampler:
             iterated_batch = False
             # To identify if the loop below was executed or not
             for it, results in enumerate(
-                    self.sampler.sample(dlogz=dlogz_batch,
+                    self.sampler.sample(dlogz=dlogz,
                                         logl_max=logl_max,
                                         maxiter=maxiter - nlive_new - 1,
                                         maxcall=maxcall - sum(live_nc),
@@ -1661,9 +1660,8 @@ class DynamicSampler:
                         logl_max=logl_max_init,
                         n_effective=n_effective_init,
                         live_points=live_points):
-                    (_, _, _, _, _, _, _, _, _, nc, _, _, _, _, _) = results
 
-                    ncall += nc
+                    ncall += results.nc
                     niter += 1
 
                     # Print progress.
@@ -1733,6 +1731,7 @@ class DynamicSampler:
 
     def add_batch(self,
                   nlive=500,
+                  dlogz=1e-2,
                   wt_function=None,
                   wt_kwargs=None,
                   maxiter=None,
@@ -1825,6 +1824,7 @@ class DynamicSampler:
                 results = None  # to silence pylint as
                 # sample_batch() should return something given maxiter/maxcall
                 for cur_results in self.sample_batch(nlive_new=nlive,
+                                                     dlogz=dlogz,
                                                      logl_bounds=logl_bounds,
                                                      maxiter=maxiter,
                                                      maxcall=maxcall,

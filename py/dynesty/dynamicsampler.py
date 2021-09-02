@@ -1193,7 +1193,7 @@ class DynamicSampler:
             # Trigger an update of the internal bounding distribution based
             # on the "new" set of live points.
 
-            live_logl_min = min(live_logl)
+            live_logl_min = np.min(live_logl)
             if batch_sampler._beyond_unit_bound(live_logl_min):
                 bound = batch_sampler.update()
                 if save_bounds:
@@ -1238,11 +1238,11 @@ class DynamicSampler:
         batch_sampler.live_logl = live_logl
         batch_sampler.live_bound = live_bound
         batch_sampler.live_it = live_it
-
+        batch_sampler.it = self.it + 1
         # Trigger an update of the internal bounding distribution (again).
         live_logl_min = min(live_logl)
         if batch_sampler._beyond_unit_bound(live_logl_min):
-            bound = batch_sampler.update()  # vol / nlive_new)
+            bound = batch_sampler.update()
             if save_bounds:
                 batch_sampler.bound.append(copy.deepcopy(bound))
             batch_sampler.nbound += 1
@@ -1256,14 +1256,13 @@ class DynamicSampler:
             vol_idx = 0
         else:
             vol_idx = np.argmin(
-                abs(self.saved_run.D['logl'] - self.new_logl_min)) + 1
+                np.abs(self.saved_run.D['logl'] - self.new_logl_min)) + 1
 
         # truncate information in the saver of the internal sampler
         for k in batch_sampler.saved_run.D.keys():
             batch_sampler.saved_run.D[k] = self.saved_run.D[k][:vol_idx]
-        bound_dlv = math.log((nlive_new + 1.) / nlive_new)
 
-        batch_sampler.dlv = bound_dlv
+        batch_sampler.dlv = math.log((nlive_new + 1.) / nlive_new)
 
         # Tell the sampler *not* to try and remove the previous addition of
         # live points. All the hacks above make the internal results

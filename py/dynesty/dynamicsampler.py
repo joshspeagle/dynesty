@@ -1042,7 +1042,6 @@ class DynamicSampler:
 
         if nlive_new <= 2 * self.ncdim:
             warnings.warn("Beware: `nlive_batch <= 2 * ndim`!")
-        self.sampler.save_bounds = save_bounds
 
         # Grab results from saved run.
         saved_u = np.array(self.saved_run.D['u'])
@@ -1054,7 +1053,20 @@ class DynamicSampler:
 
         update_interval = self.__get_update_interval(update_interval,
                                                      nlive_new)
-        self.sampler.update_interval = update_interval
+        batch_sampler = _SAMPLERS[self.bounding](self.loglikelihood,
+                                                 self.prior_transform,
+                                                 self.npdim,
+                                                 self.live_init,
+                                                 self.method,
+                                                 update_interval,
+                                                 self.first_update,
+                                                 self.rstate,
+                                                 self.queue_size,
+                                                 self.pool,
+                                                 self.use_pool,
+                                                 ncdim=self.ncdim,
+                                                 kwargs=self.kwargs)
+        batch_sampler.save_bounds = save_bounds
 
         # Reset "new" results.
         self.new_run = RunRecord()
@@ -1186,22 +1198,22 @@ class DynamicSampler:
             live_logl = saved_logl[subset].copy()
             # Hack the internal sampler by overwriting the live points
             # and scale factor.
-            self.sampler.nlive = cur_nblive
-            self.sampler.live_u = live_u
-            self.sampler.live_v = live_v
-            self.sampler.live_logl = live_logl
-            self.sampler.scale = live_scale
+            batch_sampler.nlive = cur_nblive
+            batch_sampler.live_u = live_u
+            batch_sampler.live_v = live_v
+            batch_sampler.live_logl = live_logl
+            batch_sampler.scale = live_scale
 
             # Trigger an update of the internal bounding distribution based
             # on the "new" set of live points.
 
             live_logl_min = min(live_logl)
-            if self.sampler._beyond_unit_bound(live_logl_min):
-                bound = self.sampler.update()
+            if batch_sampler._beyond_unit_bound(live_logl_min):
+                bound = batch_sampler.update()
                 if save_bounds:
-                    self.sampler.bound.append(copy.deepcopy(bound))
-                self.sampler.nbound += 1
-                self.sampler.since_update = 0
+                    batch_sampler.bound.append(copy.deepcopy(bound))
+                batch_sampler.nbound += 1
+                batch_sampler.since_update = 0
 
             # Sample a new batch of `nlive_new` live points using the
             # internal sampler given the `logl_min` constraint.
@@ -1209,13 +1221,13 @@ class DynamicSampler:
             live_v = np.empty((nlive_new, saved_v.shape[1]))
             live_logl = np.empty(nlive_new)
             live_bound = np.zeros(nlive_new, dtype='int')
-            if self.sampler._beyond_unit_bound(live_logl_min):
-                live_bound += self.sampler.nbound - 1
+            if batch_sampler._beyond_unit_bound(live_logl_min):
+                live_bound += batch_sampler.nbound - 1
             live_it = np.empty(nlive_new, dtype='int')
             live_nc = np.empty(nlive_new, dtype='int')
             for i in range(nlive_new):
                 (live_u[i], live_v[i], live_logl[i],
-                 live_nc[i]) = self.sampler._new_point(logl_min)
+                 live_nc[i]) = batch_sampler._new_point(logl_min)
                 live_it[i] = self.it
                 self.ncall += live_nc[i]
                 # Return live points in generator format.
@@ -1231,27 +1243,27 @@ class DynamicSampler:
 
         # Overwrite the previous set of live points in our internal sampler
         # with the new batch of points we just generated.
-        self.sampler.nlive = nlive_new
+        batch_sampler.nlive = nlive_new
 
         # All the arrays are newly created in this function
         # We don't need to worry about them being parts of other arrays
-        self.sampler.live_u = live_u
-        self.sampler.live_v = live_v
-        self.sampler.live_logl = live_logl
-        self.sampler.live_bound = live_bound
-        self.sampler.live_it = live_it
+        batch_sampler.live_u = live_u
+        batch_sampler.live_v = live_v
+        batch_sampler.live_logl = live_logl
+        batch_sampler.live_bound = live_bound
+        batch_sampler.live_it = live_it
 
         # Trigger an update of the internal bounding distribution (again).
         live_logl_min = min(live_logl)
-        if self.sampler._beyond_unit_bound(live_logl_min):
-            bound = self.sampler.update()  # vol / nlive_new)
+        if batch_sampler._beyond_unit_bound(live_logl_min):
+            bound = batch_sampler.update()  # vol / nlive_new)
             if save_bounds:
-                self.sampler.bound.append(copy.deepcopy(bound))
-            self.sampler.nbound += 1
-            self.sampler.since_update = 0
+                batch_sampler.bound.append(copy.deepcopy(bound))
+            batch_sampler.nbound += 1
+            batch_sampler.since_update = 0
 
         # Copy over bound reference.
-        self.bound = self.sampler.bound
+        self.bound = batch_sampler.bound
 
         # Update internal ln(prior volume)-based quantities
         if self.new_logl_min == -np.inf:
@@ -1261,16 +1273,16 @@ class DynamicSampler:
                 abs(self.saved_run.D['logl'] - self.new_logl_min)) + 1
 
         # truncate information in the saver of the internal sampler
-        for k in self.sampler.saved_run.D.keys():
-            self.sampler.saved_run.D[k] = self.saved_run.D[k][:vol_idx]
+        for k in batch_sampler.saved_run.D.keys():
+            batch_sampler.saved_run.D[k] = self.saved_run.D[k][:vol_idx]
         bound_dlv = math.log((nlive_new + 1.) / nlive_new)
 
-        self.sampler.dlv = bound_dlv
+        batch_sampler.dlv = bound_dlv
 
         # Tell the sampler *not* to try and remove the previous addition of
         # live points. All the hacks above make the internal results
         # garbage anyways.
-        self.sampler.added_live = False
+        batch_sampler.added_live = False
 
         # Run the sampler internally as a generator until we hit
         # the lower likelihood threshold. Afterwards, we add in our remaining
@@ -1281,12 +1293,12 @@ class DynamicSampler:
             iterated_batch = False
             # To identify if the loop below was executed or not
             for it, results in enumerate(
-                    self.sampler.sample(dlogz=dlogz,
-                                        logl_max=logl_max,
-                                        maxiter=maxiter - nlive_new - 1,
-                                        maxcall=maxcall - sum(live_nc),
-                                        save_samples=False,
-                                        save_bounds=save_bounds)):
+                    batch_sampler.sample(dlogz=dlogz,
+                                         logl_max=logl_max,
+                                         maxiter=maxiter - nlive_new - 1,
+                                         maxcall=maxcall - sum(live_nc),
+                                         save_samples=False,
+                                         save_bounds=save_bounds)):
                 # Save results.
                 D = dict(id=results.worst,
                          u=results.ustar,
@@ -1297,7 +1309,7 @@ class DynamicSampler:
                          n=nlive_new,
                          boundidx=results.boundidx,
                          bounditer=results.bounditer,
-                         scale=self.sampler.scale)
+                         scale=batch_sampler.scale)
                 self.new_run.append(D)
 
                 # Increment relevant counters.
@@ -1321,7 +1333,7 @@ class DynamicSampler:
                               'in the batch. '
                               'You may not have enough livepoints')
 
-            for it, results in enumerate(self.sampler.add_live_points()):
+            for it, results in enumerate(batch_sampler.add_live_points()):
                 # Save results.
                 D = dict(id=results.worst,
                          u=results.ustar,
@@ -1332,7 +1344,7 @@ class DynamicSampler:
                          n=nlive_new - it,
                          boundidx=results.boundidx,
                          bounditer=results.bounditer,
-                         scale=self.sampler.scale)
+                         scale=batch_sampler.scale)
                 self.new_run.append(D)
 
                 # Increment relevant counters.

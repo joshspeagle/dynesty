@@ -1083,30 +1083,16 @@ class DynamicSampler:
         if psel:
             # If the lower bound encompasses all saved samples, we want
             # to propose a new set of points from the unit cube.
-            live_u = self.rstate.uniform(size=(nlive_new, self.npdim))
-            if self.use_pool_ptform:
-                live_v = np.array(
-                    list(self.M(self.prior_transform, np.asarray(live_u))))
-            else:
-                live_v = np.array(
-                    list(map(self.prior_transform, np.asarray(live_u))))
-            if self.use_pool_logl:
-                live_logl = np.array(
-                    list(self.M(self.loglikelihood, np.asarray(live_v))))
-            else:
-                live_logl = np.array(
-                    list(map(self.loglikelihood, np.asarray(live_v))))
-            # Convert all `-np.inf` log-likelihoods to finite large numbers.
-            # Necessary to keep estimators in our sampler from breaking.
-            for i, logl in enumerate(live_logl):
-                if not np.isfinite(logl):
-                    if np.sign(logl) < 0:
-                        live_logl[i] = _LOWL_VAL
-                    else:
-                        raise ValueError("The log-likelihood ({0}) of live "
-                                         "point {1} located at u={2} v={3} "
-                                         " is invalid.".format(
-                                             logl, i, live_u[i], live_v[i]))
+            live_u, live_v, live_logl = sample_init(
+                None,
+                self.prior_transform,
+                self.loglikelihood,
+                self.M,
+                nlive=nlive_new,
+                npdim=self.npdim,
+                rstate=self.rstate,
+                use_pool_ptform=self.use_pool_ptform)
+
             live_bound = np.zeros(nlive_new, dtype='int')
             live_it = np.zeros(nlive_new, dtype='int') + self.it
             live_nc = np.ones(nlive_new, dtype='int')

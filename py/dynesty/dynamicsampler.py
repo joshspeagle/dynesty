@@ -1193,22 +1193,19 @@ class DynamicSampler:
             # Trigger an update of the internal bounding distribution based
             # on the "new" set of live points.
 
-            live_logl_min = np.min(live_logl)
-            if batch_sampler._beyond_unit_bound(live_logl_min):
-                bound = batch_sampler.update()
-                if save_bounds:
-                    batch_sampler.bound.append(copy.deepcopy(bound))
-                batch_sampler.nbound += 1
-                batch_sampler.since_update = 0
-
+            bound = batch_sampler.update()
+            if save_bounds:
+                batch_sampler.bound.append(copy.deepcopy(bound))
+            batch_sampler.nbound += 1
+            batch_sampler.since_update = 0
+            batch_sampler.logl_first_update = logl_min
             # Sample a new batch of `nlive_new` live points using the
             # internal sampler given the `logl_min` constraint.
             live_u = np.empty((nlive_new, self.npdim))
             live_v = np.empty((nlive_new, saved_v.shape[1]))
             live_logl = np.empty(nlive_new)
             live_bound = np.zeros(nlive_new, dtype='int')
-            if batch_sampler._beyond_unit_bound(live_logl_min):
-                live_bound += batch_sampler.nbound - 1
+
             live_it = np.empty(nlive_new, dtype='int')
             live_nc = np.empty(nlive_new, dtype='int')
             for i in range(nlive_new):
@@ -1240,13 +1237,13 @@ class DynamicSampler:
         batch_sampler.live_it = live_it
         batch_sampler.it = self.it + 1
         # Trigger an update of the internal bounding distribution (again).
-        live_logl_min = min(live_logl)
-        if batch_sampler._beyond_unit_bound(live_logl_min):
+        if not psel:
             bound = batch_sampler.update()
             if save_bounds:
                 batch_sampler.bound.append(copy.deepcopy(bound))
             batch_sampler.nbound += 1
             batch_sampler.since_update = 0
+            batch_sampler.logl_first_update = logl_min
 
         # Copy over bound reference.
         self.bound = batch_sampler.bound

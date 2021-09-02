@@ -65,61 +65,64 @@ def check_results(results,
 
 # GAUSSIAN TEST
 
-ndim_gau = 3
-mean_gau = np.linspace(-1, 1, ndim_gau)
-cov_gau = np.identity(ndim_gau)  # set covariance to identity matrix
-cov_gau[cov_gau == 0] = 0.95  # set off-diagonal terms (strongly correlated)
-cov_inv_gau = linalg.inv(cov_gau)  # precision matrix
-lnorm_gau = -0.5 * (np.log(2 * np.pi) * ndim_gau + np.log(linalg.det(cov_gau)))
-prior_win = 10  # +/- 10 on both sides
-logz_truth_gau = ndim_gau * (-np.log(2 * prior_win))
+
+class Gaussian:
+    def __init__(self, corr=.95):
+        self.ndim = 3
+        self.mean = np.linspace(-1, 1, self.ndim)
+        self.cov = np.identity(self.ndim)  # set covariance to identity matrix
+        self.cov[self.cov ==
+                 0] = corr  # set off-diagonal terms (strongly correlated)
+        self.cov_inv = linalg.inv(self.cov)  # precision matrix
+        self.lnorm = -0.5 * (np.log(2 * np.pi) * self.ndim +
+                             np.log(linalg.det(self.cov)))
+        self.prior_win = 10  # +/- 10 on both sides
+        self.logz_truth = self.ndim * (-np.log(2 * self.prior_win))
+
+    # 3-D correlated multivariate normal log-likelihood
+    def loglikelihood(self, x):
+        """Multivariate normal log-likelihood."""
+        return -0.5 * np.dot(
+            (x - self.mean), np.dot(self.cov_inv,
+                                    (x - self.mean))) + self.lnorm
+
+    # prior transform
+    def prior_transform(self, u):
+        """Flat prior between -10. and 10."""
+        return self.prior_win * (2. * u - 1.)
+
+    # gradient (no jacobian)
+    def grad_x(self, x):
+        """Multivariate normal log-likelihood gradient."""
+        return -np.dot(self.cov_inv, (x - self.mean))
+
+    # gradient (with jacobian)
+    def grad_u(self, x):
+        """Multivariate normal log-likelihood gradient."""
+        return -np.dot(self.cov_inv, x - self.mean) * 2 * self.prior_win
 
 
-def check_results_gau(results, rstate, sig=5, logz_tol=None):
+def check_results_gau(results, g, rstate, sig=5, logz_tol=None):
     if logz_tol is None:
         logz_tol = sig * results.logzerr[-1]
     mean_tol, cov_tol = bootstrap_tol(results, rstate)
     check_results(results,
-                  mean_gau,
-                  cov_gau,
-                  logz_truth_gau,
+                  g.mean,
+                  g.cov,
+                  g.logz_truth,
                   mean_tol,
                   cov_tol,
                   logz_tol,
                   sig=sig)
 
 
-# 3-D correlated multivariate normal log-likelihood
-def loglikelihood_gau(x):
-    """Multivariate normal log-likelihood."""
-    return -0.5 * np.dot((x - mean_gau), np.dot(cov_inv_gau,
-                                                (x - mean_gau))) + lnorm_gau
-
-
-# prior transform
-def prior_transform_gau(u):
-    """Flat prior between -10. and 10."""
-    return prior_win * (2. * u - 1.)
-
-
-# gradient (no jacobian)
-def grad_x_gau(x):
-    """Multivariate normal log-likelihood gradient."""
-    return -np.dot(cov_inv_gau, (x - mean_gau))
-
-
-# gradient (with jacobian)
-def grad_u_gau(x):
-    """Multivariate normal log-likelihood gradient."""
-    return -np.dot(cov_inv_gau, x - mean_gau) * 2 * prior_win
-
-
 def test_gaussian():
     sig = 5
     rstate = get_rstate()
-    sampler = dynesty.NestedSampler(loglikelihood_gau,
-                                    prior_transform_gau,
-                                    ndim_gau,
+    g = Gaussian()
+    sampler = dynesty.NestedSampler(g.loglikelihood,
+                                    g.prior_transform,
+                                    g.ndim,
                                     nlive=nlive,
                                     rstate=rstate)
     sampler.run_nested(print_progress=printing)
@@ -145,9 +148,9 @@ def test_gaussian():
         wts = np.exp(results.logwt - results.logz[-1])
         mean, cov = dyfunc.mean_and_cov(pos, wts)
         logz = results.logz[-1]
-        assert (np.abs(logz - logz_truth_gau) < sig * results.logzerr[-1])
+        assert (np.abs(logz - g.logz_truth) < sig * results.logzerr[-1])
     res_comb = dyfunc.merge_runs(result_list)
-    assert (np.abs(res_comb.logz[-1] - logz_truth_gau) <
+    assert (np.abs(res_comb.logz[-1] - g.logz_truth) <
             sig * results.logzerr[-1])
     # check summary
     res = sampler.results
@@ -165,13 +168,13 @@ def test_gaussian():
     dyplot.boundplot(sampler.results,
                      dims=(0, 1),
                      it=3000,
-                     prior_transform=prior_transform_gau,
+                     prior_transform=g.prior_transform,
                      show_live=True,
                      span=[(-10, 10), (-10, 10)])
     plt.close()
     dyplot.cornerbound(sampler.results,
                        it=3500,
-                       prior_transform=prior_transform_gau,
+                       prior_transform=g.prior_transform,
                        show_live=True,
                        span=[(-10, 10), (-10, 10)])
     plt.close()
@@ -188,15 +191,20 @@ def test_bounding_sample(bound, sample):
     # check various bounding methods
 
     rstate = get_rstate()
-    sampler = dynesty.NestedSampler(loglikelihood_gau,
-                                    prior_transform_gau,
-                                    ndim_gau,
+    if bound == 'none':
+        g = Gaussian(0.1)
+        # make live easy if bound is none
+    else:
+        g = Gaussian()
+    sampler = dynesty.NestedSampler(g.loglikelihood,
+                                    g.prior_transform,
+                                    g.ndim,
                                     nlive=nlive,
                                     bound=bound,
                                     sample=sample,
                                     rstate=rstate)
     sampler.run_nested(print_progress=printing)
-    check_results_gau(sampler.results, rstate)
+    check_results_gau(sampler.results, g, rstate)
 
 
 @pytest.mark.parametrize("bound,sample",
@@ -206,74 +214,79 @@ def test_bounding_bootstrap(bound, sample):
     # check various bounding methods
 
     rstate = get_rstate()
-    sampler = dynesty.NestedSampler(loglikelihood_gau,
-                                    prior_transform_gau,
-                                    ndim_gau,
+    g = Gaussian()
+    sampler = dynesty.NestedSampler(g.loglikelihood,
+                                    g.prior_transform,
+                                    g.ndim,
                                     nlive=nlive,
                                     bound=bound,
                                     sample=sample,
                                     bootstrap=5,
                                     rstate=rstate)
     sampler.run_nested(print_progress=printing)
-    check_results_gau(sampler.results, rstate)
+    check_results_gau(sampler.results, g, rstate)
 
 
 # extra checks for gradients
 def test_slice_nograd():
     rstate = get_rstate()
-    sampler = dynesty.NestedSampler(loglikelihood_gau,
-                                    prior_transform_gau,
-                                    ndim_gau,
+    g = Gaussian()
+    sampler = dynesty.NestedSampler(g.loglikelihood,
+                                    g.prior_transform,
+                                    g.ndim,
                                     nlive=nlive,
                                     sample='hslice',
                                     rstate=rstate)
     sampler.run_nested(print_progress=printing)
-    check_results_gau(sampler.results, rstate)
+    check_results_gau(sampler.results, g, rstate)
 
 
 def test_slice_grad():
     rstate = get_rstate()
-    sampler = dynesty.NestedSampler(loglikelihood_gau,
-                                    prior_transform_gau,
-                                    ndim_gau,
+    g = Gaussian()
+    sampler = dynesty.NestedSampler(g.loglikelihood,
+                                    g.prior_transform,
+                                    g.ndim,
                                     nlive=nlive,
                                     sample='hslice',
-                                    gradient=grad_x_gau,
+                                    gradient=g.grad_x,
                                     compute_jac=True,
                                     rstate=rstate)
     sampler.run_nested(print_progress=printing)
-    check_results_gau(sampler.results, rstate)
+    check_results_gau(sampler.results, g, rstate)
 
 
 def test_slice_grad1():
     rstate = get_rstate()
-    sampler = dynesty.NestedSampler(loglikelihood_gau,
-                                    prior_transform_gau,
-                                    ndim_gau,
+    g = Gaussian()
+    sampler = dynesty.NestedSampler(g.loglikelihood,
+                                    g.prior_transform,
+                                    g.ndim,
                                     nlive=nlive,
                                     sample='hslice',
-                                    gradient=grad_u_gau,
+                                    gradient=g.grad_u,
                                     rstate=rstate)
     sampler.run_nested(print_progress=printing)
-    check_results_gau(sampler.results, rstate)
+    check_results_gau(sampler.results, g, rstate)
 
 
 def test_dynamic():
     # check dynamic nested sampling behavior
     rstate = get_rstate()
-    dsampler = dynesty.DynamicNestedSampler(loglikelihood_gau,
-                                            prior_transform_gau,
-                                            ndim_gau,
+    g = Gaussian()
+    dsampler = dynesty.DynamicNestedSampler(g.loglikelihood,
+                                            g.prior_transform,
+                                            g.ndim,
                                             rstate=rstate)
     dsampler.run_nested(print_progress=printing)
-    check_results_gau(dsampler.results, rstate)
+    check_results_gau(dsampler.results, g, rstate)
 
     # check error analysis functions
     dres = dyfunc.jitter_run(dsampler.results, rstate=rstate)
-    check_results_gau(dres, rstate)
+    check_results_gau(dres, g, rstate)
     dres = dyfunc.resample_run(dsampler.results, rstate=rstate)
-    check_results_gau(dres, rstate)
+    check_results_gau(dres, g, rstate)
     dres = dyfunc.simulate_run(dsampler.results, rstate=rstate)
-    check_results_gau(dres, rstate)
+    check_results_gau(dres, g, rstate)
 
     dyfunc.kld_error(dsampler.results, rstate=rstate)

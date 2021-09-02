@@ -163,7 +163,8 @@ def weight_function(results, args=None, return_weights=False):
         logl_max = logl[min(bounds[1] - bounds[0], nsamps - 1)]
     else:
         logl_min, logl_max = logl[bounds[0]], logl[bounds[1]]
-
+    if bounds[1] == nsamps - 1:
+        logl_max = np.inf
     if return_weights:
         return (logl_min, logl_max), (pweight, zweight, weight)
     else:
@@ -1062,8 +1063,6 @@ class DynamicSampler:
         # Initialize ln(likelihood) bounds.
         if logl_bounds is None:
             logl_min, logl_max = -np.inf, max(saved_logl[:-nblive])
-            # why is logl_max defined this way ???
-            # why are we skipping top nblive points ?
         else:
             logl_min, logl_max = logl_bounds
         self.new_logl_min, self.new_logl_max = logl_min, logl_max
@@ -1314,7 +1313,8 @@ class DynamicSampler:
                                           bounditer=results.bounditer,
                                           eff=self.eff)
 
-            if iterated_batch and results.loglstar < logl_max:
+            if (iterated_batch and results.loglstar < logl_max
+                    and np.isfinite(logl_max)):
                 warnings.warn('Warning. The maximum likelihood not reached '
                               'in the batch. '
                               'You may not have enough livepoints')

@@ -188,8 +188,9 @@ class SuperSampler(Sampler):
         # avoid drastic updates to the scale factor limiting to factor
         # of two
         mult = np.clip(mult, 0.5, 2)
-        # No need to set the scale to be larger than half cube diagonal
-        self.scale = np.minimum(self.scale * mult, np.sqrt(self.npdim) / 2.)
+        # Remember I can't apply the rule that scale < cube diagonal
+        # because scale is multiplied by axes
+        self.scale = self.scale * mult
 
     def update_hslice(self, blob):
         """Update the Hamiltonian slice proposal scale based

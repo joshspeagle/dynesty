@@ -344,8 +344,7 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
     maxlen = np.sqrt(n) / 2.
     # maximum initial interval length (the diagonal of the cube)
     if dirlen > maxlen:
-        warnings.warn(
-            'The slice sampling interval is longer than the cube size')
+        # I stopped giving warnings, as it was too noisy
         dirnorm = dirlen / maxlen
     else:
         dirnorm = 1

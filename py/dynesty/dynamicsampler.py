@@ -1253,7 +1253,9 @@ class DynamicSampler:
             vol_idx = 0
         else:
             vol_idx = np.argmin(
-                np.abs(self.saved_run.D['logl'] - self.new_logl_min)) + 1
+                np.abs(
+                    np.asarray(self.saved_run.D['logl']) -
+                    self.new_logl_min)) + 1
 
         # truncate information in the saver of the internal sampler
         for k in batch_sampler.saved_run.D.keys():

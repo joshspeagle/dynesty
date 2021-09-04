@@ -279,6 +279,9 @@ def test_dynamic():
                                             g.ndim,
                                             rstate=rstate)
     dsampler.run_nested(print_progress=printing)
+    # chechk explicit adding batches
+    dsampler.add_batch(logl_bounds=(-10, 0))
+    dsampler.add_batch(logl_bounds=(-10000000, -1000))
     check_results_gau(dsampler.results, g, rstate)
 
     # check error analysis functions

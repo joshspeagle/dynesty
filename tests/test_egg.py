@@ -2,13 +2,13 @@ import numpy as np
 import dynesty
 import pytest
 import itertools
-from utils import get_rstate
+from utils import get_rstate, get_printing
 """
 Run a series of basic tests of the 2d eggbox
 """
 
 nlive = 1000
-printing = False
+printing = get_printing()
 
 # EGGBOX
 

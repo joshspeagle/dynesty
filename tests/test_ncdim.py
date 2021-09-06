@@ -3,13 +3,13 @@ from numpy import linalg
 import numpy.testing as npt
 import dynesty
 from dynesty import utils as dyfunc
-from utils import get_rstate
+from utils import get_rstate, get_printing
 """
 A rudimentary test that ncdim parameter works
 """
 
 nlive = 500
-printing = False
+printing = get_printing
 
 
 def bootstrap_tol(results, rstate):

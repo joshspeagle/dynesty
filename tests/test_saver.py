@@ -3,7 +3,7 @@ import dynesty
 import os
 import multiprocessing as mp
 import pytest
-from utils import get_rstate
+from utils import get_rstate, get_printing
 """
 Run a series of basic tests to check whether saving likelikelihood evals
 are broken
@@ -11,7 +11,7 @@ are broken
 """
 
 nlive = 100
-printing = False
+printing = get_printing()
 
 # EGGBOX
 

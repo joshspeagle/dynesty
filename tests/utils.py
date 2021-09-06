@@ -18,3 +18,11 @@ def get_rstate(seed=None):
             seed = 56432
         # seed the random number generator
     return np.random.default_rng(seed)
+
+
+def get_printing():
+    kw = 'DYNESTY_TEST_PRINTING'
+    if kw in os.environ:
+        return int(os.environ[kw])
+    else:
+        return False

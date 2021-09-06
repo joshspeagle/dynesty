@@ -44,10 +44,10 @@ jobs:
       - name: TestWithCov
         # Run coverage only for 3.6
         if: ${{ matrix.python-version == '3.6'}}
-        run: pytest --durations=0 --cov=dynesty
+        run: pytest --durations=0  -m "not slow" --cov=dynesty
       - name: Test
         if: ${{ matrix.python-version != '3.6'}}
-        run: pytest --durations=0
+        run: pytest --durations=0  -m "not slow"
       - name: Coveralls
         if: ${{ success() && ( matrix.python-version == '3.6') }}
         run: coveralls --service=github

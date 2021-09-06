@@ -1,10 +1,10 @@
 import numpy as np
 import dynesty
 from scipy.special import erf
-from utils import get_rstate
+from utils import get_rstate, get_printing
 
 nlive = 100
-printing = True
+printing = get_printing()
 win = 100
 
 

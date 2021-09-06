@@ -704,45 +704,31 @@ class Sampler:
                 logz,
                 np.max(self.live_logl) + logvol) - logz  # log-evidence ratio
 
+        stop_iterations = False
         # The main nested sampling loop.
         for it in range(sys.maxsize):
 
             # Stopping criterion 1: current number of iterations
             # exceeds `maxiter`.
-            add_info = dict(logz=logz,
-                            logzvar=logzvar,
-                            h=h,
-                            logvol=logvol,
-                            logl=loglstar)
             if it > maxiter:
-                # If dumping past states, save only the required quantities.
-                if not self.save_samples:
-                    self.saved_run.append(add_info)
-                break
+                stop_iterations = True
 
             # Stopping criterion 2: current number of `loglikelihood`
             # calls exceeds `maxcall`.
             if ncall > maxcall:
-                if not self.save_samples:
-                    self.saved_run.append(add_info)
-                break
+                stop_iterations = True
 
             # Stopping criterion 3: estimated (fractional) remaining evidence
             # lies below some threshold set by `dlogz`.
             logz_remain = np.max(self.live_logl) + logvol
             delta_logz = np.logaddexp(logz, logz_remain) - logz
-            if dlogz is not None:
-                if delta_logz < dlogz:
-                    if not self.save_samples:
-                        self.saved_run.append(add_info)
-                    break
+            if dlogz is not None and delta_logz < dlogz:
+                stop_iterations = True
 
             # Stopping criterion 4: last dead point exceeded the upper
             # `logl_max` bound.
             if loglstar > logl_max:
-                if not self.save_samples:
-                    self.saved_run.append(add_info)
-                break
+                stop_iterations = True
 
             # Stopping criterion 5: the number of effective posterior
             # samples has been achieved.
@@ -756,9 +742,19 @@ class Sampler:
                     else:
                         neff = self.n_effective
                     if neff > n_effective:
-                        if not self.save_samples:
-                            self.saved_run.append(add_info)
-                        break
+                        stop_iterations = True
+
+            if stop_iterations:
+                if not self.save_samples:
+                    # If dumping past states, save only the required quantities
+                    # TODO I don't quite understand why we do this
+                    add_info = dict(logz=logz,
+                                    logzvar=logzvar,
+                                    h=h,
+                                    logvol=logvol,
+                                    logl=loglstar)
+                    self.saved_run.append(add_info)
+                break
 
             # Expected ln(volume) shrinkage.
             logvol -= self.dlv

@@ -347,8 +347,11 @@ class Sampler:
         if self.method != 'unif':
             args = (np.nonzero(self.live_logl > loglstar)[0], )
             if len(args[0]) == 0:
-                raise RuntimeError('No live points are above loglstar. '
-                                   'Do you have likelihood plateau ? ')
+                raise RuntimeError(
+                    'No live points are above loglstar. '
+                    'Do you have a likelihood plateau ? '
+                    'It is also possible that you are trying to sample '
+                    'excessively around the very peak of the posterior')
         else:
             args = ()
         while self.nqueue < self.queue_size:

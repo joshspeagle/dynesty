@@ -1835,6 +1835,8 @@ class DynamicSampler:
             logl_min, logl_max = -np.inf, np.inf
         else:
             logl_min, logl_max = logl_bounds
+        # For printing as well, we just display old logz,logzerr here
+        logz, logzvar = res.logz[-1], res.logzerr[-1]**2
 
         # If we have either likelihood calls or iterations remaining,
         # add our new batch of live points.
@@ -1842,9 +1844,6 @@ class DynamicSampler:
         if maxcall > 0 and maxiter > 0:
             pbar, print_func = get_print_func(print_func, print_progress)
             try:
-                # Compute our sampling bounds using the provided
-                # weight function.
-                logz, logzerr = res.logz[-1], res.logzerr[-1]
                 results = None  # to silence pylint as
                 # sample_batch() should return something given maxiter/maxcall
                 for cur_results in self.sample_batch(nlive_new=nlive,
@@ -1865,7 +1864,7 @@ class DynamicSampler:
                                              logvol=np.nan,
                                              logwt=np.nan,
                                              logz=logz,
-                                             logzvar=logzerr**2,
+                                             logzvar=logzvar,
                                              h=np.nan,
                                              nc=cur_results.nc,
                                              worst_it=cur_results.worst_it,

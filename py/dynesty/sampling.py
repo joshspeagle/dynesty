@@ -604,10 +604,10 @@ def sample_rslice(args):
         drhat /= linalg.norm(drhat)
 
         # Transform and scale based on past tuning.
-        axis = np.dot(axes, drhat) * scale
+        direction = np.dot(axes, drhat) * scale
 
         (u_prop, v_prop, logl_prop, nc1, nexpand1, ncontract1,
-         fscale1) = generic_slice_step(u, axis, nonperiodic, loglstar,
+         fscale1) = generic_slice_step(u, direction, nonperiodic, loglstar,
                                        loglikelihood, prior_transform, rstate)
         u = u_prop
         nc += nc1

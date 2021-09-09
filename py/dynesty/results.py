@@ -234,10 +234,7 @@ class Results:
         for k, v in key_values:
             self._keys.append(k)
             setattr(self, k, v)
-        required_keys = [
-            'samples_u', 'samples_id', 'logl', 'logwt', 'logz', 'logzerr',
-            'samples'
-        ]
+        required_keys = ['samples_u', 'samples_id', 'logl', 'samples']
         for k in required_keys:
             if k not in self._keys:
                 raise ValueError('Key %s must be provided' % k)

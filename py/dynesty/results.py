@@ -229,6 +229,14 @@ def print_fn_fallback(results,
 class Results:
     """Contains the full output of a run along with a set of helper
     functions for summarizing the output.
+    The object is meant to be unchangeable record of the static or
+    dynamic nested run.
+
+    The main parameters are:
+    logl
+    samples_it
+    samples_u
+    samples
     """
     def __init__(self, key_values):
         """
@@ -248,6 +256,8 @@ class Results:
             self._keys.append(k)
             setattr(self, k, copy.copy(v))
         required_keys = ['samples_u', 'samples_id', 'logl', 'samples']
+        # TODO I need to add here logz, logzerr
+        # but that requires ensuring that merge_runs always computes logz
         for k in required_keys:
             if k not in self._keys:
                 raise ValueError('Key %s must be provided' % k)

@@ -847,9 +847,7 @@ def resample_run(res, rstate=None, return_idx=False):
     new_res.logl = logl
     new_res.logvol = logvol
     new_res.logz = np.asarray(saved_logz)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        new_res.logzerr = np.sqrt(np.asarray(saved_logzvar))
+    new_res.logzerr = np.sqrt(np.maximum(np.asarray(saved_logzvar), 0))
     new_res.h = np.asarray(saved_h)
 
     if return_idx:

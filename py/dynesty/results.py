@@ -6,6 +6,7 @@ Utilities for handling results.
 """
 
 import sys
+import copy
 import numpy as np
 import shutil
 
@@ -227,13 +228,25 @@ def print_fn_fallback(results,
 
 class Results:
     """Contains the full output of a run along with a set of helper
-    functions for summarizing the output."""
+    functions for summarizing the output.
+    """
     def __init__(self, key_values):
+        """
+        Initialize the results using the list of key value pairs
+        or a dictionary 
+        Results([('logl',[1,2,3]),('samples_it',[1,2,3])])
+        Results(dict(logl=[1,2,3],samples_it=[1,2,3]))
+        """
         self._keys = []
         self._initialized = False
-        for k, v in key_values:
+        if isinstance(key_values, dict):
+            key_values_list = key_values.items()
+        else:
+            key_values_list = key_values
+        for k, v in key_values_list:
+            assert (k not in self._keys)  # ensure no duplicates
             self._keys.append(k)
-            setattr(self, k, v)
+            setattr(self, k, copy.copy(v))
         required_keys = ['samples_u', 'samples_id', 'logl', 'samples']
         for k in required_keys:
             if k not in self._keys:
@@ -266,6 +279,12 @@ class Results:
 
     def items(self):
         return ((k, getattr(self, k)) for k in self._keys)
+
+    def asdict(self):
+        """
+        Return as dictionary
+        """
+        return copy.copy(self._keys)
 
     def isdynamic(self):
         return self._dynamic

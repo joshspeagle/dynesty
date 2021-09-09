@@ -17,8 +17,8 @@ from .utils import unitcheck, apply_reflect, get_random_generator
 from .bounding import randsphere
 
 __all__ = [
-    "sample_unif", "sample_rwalk", "sample_rstagger", "sample_slice",
-    "sample_rslice", "sample_hslice"
+    "sample_unif", "sample_rwalk", "sample_slice", "sample_rslice",
+    "sample_hslice"
 ]
 
 EPS = float(np.finfo(np.float64).eps)
@@ -148,98 +148,12 @@ def sample_rwalk(args):
     (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
      kwargs) = args
     rstate = get_random_generator(rseed)
-    return generic_random_walk(u,
-                               loglstar,
-                               axes,
-                               scale,
-                               prior_transform,
-                               loglikelihood,
-                               rstate,
-                               kwargs,
-                               stagger=False)
+    return generic_random_walk(u, loglstar, axes, scale, prior_transform,
+                               loglikelihood, rstate, kwargs)
 
 
-def sample_rstagger(args):
-    """
-    Return a new live point proposed by random "staggering" away from an
-    existing live point. The difference between this and the random walk is
-    the step size is exponentially adjusted to reach a target acceptance rate
-    *during* each proposal (in addition to *between* proposals).
-
-    Parameters
-    ----------
-    u : `~numpy.ndarray` with shape (npdim,)
-        Position of the initial sample. **This is a copy of an existing live
-        point.**
-
-    loglstar : float
-        Ln(likelihood) bound.
-
-    axes : `~numpy.ndarray` with shape (ndim, ndim)
-        Axes used to propose new points. For random walks new positions are
-        proposed using the :class:`~dynesty.bounding.Ellipsoid` whose
-        shape is defined by axes.
-
-    scale : float
-        Value used to scale the provided axes.
-
-    prior_transform : function
-        Function transforming a sample from the a unit cube to the parameter
-        space of interest according to the prior.
-
-    loglikelihood : function
-        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
-        array of length `ndim`.
-
-    kwargs : dict
-        A dictionary of additional method-specific parameters.
-
-    Returns
-    -------
-    u : `~numpy.ndarray` with shape (npdim,)
-        Position of the final proposed point within the unit cube.
-
-    v : `~numpy.ndarray` with shape (ndim,)
-        Position of the final proposed point in the target parameter space.
-
-    logl : float
-        Ln(likelihood) of the final proposed point.
-
-    nc : int
-        Number of function calls used to generate the sample.
-
-    blob : dict
-        Collection of ancillary quantities used to tune :data:`scale`.
-
-    """
-
-    # Unzipping.
-    (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
-     kwargs) = args
-    rstate = get_random_generator(rseed)
-    facc_target = kwargs.get('facc', 0.5)  # acceptance fraction
-    return generic_random_walk(u,
-                               loglstar,
-                               axes,
-                               scale,
-                               prior_transform,
-                               loglikelihood,
-                               rstate,
-                               kwargs,
-                               stagger=True,
-                               facc_target=facc_target)
-
-
-def generic_random_walk(u,
-                        loglstar,
-                        axes,
-                        scale_init,
-                        prior_transform,
-                        loglikelihood,
-                        rstate,
-                        kwargs,
-                        stagger=False,
-                        facc_target=None):
+def generic_random_walk(u, loglstar, axes, scale, prior_transform,
+                        loglikelihood, rstate, kwargs):
     """
     Generic random walk step
     Parameters
@@ -270,12 +184,6 @@ def generic_random_walk(u,
     kwargs : dict
         A dictionary of additional method-specific parameters.
 
-    stagger : bool
-        If true do stagger steps vs random walk
-
-    facc_target: float (optional)
-        Target acceptance rate for stagger
-
     Returns
     -------
     u : `~numpy.ndarray` with shape (npdim,)
@@ -294,7 +202,6 @@ def generic_random_walk(u,
         Collection of ancillary quantities used to tune :data:`scale`.
 
     """
-    scale = scale_init * 1
 
     # Periodicity.
     nonbounded = kwargs.get('nonbounded')
@@ -307,29 +214,35 @@ def generic_random_walk(u,
     walks = kwargs.get('walks', 25)  # number of steps
 
     naccept = 0
-    nreject = 0
-    nreject_before_rescale = 0
-    ncall = 0
-    nfail = 0  # failures of ellipsoid points not being in the cube
-    MAX_REJECT_RESCALE = 50 * walks
+    # Total number of accepted points with L>L*
 
-    # Here we loop till either
-    # 1) we did exactly 'walks' proposals and collected  >= 1 sample
-    # or 2) we run for as long as we need (>walks) to collect one single point
-    while ncall < walks or naccept == 0:
+    nreject = 0
+    # Total number of points proposed to within the ellipsoid and cube
+    # but rejected due to L<=L* condition
+
+    ncall = 0
+    # Total number of Likelihood calls (proposals evaluated)
+
+    # Here we loop for exactly walks iterations.
+    while ncall < walks:
 
         # This proposes a new point within the ellipsoid
         # This also potentially modifies the scale
-        u_prop, scale, new_nfail = propose_ball_point(u,
-                                                      scale,
-                                                      axes,
-                                                      n,
-                                                      n_cluster,
-                                                      rstate=rstate,
-                                                      periodic=periodic,
-                                                      reflective=reflective,
-                                                      nonbounded=nonbounded)
-        nfail += new_nfail
+        u_prop, fail = propose_ball_point(u,
+                                          scale,
+                                          axes,
+                                          n,
+                                          n_cluster,
+                                          rstate=rstate,
+                                          periodic=periodic,
+                                          reflective=reflective,
+                                          nonbounded=nonbounded)
+        # If generation of points within an ellipsoid was
+        # highly inefficient we adjust the scale
+        if fail:
+            nreject += 1
+            ncall += 1
+            continue
 
         # Check proposed point.
         v_prop = prior_transform(u_prop)
@@ -343,37 +256,20 @@ def generic_random_walk(u,
             naccept += 1
         else:
             nreject += 1
-            nreject_before_rescale += 1
+    if naccept == 0:
+        # Technically we can find out the likelihood value
+        # stored somewhere
+        # But I'm currently recomputing it
+        v = prior_transform(u)
+        logl = loglikelihood(v)
 
-        if stagger:
-            # Adjust scale to target an acceptance ratio of `facc_target`.
-            facc = naccept * 1. / (naccept + nreject)
-            if facc > facc_target:
-                scale *= np.exp(1. / naccept)
-            if facc < facc_target:
-                scale /= np.exp(1. / nreject)
-        else:
-            if nreject_before_rescale > MAX_REJECT_RESCALE:
-                # We end up here *ONLY* if we ran for MAX_REJECT_RESCALE
-                # and didnt' collect *any* points
-                # so we try to adjust the scale
-                scale *= math.exp(-1. / n_cluster)
-                warnings.warn("Random walk proposals appear to be "
-                              "extremely inefficient. Adjusting the "
-                              "scale-factor accordingly.")
-                nreject_before_rescale = 0
-    blob = {
-        'accept': naccept,
-        'reject': nreject_before_rescale,
-        'fail': nfail,
-        'scale': scale
-    }
+    blob = {'accept': naccept, 'reject': nreject, 'scale': scale}
 
     return u, v, logl, ncall, blob
 
 
 def propose_ball_point(u,
-                       scale_init,
+                       scale,
                        axes,
                        n,
                        n_cluster,
@@ -381,62 +277,44 @@ def propose_ball_point(u,
                        periodic=None,
                        reflective=None,
                        nonbounded=None):
-    """ 
-    Here we are proposing points uniformly within an n-d ellipsoid
-    We stop as soon we get a point within unit cube.
     """
-    scale = scale_init * 1
-    nfail = 0
-    nfail_accum = 0
-    MAX_FAIL = 1000
-    # The number of failures before we start shrinking the ellipsoid
-    MIN_SCALE_FACTOR = 1e-5
-    # if the scale factor decreased by more than that
-    # we throw an exception
+    Here we are proposing points uniformly within an n-d ellipsoid.
+    We are only trying once.
+    We return the tuple with
+    1) proposed point or None
+    2) failure flag (if True, the generated point was outside bounds)
+    """
+
+    # starting point for clustered dimensions
+    u_cluster = u[:n_cluster]
 
     # draw random point for non clustering parameters
-    u_cluster = u[:n_cluster]
     # we only need to generate them once
     u_non_cluster = rstate.uniform(0, 1, n - n_cluster)
     u_prop = np.zeros(n)
     u_prop[n_cluster:] = u_non_cluster
-    while True:
-        # Check scale-factor. If we've shrunk too much, terminate.
-        if scale < MIN_SCALE_FACTOR * scale_init:
-            raise RuntimeError(
-                "Random walk sampling within the ellipsoid is stuck!")
-        # Propose a direction on the unit n-sphere.
-        dr = randsphere(n_cluster, rstate=rstate)
-        # This generates uniform distribution within n-d ball
 
-        # Transform to proposal distribution.
-        du = np.dot(axes, dr)
-        u_prop[:n_cluster] = u_cluster + scale * du
+    # Propose a direction on the unit n-sphere.
+    dr = randsphere(n_cluster, rstate=rstate)
+    # This generates uniform distribution within n-d ball
 
-        # Wrap periodic parameters
-        if periodic is not None:
-            u_prop[periodic] = np.mod(u_prop[periodic], 1)
+    # Transform to proposal distribution.
+    du = np.dot(axes, dr)
+    u_prop[:n_cluster] = u_cluster + scale * du
 
-        # Reflect
-        if reflective is not None:
-            u_prop[reflective] = apply_reflect(u_prop[reflective])
+    # Wrap periodic parameters
+    if periodic is not None:
+        u_prop[periodic] = np.mod(u_prop[periodic], 1)
 
-        # Check unit cube constraints.
-        if unitcheck(u_prop, nonbounded):
-            break
-        else:
-            nfail += 1
-            nfail_accum += 1
+    # Reflect
+    if reflective is not None:
+        u_prop[reflective] = apply_reflect(u_prop[reflective])
 
-        # Check if we're stuck generating bad numbers.
-        if nfail > MAX_FAIL:
-            warnings.warn("Random walk point generation appears to be "
-                          "extremely inefficient. Adjusting the "
-                          "scale-factor accordingly.")
-            nfail = 0
-            scale *= math.exp(-1. / n_cluster)
-
-    return u_prop, scale, nfail_accum
+    # Check unit cube constraints.
+    if unitcheck(u_prop, nonbounded):
+        return u_prop, False
+    else:
+        return None, True
 
 
 def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
@@ -466,8 +344,7 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
     maxlen = np.sqrt(n) / 2.
     # maximum initial interval length (the diagonal of the cube)
     if dirlen > maxlen:
-        warnings.warn(
-            'The slice sampling interval is longer than the cube size')
+        # I stopped giving warnings, as it was too noisy
         dirnorm = dirlen / maxlen
     else:
         dirnorm = 1

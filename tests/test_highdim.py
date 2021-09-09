@@ -1,15 +1,17 @@
+import itertools
 import numpy as np
 from scipy import linalg
 import scipy.stats
+import pytest
 import dynesty
 import multiprocessing as mp
-from utils import get_rstate
+from utils import get_rstate, get_printing
 """
 Run a series of basic tests to check whether anything huge is broken.
 
 """
 
-printing = False
+printing = get_printing()
 
 
 def get_covar(rstate, ndim):
@@ -118,3 +120,21 @@ def do_gaussians(sample='rslice',
     for ndim, co, curres in res:
         curres = curres.get()
         print(ndim, curres[0], curres[1], curres[2], co.logz_truth_gau)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("ndim,sample",
+                         list(
+                             itertools.product([10, 30],
+                                               ['rslice', 'rwalk', 'unif'])))
+def test_run(ndim, sample):
+    rstate = get_rstate(ndim)
+    co = Config(rstate, ndim)
+    nlive = 5000
+    bound = 'multi'
+    res = do_gaussian(co,
+                      sample=sample,
+                      bound=bound,
+                      rstate=rstate,
+                      nlive=nlive)
+    assert (np.abs(co.logz_truth_gau - res[1]) < 5 * res[2])

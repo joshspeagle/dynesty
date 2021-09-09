@@ -30,8 +30,8 @@ import numpy as np
 from .sampler import Sampler
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
                        SupFriends)
-from .sampling import (sample_unif, sample_rwalk, sample_rstagger,
-                       sample_slice, sample_rslice, sample_hslice)
+from .sampling import (sample_unif, sample_rwalk, sample_slice, sample_rslice,
+                       sample_hslice)
 from .utils import unitcheck, get_enlarge_bootstrap
 
 __all__ = [
@@ -42,7 +42,6 @@ __all__ = [
 _SAMPLING = {
     'unif': sample_unif,
     'rwalk': sample_rwalk,
-    'rstagger': sample_rstagger,
     'slice': sample_slice,
     'rslice': sample_rslice,
     'hslice': sample_hslice
@@ -84,7 +83,6 @@ class SuperSampler(Sampler):
         self._PROPOSE = {
             'unif': self.propose_unif,
             'rwalk': self.propose_live,
-            'rstagger': self.propose_live,
             'slice': self.propose_live,
             'rslice': self.propose_live,
             'hslice': self.propose_live,
@@ -103,7 +101,6 @@ class SuperSampler(Sampler):
         self._UPDATE = {
             'unif': self.update_unif,
             'rwalk': self.update_rwalk,
-            'rstagger': self.update_rwalk,
             'slice': self.update_slice,
             'rslice': self.update_slice,
             'hslice': self.update_hslice,
@@ -151,24 +148,49 @@ class SuperSampler(Sampler):
 
     def update_rwalk(self, blob):
         """Update the random walk proposal scale based on the current
-        number of accepted/rejected steps."""
-
+        number of accepted/rejected steps.
+        For rwalk the scale is important because it
+        determines the speed of diffusion of points.
+        I.e. if scale is too large, the proposal efficiency will be very low
+        so it's likely that we'll only do one random walk step at the time,
+        thus producing very correlated chain.
+        """
         self.scale = blob['scale']
         accept, reject = blob['accept'], blob['reject']
         facc = (1. * accept) / (accept + reject)
-        norm = max(self.facc, 1. - self.facc) * self.ncdim
-        self.scale *= math.exp((facc - self.facc) / norm)
-        self.scale = min(self.scale, math.sqrt(self.ncdim))
+        # Here we are now trying to solve the Eqn
+        # f0 = F(s) where F is the function
+        # providing the acceptance rate given logscale
+        # and f0 is our target acceptance rate
+        # in this case a Newton like update to s
+        # is s_{k+1} = s_k - 1/F'(s_k) * (F_k - F_0)
+        # We can speculate that F(s)~ C*exp(-Ns)
+        # i.e. it's inversely proportional to volume
+        # Then F'(s) = -N * F \approx N * F_0
+        # Therefore s_{k+1} = s_k + 1/(N*F_0) * (F_k-F0)
+        # See also Robbins-Munro recursion which we don't follow
+        # here because our coefficients a_k do not obey \sum a_k^2 = \infty
+        self.scale *= math.exp((facc - self.facc) / self.ncdim / self.facc)
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative
-        size of the slices compared to our initial guess."""
+        size of the slices compared to our initial guess.
+        For slice sampling the scale is only 'advisory' in the sense that
+        the right scale will just speed up sampling as we'll have to expand
+        or contract less. It won't affect the quality of the samples much.
+        """
         # see https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4063214/
         # also 2002.06212
         # https://www.tandfonline.com/doi/full/10.1080/10618600.2013.791193
         # and https://github.com/joshspeagle/dynesty/issues/260
         nexpand, ncontract = max(blob['nexpand'], 1), blob['ncontract']
-        self.scale *= nexpand * 2. / (nexpand + ncontract)
+        mult = (nexpand * 2. / (nexpand + ncontract))
+        # avoid drastic updates to the scale factor limiting to factor
+        # of two
+        mult = np.clip(mult, 0.5, 2)
+        # Remember I can't apply the rule that scale < cube diagonal
+        # because scale is multiplied by axes
+        self.scale = self.scale * mult
 
     def update_hslice(self, blob):
         """Update the Hamiltonian slice proposal scale based
@@ -209,7 +231,7 @@ class UnitCubeSampler(SuperSampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {`'unif'`, `'rwalk'`, `'rstagger'`,
+    method : {`'unif'`, `'rwalk'`,
               `'slice'`, `'rslice'`, `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds.
@@ -329,7 +351,7 @@ class SingleEllipsoidSampler(SuperSampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {`'unif'`, `'rwalk'`, `'rstagger'`,
+    method : {`'unif'`, `'rwalk'`,
               `'slice'`, `'rslice'`, `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds.
@@ -441,7 +463,7 @@ class SingleEllipsoidSampler(SuperSampler):
         u = self.live_u[i, :]
 
         # Choose axes.
-        if self.sampling in ['rwalk', 'rstagger', 'rslice']:
+        if self.sampling in ['rwalk', 'rslice']:
             ax = self.ell.axes
         elif self.sampling == 'slice':
             ax = self.ell.paxes
@@ -474,7 +496,7 @@ class MultiEllipsoidSampler(SuperSampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {`'unif'`, `'rwalk'`, `'rstagger'`,
+    method : {`'unif'`, `'rwalk'`,
               `'slice'`, `'rslice'`, `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds.
@@ -618,7 +640,7 @@ class MultiEllipsoidSampler(SuperSampler):
         ell_idx = ell_idxs[self.rstate.integers(nidx)]
 
         # Choose axes.
-        if self.sampling in ['rwalk', 'rstagger', 'rslice']:
+        if self.sampling in ['rwalk', 'rslice']:
             ax = self.mell.ells[ell_idx].axes
         elif self.sampling == 'slice':
             ax = self.mell.ells[ell_idx].paxes
@@ -651,7 +673,7 @@ class RadFriendsSampler(SuperSampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {`'unif'`, `'rwalk'`, `'rstagger'`,
+    method : {`'unif'`, `'rwalk'`,
               `'slice'`, `'rslice'`, `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds.
@@ -800,7 +822,7 @@ class SupFriendsSampler(SuperSampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {`'unif'`, `'rwalk'`, `'rstagger'`,
+    method : {`'unif'`, `'rwalk'`,
               `'slice'`, `'rslice'`, `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds.

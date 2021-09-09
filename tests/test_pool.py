@@ -2,14 +2,14 @@ import numpy as np
 import pytest
 import dynesty
 import multiprocessing as mp
-from utils import get_rstate
+from utils import get_rstate, get_printing
 """
 Run a series of basic tests to check whether anything huge is broken.
 
 """
 
 nlive = 1000
-printing = False
+printing = get_printing()
 
 ndim = 2
 gau_s = 0.01

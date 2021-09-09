@@ -1,12 +1,12 @@
 import numpy as np
 import dynesty
-from utils import get_rstate
+from utils import get_rstate, get_printing
 """
-Run a series of basic tests of the 2d eggbox
+This is a hard test of dynamic sampling with the 2d eggbox
 """
 
 nlive = 500
-printing = False
+printing = get_printing()
 
 # EGGBOX
 
@@ -21,7 +21,7 @@ def prior_transform_egg(x):
     return x * 10 * np.pi
 
 
-LOGZ_TRUTH = 235.856
+LOGZ_TRUTH = 235.855940
 
 
 def test_dyn():

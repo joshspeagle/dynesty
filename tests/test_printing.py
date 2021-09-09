@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-import dynesty
 from utils import get_rstate
 """
 Run a series of basic tests testing printing output

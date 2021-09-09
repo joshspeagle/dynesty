@@ -90,7 +90,7 @@ def do_gaussian(co,
                                            slices=slices)
     sampler.run_nested(print_progress=printing)
     res = sampler.results
-    return np.sum(res.ncall), res.logz[-1], res.logzerr[-1]
+    return np.sum(res.ncall), res.logz[-1], res.logzerr[-1], res
 
 
 def do_gaussians(sample='rslice',
@@ -128,7 +128,7 @@ def do_gaussians(sample='rslice',
                              itertools.product([10, 30],
                                                ['rslice', 'rwalk', 'unif'])))
 def test_run(ndim, sample):
-    rstate = get_rstate(ndim)
+    rstate = get_rstate()
     co = Config(rstate, ndim)
     nlive = 5000
     bound = 'multi'
@@ -138,3 +138,4 @@ def test_run(ndim, sample):
                       rstate=rstate,
                       nlive=nlive)
     assert (np.abs(co.logz_truth_gau - res[1]) < 5 * res[2])
+    return res[3]

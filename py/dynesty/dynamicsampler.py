@@ -219,11 +219,10 @@ def stopping_function(results,
 
         stop_evid = evid_std / evid_thresh
 
-    The posterior stopping value is based on the fractional error (i.e.
-    standard deviation / mean) in the Kullback-Leibler (KL) divergence
-    relative to a given threshold::
+    The posterior stopping value is based on the estimated effective number
+    of samples.
 
-        stop_post = (kld_std / kld_mean) / post_thresh
+        stop_post = neff / target_neff
 
     Estimates of the mean and standard deviation are computed using `n_mc`
     realizations of the input using a provided `'error'` keyword (either
@@ -284,11 +283,12 @@ def stopping_function(results,
         raise ValueError("The provided `evid_thresh` {0} is not non-negative "
                          "even though `1. - pfrac` is {1}.".format(
                              evid_thresh, 1. - pfrac))
-    post_thresh = args.get('post_thresh', 0.02)
-    if pfrac > 0. and post_thresh < 0.:
-        raise ValueError("The provided `post_thresh` {0} is not non-negative "
+    target_neff = args.get('target_neff', 1000)
+
+    if pfrac > 0. and target_neff < 0.:
+        raise ValueError("The provided `target_neff` {0} is not non-negative "
                          "even though `pfrac` is {1}.".format(
-                             post_thresh, pfrac))
+                             target_neff, pfrac))
     n_mc = args.get('n_mc', 128)
     if n_mc <= 1:
         raise ValueError("The number of realizations {0} must be greater "
@@ -318,9 +318,10 @@ def stopping_function(results,
     lnz_std = np.std(lnz_arr)
     stop_evid = lnz_std / evid_thresh
 
-    # Posterior stopping value.
-    kld_mean, kld_std = np.mean(kld_arr), np.std(kld_arr)
-    stop_post = (kld_std / kld_mean) / post_thresh
+    wts = np.exp(results.logwt - results.logwt.max())
+    wts = wts / wts.sum()
+    neff = (1. / wts**2).sum()
+    stop_post = neff / target_neff
 
     # Effective stopping value.
     stop = pfrac * stop_post + (1. - pfrac) * stop_evid

@@ -1033,7 +1033,7 @@ def unravel_run(res, save_proposals=True, print_progress=True):
                      logvol=logvol,
                      logz=saved_logz,
                      logzerr=np.sqrt(saved_logzvar),
-                     h=saved_h)
+                     information=saved_h)
 
         # Add proposal information (if available).
         if save_proposals:

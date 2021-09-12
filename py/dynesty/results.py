@@ -226,22 +226,51 @@ def print_fn_fallback(results,
     sys.stderr.flush()
 
 
+_RESULTS_STRUCTURE = [
+    ('logl', 'array', 'Log likelihood', 'niter'),
+    ('samples_it', 'array[int]', 'XXXXXXXXXXX', None),
+    ('samples_id', 'array[int]', 'XXXXXXXXXXX', None),
+    ('samples_n', 'array[int]', 'XXXXXXXXXXX', None),
+    ('samples_u', 'array[float]', '''The coordinates of live points in the
+    unit cube coordinate system''', 'niter,ndim'),
+    ('samples_v', 'array[float]', '''The coordinates of live points''',
+     'niter,ndim'), ('samples', 'array', '''XXX''', 'niter,ndim'),
+    ('niter', 'int', 'number of iterations', None),
+    ('ncall', 'int', 'Total number likelihood calls', None),
+    ('logz', 'array', 'Array of cumulative log(Z) integrals', 'niter'),
+    ('logzerr', 'array', 'Array of uncertainty of log(Z)', 'niter'),
+    ('logwt', 'array', 'Array of log-posterior weights', 'niter'),
+    ('eff', 'float', 'Sampling efficiency XXX', None),
+    ('nlive', 'int', 'Number of live points XXX', None),
+    ('logvol', 'array[float]', 'Logvolumes of dead points', 'niter'),
+    ('information', 'array[float]', 'Information Integral H', 'niter'),
+    ('bound', 'array[XXX]', "XXXXXXX", 'niter'),
+    ('bound_iter', 'array[XXX]', "XXXXXXX", 'XXX'),
+    ('samples_bound', 'array[XXX]', "XXXXXXX", 'XXX'),
+    ('samples_batch', 'array[XXX]', "XXXXXXX", 'nbatch???'),
+    ('batch_bounds', 'array[XXX]',
+     "XXXXXXX How is that different from samples bound ?", 'nbatch???'),
+    ('batch_nlive', 'array[int]', "XXXXXXX", 'nbatch???'),
+    ('scale', 'array[float]', "Scalar scale applied for proposals", 'niter')
+]
+
+
 class Results:
-    """Contains the full output of a run along with a set of helper
+    """
+    Contains the full output of a run along with a set of helper
     functions for summarizing the output.
     The object is meant to be unchangeable record of the static or
     dynamic nested run.
-
-    The main parameters are:
-    logl
-    samples_it
-    samples_u
-    samples
+    
+    Results attributes
     """
+
+    _ALLOWED = set([_[0] for _ in _RESULTS_STRUCTURE])
+
     def __init__(self, key_values):
         """
         Initialize the results using the list of key value pairs
-        or a dictionary 
+        or a dictionary
         Results([('logl',[1,2,3]),('samples_it',[1,2,3])])
         Results(dict(logl=[1,2,3],samples_it=[1,2,3]))
         """
@@ -253,6 +282,7 @@ class Results:
             key_values_list = key_values
         for k, v in key_values_list:
             assert (k not in self._keys)  # ensure no duplicates
+            assert k in Results._ALLOWED, k
             self._keys.append(k)
             setattr(self, k, copy.copy(v))
         required_keys = ['samples_u', 'samples_id', 'logl', 'samples']
@@ -322,6 +352,9 @@ class Results:
                                                       self.logzerr[-1]))
 
         print('Summary\n=======\n' + res)
+
+
+Results.__doc__ += str('\n'.join([str(_) for _ in _RESULTS_STRUCTURE]))
 
 
 def results_substitute(results, kw_dict):

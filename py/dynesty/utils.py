@@ -845,7 +845,7 @@ def resample_run(res, rstate=None, return_idx=False):
                         logz=np.asarray(saved_logz),
                         logzerr=np.sqrt(
                             np.maximum(np.asarray(saved_logzvar), 0)),
-                        h=np.asarray(saved_h))
+                        information=np.asarray(saved_h))
     new_res = Results(new_res_dict)
     if return_idx:
         return new_res, samp_idx
@@ -1512,7 +1512,7 @@ def _merge_two(res1, res2, compute_aux=False):
         r.append(('logwt', combined_logwt))
         r.append(('logz', combined_logz))
         r.append(('logzerr', np.sqrt(combined_logzvar)))
-        r.append(('h', combined_h))
+        r.append(('information', combined_h))
         r.append(('batch_nlive', np.array(batch_nlive, dtype=int)))
 
     # Combine to form final results object.

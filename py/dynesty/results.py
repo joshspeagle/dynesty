@@ -226,10 +226,12 @@ def print_fn_fallback(results,
     sys.stderr.flush()
 
 
+# List of results attributes as
+# Name, type, description, shape (if array)
 _RESULTS_STRUCTURE = [
-    ('logl', 'array', 'Log likelihood', 'niter'),
+    ('logl', 'array[float]', 'Log likelihood', 'niter'),
     ('samples_it', 'array[int]', 'XXXXXXXXXXX', None),
-    ('samples_id', 'array[int]', 'XXXXXXXXXXX', None),
+    ('samples_id', 'array[int]', 'Live point labels', None),
     ('samples_n', 'array[int]', 'XXXXXXXXXXX', None),
     ('samples_u', 'array[float]', '''The coordinates of live points in the
     unit cube coordinate system''', 'niter,ndim'),
@@ -241,7 +243,7 @@ _RESULTS_STRUCTURE = [
     ('logzerr', 'array', 'Array of uncertainty of log(Z)', 'niter'),
     ('logwt', 'array', 'Array of log-posterior weights', 'niter'),
     ('eff', 'float', 'Sampling efficiency XXX', None),
-    ('nlive', 'int', 'Number of live points XXX', None),
+    ('nlive', 'int', 'Number of live points for a static run', None),
     ('logvol', 'array[float]', 'Logvolumes of dead points', 'niter'),
     ('information', 'array[float]', 'Information Integral H', 'niter'),
     ('bound', 'array[XXX]', "XXXXXXX", 'niter'),
@@ -250,7 +252,8 @@ _RESULTS_STRUCTURE = [
     ('samples_batch', 'array[XXX]', "XXXXXXX", 'nbatch???'),
     ('batch_bounds', 'array[XXX]',
      "XXXXXXX How is that different from samples bound ?", 'nbatch???'),
-    ('batch_nlive', 'array[int]', "XXXXXXX", 'nbatch???'),
+    ('batch_nlive', 'array[int]', """XXXXXXX ???  How is it different from
+ samples_n""", 'nbatch???'),
     ('scale', 'array[float]', "Scalar scale applied for proposals", 'niter')
 ]
 

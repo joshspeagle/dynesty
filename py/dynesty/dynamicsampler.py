@@ -854,8 +854,7 @@ class DynamicSampler:
                     self.sampler.sample(maxiter=maxiter,
                                         save_samples=save_samples,
                                         maxcall=maxcall,
-                                        dlogz=dlogz,
-                                        n_effective=n_effective)):
+                                        dlogz=dlogz)):
                 # Grab results.
 
                 # Save our base run (which we will use later).
@@ -1465,7 +1464,6 @@ class DynamicSampler:
                    maxcall_init=None,
                    dlogz_init=0.01,
                    logl_max_init=np.inf,
-                   n_effective_init=np.inf,
                    nlive_batch=None,
                    wt_function=None,
                    wt_kwargs=None,
@@ -1474,7 +1472,7 @@ class DynamicSampler:
                    maxiter=None,
                    maxcall=None,
                    maxbatch=None,
-                   n_effective=np.inf,
+                   n_effective=10000,
                    stop_function=None,
                    stop_kwargs=None,
                    use_stop=True,
@@ -1571,7 +1569,7 @@ class DynamicSampler:
             Minimum number of effective posterior samples needed during the
             entire run. If the estimated "effective sample size" (ESS)
             exceeds this number, sampling will terminate.
-            Default is no ESS (`np.inf`).
+            Default is 10000.
 
         stop_function : func, optional
             A function that takes a :class:`Results` instance and
@@ -1631,10 +1629,14 @@ class DynamicSampler:
         if wt_kwargs is None:
             wt_kwargs = dict()
         if stop_function is None:
+            default_stop_function = True
             stop_function = stopping_function
+        else:
+            default_stop_function = False
         if stop_kwargs is None:
             stop_kwargs = dict()
-
+        if n_effective is not None and default_stop_function:
+            stop_kwargs['target_neff'] = n_effective
         nlive_init = nlive_init or self.nlive0
         nlive_batch = nlive_batch or self.nlive0
 
@@ -1649,14 +1651,12 @@ class DynamicSampler:
         pbar, print_func = get_print_func(print_func, print_progress)
         try:
             if not self.base:
-                for results in self.sample_initial(
-                        nlive=nlive_init,
-                        dlogz=dlogz_init,
-                        maxcall=maxcall_init,
-                        maxiter=maxiter_init,
-                        logl_max=logl_max_init,
-                        n_effective=n_effective_init,
-                        live_points=live_points):
+                for results in self.sample_initial(nlive=nlive_init,
+                                                   dlogz=dlogz_init,
+                                                   maxcall=maxcall_init,
+                                                   maxiter=maxiter_init,
+                                                   logl_max=logl_max_init,
+                                                   live_points=live_points):
 
                     ncall += results.nc
                     niter += 1
@@ -1676,8 +1676,7 @@ class DynamicSampler:
                 res = self.results
                 mcall = min(maxcall - ncall, maxcall_batch)
                 miter = min(maxiter - niter, maxiter_batch)
-                neff = self.n_effective
-                if mcall > 0 and miter > 0 and neff < n_effective and use_stop:
+                if mcall > 0 and miter > 0 and use_stop:
                     if self.use_pool_stopfn:
                         M = self.M
                     else:
@@ -1694,7 +1693,7 @@ class DynamicSampler:
 
                 # If we have likelihood calls remaining, iterations remaining,
                 # and we have failed to hit the minimum ESS, run our batch.
-                if mcall > 0 and miter > 0 and neff < n_effective and not stop:
+                if mcall > 0 and miter > 0 and not stop:
                     # Compute our sampling bounds using the provided
                     # weight function.
                     passback = self.add_batch(nlive=nlive_batch,

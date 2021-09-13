@@ -54,7 +54,8 @@ def test_maxcall():
     sampler = dynesty.DynamicNestedSampler(loglike,
                                            prior_transform,
                                            ndim,
-                                           nlive=nlive)
+                                           nlive=nlive,
+                                           rstate=rstate)
     sampler.run_nested(dlogz_init=1, maxcall=1000)
 
 
@@ -129,3 +130,22 @@ def test_exc():
                                         nlive=nlive,
                                         rstate=rstate)
         sampler.run_nested()
+
+
+def test_neff():
+    # test of maxcall functionality
+    ndim = 2
+    rstate = get_rstate()
+
+    sampler = dynesty.DynamicNestedSampler(loglike,
+                                           prior_transform,
+                                           ndim,
+                                           nlive=nlive,
+                                           rstate=rstate)
+    sampler.run_nested(dlogz_init=1, n_effective=1000)
+    sampler = dynesty.DynamicNestedSampler(loglike,
+                                           prior_transform,
+                                           ndim,
+                                           nlive=nlive,
+                                           rstate=rstate)
+    sampler.run_nested(dlogz_init=1, maxcall=1000, n_effective=10000)

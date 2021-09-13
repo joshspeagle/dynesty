@@ -148,4 +148,4 @@ def test_neff():
                                            ndim,
                                            nlive=nlive,
                                            rstate=rstate)
-    sampler.run_nested(dlogz_init=1, maxcall=1000, n_effective=10000)
+    sampler.run_nested(dlogz_init=1, n_effective=10000)

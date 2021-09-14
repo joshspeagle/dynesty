@@ -1455,6 +1455,7 @@ class DynamicSampler:
                    maxcall_init=None,
                    dlogz_init=0.01,
                    logl_max_init=np.inf,
+                   n_effective_init=np.inf,
                    nlive_batch=None,
                    wt_function=None,
                    wt_kwargs=None,
@@ -1642,12 +1643,14 @@ class DynamicSampler:
         pbar, print_func = get_print_func(print_func, print_progress)
         try:
             if not self.base:
-                for results in self.sample_initial(nlive=nlive_init,
-                                                   dlogz=dlogz_init,
-                                                   maxcall=maxcall_init,
-                                                   maxiter=maxiter_init,
-                                                   logl_max=logl_max_init,
-                                                   live_points=live_points):
+                for results in self.sample_initial(
+                        nlive=nlive_init,
+                        dlogz=dlogz_init,
+                        maxcall=maxcall_init,
+                        maxiter=maxiter_init,
+                        logl_max=logl_max_init,
+                        live_points=live_points,
+                        n_effective=n_effective_init):
 
                     ncall += results.nc
                     niter += 1

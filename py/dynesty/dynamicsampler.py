@@ -373,7 +373,8 @@ def sample_init(live_points,
     if live_points is None:
         # If no live points are provided, propose them by randomly
         # sampling from the unit cube.
-        for attempt in range(100):
+        n_attempts = 100
+        for attempt in range(n_attempts):
             live_u = rstate.uniform(size=(nlive, npdim))
             if use_pool_ptform:
                 live_v = np.array(list(M(prior_transform, np.asarray(live_u))))
@@ -402,11 +403,13 @@ def sample_init(live_points,
                 break
         else:
             # If we found nothing after many attempts, raise the alarm.
-            raise RuntimeError("After {n_attempts} attempts, not a single "
-                               "live "
-                               "point had a valid log-likelihood! Please "
-                               "check your prior transform and/or "
-                               "log-likelihood.")
+            raise RuntimeError(
+                str.format(
+                    "After {0} attempts, not a single "
+                    "live "
+                    "point had a valid log-likelihood! Please "
+                    "check your prior transform and/or "
+                    "log-likelihood.", n_attempts))
     else:
         # If live points were provided, convert the log-likelihoods and
         # then run a quick safety check.

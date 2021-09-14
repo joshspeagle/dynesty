@@ -431,16 +431,16 @@ def _get_nsamps_samples_n(res):
     Returns
     -------
     nsamps: int
-        The total number of samples
+        The total number of samples/iterations
     samples_n: array
         Number of live points at a given iteration
 
     """
-    try:
+    if res.isdynamic():
         # Check if the number of live points explicitly changes.
         samples_n = res.samples_n
         nsamps = len(samples_n)
-    except AttributeError:
+    else:
         # If the number of live points is constant, compute `samples_n`.
         niter = res.niter
         nlive = res.nlive
@@ -448,9 +448,7 @@ def _get_nsamps_samples_n(res):
         if nsamps == niter:
             samples_n = np.ones(niter, dtype=int) * nlive
         elif nsamps == (niter + nlive):
-            samples_n = np.append(
-                np.ones(niter, dtype=int) * nlive,
-                np.arange(1, nlive + 1)[::-1])
+            samples_n = np.minimum(np.arange(nsamps, 0, -1), nlive)
         else:
             raise ValueError("Final number of samples differs from number of "
                              "iterations and number of live points.")

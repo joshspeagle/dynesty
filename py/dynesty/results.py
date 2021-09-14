@@ -230,13 +230,13 @@ def print_fn_fallback(results,
 # Name, type, description, shape (if array)
 _RESULTS_STRUCTURE = [
     ('logl', 'array[float]', 'Log likelihood', 'niter'),
-    ('samples_it', 'array[int]', 'XXXXXXXXXXX', None),
-    ('samples_id', 'array[int]', 'Live point labels', None),
-    ('samples_n', 'array[int]', 'XXXXXXXXXXX', None),
+    ('samples_it', 'array[int]', ' the sampling iteration when the sample was proposed (e.g., iteration 570)', 'niter'),
+    ('samples_id', 'array[int]', 'The unique ID of the sample XXX (within nlive or within the whole sample ? )', None),
+    ('samples_n', 'array[int]', 'The number of live points at the point when the sample was proposed', 'niter'),
     ('samples_u', 'array[float]', '''The coordinates of live points in the
     unit cube coordinate system''', 'niter,ndim'),
     ('samples_v', 'array[float]', '''The coordinates of live points''',
-     'niter,ndim'), ('samples', 'array', '''XXX''', 'niter,ndim'),
+     'niter,ndim'), ('samples', 'array', '''the location (in original coordinates). Identical to samples_v''', 'niter,ndim'),
     ('niter', 'int', 'number of iterations', None),
     ('ncall', 'int', 'Total number likelihood calls', None),
     ('logz', 'array', 'Array of cumulative log(Z) integrals', 'niter'),
@@ -246,13 +246,13 @@ _RESULTS_STRUCTURE = [
     ('nlive', 'int', 'Number of live points for a static run', None),
     ('logvol', 'array[float]', 'Logvolumes of dead points', 'niter'),
     ('information', 'array[float]', 'Information Integral H', 'niter'),
-    ('bound', 'array[XXX]', "XXXXXXX", 'niter'),
-    ('bound_iter', 'array[XXX]', "XXXXXXX", 'XXX'),
-    ('samples_bound', 'array[XXX]', "XXXXXXX", 'XXX'),
-    ('samples_batch', 'array[XXX]', "XXXXXXX", 'nbatch???'),
+    ('bound', 'array[object]', "the set of bounding objects used to condition proposals", 'XXX'),
+    ('bound_iter', 'array[XXX]', "the iteration when the corresponding bound was created to propose new live points (e.g., iteration 520)", 'XXX'),
+    ('samples_bound', 'array[XXX]', "The index of the bound that the corresponding sample was drawn from", 'niter'),
+    ('samples_batch', 'array[XXX]', "Tracks the batch during which the samples were proposed", 'nbatch???'),
     ('batch_bounds', 'array[XXX]',
-     "XXXXXXX How is that different from samples bound ?", 'nbatch???'),
-    ('batch_nlive', 'array[int]', """XXXXXXX ???  How is it different from
+     "The log-likelihood bounds used to sample points in a given batch XXXXXXX How is that different from samples bound ?", 'nbatch???'),
+    ('batch_nlive', 'array[int]', """The number of live points added in a given batch ???  How is it different from
  samples_n""", 'nbatch???'),
     ('scale', 'array[float]', "Scalar scale applied for proposals", 'niter')
 ]

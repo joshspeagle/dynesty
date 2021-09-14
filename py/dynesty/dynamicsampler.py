@@ -229,7 +229,7 @@ def stopping_function(results,
     realizations of the input using a provided `'error'` keyword (either
     `'jitter'` or `'simulate'`, which call related functions :meth:`jitter_run`
     and :meth:`simulate_run` in :mod:`dynesty.utils`, respectively, or
-    `'sim_approx'`, which boosts `'jitter'` by a factor of two).
+    `'sim_approx'`
 
     Returns the boolean `stop <= 1`. If `True`, the :class:`DynamicSampler`
     will stop adding new samples to our results.
@@ -302,9 +302,6 @@ def stopping_function(results,
             "The chosen `'error'` option {0} is not valid.".format(error))
     if error == 'sim_approx':
         error = 'jitter'
-        boost = 2.
-    else:
-        boost = 1.
     approx = args.get('approx', True)
 
     # Compute realizations of ln(evidence) and the KL divergence.
@@ -319,11 +316,11 @@ def stopping_function(results,
 
     # Evidence stopping value.
     lnz_std = np.std(lnz_arr)
-    stop_evid = np.sqrt(boost) * lnz_std / evid_thresh
+    stop_evid = lnz_std / evid_thresh
 
     # Posterior stopping value.
     kld_mean, kld_std = np.mean(kld_arr), np.std(kld_arr)
-    stop_post = boost * (kld_std / kld_mean) / post_thresh
+    stop_post = (kld_std / kld_mean) / post_thresh
 
     # Effective stopping value.
     stop = pfrac * stop_post + (1. - pfrac) * stop_evid

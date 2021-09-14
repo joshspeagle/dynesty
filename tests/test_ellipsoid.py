@@ -39,6 +39,7 @@ def test_sample(withq, ndim):
             R.append(mu.sample(rstate=rstate)[0])
     R = np.array(R)
     assert (all([mu.contains(_) for _ in R]))
+    assert (all([ells[0].contains(_) or ells[1].contains(_) for _ in R]))
 
     # here I'm checking that all the points are uniformly distributed
     # within each ellipsoid

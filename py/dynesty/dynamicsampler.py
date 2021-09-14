@@ -402,7 +402,8 @@ def sample_init(live_points,
                 break
         else:
             # If we found nothing after many attempts, raise the alarm.
-            raise RuntimeError("After many attempts, not a single live "
+            raise RuntimeError("After {n_attempts} attempts, not a single "
+                               "live "
                                "point had a valid log-likelihood! Please "
                                "check your prior transform and/or "
                                "log-likelihood.")
@@ -423,6 +424,12 @@ def sample_init(live_points,
         if all(live_logl == _LOWL_VAL):
             raise ValueError("Not a single provided live point has a "
                              "valid log-likelihood!")
+    if (np.ptp(live_logl) == 0):
+        warnings.warn(
+            'All the initial likelihood values are the same. '
+            'You likely have a plateau in the likelihood. '
+            'Nested sampling is *NOT* guaranteed to work in this case',
+            RuntimeWarning)
     return [live_u, live_v, live_logl]
 
 

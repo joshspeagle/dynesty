@@ -23,8 +23,8 @@ from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
                              SupFriendsSampler)
 from .results import Results
 from .utils import (get_seed_sequence, get_print_func, _kld_error,
-                    get_random_generator, compute_integrals, IteratorResult,
-                    IteratorResultShort, get_enlarge_bootstrap)
+                    compute_integrals, IteratorResult, IteratorResultShort,
+                    get_enlarge_bootstrap)
 
 __all__ = [
     "DynamicSampler",
@@ -228,8 +228,8 @@ def stopping_function(results,
 
     args : dictionary of keyword arguments, optional
         Arguments used to set the stopping values. Default values are
-        `pfrac = 1.0`, `evid_thresh = 0.1`, `post_thresh = 0.02`,
-        `n_mc = 128`, `error = 'sim_approx'`, and `approx = True`.
+        `pfrac = 1.0`, `evid_thresh = 0.1`, `target_neff=10000`,
+        `n_mc = 0`, `error = 'sim_approx'`, and `approx = True`.
 
     rstate : `~numpy.random.Generator`, optional
         `~numpy.random.Generator` instance.
@@ -277,11 +277,11 @@ def stopping_function(results,
         raise ValueError("The provided `target_neff` {0} is not non-negative "
                          "even though `pfrac` is {1}.".format(
                              target_neff, pfrac))
-    n_mc = args.get('n_mc', 128)
-    if n_mc <= 1:
+    n_mc = args.get('n_mc', 0)
+    if n_mc < 0:
         raise ValueError("The number of realizations {0} must be greater "
-                         "than 1.".format(n_mc))
-    if n_mc < 20:
+                         "or equal to zero.".format(n_mc))
+    if n_mc > 0 and n_mc < 20:
         warnings.warn("Using a small number of realizations might result in "
                       "excessively noisy stopping value estimates.")
     error = args.get('error', 'sim_approx')
@@ -292,18 +292,21 @@ def stopping_function(results,
         error = 'jitter'
     approx = args.get('approx', True)
 
-    # Compute realizations of ln(evidence) and the KL divergence.
-    rlist = [results for i in range(n_mc)]
-    error_list = [error for i in range(n_mc)]
-    approx_list = [approx for i in range(n_mc)]
-    seeds = get_seed_sequence(rstate, n_mc)
-    args = zip(rlist, error_list, approx_list, seeds)
-    outputs = list(M(_kld_error, args))
-    kld_arr, lnz_arr = np.array([(kld[-1], res.logz[-1])
-                                 for kld, res in outputs]).T
+    if n_mc > 1:
+        # Compute realizations of ln(evidence) and the KL divergence.
+        rlist = [results for i in range(n_mc)]
+        error_list = [error for i in range(n_mc)]
+        approx_list = [approx for i in range(n_mc)]
+        seeds = get_seed_sequence(rstate, n_mc)
+        args = zip(rlist, error_list, approx_list, seeds)
+        outputs = list(M(_kld_error, args))
+        kld_arr, lnz_arr = np.array([(kld[-1], res.logz[-1])
+                                     for kld, res in outputs]).T
+        # Evidence stopping value.
+        lnz_std = np.std(lnz_arr)
+    else:
+        lnz_std = results.logzerr[-1]
 
-    # Evidence stopping value.
-    lnz_std = np.std(lnz_arr)
     stop_evid = lnz_std / evid_thresh
 
     wts = np.exp(results.logwt - results.logwt.max())

@@ -22,12 +22,14 @@ from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
                              MultiEllipsoidSampler, RadFriendsSampler,
                              SupFriendsSampler)
 from .results import Results
-from .utils import (get_seed_sequence, get_print_func, kld_error,
+from .utils import (get_seed_sequence, get_print_func, _kld_error,
                     get_random_generator, compute_integrals, IteratorResult,
                     IteratorResultShort, get_enlarge_bootstrap)
 
 __all__ = [
-    "DynamicSampler", "weight_function", "stopping_function", "_kld_error"
+    "DynamicSampler",
+    "weight_function",
+    "stopping_function",
 ]
 
 _SAMPLERS = {
@@ -40,20 +42,6 @@ _SAMPLERS = {
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 _LOWL_VAL = -1e300
-
-
-def _kld_error(args):
-    """ Internal `pool.map`-friendly wrapper for :meth:`kld_error` used by
-    :meth:`stopping_function`."""
-
-    # Extract arguments.
-    results, error, approx, rseed = args
-    rstate = get_random_generator(rseed)
-    return kld_error(results,
-                     error,
-                     rstate=rstate,
-                     return_new=True,
-                     approx=approx)
 
 
 def compute_weights(results):

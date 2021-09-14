@@ -1731,6 +1731,7 @@ class DynamicSampler:
     def add_batch(self,
                   nlive=500,
                   dlogz=1e-2,
+                  mode='weight',
                   wt_function=None,
                   wt_kwargs=None,
                   maxiter=None,
@@ -1750,6 +1751,16 @@ class DynamicSampler:
         nlive : int, optional
             The number of live points used when adding additional samples
             in the batch. Default is `500`.
+
+        mode: string, optional
+            How to allocate a new batch.
+            The possible values are 'auto', 'weight', 'full', 'manual'
+            'weight' means to use the weight_function to decide the optimal
+            logl range.
+            'full' means sample the whole posterior again
+            'auto' means choose automatically, which currently means using
+            'weight'
+            'manual' means that logl_bounds need to be explicitely specified
 
         wt_function : func, optional
             A cost function that takes a `Results` instance
@@ -1808,18 +1819,31 @@ class DynamicSampler:
         if stop_val is None:
             stop_val = np.nan
 
+        res = self.results
+
+        if mode != 'manual' and logl_bounds is not None:
+            raise RuntimeError(
+                "specified logl_bounds are only allowed for manual mode")
+        if mode == 'manual' and logl_bounds is None:
+            raise RuntimeError(
+                "logl_bounds need to be specified for manual mode")
+        if mode == 'auto' or mode == 'weight':
+            logl_bounds = wt_function(res, wt_kwargs)
+
+        # this is just for printing
+        if logl_bounds is None:
+            logl_min, logl_max = -np.inf, np.inf
+        else:
+            logl_min, logl_max = logl_bounds
+        # For printing as well, we just display old logz,logzerr here
+        logz, logzvar = res.logz[-1], res.logzerr[-1]**2
+
         # If we have either likelihood calls or iterations remaining,
         # add our new batch of live points.
         ncall, niter, n = self.ncall, self.it - 1, self.batch
         if maxcall > 0 and maxiter > 0:
             pbar, print_func = get_print_func(print_func, print_progress)
             try:
-                # Compute our sampling bounds using the provided
-                # weight function.
-                res = self.results
-                logz, logzerr = res.logz[-1], res.logzerr[-1]
-                if logl_bounds is None:
-                    logl_bounds = wt_function(res, wt_kwargs)
                 results = None  # to silence pylint as
                 # sample_batch() should return something given maxiter/maxcall
                 for cur_results in self.sample_batch(nlive_new=nlive,
@@ -1840,7 +1864,7 @@ class DynamicSampler:
                                              logvol=np.nan,
                                              logwt=np.nan,
                                              logz=logz,
-                                             logzvar=logzerr**2,
+                                             logzvar=logzvar,
                                              h=np.nan,
                                              nc=cur_results.nc,
                                              worst_it=cur_results.worst_it,
@@ -1856,8 +1880,8 @@ class DynamicSampler:
                                    ncall,
                                    nbatch=n + 1,
                                    stop_val=stop_val,
-                                   logl_min=logl_bounds[0],
-                                   logl_max=logl_bounds[1])
+                                   logl_min=logl_min,
+                                   logl_max=logl_max)
             finally:
                 if pbar is not None:
                     pbar.close()

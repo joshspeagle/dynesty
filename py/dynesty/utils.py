@@ -721,13 +721,13 @@ def resample_run(res, rstate=None, return_idx=False):
     # Check whether the final set of live points were added to the
     # run.
     nsamps = len(res.ncall)
-    try:
+    if res.isdynamic():
         # Check if the number of live points explicitly changes.
         samples_n = res.samples_n
         samples_batch = res.samples_batch
         batch_bounds = res.batch_bounds
         added_final_live = True
-    except AttributeError:
+    else:
         # If the number of live points is constant, compute `samples_n` and
         # set up the `added_final_live` flag.
         nlive = res.nlive
@@ -736,9 +736,7 @@ def resample_run(res, rstate=None, return_idx=False):
             samples_n = np.ones(niter, dtype=int) * nlive
             added_final_live = False
         elif nsamps == (niter + nlive):
-            samples_n = np.append(
-                np.ones(niter, dtype=int) * nlive,
-                np.arange(1, nlive + 1)[::-1])
+            samples_n = np.minimum(np.arange(nsamps, 0, -1), nlive)
             added_final_live = True
         else:
             raise ValueError("Final number of samples differs from number of "

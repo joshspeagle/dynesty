@@ -1151,6 +1151,10 @@ def merge_runs(res_list, print_progress=True):
 
 
 def check_result_static(res):
+    """ If the run was from a dynamic run but had constant
+    number of live points, return a new Results object with
+    nlive parameter, so we could use it as static run
+    """
     samples_n = _get_nsamps_samples_n(res)[1]
     nlive = max(samples_n)
     niter = res.niter
@@ -1163,9 +1167,7 @@ def check_result_static(res):
 
     # Check if we have a constant number of live points where we have
     # recycled the final set of live points.
-    nlive_test = np.append(
-        np.ones(niter - nlive, dtype=int) * nlive,
-        np.arange(1, nlive + 1)[::-1])
+    nlive_test = np.minimum(np.arange(niter, 0, -1), nlive)
     if np.all(samples_n == nlive_test):
         standard_run = True
     # If the number of live points is consistent with a standard nested
@@ -1174,6 +1176,8 @@ def check_result_static(res):
         resdict = res.asdict()
         resdict['nlive'] = nlive
         resdict['niter'] = niter - nlive
+        # XXX TODO Is it correct to subtract nlive here ?
+        # That will make things inconsistent
         res = Results(resdict)
     return res
 

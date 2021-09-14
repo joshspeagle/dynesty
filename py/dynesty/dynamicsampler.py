@@ -271,7 +271,7 @@ def stopping_function(results,
         raise ValueError("The provided `evid_thresh` {0} is not non-negative "
                          "even though `1. - pfrac` is {1}.".format(
                              evid_thresh, 1. - pfrac))
-    target_neff = args.get('target_neff', 10000)
+    target_neff = args['target_neff']
 
     if pfrac > 0. and target_neff < 0.:
         raise ValueError("The provided `target_neff` {0} is not non-negative "
@@ -466,9 +466,15 @@ class DynamicSampler:
     pool: pool
         Use this pool of workers to execute operations in parallel.
 
-    use_pool : dict, optional
+    use_pool : dict
         A dictionary containing flags indicating where the provided `pool`
         should be used to execute operations in parallel.
+
+    ncdim: int
+        Number of clustered dimensions
+
+    nlive0: int
+        Default number of live points to use
 
     kwargs : dict, optional
         A dictionary of additional parameters (described below).
@@ -1464,7 +1470,7 @@ class DynamicSampler:
                    maxiter=None,
                    maxcall=None,
                    maxbatch=None,
-                   n_effective=10000,
+                   n_effective=None,
                    stop_function=None,
                    stop_kwargs=None,
                    use_stop=True,
@@ -1561,7 +1567,7 @@ class DynamicSampler:
             Minimum number of effective posterior samples needed during the
             entire run. If the estimated "effective sample size" (ESS)
             exceeds this number, sampling will terminate.
-            Default is 10000.
+            Default is max(10000, ndim^2)
 
         stop_function : func, optional
             A function that takes a :class:`Results` instance and
@@ -1627,7 +1633,13 @@ class DynamicSampler:
             default_stop_function = False
         if stop_kwargs is None:
             stop_kwargs = dict()
-        if n_effective is not None and default_stop_function:
+        if default_stop_function:
+            if n_effective is None:
+                # The reason to scale with square of number of
+                # dimensions is because the number coefficients
+                # defining covariance is roughly 0.5 * N^2
+                n_effective = max(self.npdim * self.npdim, 10000)
+
             stop_kwargs['target_neff'] = n_effective
         nlive_init = nlive_init or self.nlive0
         nlive_batch = nlive_batch or self.nlive0

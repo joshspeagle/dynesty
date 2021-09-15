@@ -1520,3 +1520,137 @@ def _merge_two(res1, res2, compute_aux=False):
     res = Results(r)
 
     return res
+
+
+def _kld_error(args):
+    """ Internal `pool.map`-friendly wrapper for :meth:`kld_error` used by      
+    :meth:`stopping_function`."""
+
+    # Extract arguments.
+    results, error, approx, rseed = args
+    rstate = get_random_generator(rseed)
+    return kld_error(results,
+                     error,
+                     rstate=rstate,
+                     return_new=True,
+                     approx=approx)
+
+
+def old_stopping_function(results,
+                          args=None,
+                          rstate=None,
+                          M=None,
+                          return_vals=False):
+    """
+    The default stopping function utilized by :class:`DynamicSampler`.
+    Zipped parameters are passed to the function via :data:`args`.
+    Assigns the run a stopping value based on a weighted average of the
+    stopping values for the posterior and evidence::
+        stop = pfrac * stop_post + (1.- pfrac) * stop_evid
+    The evidence stopping value is based on the estimated evidence error
+    (i.e. standard deviation) relative to a given threshold::
+        stop_evid = evid_std / evid_thresh
+    The posterior stopping value is based on the fractional error (i.e.
+    standard deviation / mean) in the Kullback-Leibler (KL) divergence
+    relative to a given threshold::
+        stop_post = (kld_std / kld_mean) / post_thresh
+    Estimates of the mean and standard deviation are computed using `n_mc`
+    realizations of the input using a provided `'error'` keyword (either
+    `'jitter'` or `'simulate'`, which call related functions :meth:`jitter_run`
+    and :meth:`simulate_run` in :mod:`dynesty.utils`, respectively, or
+    `'sim_approx'`
+    Returns the boolean `stop <= 1`. If `True`, the :class:`DynamicSampler`
+    will stop adding new samples to our results.
+    Parameters
+    ----------
+    results : :class:`Results` instance
+        :class:`Results` instance.
+    args : dictionary of keyword arguments, optional
+        Arguments used to set the stopping values. Default values are
+        `pfrac = 1.0`, `evid_thresh = 0.1`, `post_thresh = 0.02`,
+        `n_mc = 128`, `error = 'sim_approx'`, and `approx = True`.
+    rstate : `~numpy.random.Generator`, optional
+        `~numpy.random.Generator` instance.
+    M : `map` function, optional
+        An alias to a `map`-like function. This allows users to pass
+        functions from pools (e.g., `pool.map`) to compute realizations in
+        parallel. By default the standard `map` function is used.
+    return_vals : bool, optional
+        Whether to return the stopping value (and its components). Default
+        is `False`.
+    Returns
+    -------
+    stop_flag : bool
+        Boolean flag indicating whether we have passed the desired stopping
+        criteria.
+    stop_vals : tuple of shape (3,), optional
+        The individual stopping values `(stop_post, stop_evid, stop)` used
+        to determine the stopping criteria.
+    """
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("once")
+        warnings.warn(
+            "This an old stopping function that will "
+            "be removed in future releases", DeprecationWarning)
+    # Initialize values.
+    if args is None:
+        args = dict({})
+    if M is None:
+        M = map
+
+    # Initialize hyperparameters.
+    pfrac = args.get('pfrac', 1.0)
+    if not 0. <= pfrac <= 1.:
+        raise ValueError(
+            "The provided `pfrac` {0} is not between 0. and 1.".format(pfrac))
+    evid_thresh = args.get('evid_thresh', 0.1)
+    if pfrac < 1. and evid_thresh < 0.:
+        raise ValueError("The provided `evid_thresh` {0} is not non-negative "
+                         "even though `1. - pfrac` is {1}.".format(
+                             evid_thresh, 1. - pfrac))
+    post_thresh = args.get('post_thresh', 0.02)
+    if pfrac > 0. and post_thresh < 0.:
+        raise ValueError("The provided `post_thresh` {0} is not non-negative "
+                         "even though `pfrac` is {1}.".format(
+                             post_thresh, pfrac))
+    n_mc = args.get('n_mc', 128)
+    if n_mc <= 1:
+        raise ValueError("The number of realizations {0} must be greater "
+                         "than 1.".format(n_mc))
+    if n_mc < 20:
+        warnings.warn("Using a small number of realizations might result in "
+                      "excessively noisy stopping value estimates.")
+    error = args.get('error', 'sim_approx')
+    if error not in {'jitter', 'simulate', 'sim_approx'}:
+        raise ValueError(
+            "The chosen `'error'` option {0} is not valid.".format(error))
+    if error == 'sim_approx':
+        error = 'jitter'
+    approx = args.get('approx', True)
+
+    # Compute realizations of ln(evidence) and the KL divergence.
+    rlist = [results for i in range(n_mc)]
+    error_list = [error for i in range(n_mc)]
+    approx_list = [approx for i in range(n_mc)]
+    seeds = get_seed_sequence(rstate, n_mc)
+    args = zip(rlist, error_list, approx_list, seeds)
+    outputs = list(M(_kld_error, args))
+    kld_arr, lnz_arr = np.array([(kld[-1], res.logz[-1])
+                                 for kld, res in outputs]).T
+
+    # Evidence stopping value.
+    lnz_std = np.std(lnz_arr)
+    stop_evid = lnz_std / evid_thresh
+
+    # Posterior stopping value.
+    kld_mean, kld_std = np.mean(kld_arr), np.std(kld_arr)
+    stop_post = (kld_std / kld_mean) / post_thresh
+
+    # Effective stopping value.
+    stop = pfrac * stop_post + (1. - pfrac) * stop_evid
+
+    if return_vals:
+        return stop <= 1., (stop_post, stop_evid, stop)
+    else:
+        return stop <= 1.

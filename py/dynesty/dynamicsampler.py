@@ -22,12 +22,14 @@ from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
                              MultiEllipsoidSampler, RadFriendsSampler,
                              SupFriendsSampler)
 from .results import Results
-from .utils import (get_seed_sequence, get_print_func, kld_error,
-                    get_random_generator, compute_integrals, IteratorResult,
-                    IteratorResultShort, get_enlarge_bootstrap)
+from .utils import (get_seed_sequence, get_print_func, _kld_error,
+                    compute_integrals, IteratorResult, IteratorResultShort,
+                    get_enlarge_bootstrap)
 
 __all__ = [
-    "DynamicSampler", "weight_function", "stopping_function", "_kld_error"
+    "DynamicSampler",
+    "weight_function",
+    "stopping_function",
 ]
 
 _SAMPLERS = {
@@ -40,20 +42,6 @@ _SAMPLERS = {
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 _LOWL_VAL = -1e300
-
-
-def _kld_error(args):
-    """ Internal `pool.map`-friendly wrapper for :meth:`kld_error` used by
-    :meth:`stopping_function`."""
-
-    # Extract arguments.
-    results, error, approx, rseed = args
-    rstate = get_random_generator(rseed)
-    return kld_error(results,
-                     error,
-                     rstate=rstate,
-                     return_new=True,
-                     approx=approx)
 
 
 def compute_weights(results):
@@ -219,11 +207,10 @@ def stopping_function(results,
 
         stop_evid = evid_std / evid_thresh
 
-    The posterior stopping value is based on the fractional error (i.e.
-    standard deviation / mean) in the Kullback-Leibler (KL) divergence
-    relative to a given threshold::
+    The posterior stopping value is based on the estimated effective number
+    of samples.
 
-        stop_post = (kld_std / kld_mean) / post_thresh
+        stop_post = target_neff / nef
 
     Estimates of the mean and standard deviation are computed using `n_mc`
     realizations of the input using a provided `'error'` keyword (either
@@ -241,8 +228,8 @@ def stopping_function(results,
 
     args : dictionary of keyword arguments, optional
         Arguments used to set the stopping values. Default values are
-        `pfrac = 1.0`, `evid_thresh = 0.1`, `post_thresh = 0.02`,
-        `n_mc = 128`, `error = 'sim_approx'`, and `approx = True`.
+        `pfrac = 1.0`, `evid_thresh = 0.1`, `target_neff=10000`,
+        `n_mc = 0`, `error = 'sim_approx'`, and `approx = True`.
 
     rstate : `~numpy.random.Generator`, optional
         `~numpy.random.Generator` instance.
@@ -284,16 +271,17 @@ def stopping_function(results,
         raise ValueError("The provided `evid_thresh` {0} is not non-negative "
                          "even though `1. - pfrac` is {1}.".format(
                              evid_thresh, 1. - pfrac))
-    post_thresh = args.get('post_thresh', 0.02)
-    if pfrac > 0. and post_thresh < 0.:
-        raise ValueError("The provided `post_thresh` {0} is not non-negative "
+    target_neff = args['target_neff']
+
+    if pfrac > 0. and target_neff < 0.:
+        raise ValueError("The provided `target_neff` {0} is not non-negative "
                          "even though `pfrac` is {1}.".format(
-                             post_thresh, pfrac))
-    n_mc = args.get('n_mc', 128)
-    if n_mc <= 1:
+                             target_neff, pfrac))
+    n_mc = args.get('n_mc', 0)
+    if n_mc < 0:
         raise ValueError("The number of realizations {0} must be greater "
-                         "than 1.".format(n_mc))
-    if n_mc < 20:
+                         "or equal to zero.".format(n_mc))
+    if n_mc > 0 and n_mc < 20:
         warnings.warn("Using a small number of realizations might result in "
                       "excessively noisy stopping value estimates.")
     error = args.get('error', 'sim_approx')
@@ -304,23 +292,27 @@ def stopping_function(results,
         error = 'jitter'
     approx = args.get('approx', True)
 
-    # Compute realizations of ln(evidence) and the KL divergence.
-    rlist = [results for i in range(n_mc)]
-    error_list = [error for i in range(n_mc)]
-    approx_list = [approx for i in range(n_mc)]
-    seeds = get_seed_sequence(rstate, n_mc)
-    args = zip(rlist, error_list, approx_list, seeds)
-    outputs = list(M(_kld_error, args))
-    kld_arr, lnz_arr = np.array([(kld[-1], res.logz[-1])
-                                 for kld, res in outputs]).T
+    if n_mc > 1:
+        # Compute realizations of ln(evidence) and the KL divergence.
+        rlist = [results for i in range(n_mc)]
+        error_list = [error for i in range(n_mc)]
+        approx_list = [approx for i in range(n_mc)]
+        seeds = get_seed_sequence(rstate, n_mc)
+        args = zip(rlist, error_list, approx_list, seeds)
+        outputs = list(M(_kld_error, args))
+        kld_arr, lnz_arr = np.array([(kld[-1], res.logz[-1])
+                                     for kld, res in outputs]).T
+        # Evidence stopping value.
+        lnz_std = np.std(lnz_arr)
+    else:
+        lnz_std = results.logzerr[-1]
 
-    # Evidence stopping value.
-    lnz_std = np.std(lnz_arr)
     stop_evid = lnz_std / evid_thresh
 
-    # Posterior stopping value.
-    kld_mean, kld_std = np.mean(kld_arr), np.std(kld_arr)
-    stop_post = (kld_std / kld_mean) / post_thresh
+    wts = np.exp(results.logwt - results.logwt.max())
+    wts = wts / wts.sum()
+    neff = 1. / (wts**2).sum()
+    stop_post = target_neff / neff
 
     # Effective stopping value.
     stop = pfrac * stop_post + (1. - pfrac) * stop_evid
@@ -474,9 +466,15 @@ class DynamicSampler:
     pool: pool
         Use this pool of workers to execute operations in parallel.
 
-    use_pool : dict, optional
+    use_pool : dict
         A dictionary containing flags indicating where the provided `pool`
         should be used to execute operations in parallel.
+
+    ncdim: int
+        Number of clustered dimensions
+
+    nlive0: int
+        Default number of live points to use
 
     kwargs : dict, optional
         A dictionary of additional parameters (described below).
@@ -850,8 +848,7 @@ class DynamicSampler:
                     self.sampler.sample(maxiter=maxiter,
                                         save_samples=save_samples,
                                         maxcall=maxcall,
-                                        dlogz=dlogz,
-                                        n_effective=n_effective)):
+                                        dlogz=dlogz)):
                 # Grab results.
 
                 # Save our base run (which we will use later).
@@ -1470,7 +1467,7 @@ class DynamicSampler:
                    maxiter=None,
                    maxcall=None,
                    maxbatch=None,
-                   n_effective=np.inf,
+                   n_effective=None,
                    stop_function=None,
                    stop_kwargs=None,
                    use_stop=True,
@@ -1567,7 +1564,7 @@ class DynamicSampler:
             Minimum number of effective posterior samples needed during the
             entire run. If the estimated "effective sample size" (ESS)
             exceeds this number, sampling will terminate.
-            Default is no ESS (`np.inf`).
+            Default is max(10000, ndim^2)
 
         stop_function : func, optional
             A function that takes a :class:`Results` instance and
@@ -1627,10 +1624,20 @@ class DynamicSampler:
         if wt_kwargs is None:
             wt_kwargs = dict()
         if stop_function is None:
+            default_stop_function = True
             stop_function = stopping_function
+        else:
+            default_stop_function = False
         if stop_kwargs is None:
             stop_kwargs = dict()
+        if default_stop_function:
+            if n_effective is None:
+                # The reason to scale with square of number of
+                # dimensions is because the number coefficients
+                # defining covariance is roughly 0.5 * N^2
+                n_effective = max(self.npdim * self.npdim, 10000)
 
+            stop_kwargs['target_neff'] = n_effective
         nlive_init = nlive_init or self.nlive0
         nlive_batch = nlive_batch or self.nlive0
 
@@ -1651,8 +1658,8 @@ class DynamicSampler:
                         maxcall=maxcall_init,
                         maxiter=maxiter_init,
                         logl_max=logl_max_init,
-                        n_effective=n_effective_init,
-                        live_points=live_points):
+                        live_points=live_points,
+                        n_effective=n_effective_init):
 
                     ncall += results.nc
                     niter += 1
@@ -1672,8 +1679,7 @@ class DynamicSampler:
                 res = self.results
                 mcall = min(maxcall - ncall, maxcall_batch)
                 miter = min(maxiter - niter, maxiter_batch)
-                neff = self.n_effective
-                if mcall > 0 and miter > 0 and neff < n_effective and use_stop:
+                if mcall > 0 and miter > 0 and use_stop:
                     if self.use_pool_stopfn:
                         M = self.M
                     else:
@@ -1690,7 +1696,7 @@ class DynamicSampler:
 
                 # If we have likelihood calls remaining, iterations remaining,
                 # and we have failed to hit the minimum ESS, run our batch.
-                if mcall > 0 and miter > 0 and neff < n_effective and not stop:
+                if mcall > 0 and miter > 0 and not stop:
                     # Compute our sampling bounds using the provided
                     # weight function.
                     passback = self.add_batch(nlive=nlive_batch,

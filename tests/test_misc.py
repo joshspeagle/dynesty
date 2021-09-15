@@ -55,7 +55,8 @@ def test_maxcall():
     sampler = dynesty.DynamicNestedSampler(loglike,
                                            prior_transform,
                                            ndim,
-                                           nlive=nlive)
+                                           nlive=nlive,
+                                           rstate=rstate)
     sampler.run_nested(dlogz_init=1, maxcall=1000)
 
 
@@ -132,35 +133,33 @@ def test_exc():
         sampler.run_nested()
 
 
-def test_pickle():
-    # test of maxcall functionality
+def test_neff():
+    # test of neff functionality
     ndim = 2
     rstate = get_rstate()
-    sampler = dynesty.NestedSampler(loglike,
-                                    prior_transform,
-                                    ndim,
-                                    nlive=nlive,
-                                    rstate=rstate)
-    sampler.run_nested(dlogz=1, maxcall=1000)
-    with open('test_pickle.pkl', 'wb') as fp:
-        pickle.dump(sampler, fp)
-    with open('test_pickle.pkl', 'rb') as fp:
-        pickle.load(fp)
-    with open('test_pickle.pkl', 'wb') as fp:
-        pickle.dump(sampler.results, fp)
-    with open('test_pickle.pkl', 'rb') as fp:
-        pickle.load(fp)
-
     sampler = dynesty.DynamicNestedSampler(loglike,
                                            prior_transform,
                                            ndim,
-                                           nlive=nlive)
-    sampler.run_nested(dlogz_init=1, maxcall=1000)
-    with open('test_pickle.pkl', 'wb') as fp:
-        pickle.dump(sampler, fp)
-    with open('test_pickle.pkl', 'rb') as fp:
-        pickle.load(fp)
-    with open('test_pickle.pkl', 'wb') as fp:
-        pickle.dump(sampler.results, fp)
-    with open('test_pickle.pkl', 'rb') as fp:
-        pickle.load(fp)
+                                           nlive=nlive,
+                                           rstate=rstate)
+    sampler.run_nested(dlogz_init=1, n_effective=1000)
+    sampler = dynesty.DynamicNestedSampler(loglike,
+                                           prior_transform,
+                                           ndim,
+                                           nlive=nlive,
+                                           rstate=rstate)
+    sampler.run_nested(dlogz_init=1, n_effective=10000)
+
+
+def test_oldstop():
+    # test of old stopping function functionality
+    ndim = 2
+    rstate = get_rstate()
+    import dynesty.utils as dyutil
+    stopfn = dyutil.old_stopping_function
+    sampler = dynesty.DynamicNestedSampler(loglike,
+                                           prior_transform,
+                                           ndim,
+                                           nlive=nlive,
+                                           rstate=rstate)
+    sampler.run_nested(dlogz_init=1, n_effective=None, stop_function=stopfn)

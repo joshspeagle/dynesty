@@ -163,3 +163,17 @@ def test_oldstop():
                                            nlive=nlive,
                                            rstate=rstate)
     sampler.run_nested(dlogz_init=1, n_effective=None, stop_function=stopfn)
+
+
+def test_stop_nmc():
+    # test stopping relying in n_mc
+    ndim = 2
+    rstate = get_rstate()
+    sampler = dynesty.DynamicNestedSampler(loglike,
+                                           prior_transform,
+                                           ndim,
+                                           nlive=nlive,
+                                           rstate=rstate)
+    sampler.run_nested(dlogz_init=1,
+                       n_effective=None,
+                       stop_kwargs=dict(n_mc=25))

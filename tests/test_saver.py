@@ -17,13 +17,12 @@ printing = get_printing()
 
 
 # see 1306.2144
-def loglike_egg(x):
-    logl = ((2 + np.cos(x[0] / 2) * np.cos(x[1] / 2))**5)
-    return logl
+def loglike(x):
+    return -.5 * np.sum(x**2)
 
 
-def prior_transform_egg(x):
-    return x * 10 * np.pi
+def prior_transform(x):
+    return 20 * x - 10
 
 
 @pytest.mark.parametrize('dopool', [False, True])
@@ -38,15 +37,15 @@ def test_saving(dopool):
         kw['pool'] = pool
         kw['queue_size'] = 2
 
-    sampler = dynesty.NestedSampler(loglike_egg,
-                                    prior_transform_egg,
+    sampler = dynesty.NestedSampler(loglike,
+                                    prior_transform,
                                     ndim,
                                     nlive=nlive,
                                     save_history=True,
                                     history_filename=fname,
                                     rstate=rstate,
                                     **kw)
-    sampler.run_nested(dlogz=1, print_progress=printing, maxiter=300)
+    sampler.run_nested(dlogz=1, print_progress=printing, maxiter=3000)
     assert (os.path.exists(fname))
     try:
         os.unlink(fname)

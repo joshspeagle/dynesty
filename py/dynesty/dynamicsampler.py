@@ -550,8 +550,6 @@ class DynamicSampler:
 
         state = self.__dict__.copy()
 
-        del state['rstate']  # remove random module
-
         # deal with pool
         if state['pool'] is not None:
             del state['pool']  # remove pool
@@ -560,7 +558,6 @@ class DynamicSampler:
         # deal with internal sampler (to be safe)
         if state['sampler'] is not None:
             try:  # attempt to remove the same things
-                del state['sampler'].rstate
                 if state['sampler'].pool is not None:
                     del state['sampler'].pool
                     del state['sampler'].M

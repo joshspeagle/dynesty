@@ -1,3 +1,4 @@
+import pickle
 import numpy as np
 import pytest
 import dynesty
@@ -136,7 +137,6 @@ def test_neff():
     # test of neff functionality
     ndim = 2
     rstate = get_rstate()
-
     sampler = dynesty.DynamicNestedSampler(loglike,
                                            prior_transform,
                                            ndim,

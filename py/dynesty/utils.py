@@ -19,7 +19,7 @@ try:
 except ImportError:
     tqdm = None
 
-from .results import Results, print_fn
+from .results import Results, print_fn, results_substitute
 
 __all__ = [
     "unitcheck", "resample_equal", "mean_and_cov", "quantile", "jitter_run",
@@ -431,16 +431,16 @@ def _get_nsamps_samples_n(res):
     Returns
     -------
     nsamps: int
-        The total number of samples
+        The total number of samples/iterations
     samples_n: array
         Number of live points at a given iteration
 
     """
-    try:
+    if res.isdynamic():
         # Check if the number of live points explicitly changes.
         samples_n = res.samples_n
         nsamps = len(samples_n)
-    except AttributeError:
+    else:
         # If the number of live points is constant, compute `samples_n`.
         niter = res.niter
         nlive = res.nlive
@@ -448,9 +448,7 @@ def _get_nsamps_samples_n(res):
         if nsamps == niter:
             samples_n = np.ones(niter, dtype=int) * nlive
         elif nsamps == (niter + nlive):
-            samples_n = np.append(
-                np.ones(niter, dtype=int) * nlive,
-                np.arange(1, nlive + 1)[::-1])
+            samples_n = np.minimum(np.arange(nsamps, 0, -1), nlive)
         else:
             raise ValueError("Final number of samples differs from number of "
                              "iterations and number of live points.")
@@ -583,18 +581,16 @@ def jitter_run(res, rstate=None, approx=False):
     (saved_logwt, saved_logz, saved_logzvar,
      saved_h) = compute_integrals(logl=logl, logvol=logvol)
 
-    # Copy results.
-    new_res = Results(list(res.items()))
-
     # Overwrite items with our new estimates.
-    new_res.logvol = logvol
-    new_res.logwt = saved_logwt
-    new_res.logz = saved_logz
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        new_res.logzerr = np.sqrt(saved_logzvar)
-    new_res.h = saved_h
+    substitute = {
+        'logvol': logvol,
+        'logwt': saved_logwt,
+        'logz': saved_logz,
+        'logzerr': np.sqrt(np.maximum(saved_logzvar, 0)),
+        'h': saved_h
+    }
 
+    new_res = results_substitute(res, substitute)
     return new_res
 
 
@@ -725,13 +721,13 @@ def resample_run(res, rstate=None, return_idx=False):
     # Check whether the final set of live points were added to the
     # run.
     nsamps = len(res.ncall)
-    try:
+    if res.isdynamic():
         # Check if the number of live points explicitly changes.
         samples_n = res.samples_n
         samples_batch = res.samples_batch
         batch_bounds = res.batch_bounds
         added_final_live = True
-    except AttributeError:
+    else:
         # If the number of live points is constant, compute `samples_n` and
         # set up the `added_final_live` flag.
         nlive = res.nlive
@@ -740,9 +736,7 @@ def resample_run(res, rstate=None, return_idx=False):
             samples_n = np.ones(niter, dtype=int) * nlive
             added_final_live = False
         elif nsamps == (niter + nlive):
-            samples_n = np.append(
-                np.ones(niter, dtype=int) * nlive,
-                np.arange(1, nlive + 1)[::-1])
+            samples_n = np.minimum(np.arange(nsamps, 0, -1), nlive)
             added_final_live = True
         else:
             raise ValueError("Final number of samples differs from number of "
@@ -832,23 +826,23 @@ def resample_run(res, rstate=None, return_idx=False):
     eff = 100. * len(res.ncall[samp_idx]) / sum(res.ncall[samp_idx])
 
     # Copy results.
-    new_res = Results(list(res.items()))
-
     # Overwrite items with our new estimates.
-    new_res.niter = len(res.ncall[samp_idx])
-    new_res.ncall = res.ncall[samp_idx]
-    new_res.eff = eff
-    new_res.samples = res.samples[samp_idx]
-    new_res.samples_id = res.samples_id[samp_idx]
-    new_res.samples_it = res.samples_it[samp_idx]
-    new_res.samples_u = res.samples_u[samp_idx]
-    new_res.samples_n = samp_n
-    new_res.logwt = np.asarray(saved_logwt)
-    new_res.logl = logl
-    new_res.logvol = logvol
-    new_res.logz = np.asarray(saved_logz)
-    new_res.logzerr = np.sqrt(np.maximum(np.asarray(saved_logzvar), 0))
-    new_res.h = np.asarray(saved_h)
+    new_res_dict = dict(niter=len(res.ncall[samp_idx]),
+                        ncall=res.ncall[samp_idx],
+                        eff=eff,
+                        samples=res.samples[samp_idx],
+                        samples_id=res.samples_id[samp_idx],
+                        samples_it=res.samples_it[samp_idx],
+                        samples_u=res.samples_u[samp_idx],
+                        samples_n=samp_n,
+                        logwt=np.asarray(saved_logwt),
+                        logl=logl,
+                        logvol=logvol,
+                        logz=np.asarray(saved_logz),
+                        logzerr=np.sqrt(
+                            np.maximum(np.asarray(saved_logzvar), 0)),
+                        information=np.asarray(saved_h))
+    new_res = Results(new_res_dict)
 
     if return_idx:
         return new_res, samp_idx
@@ -937,15 +931,16 @@ def reweight_run(res, logp_new, logp_old=None):
     saved_logwt, saved_logz, saved_logzvar, saved_h = compute_integrals(
         logl=logl, logvol=logvol, reweight=logrwt)
 
-    # Copy results.
-    new_res = Results(list(res.items()))
-
     # Overwrite items with our new estimates.
-    new_res.logwt = np.asarray(saved_logwt)
-    new_res.logz = np.asarray(saved_logz)
-    new_res.logzerr = np.sqrt(np.asarray(saved_logzvar))
-    new_res.h = np.asarray(saved_h)
+    substitute = {
+        'logvol': logvol,
+        'logwt': saved_logwt,
+        'logz': saved_logz,
+        'logzerr': np.sqrt(np.maximum(saved_logzvar, 0)),
+        'h': saved_h
+    }
 
+    new_res = results_substitute(res, substitute)
     return new_res
 
 
@@ -1022,33 +1017,40 @@ def unravel_run(res, save_proposals=True, print_progress=True):
         eff = 100. * nsamps / sum(res.ncall[strand])
 
         # Save results.
-        r = [('nlive', 1), ('niter', niter), ('ncall', res.ncall[strand]),
-             ('eff', eff), ('samples', res.samples[strand]),
-             ('samples_id', res.samples_id[strand]),
-             ('samples_it', res.samples_it[strand]),
-             ('samples_u', res.samples_u[strand]), ('logwt', saved_logwt),
-             ('logl', logl), ('logvol', logvol), ('logz', saved_logz),
-             ('logzerr', np.sqrt(saved_logzvar)), ('h', saved_h)]
+        rdict = dict(nlive=1,
+                     niter=niter,
+                     ncall=res.ncall[strand],
+                     eff=eff,
+                     samples=res.samples[strand],
+                     samples_id=res.samples_id[strand],
+                     samples_it=res.samples_it[strand],
+                     samples_u=res.samples_u[strand],
+                     logwt=saved_logwt,
+                     logl=logl,
+                     logvol=logvol,
+                     logz=saved_logz,
+                     logzerr=np.sqrt(saved_logzvar),
+                     information=saved_h)
 
         # Add proposal information (if available).
         if save_proposals:
             try:
-                r.append(('prop', res.prop))
-                r.append(('prop_iter', res.prop_iter[strand]))
-                r.append(('samples_prop', res.samples_prop[strand]))
-                r.append(('scale', res.scale[strand]))
+                rdict['prop'] = res.prop
+                rdict['prop_iter'] = res.prop_iter[strand]
+                rdict['samples_prop'] = res.samples_prop[strand]
+                rdict['scale'] = res.scale[strand]
             except AttributeError:
                 pass
 
         # Add on batch information (if available).
         try:
-            r.append(('samples_batch', res.samples_batch[strand]))
-            r.append(('batch_bounds', res.batch_bounds))
+            rdict['samples_batch'] = res.samples_batch[strand]
+            rdict['batch_bounds'] = res.batch_bounds
         except AttributeError:
             pass
 
         # Append to list of strands.
-        new_res.append(Results(r))
+        new_res.append(Results(rdict))
 
         # Print progress.
         if print_progress:
@@ -1140,6 +1142,16 @@ def merge_runs(res_list, print_progress=True):
         if print_progress:
             sys.stderr.write('\rMerge: {0}/{1}     '.format(counter, ntot))
 
+    res = check_result_static(res)
+
+    return res
+
+
+def check_result_static(res):
+    """ If the run was from a dynamic run but had constant
+    number of live points, return a new Results object with
+    nlive parameter, so we could use it as static run
+    """
     samples_n = _get_nsamps_samples_n(res)[1]
     nlive = max(samples_n)
     niter = res.niter
@@ -1152,19 +1164,18 @@ def merge_runs(res_list, print_progress=True):
 
     # Check if we have a constant number of live points where we have
     # recycled the final set of live points.
-    nlive_test = np.append(
-        np.ones(niter - nlive, dtype=int) * nlive,
-        np.arange(1, nlive + 1)[::-1])
+    nlive_test = np.minimum(np.arange(niter, 0, -1), nlive)
     if np.all(samples_n == nlive_test):
         standard_run = True
-
     # If the number of live points is consistent with a standard nested
     # sampling run, slightly modify the format to keep with previous usage.
     if standard_run:
-        res.__delitem__('samples_n')
-        res.nlive = nlive
-        res.niter = niter - nlive
-
+        resdict = res.asdict()
+        resdict['nlive'] = nlive
+        resdict['niter'] = niter - nlive
+        # XXX TODO Is it correct to subtract nlive here ?
+        # That will make things inconsistent
+        res = Results(resdict)
     return res
 
 
@@ -1502,7 +1513,7 @@ def _merge_two(res1, res2, compute_aux=False):
         r.append(('logwt', combined_logwt))
         r.append(('logz', combined_logz))
         r.append(('logzerr', np.sqrt(combined_logzvar)))
-        r.append(('h', combined_h))
+        r.append(('information', combined_h))
         r.append(('batch_nlive', np.array(batch_nlive, dtype=int)))
 
     # Combine to form final results object.

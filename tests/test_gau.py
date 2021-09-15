@@ -280,8 +280,11 @@ def test_dynamic():
                                             rstate=rstate)
     dsampler.run_nested(print_progress=printing)
     # chechk explicit adding batches
-    dsampler.add_batch(logl_bounds=(-10, 0))
-    dsampler.add_batch(logl_bounds=(-10000000, -1000))
+    dsampler.add_batch(mode='auto')
+    dsampler.add_batch(mode='weight')
+    dsampler.add_batch(mode='full')
+    dsampler.add_batch(logl_bounds=(-10, 0), mode='manual')
+    dsampler.add_batch(logl_bounds=(-10000000, -1000), mode='manual')
     check_results_gau(dsampler.results, g, rstate)
 
     # check error analysis functions

@@ -425,15 +425,13 @@ class MultiEllipsoid:
 
     def within(self, x, j=None):
         """Checks which ellipsoid(s) `x` falls within, skipping the `j`-th
-        ellipsoid."""
+        ellipsoid if need be."""
 
-        # Loop through distance calculations if there aren't too many.
-        idxs = np.where([
-            self.ells[i].contains(x) if i != j else True
-            for i in range(self.nells)
-        ])[0]
-
-        return idxs
+        delt = x[None, :] - self.ctrs
+        mask = np.einsum('ai,aij,aj->a', delt, self.ams, delt) < 1
+        if j is not None:
+            mask[j] = False
+        return np.nonzero(mask)[0]
 
     def overlap(self, x, j=None):
         """Checks how many ellipsoid(s) `x` falls within, skipping the `j`-th

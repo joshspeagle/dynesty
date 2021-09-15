@@ -843,6 +843,7 @@ def resample_run(res, rstate=None, return_idx=False):
                             np.maximum(np.asarray(saved_logzvar), 0)),
                         information=np.asarray(saved_h))
     new_res = Results(new_res_dict)
+
     if return_idx:
         return new_res, samp_idx
     else:

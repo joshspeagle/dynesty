@@ -1290,35 +1290,23 @@ def _merge_two(res1, res2, compute_aux=False):
     nbase = len(base_id)
 
     # Number of live points throughout the run.
-    try:
+    if res1.isdynamic():
         base_n = res1.samples_n
-    except AttributeError:
+    else:
         niter, nlive = res1.niter, res1.nlive
         if nbase == niter:
             base_n = np.ones(niter, dtype=int) * nlive
         elif nbase == (niter + nlive):
-            base_n = np.append(
-                np.ones(niter, dtype=int) * nlive,
-                np.arange(1, nlive + 1)[::-1])
+            base_n = np.minimum(np.arange(nbase, 0, -1), nlive)
         else:
             raise ValueError("Final number of samples differs from number of "
                              "iterations and number of live points in `res1`.")
 
-    # Proposal information (if available).
-    try:
-        base_prop = res1.prop
-        base_propidx = res1.samples_prop
-        base_piter = res1.prop_iter
-        base_scale = res1.scale
-        base_proposals = True
-    except AttributeError:
-        base_proposals = False
-
     # Batch information (if available).
-    try:
+    if res1.isdynamic():
         base_batch = res1.samples_batch
         base_bounds = res1.batch_bounds
-    except AttributeError:
+    else:
         base_batch = np.zeros(nbase, dtype=int)
         base_bounds = np.array([(-np.inf, np.inf)])
 
@@ -1332,29 +1320,17 @@ def _merge_two(res1, res2, compute_aux=False):
     nnew = len(new_id)
 
     # Number of live points throughout the run.
-    try:
+    if res2.isdynamic():
         new_n = res2.samples_n
-    except AttributeError:
+    else:
         niter, nlive = res2.niter, res2.nlive
         if nnew == niter:
             new_n = np.ones(niter, dtype=int) * nlive
         elif nnew == (niter + nlive):
-            new_n = np.append(
-                np.ones(niter, dtype=int) * nlive,
-                np.arange(1, nlive + 1)[::-1])
+            new_n = np.minimum(np.arange(nnew, 0, -1), nlive)
         else:
             raise ValueError("Final number of samples differs from number of "
                              "iterations and number of live points in `res2`.")
-
-    # Proposal information (if available).
-    try:
-        new_prop = res2.prop
-        new_propidx = res2.samples_prop
-        new_piter = res2.prop_iter
-        new_scale = res2.scale
-        new_proposals = True
-    except AttributeError:
-        new_proposals = False
 
     # Batch information (if available).
     try:
@@ -1375,21 +1351,9 @@ def _merge_two(res1, res2, compute_aux=False):
     combined_logzvar = []
     combined_h = []
     combined_nc = []
-    combined_propidx = []
     combined_it = []
     combined_n = []
-    combined_piter = []
-    combined_scale = []
     combined_batch = []
-
-    # Check if proposal info is the same and modify counters accordingly.
-    if base_proposals and new_proposals:
-        if base_prop == new_prop:
-            prop = base_prop
-            poffset = 0
-        else:
-            prop = np.concatenate((base_prop, new_prop))
-            poffset = len(base_prop)
 
     # Check if batch info is the same and modify counters accordingly.
     if np.all(base_bounds == new_bounds):
@@ -1434,10 +1398,6 @@ def _merge_two(res1, res2, compute_aux=False):
             combined_nc.append(base_nc[idx_base])
             combined_it.append(base_it[idx_base])
             combined_batch.append(base_batch[idx_base])
-            if base_proposals and new_proposals:
-                combined_propidx.append(base_propidx[idx_base])
-                combined_piter.append(base_piter[idx_base])
-                combined_scale.append(base_scale[idx_base])
             idx_base += 1
         else:
             combined_id.append(new_id[idx_new])
@@ -1447,10 +1407,6 @@ def _merge_two(res1, res2, compute_aux=False):
             combined_nc.append(new_nc[idx_new])
             combined_it.append(new_it[idx_new])
             combined_batch.append(new_batch[idx_new] + boffset)
-            if base_proposals and new_proposals:
-                combined_propidx.append(new_propidx[idx_new] + poffset)
-                combined_piter.append(new_piter[idx_new] + poffset)
-                combined_scale.append(new_scale[idx_new])
             idx_new += 1
 
         # Save the number of live points and expected ln(volume).
@@ -1488,13 +1444,6 @@ def _merge_two(res1, res2, compute_aux=False):
          ('logvol', np.asarray(combined_logvol)),
          ('batch_bounds', np.asarray(bounds))]
 
-    # Add proposal information (if available).
-    if base_proposals and new_proposals:
-        r.append(('prop', prop))
-        r.append(('prop_iter', np.asarray(combined_piter)))
-        r.append(('samples_prop', np.asarray(combined_propidx)))
-        r.append(('scale', np.asarray(combined_scale)))
-
     # Compute the posterior quantities of interest if desired.
     if compute_aux:
 
@@ -1523,8 +1472,8 @@ def _merge_two(res1, res2, compute_aux=False):
 
 
 def _kld_error(args):
-    """ Internal `pool.map`-friendly wrapper for :meth:`kld_error` used by      
-    :meth:`stopping_function`."""
+    """ Internal `pool.map`-friendly wrapper for :meth:`kld_error`
+    used by :meth:`stopping_function`."""
 
     # Extract arguments.
     results, error, approx, rseed = args

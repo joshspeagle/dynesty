@@ -115,7 +115,7 @@ samples from the prior volume :math:`1 > X_0 > X_1 > \dots > X_N > 0`,
 we can compute the evidence using standard numerical integration techniques
 (e.g., the `trapezoid rule <https://en.wikipedia.org/wiki/Trapezoidal_rule>`_).
 Computing the evidence using these "nested shells" is what gives Nested
-Sampling its eponymous name.
+Sampling its name.
 
 Basic Algorithm
 ---------------

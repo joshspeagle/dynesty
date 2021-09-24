@@ -1,0 +1,3 @@
+[TYPECHECK]
+
+ignored-classes=dynesty.results.Results

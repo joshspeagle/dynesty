@@ -1281,134 +1281,98 @@ def _merge_two(res1, res2, compute_aux=False):
     """
 
     # Initialize the first ("base") run.
-    base_id = res1.samples_id
-    base_u = res1.samples_u
-    base_v = res1.samples
-    base_logl = res1.logl
-    base_nc = res1.ncall
-    base_it = res1.samples_it
-    nbase = len(base_id)
+    base_info = dict(id=res1.samples_id,
+                     u=res1.samples_u,
+                     v=res1.samples,
+                     logl=res1.logl,
+                     nc=res1.ncall,
+                     it=res1.samples_it)
+    nbase = len(base_info['id'])
 
     # Number of live points throughout the run.
-    try:
+    if res1.isdynamic():
         base_n = res1.samples_n
-    except AttributeError:
+    else:
         niter, nlive = res1.niter, res1.nlive
         if nbase == niter:
             base_n = np.ones(niter, dtype=int) * nlive
         elif nbase == (niter + nlive):
-            base_n = np.append(
-                np.ones(niter, dtype=int) * nlive,
-                np.arange(1, nlive + 1)[::-1])
+            base_n = np.minimum(np.arange(nbase, 0, -1), nlive)
         else:
             raise ValueError("Final number of samples differs from number of "
                              "iterations and number of live points in `res1`.")
 
-    # Proposal information (if available).
-    try:
-        base_prop = res1.prop
-        base_propidx = res1.samples_prop
-        base_piter = res1.prop_iter
-        base_scale = res1.scale
-        base_proposals = True
-    except AttributeError:
-        base_proposals = False
-
     # Batch information (if available).
-    try:
-        base_batch = res1.samples_batch
-        base_bounds = res1.batch_bounds
-    except AttributeError:
-        base_batch = np.zeros(nbase, dtype=int)
-        base_bounds = np.array([(-np.inf, np.inf)])
+    if res1.isdynamic():
+        base_info['batch'] = res1.samples_batch
+        base_info['bounds'] = res1.batch_bounds
+    else:
+        base_info['batch'] = np.zeros(nbase, dtype=int)
+        base_info['bounds'] = np.array([(-np.inf, np.inf)])
 
     # Initialize the second ("new") run.
-    new_id = res2.samples_id
-    new_u = res2.samples_u
-    new_v = res2.samples
-    new_logl = res2.logl
-    new_nc = res2.ncall
-    new_it = res2.samples_it
-    nnew = len(new_id)
+    new_info = dict(id=res2.samples_id,
+                    u=res2.samples_u,
+                    v=res2.samples,
+                    logl=res2.logl,
+                    nc=res2.ncall,
+                    it=res2.samples_it)
+    nnew = len(new_info['id'])
 
     # Number of live points throughout the run.
-    try:
+    if res2.isdynamic():
         new_n = res2.samples_n
-    except AttributeError:
+    else:
         niter, nlive = res2.niter, res2.nlive
         if nnew == niter:
             new_n = np.ones(niter, dtype=int) * nlive
         elif nnew == (niter + nlive):
-            new_n = np.append(
-                np.ones(niter, dtype=int) * nlive,
-                np.arange(1, nlive + 1)[::-1])
+            new_n = np.minimum(np.arange(nnew, 0, -1), nlive)
         else:
             raise ValueError("Final number of samples differs from number of "
                              "iterations and number of live points in `res2`.")
 
-    # Proposal information (if available).
-    try:
-        new_prop = res2.prop
-        new_propidx = res2.samples_prop
-        new_piter = res2.prop_iter
-        new_scale = res2.scale
-        new_proposals = True
-    except AttributeError:
-        new_proposals = False
-
     # Batch information (if available).
-    try:
-        new_batch = res2.samples_batch
-        new_bounds = res2.batch_bounds
-    except AttributeError:
-        new_batch = np.zeros(nnew, dtype=int)
-        new_bounds = np.array([(-np.inf, np.inf)])
+    if res2.isdynamic():
+        new_info['batch'] = res2.samples_batch
+        new_info['bounds'] = res2.batch_bounds
+    else:
+        new_info['batch'] = np.zeros(nnew, dtype=int)
+        new_info['bounds'] = np.array([(-np.inf, np.inf)])
 
     # Initialize our new combind run.
-    combined_id = []
-    combined_u = []
-    combined_v = []
-    combined_logl = []
-    combined_logvol = []
-    combined_logwt = []
-    combined_logz = []
-    combined_logzvar = []
-    combined_h = []
-    combined_nc = []
-    combined_propidx = []
-    combined_it = []
-    combined_n = []
-    combined_piter = []
-    combined_scale = []
-    combined_batch = []
-
-    # Check if proposal info is the same and modify counters accordingly.
-    if base_proposals and new_proposals:
-        if base_prop == new_prop:
-            prop = base_prop
-            poffset = 0
-        else:
-            prop = np.concatenate((base_prop, new_prop))
-            poffset = len(base_prop)
+    combined_info = dict(id=[],
+                         u=[],
+                         v=[],
+                         logl=[],
+                         logvol=[],
+                         logwt=[],
+                         logz=[],
+                         logzvar=[],
+                         h=[],
+                         nc=[],
+                         it=[],
+                         n=[],
+                         batch=[])
 
     # Check if batch info is the same and modify counters accordingly.
-    if np.all(base_bounds == new_bounds):
-        bounds = base_bounds
+    if np.all(base_info['bounds'] == new_info['bounds']):
+        bounds = base_info['bounds']
         boffset = 0
     else:
-        bounds = np.concatenate((base_bounds, new_bounds))
-        boffset = len(base_bounds)
+        bounds = np.concatenate((base_info['bounds'], new_info['bounds']))
+        boffset = len(base_info['bounds'])
 
     # Start our counters at the beginning of each set of dead points.
     idx_base, idx_new = 0, 0
-    logl_b, logl_n = base_logl[idx_base], new_logl[idx_new]
+    logl_b, logl_n = base_info['logl'][idx_base], new_info['logl'][idx_new]
     nlive_b, nlive_n = base_n[idx_base], new_n[idx_new]
 
     # Iteratively walk through both set of samples to simulate
     # a combined run.
     ntot = nbase + nnew
-    llmin_b = np.min(base_bounds[base_batch])
-    llmin_n = np.min(new_bounds[new_batch])
+    llmin_b = np.min(base_info['bounds'][base_info['batch']])
+    llmin_n = np.min(new_info['bounds'][new_info['batch']])
     logvol = 0.
     for i in range(ntot):
         if logl_b > llmin_n and logl_n > llmin_b:
@@ -1426,95 +1390,73 @@ def _merge_two(res1, res2, compute_aux=False):
 
         # Increment our position along depending on
         # which dead point (saved or new) is worse.
+
         if logl_b <= logl_n:
-            combined_id.append(base_id[idx_base])
-            combined_u.append(base_u[idx_base])
-            combined_v.append(base_v[idx_base])
-            combined_logl.append(base_logl[idx_base])
-            combined_nc.append(base_nc[idx_base])
-            combined_it.append(base_it[idx_base])
-            combined_batch.append(base_batch[idx_base])
-            if base_proposals and new_proposals:
-                combined_propidx.append(base_propidx[idx_base])
-                combined_piter.append(base_piter[idx_base])
-                combined_scale.append(base_scale[idx_base])
+            add_idx = idx_base
+            from_run = base_info
             idx_base += 1
+            combined_info['batch'].append(from_run['batch'][add_idx])
         else:
-            combined_id.append(new_id[idx_new])
-            combined_u.append(new_u[idx_new])
-            combined_v.append(new_v[idx_new])
-            combined_logl.append(new_logl[idx_new])
-            combined_nc.append(new_nc[idx_new])
-            combined_it.append(new_it[idx_new])
-            combined_batch.append(new_batch[idx_new] + boffset)
-            if base_proposals and new_proposals:
-                combined_propidx.append(new_propidx[idx_new] + poffset)
-                combined_piter.append(new_piter[idx_new] + poffset)
-                combined_scale.append(new_scale[idx_new])
+            add_idx = idx_new
+            from_run = new_info
             idx_new += 1
+            combined_info['batch'].append(from_run['batch'][add_idx] + boffset)
+
+        for curk in ['id', 'u', 'v', 'logl', 'nc', 'it']:
+            combined_info[curk].append(from_run[curk][add_idx])
 
         # Save the number of live points and expected ln(volume).
         logvol -= math.log((nlive + 1.) / nlive)
-        combined_n.append(nlive)
-        combined_logvol.append(logvol)
+        combined_info['n'].append(nlive)
+        combined_info['logvol'].append(logvol)
 
         # Attempt to step along our samples. If we're out of samples,
         # set values to defaults.
         try:
-            logl_b = base_logl[idx_base]
+            logl_b = base_info['logl'][idx_base]
             nlive_b = base_n[idx_base]
         except IndexError:
             logl_b = np.inf
             nlive_b = 0
         try:
-            logl_n = new_logl[idx_new]
+            logl_n = new_info['logl'][idx_new]
             nlive_n = new_n[idx_new]
         except IndexError:
             logl_n = np.inf
             nlive_n = 0
 
     # Compute sampling efficiency.
-    eff = 100. * ntot / sum(combined_nc)
+    eff = 100. * ntot / sum(combined_info['nc'])
 
     # Save results.
-    r = [('niter', ntot), ('ncall', np.asarray(combined_nc)), ('eff', eff),
-         ('samples', np.asarray(combined_v)),
-         ('samples_id', np.asarray(combined_id)),
-         ('samples_it', np.asarray(combined_it)),
-         ('samples_n', np.asarray(combined_n)),
-         ('samples_u', np.asarray(combined_u)),
-         ('samples_batch', np.asarray(combined_batch)),
-         ('logl', np.asarray(combined_logl)),
-         ('logvol', np.asarray(combined_logvol)),
-         ('batch_bounds', np.asarray(bounds))]
+    r = dict(niter=ntot,
+             ncall=np.asarray(combined_info['nc']),
+             eff=eff,
+             samples=np.asarray(combined_info['v']),
+             logl=np.asarray(combined_info['logl']),
+             logvol=np.asarray(combined_info['logvol']),
+             batch_bounds=np.asarray(bounds))
 
-    # Add proposal information (if available).
-    if base_proposals and new_proposals:
-        r.append(('prop', prop))
-        r.append(('prop_iter', np.asarray(combined_piter)))
-        r.append(('samples_prop', np.asarray(combined_propidx)))
-        r.append(('scale', np.asarray(combined_scale)))
+    for curk in ['id', 'it', 'n', 'u', 'batch']:
+        r['samples_' + curk] = np.asarray(combined_info[curk])
 
     # Compute the posterior quantities of interest if desired.
     if compute_aux:
 
-        (combined_logwt, combined_logz, combined_logzvar,
-         combined_h) = compute_integrals(logvol=combined_logvol,
-                                         logl=combined_logl)
+        (r['logwt'], r['logz'], combined_logzvar,
+         r['information']) = compute_integrals(logvol=r['logvol'],
+                                               logl=r['logl'])
+        r['logzerr'] = np.sqrt(np.maximum(combined_logzvar, 0))
 
         # Compute batch information.
-        combined_id = np.asarray(combined_id)
+        combined_id = np.asarray(combined_info['id'])
         batch_nlive = [
-            len(np.unique(combined_id[combined_batch == i]))
-            for i in np.unique(combined_batch)
+            len(np.unique(combined_id[combined_info['batch'] == i]))
+            for i in np.unique(combined_info['batch'])
         ]
 
         # Add to our results.
-        r.append(('logwt', combined_logwt))
-        r.append(('logz', combined_logz))
-        r.append(('logzerr', np.sqrt(combined_logzvar)))
-        r.append(('information', combined_h))
-        r.append(('batch_nlive', np.array(batch_nlive, dtype=int)))
+        r['batch_nlive'] = np.array(batch_nlive, dtype=int)
 
     # Combine to form final results object.
     res = Results(r)
@@ -1523,8 +1465,8 @@ def _merge_two(res1, res2, compute_aux=False):
 
 
 def _kld_error(args):
-    """ Internal `pool.map`-friendly wrapper for :meth:`kld_error` used by      
-    :meth:`stopping_function`."""
+    """ Internal `pool.map`-friendly wrapper for :meth:`kld_error`
+    used by :meth:`stopping_function`."""
 
     # Extract arguments.
     results, error, approx, rseed = args

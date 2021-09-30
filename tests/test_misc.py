@@ -177,3 +177,23 @@ def test_stop_nmc():
     sampler.run_nested(dlogz_init=1,
                        n_effective=None,
                        stop_kwargs=dict(n_mc=25))
+
+
+def test_results():
+    # test of various results interfaces functionality
+    ndim = 2
+    rstate = get_rstate()
+
+    sampler = dynesty.DynamicNestedSampler(loglike,
+                                           prior_transform,
+                                           ndim,
+                                           nlive=nlive,
+                                           rstate=rstate)
+    sampler.run_nested()
+    res = sampler.results
+    for k in res.keys():
+        pass
+    for k, v in res.items():
+        pass
+    for k, v in res.asdict().items():
+        pass

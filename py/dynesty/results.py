@@ -336,6 +336,10 @@ class Results:
         return '\n'.join(
             [k.rjust(m) + ': ' + repr(getattr(self, k)) for k in self._keys])
 
+    def keys(self):
+        """ Return the list of attributes/keys stored in Results """
+        return self._keys
+
     def items(self):
         """
 Return the list of items in the results object as list of key,value pairs
@@ -346,7 +350,7 @@ Return the list of items in the results object as list of key,value pairs
         """
         Return contents of the Results object as dictionary
         """
-        return copy.copy(self._keys)
+        return dict((k, copy.copy(getattr(self, k))) for k in self._keys)
 
     def isdynamic(self):
         """ Return true if the results was constructed using dynamic

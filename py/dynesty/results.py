@@ -336,6 +336,9 @@ class Results:
         return '\n'.join(
             [k.rjust(m) + ': ' + repr(getattr(self, k)) for k in self._keys])
 
+    def __contains__(self, key):
+        return key in self._keys
+
     def keys(self):
         """ Return the list of attributes/keys stored in Results """
         return self._keys

@@ -1039,6 +1039,8 @@ class DynamicSampler:
             maxcall = sys.maxsize
         if maxiter is None:
             maxiter = sys.maxsize
+
+        maxiter_left = maxiter  # how many iterations we have left
         nlive_new = nlive_new or self.nlive0
 
         if nlive_new <= 2 * self.ncdim:
@@ -1224,7 +1226,7 @@ class DynamicSampler:
                                           boundidx=live_bound[i],
                                           bounditer=live_bound[i],
                                           eff=self.eff)
-
+        maxiter_left -= nlive_new
         # Overwrite the previous set of live points in our internal sampler
         # with the new batch of points we just generated.
         batch_sampler.nlive = nlive_new
@@ -1280,7 +1282,7 @@ class DynamicSampler:
             for it, results in enumerate(
                     batch_sampler.sample(dlogz=dlogz,
                                          logl_max=logl_max,
-                                         maxiter=maxiter - nlive_new - 1,
+                                         maxiter=maxiter_left,
                                          maxcall=maxcall - sum(live_nc),
                                          save_samples=False,
                                          save_bounds=save_bounds)):
@@ -1301,6 +1303,7 @@ class DynamicSampler:
                 self.ncall += results.nc
                 self.eff = 100. * self.it / self.ncall
                 self.it += 1
+                maxiter_left -= 1
                 iterated_batch = True
                 yield IteratorResultShort(worst=results.worst,
                                           ustar=results.ustar,
@@ -1313,7 +1316,7 @@ class DynamicSampler:
                                           eff=self.eff)
 
             if (iterated_batch and results.loglstar < logl_max
-                    and np.isfinite(logl_max)):
+                    and np.isfinite(logl_max)) and maxiter_left > 0:
                 warnings.warn('Warning. The maximum likelihood not reached '
                               'in the batch. '
                               'You may not have enough livepoints')

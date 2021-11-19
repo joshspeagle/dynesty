@@ -1,0 +1,26 @@
+---
+name: Bug report
+about: Create a report to help us improve
+title: ''
+labels: ''
+assignees: ''
+
+---
+
+**Describe the bug**
+[A clear and concise description of what the bug is.]
+
+**Setup**
+I am running version [insert version] from [source] with the following dynesty setup:
+[insert a copy of the dynesty code used during initialization and runtime] 
+
+**Bug**
+I find [describe bug] which gives the following error:
+[insert copy of error here, including any relevant screenshots]
+
+The behaviour I expected was [additional description].
+
+To reproduce the behaviour I see, please see [progress report/attached file/description].
+
+**Additional context**
+[Add any other context about the problem here.]

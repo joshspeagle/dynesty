@@ -156,7 +156,7 @@ class LogLikelihood:
 
 def get_enlarge_bootstrap(sample, enlarge, bootstrap):
     """
-    Determine the enlarge, boostrap for a given run
+    Determine the enlarge, bootstrap for a given run
     """
     # we should make it dimension dependent I think...
     DEFAULT_ENLARGE = 1.25

@@ -2071,7 +2071,7 @@ def cornerbound(results,
                 uidx = samples_id[r]
                 live_u[uidx] = samples[r]
         # Draw samples.
-        psamps = bound.samples(ndraws, live_u)
+        psamps = bound.samples(ndraws, live_u, rstate=rstate)
 
     # Projecting samples to input dimensions and possibly
     # the native model space.

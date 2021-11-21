@@ -292,8 +292,6 @@ the provided bounds which can be passed via the `sample` argument:
 
 * **random walks** away from a current live point (`'rwalk'`),
 
-* **random "staggering"** away from a current live point (`'rstagger'`),
-
 * **multivariate slice sampling** away from a current live point (`'slice'`),
 
 * **random slice sampling** away from a current live point (`'rslice'`), and
@@ -323,16 +321,14 @@ uses the following logic:
   distributions in higher dimensions,
 
 * If :math:`D > 20` and a gradient is not provided,
-  `'slice'` is chosen since non-rejection sampling
+  `'rslice'` is chosen since non-rejection sampling
   methods scale in polynomial (rather than exponential) time as the
   dimensionality increases.
 
 * If :math:`D > 20` and a gradient *is* provided, `'hslice'` is chosen
-  to take advantage of Hamiltonian dynamics, which scale better than `'slice'`
+  to take advantage of Hamiltonian dynamics, which scale better than `'rslice'`
   as the dimensionality increases.
 
-`'rslice'` and `'rstagger'` can be quite effective for particular problems
-but currently are not considered as "robust" as the approaches above.
 Note that `'hslice'`, while using gradients, is substantially less efficient
 (and in general less reliable) than other gradient-based approaches such
 as Hamiltonian Monte Carlo. As such, **use them at your own risk.**
@@ -485,7 +481,7 @@ real time. The stopping criteria can be any combination of:
 * a specified :math:`\Delta \ln \hat{\mathcal{Z}}_i` tolerance (`dlogz`), and
 
 * a specified Effective Sample Size
-  (`ESS <https://en.wikipedia.org/wiki/Effective_sample_size>`_).
+  (`ESS <https://en.wikipedia.org/wiki/Effective_sample_size>`_) (`n_effective`).
 
 For instance, running one of the examples above would produce output like:
 

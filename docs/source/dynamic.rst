@@ -243,9 +243,17 @@ are *realizations* of the evidence computed from the current set of samples.
 More details on this procedure are described under
 :ref:`Nested Sampling Errors`.
 
-For posterior estimation, however, many researchers do not have such well-posed
-goals that they can use to determine the necessary sample size. As such, the
-default choice in ``dynesty`` is to assume that "well" means that the 
+For posterior estimation, however, the default metric used is based on the
+effective number of posterior samples i.e.
+
+.. math::
+
+   S_{p} = \frac{N_{effective}}{N_{target,effective}}
+
+where :math:`N_{target,effective}` is user specified target number of
+of effective samples.
+
+Previously the default choice for :math:`S_p` in ``dynesty`` was to use the 
 "difference" between the posterior density estimate
 :math:`\hat{P}(\boldsymbol{\Theta})` we construct from our set of samples
 :math:`\left\lbrace \boldsymbol{\Theta}_1, \dots, \boldsymbol{\Theta}_N

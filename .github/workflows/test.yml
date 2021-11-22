@@ -36,6 +36,7 @@ jobs:
           pip install coveralls
           pip install sphinx
           pip install sphinx-rtd-theme
+          pip install numpydoc
           pip install tqdm
           pip install .
       - name: Docs

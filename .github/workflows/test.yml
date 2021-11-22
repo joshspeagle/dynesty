@@ -34,8 +34,14 @@ jobs:
           pip install pylint
           pip install pytest-cov
           pip install coveralls
+          pip install sphinx
+          pip install sphinx-rtd-theme
           pip install tqdm
           pip install .
+      - name: Docs
+        run: |
+          cd docs
+          make html
       - name: pylint
         run: pylint --fail-under=8 --extension-pkg-whitelist=scipy.special  py/dynesty/*py
       - name: RandomCheck

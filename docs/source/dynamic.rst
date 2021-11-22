@@ -248,7 +248,7 @@ effective number of posterior samples i.e.
 
 .. math::
 
-   S_{p} = \frac{N_{effective}}{N_{target,effective}}
+   S_{p} = \frac{N_{target,effective}}{N_{effective}}
 
 where :math:`N_{target,effective}` is user specified target number of
 of effective samples.

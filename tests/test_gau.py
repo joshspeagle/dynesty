@@ -106,6 +106,9 @@ def check_results_gau(results, g, rstate, sig=5, logz_tol=None):
     if logz_tol is None:
         logz_tol = sig * results.logzerr[-1]
     mean_tol, cov_tol = bootstrap_tol(results, rstate)
+    # just check that resample_equal works
+    dyfunc.resample_equal(results.samples,
+                          np.exp(results.logwt - results.logz[-1]))
     check_results(results,
                   g.mean,
                   g.cov,

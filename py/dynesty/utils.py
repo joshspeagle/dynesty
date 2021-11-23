@@ -348,11 +348,13 @@ def resample_equal(samples, weights, rstate=None):
     if rstate is None:
         rstate = get_random_generator()
 
-    if abs(np.sum(weights) - 1.) > SQRTEPS:
+    cumulative_sum = np.cumsum(weights)
+    if abs(cumulative_sum[-1] - 1.) > SQRTEPS:
         # same tol as in numpy's random.choice.
         # Guarantee that the weights will sum to 1.
         warnings.warn("Weights do not sum to 1 and have been renormalized.")
-        weights = np.asarray(weights) / np.sum(weights)
+    cumulative_sum /= cumulative_sum[-1]
+    # this ensures that the last element is strictly == 1
 
     # Make N subdivisions and choose positions with a consistent random offset.
     nsamples = len(weights)
@@ -360,7 +362,6 @@ def resample_equal(samples, weights, rstate=None):
 
     # Resample the data.
     idx = np.zeros(nsamples, dtype=int)
-    cumulative_sum = np.cumsum(weights)
     i, j = 0, 0
     while i < nsamples:
         if positions[i] < cumulative_sum[j]:

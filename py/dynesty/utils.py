@@ -1303,7 +1303,10 @@ def _merge_two(res1, res2, compute_aux=False):
                              "iterations and number of live points in `res1`.")
 
     # Batch information (if available).
-    if res1.isdynamic():
+    # note we also check for existance of batch_bounds
+    # because unravel_run makes 'static' runs of 1 livepoint
+    # but some will have bounds
+    if res1.isdynamic() or 'batch_bounds' in res1.keys():
         base_info['batch'] = res1.samples_batch
         base_info['bounds'] = res1.batch_bounds
     else:
@@ -1333,7 +1336,10 @@ def _merge_two(res1, res2, compute_aux=False):
                              "iterations and number of live points in `res2`.")
 
     # Batch information (if available).
-    if res2.isdynamic():
+    # note we also check for existance of batch_bounds
+    # because unravel_run makes 'static' runs of 1 livepoint
+    # but some will have bounds
+    if res2.isdynamic() or 'batch_bounds' in res2.keys():
         new_info['batch'] = res2.samples_batch
         new_info['bounds'] = res2.batch_bounds
     else:

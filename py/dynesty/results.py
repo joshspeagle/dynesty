@@ -231,11 +231,10 @@ def print_fn_fallback(results,
 _RESULTS_STRUCTURE = [
     ('logl', 'array[float]', 'Log likelihood', 'niter'),
     ('samples_it', 'array[int]',
-     ' the sampling iteration when the sample was proposed (e.g., iteration 570)',
-     'niter'),
+     "the sampling iteration when the sample was proposed "
+     "(e.g., iteration 570)", 'niter'),
     ('samples_id', 'array[int]',
-     'The unique ID of the sample XXX (within nlive or within the whole sample ? )',
-     None),
+     'The unique ID of the sample XXX (within nlive points)', None),
     ('samples_n', 'array[int]',
      'The number of live points at the point when the sample was proposed',
      'niter'),
@@ -257,19 +256,18 @@ _RESULTS_STRUCTURE = [
     ('bound', 'array[object]',
      "the set of bounding objects used to condition proposals", 'XXX'),
     ('bound_iter', 'array[XXX]',
-     "the iteration when the corresponding bound was created to propose new live points (e.g., iteration 520)",
-     'XXX'),
+     "the iteration when the corresponding bound was created to propose "
+     "new live points (e.g., iteration 520)", 'XXX'),
     ('samples_bound', 'array[XXX]',
      "The index of the bound that the corresponding sample was drawn from",
      'niter'),
     ('samples_batch', 'array[XXX]',
      "Tracks the batch during which the samples were proposed", 'nbatch???'),
     ('batch_bounds', 'array[XXX]',
-     "The log-likelihood bounds used to sample points in a given batch XXXXXXX How is that different from samples bound ?",
-     'nbatch???'),
+     "The log-likelihood bounds used to run a batch.", 'nbatch???'),
     ('batch_nlive', 'array[int]',
-     """The number of live points added in a given batch ???  How is it different from
- samples_n""", 'nbatch???'),
+     """The number of live points added in a given batch ???  How is it different from samples_n""",
+     'nbatch???'),
     ('scale', 'array[float]', "Scalar scale applied for proposals", 'niter')
 ]
 
@@ -387,7 +385,7 @@ Results.__doc__ += str('\n'.join([str(_) for _ in _RESULTS_STRUCTURE]))
 
 
 def results_substitute(results, kw_dict):
-    """ This is an utility method that takes a Result object and 
+    """ This is an utility method that takes a Result object and
 substituted certain keys in it. It returns a copy object!
     """
     new_list = []

@@ -296,3 +296,24 @@ def test_dynamic():
     check_results_gau(dres, g, rstate)
 
     dyfunc.kld_error(dsampler.results, rstate=rstate)
+
+
+def test_ravel_unravel():
+    """ Here I test that ravel/unravel preserves things correctly """
+    rstate = get_rstate()
+    g = Gaussian()
+
+    dsampler = dynesty.DynamicNestedSampler(g.loglikelihood,
+                                            g.prior_transform,
+                                            g.ndim,
+                                            bound='single',
+                                            sample='unif',
+                                            rstate=rstate,
+                                            nlive=nlive)
+    maxiter = 1800
+    dsampler.run_nested(maxiter=maxiter, use_stop=False, nlive_batch=100)
+    dres = dsampler.results
+
+    dres_list = dyfunc.unravel_run(dres)
+    dres_merge = dyfunc.merge_runs(dres_list)
+    assert np.abs(dres.logz[-1] - dres_merge.logz[-1]) < 0.01

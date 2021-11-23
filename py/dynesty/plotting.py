@@ -569,7 +569,7 @@ def traceplot(results,
 
     # Check sample IDs.
     if connect:
-        if 'samples_id' in results:
+        if 'samples_id' in results.keys():
             samples_id = results['samples_id']
             uid = np.unique(samples_id)
         else:
@@ -1737,10 +1737,8 @@ def boundplot(results,
             except:
                 raise ValueError("Live point tracking currently not "
                                  "implemented for dynamic sampling results.")
-        # Construct a KDTree to speed up nearest-neighbor searches.
-        kdtree = spatial.KDTree(live_u)
         # Draw samples.
-        psamps = bound.samples(ndraws, live_u, kdtree=kdtree, rstate=rstate)
+        psamps = bound.samples(ndraws, live_u, rstate=rstate)
 
     # Projecting samples to input dimensions and possibly
     # the native model space.
@@ -2072,10 +2070,8 @@ def cornerbound(results,
                 r = -(nlive + i)
                 uidx = samples_id[r]
                 live_u[uidx] = samples[r]
-        # Construct a KDTree to speed up nearest-neighbor searches.
-        kdtree = spatial.KDTree(live_u)
         # Draw samples.
-        psamps = bound.samples(ndraws, live_u, kdtree=kdtree)
+        psamps = bound.samples(ndraws, live_u, rstate=rstate)
 
     # Projecting samples to input dimensions and possibly
     # the native model space.

@@ -348,7 +348,8 @@ def NestedSampler(loglikelihood,
         objects. Use the maximum distance found to the set of points left
         out during each iteration to enlarge the resulting volumes. Can
         lead to unstable bounding ellipsoids. Default is `None` (no bootstrap
-        unless the sampler is uniform).
+        unless the sampler is uniform). If bootstrap is set to zero,
+        bootstrap is disabled.
 
     walks : int, optional
         For the `'rwalk'` sampling option, the minimum number of steps
@@ -772,7 +773,7 @@ def DynamicNestedSampler(loglikelihood,
         objects. Use the maximum distance found to the set of points left
         out during each iteration to enlarge the resulting volumes. Can lead
         to unstable bounding ellipsoids. Default is `None` (no bootstrap unless
-        the sampler is uniform).
+        the sampler is uniform). If bootstrap=0 then bootstrap is disabled.
 
     walks : int, optional
         For the `'rwalk'` sampling option, the minimum number of steps

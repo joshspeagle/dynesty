@@ -62,7 +62,7 @@ def test_maxcall():
 
 def test_rstate_setting():
     ndim = 2
-    rstate = np.random.RandomState(seed=0)
+    rstate = get_rstate()
     logzs = []
     for _ in range(10):
         sampler = dynesty.NestedSampler(loglike,

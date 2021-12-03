@@ -60,11 +60,12 @@ def test_maxcall():
     sampler.run_nested(dlogz_init=1, maxcall=1000)
 
 
-def test_rstate_setting():
+def test_same_rstate_produce_same_logz_for_differnt_runs():
     ndim = 2
     rstate = get_rstate()
+    n_runs = 10
     logzs = []
-    for _ in range(10):
+    for _ in range(n_runs):
         sampler = dynesty.NestedSampler(loglike,
                                         prior_transform,
                                         ndim,

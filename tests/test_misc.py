@@ -60,6 +60,23 @@ def test_maxcall():
     sampler.run_nested(dlogz_init=1, maxcall=1000)
 
 
+def test_rstate_setting():
+    ndim = 2
+    rstate = np.random.RandomState(seed=0)
+    logzs = []
+    for _ in range(10):
+        sampler = dynesty.NestedSampler(loglike,
+                                        prior_transform,
+                                        ndim,
+                                        sample='rwalk',
+                                        nlive=nlive,
+                                        rstate=rstate)
+        sampler.run_nested(dlogz=1, maxcall=1)
+        logzs.append(sampler.results.logz[-1])
+    assert pytest.approx(logzs[0], rel=0.1) == np.array(logzs)
+
+
+
 def test_inf():
     # Test of logl that returns -inf
     ndim = 2

@@ -1,8 +1,6 @@
 import numpy as np
 import pytest
 from numpy import linalg
-import numpy.testing as npt
-import itertools
 from utils import get_rstate, get_printing
 import matplotlib
 
@@ -22,7 +20,7 @@ printing = get_printing()
 
 class Gaussian:
     def __init__(self, corr=.95):
-        self.ndim = 3
+        self.ndim = 2
         self.mean = np.linspace(-1, 1, self.ndim)
         self.cov = np.identity(self.ndim)  # set covariance to identity matrix
         self.cov[self.cov ==
@@ -60,44 +58,43 @@ class Gaussian:
 def test_gaussian(dynamic):
     rstate = get_rstate()
     g = Gaussian()
-    for i in range(2):
-        if i == 0:
-            sampler = dynesty.NestedSampler(g.loglikelihood,
-                                            g.prior_transform,
-                                            g.ndim,
-                                            nlive=nlive,
-                                            rstate=rstate)
-        else:
-            sampler = dynesty.DynamicNestedSampler(g.loglikelihood,
-                                                   g.prior_transform,
-                                                   g.ndim,
-                                                   nlive=nlive,
-                                                   rstate=rstate)
-        sampler.run_nested(print_progress=printing)
-        # check plots
-        dyplot.runplot(sampler.results)
-        plt.close()
-        dyplot.traceplot(sampler.results)
-        plt.close()
-        dyplot.cornerpoints(sampler.results)
-        plt.close()
-        dyplot.cornerplot(sampler.results)
-        plt.close()
-        dyplot.boundplot(sampler.results,
-                         dims=(0, 1),
-                         it=3000,
-                         prior_transform=g.prior_transform,
-                         show_live=True,
-                         span=[(-10, 10), (-10, 10)])
-        plt.close()
-        dyplot.cornerbound(sampler.results,
-                           it=3500,
-                           prior_transform=g.prior_transform,
-                           show_live=True,
-                           span=[(-10, 10), (-10, 10)])
-        dyplot.cornerbound(sampler.results,
-                           it=3500,
-                           show_live=True,
-                           span=[(-10, 10), (-10, 10)],
-                           fig=(plt.gcf(), plt.gcf().axes))
-        plt.close()
+    if dynamic:
+        sampler = dynesty.DynamicNestedSampler(g.loglikelihood,
+                                               g.prior_transform,
+                                               g.ndim,
+                                               nlive=nlive,
+                                               rstate=rstate)
+    else:
+        sampler = dynesty.NestedSampler(g.loglikelihood,
+                                        g.prior_transform,
+                                        g.ndim,
+                                        nlive=nlive,
+                                        rstate=rstate)
+    sampler.run_nested(print_progress=printing)
+    # check plots
+    dyplot.runplot(sampler.results)
+    plt.close()
+    dyplot.traceplot(sampler.results)
+    plt.close()
+    dyplot.cornerpoints(sampler.results)
+    plt.close()
+    dyplot.cornerplot(sampler.results)
+    plt.close()
+    dyplot.boundplot(sampler.results,
+                     dims=(0, 1),
+                     it=3000,
+                     prior_transform=g.prior_transform,
+                     show_live=True,
+                     span=[(-10, 10), (-10, 10)])
+    plt.close()
+    dyplot.cornerbound(sampler.results,
+                       it=3500,
+                       prior_transform=g.prior_transform,
+                       show_live=True,
+                       span=[(-10, 10), (-10, 10)])
+    dyplot.cornerbound(sampler.results,
+                       it=3500,
+                       show_live=True,
+                       span=[(-10, 10), (-10, 10)],
+                       fig=(plt.gcf(), plt.gcf().axes))
+    plt.close()

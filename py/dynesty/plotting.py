@@ -13,7 +13,6 @@ import matplotlib.pyplot as pl
 from matplotlib.ticker import MaxNLocator, NullLocator
 from matplotlib.colors import LinearSegmentedColormap, colorConverter
 from matplotlib.ticker import ScalarFormatter
-from scipy import spatial
 from scipy.ndimage import gaussian_filter as norm_kde
 from scipy.stats import gaussian_kde
 from .utils import resample_equal, unitcheck
@@ -28,6 +27,19 @@ __all__ = [
     "runplot", "traceplot", "cornerpoints", "cornerplot", "boundplot",
     "cornerbound", "_hist2d"
 ]
+
+
+def _make_subplots(fig, nx, ny, xsize, ysize):
+    # Setting up default plot layout.
+    if fig is None:
+        fig, axes = pl.subplots(nx, ny, figsize=(xsize, ysize))
+    else:
+        fig, axes = fig
+        try:
+            axes = np.asarray(axes).reshape(nx, ny)
+        except ValueError:
+            raise ValueError("Provided axes do not match the required shape")
+    return fig, axes
 
 
 def runplot(results,
@@ -209,25 +221,14 @@ def runplot(results,
         span[3] = zspan
 
     # Setting up default plot layout.
-    if fig is None:
-        fig, axes = pl.subplots(4, 1, figsize=(16, 16))
-        xspan = [(0., -min(logvol)) for _ax in axes]
-        yspan = span
-    else:
-        fig, axes = fig
-        try:
-            axes = np.asarray(axes)
-            axes.reshape(4, 1)
-        except ValueError:
-            raise ValueError("Provided axes do not match the required shape "
-                             "for plotting samples.")
-        # If figure is provided, keep previous bounds if they were larger.
-        xspan = [ax.get_xlim() for ax in axes]
-        yspan = [ax.get_ylim() for ax in axes]
-        # One exception: if the bounds are the plotting default `(0., 1.)`,
-        # overwrite them.
-        xspan = [t if t != (0., 1.) else (None, None) for t in xspan]
-        yspan = [t if t != (0., 1.) else (None, None) for t in yspan]
+    fig, axes = _make_subplots(fig, 4, 1, 16, 16)
+    axes = axes.flatten()
+    xspan = [ax.get_xlim() for ax in axes]
+    yspan = [ax.get_ylim() for ax in axes]
+    # One exception: if the bounds are the plotting default `(0., 1.)`,
+    # overwrite them.
+    xspan = [t if t != (0., 1.) else (0., -min(logvol)) for t in xspan]
+    yspan = [t if t != (0., 1.) else (None, None) for t in yspan]
 
     # Set up bounds for plotting.
     for i in range(4):
@@ -603,15 +604,7 @@ def traceplot(results,
         smooth = [smooth for i in range(ndim)]
 
     # Setting up default plot layout.
-    if fig is None:
-        fig, axes = pl.subplots(ndim, 2, figsize=(12, 3 * ndim))
-    else:
-        fig, axes = fig
-        try:
-            axes = np.asarray(axes).reshape(ndim, 2)
-        except ValueError:
-            raise ValueError("Provided axes do not match the required shape "
-                             "for plotting samples.")
+    fig, axes = _make_subplots(fig, ndim, 2, 12, 3 * ndim)
 
     # Plotting.
     for i, x in enumerate(samples):
@@ -946,14 +939,7 @@ def cornerpoints(results,
     dim = lbdim + plotdim + trdim  # total size
 
     # Initialize figure.
-    if fig is None:
-        fig, axes = pl.subplots(ndim - 1, ndim - 1, figsize=(dim, dim))
-    else:
-        try:
-            fig, axes = fig
-            axes = np.array(axes).reshape((ndim - 1, ndim - 1))
-        except:
-            raise ValueError("Mismatch between axes and dimension.")
+    fig, axes = _make_subplots(fig, ndim - 1, ndim - 1, dim, dim)
 
     # Format figure.
     lb = lbdim / dim
@@ -1268,14 +1254,7 @@ def cornerplot(results,
     dim = lbdim + plotdim + trdim  # total size
 
     # Initialize figure.
-    if fig is None:
-        fig, axes = pl.subplots(ndim, ndim, figsize=(dim, dim))
-    else:
-        try:
-            fig, axes = fig
-            axes = np.array(axes).reshape((ndim, ndim))
-        except:
-            raise ValueError("Mismatch between axes and dimension.")
+    fig, axes = _make_subplots(fig, ndim, ndim, dim, dim)
 
     # Format figure.
     lb = lbdim / dim
@@ -1757,15 +1736,7 @@ def boundplot(results,
             l1, l2 = lsamps[:, dims].T
 
     # Setting up default plot layout.
-    if fig is None:
-        fig, axes = pl.subplots(1, 1, figsize=(6, 6))
-    else:
-        fig, axes = fig
-        try:
-            axes.plot()
-        except:
-            raise ValueError("Provided axes do not match the required shape "
-                             "for plotting samples.")
+    fig, axes = _make_subplots(fig, 1, 1, 6, 6)
 
     # Plotting.
     axes.plot(x1, x2, color=color, zorder=1, **plot_kwargs)
@@ -2109,14 +2080,7 @@ def cornerbound(results,
     dim = lbdim + plotdim + trdim  # total size
 
     # Initialize figure.
-    if fig is None:
-        fig, axes = pl.subplots(ndim - 1, ndim - 1, figsize=(dim, dim))
-    else:
-        try:
-            fig, axes = fig
-            axes = np.array(axes).reshape((ndim - 1, ndim - 1))
-        except:
-            raise ValueError("Mismatch between axes and dimension.")
+    fig, axes = _make_subplots(fig, ndim - 1, ndim - 1, dim, dim)
 
     # Format figure.
     lb = lbdim / dim

@@ -216,6 +216,7 @@ def runplot(results,
     else:
         fig, axes = fig
         try:
+            axes = np.asarray(axes)
             axes.reshape(4, 1)
         except ValueError:
             raise ValueError("Provided axes do not match the required shape "
@@ -607,7 +608,7 @@ def traceplot(results,
     else:
         fig, axes = fig
         try:
-            axes.reshape(ndim, 2)
+            axes = np.asarray(axes).reshape(ndim, 2)
         except ValueError:
             raise ValueError("Provided axes do not match the required shape "
                              "for plotting samples.")

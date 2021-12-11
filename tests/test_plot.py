@@ -20,7 +20,7 @@ printing = get_printing()
 
 class Gaussian:
     def __init__(self, corr=.95):
-        self.ndim = 2
+        self.ndim = 3
         self.mean = np.linspace(-1, 1, self.ndim)
         self.cov = np.identity(self.ndim)  # set covariance to identity matrix
         self.cov[self.cov ==
@@ -43,18 +43,8 @@ class Gaussian:
         """Flat prior between -10. and 10."""
         return self.prior_win * (2. * u - 1.)
 
-    # gradient (no jacobian)
-    def grad_x(self, x):
-        """Multivariate normal log-likelihood gradient."""
-        return -np.dot(self.cov_inv, (x - self.mean))
 
-    # gradient (with jacobian)
-    def grad_u(self, x):
-        """Multivariate normal log-likelihood gradient."""
-        return -np.dot(self.cov_inv, x - self.mean) * 2 * self.prior_win
-
-
-@pytest.mark.parametrize("dynamic", [(False, ), (True, )])
+@pytest.mark.parametrize("dynamic", [(False), (True)])
 def test_gaussian(dynamic):
     rstate = get_rstate()
     g = Gaussian()
@@ -71,29 +61,32 @@ def test_gaussian(dynamic):
                                         nlive=nlive,
                                         rstate=rstate)
     sampler.run_nested(print_progress=printing)
+    results = sampler.results
     # check plots
-    dyplot.runplot(sampler.results)
+    dyplot.runplot(results)
+    dyplot.runplot(results, fig=(plt.gcf(), plt.gcf().axes))
     plt.close()
-    dyplot.traceplot(sampler.results)
+    dyplot.traceplot(results)
+    dyplot.traceplot(results, fig=(plt.gcf(), plt.gcf().axes))
     plt.close()
-    dyplot.cornerpoints(sampler.results)
+    dyplot.cornerpoints(results)
     plt.close()
-    dyplot.cornerplot(sampler.results)
+    dyplot.cornerplot(results)
     plt.close()
-    dyplot.boundplot(sampler.results,
+    dyplot.boundplot(results,
                      dims=(0, 1),
-                     it=3000,
+                     it=1000,
                      prior_transform=g.prior_transform,
                      show_live=True,
                      span=[(-10, 10), (-10, 10)])
     plt.close()
-    dyplot.cornerbound(sampler.results,
-                       it=3500,
+    dyplot.cornerbound(results,
+                       it=500,
                        prior_transform=g.prior_transform,
                        show_live=True,
                        span=[(-10, 10), (-10, 10)])
     dyplot.cornerbound(sampler.results,
-                       it=3500,
+                       it=500,
                        show_live=True,
                        span=[(-10, 10), (-10, 10)],
                        fig=(plt.gcf(), plt.gcf().axes))

@@ -4,12 +4,8 @@ from numpy import linalg
 import numpy.testing as npt
 import itertools
 from utils import get_rstate, get_printing
-import matplotlib
 
-matplotlib.use('Agg')
-from matplotlib import pyplot as plt  # noqa
 import dynesty  # noqa
-from dynesty import plotting as dyplot  # noqa
 from dynesty import utils as dyfunc  # noqa
 """
 Run a series of basic tests to check whether anything huge is broken.
@@ -158,29 +154,6 @@ def test_gaussian():
     # check summary
     res = sampler.results
     res.summary()
-
-    # check plots
-    dyplot.runplot(sampler.results)
-    plt.close()
-    dyplot.traceplot(sampler.results)
-    plt.close()
-    dyplot.cornerpoints(sampler.results)
-    plt.close()
-    dyplot.cornerplot(sampler.results)
-    plt.close()
-    dyplot.boundplot(sampler.results,
-                     dims=(0, 1),
-                     it=3000,
-                     prior_transform=g.prior_transform,
-                     show_live=True,
-                     span=[(-10, 10), (-10, 10)])
-    plt.close()
-    dyplot.cornerbound(sampler.results,
-                       it=3500,
-                       prior_transform=g.prior_transform,
-                       show_live=True,
-                       span=[(-10, 10), (-10, 10)])
-    plt.close()
 
 
 # try all combinations excepte none/unif

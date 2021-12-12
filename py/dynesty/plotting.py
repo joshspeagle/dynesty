@@ -997,9 +997,13 @@ def cornerpoints(results,
                 in_bounds *= ((x >= span[i][0]) & (x <= span[i][1]))
             if span is not None and span[j] is not None:
                 in_bounds *= ((y >= span[j][0]) & (y <= span[j][1]))
+            if isinstance(color, str):
+                cur_color = color
+            else:
+                cur_color = color[in_bounds][::thin]
             ax.scatter(y[in_bounds][::thin],
                        x[in_bounds][::thin],
-                       c=color,
+                       c=cur_color,
                        cmap=cmap,
                        **plot_kwargs)
             # Add truth values

@@ -19,8 +19,8 @@ printing = get_printing()
 
 
 class Gaussian:
-    def __init__(self, corr=.95):
-        self.ndim = 3
+    def __init__(self, ndim=3, corr=.95):
+        self.ndim = ndim
         self.mean = np.linspace(-1, 1, self.ndim)
         self.cov = np.identity(self.ndim)  # set covariance to identity matrix
         self.cov[self.cov ==
@@ -47,7 +47,8 @@ class Gaussian:
 @pytest.mark.parametrize("dynamic", [(False), (True)])
 def test_gaussian(dynamic):
     rstate = get_rstate()
-    g = Gaussian()
+    ndim = 3
+    g = Gaussian(ndim=ndim)
     if dynamic:
         sampler = dynesty.DynamicNestedSampler(g.loglikelihood,
                                                g.prior_transform,
@@ -67,11 +68,17 @@ def test_gaussian(dynamic):
     dyplot.runplot(results, fig=(plt.gcf(), plt.gcf().axes))
     plt.close()
     dyplot.traceplot(results)
-    dyplot.traceplot(results, fig=(plt.gcf(), plt.gcf().axes))
+    dyplot.traceplot(results,
+                     fig=(plt.gcf(), plt.gcf().axes),
+                     show_titles=True)
     plt.close()
     dyplot.cornerpoints(results)
     plt.close()
-    dyplot.cornerplot(results)
+    dyplot.cornerpoints(results,
+                        span=[[-10, 10], .9, [-10, 10]],
+                        truths=[-0.1, 0, .1])
+    plt.close()
+    dyplot.cornerplot(results, show_titles=True, truths=[-.1, 0, .1])
     plt.close()
     dyplot.boundplot(results,
                      dims=(0, 1),

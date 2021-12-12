@@ -18,6 +18,7 @@ from scipy.stats import gaussian_kde
 from .utils import resample_equal, unitcheck
 from .utils import quantile as _quantile
 from .utils import get_random_generator
+from . import bounding
 
 str_type = str
 float_type = float
@@ -1690,10 +1691,11 @@ def boundplot(results,
                 live_u[uidx] = samples[r]
     rstate = get_random_generator()
     # Draw samples from the bounding distribution.
-    try:
+    if not isinstance(bound, bounding.RadFriends) and not isinstance(
+            bound, bounding.SupFriends):
         # If bound is "fixed", go ahead and draw samples from it.
         psamps = bound.samples(ndraws, rstate=rstate)
-    except:
+    else:
         # If bound is based on the distribution of live points at a
         # specific iteration, we need to reconstruct what those were.
         if not show_live:

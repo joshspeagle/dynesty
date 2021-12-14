@@ -155,33 +155,51 @@ class LogLikelihood:
 
 
 class RunRecord:
+    """
+    This is the class that saves the results of the nested
+    run so it is basically a collection of various lists of
+    quantities
+    """
     def __init__(self, dynamic=False):
-        # results
+        """
+        If dynamic is true. We initialize the class for
+        a dynamic nested run
+        """
         D = {}
-        D['id'] = []  # live point labels
-        D['u'] = []  # unit cube samples
-        D['v'] = []  # transformed variable samples
-        D['logl'] = []  # loglikelihoods of samples
-        D['logvol'] = []  # expected ln(volume)
-        D['logwt'] = []  # ln(weights)
-        D['logz'] = []  # cumulative ln(evidence)
-        D['logzvar'] = []  # cumulative error on ln(evidence)
-        D['h'] = []  # cumulative information
-        D['nc'] = []  # number of calls at each iteration
-        D['boundidx'] = []  # index of bound dead point was drawn from
-        D['it'] = []  # iteration the live (now dead) point was proposed
-        D['n'] = []  # number of live points interior to dead point
-        D['bounditer'] = []  # active bound at a specific iteration
-        D['scale'] = []  # scale factor at each iteration
+        keys = [
+            'id',  # live point labels
+            'u',  # unit cube samples
+            'v',  # transformed variable samples
+            'logl',  # loglikelihoods of samples
+            'logvol',  # expected ln(volume)
+            'logwt',  # ln(weights)
+            'logz',  # cumulative ln(evidence)
+            'logzvar',  # cumulative error on ln(evidence)
+            'h',  # cumulative information
+            'nc',  # number of calls at each iteration
+            'boundidx',  # index of bound dead point was drawn from
+            'it',  # iteration the live (now dead) point was proposed
+            'n',  # number of live points interior to dead point
+            'bounditer',  # active bound at a specific iteration
+            'scale'  # scale factor at each iteration
+        ]
         if dynamic:
-            D['batch'] = []  # live point batch ID
-            # these are special since their length is == the number of batches
-            D['batch_nlive'] = []  # number of live points added in batch
-            D['batch_bounds'] = []  # loglikelihood bounds used in batch
-
+            keys.extend([
+                'batch',  # live point batch ID
+                # these are special since their length
+                # is == the number of batches
+                'batch_nlive',  # number of live points added in batch
+                'batch_bounds'
+            ])  # loglikelihood bounds used in batch
+        for k in keys:
+            self.D[k] = []
         self.D = D
 
     def append(self, newD):
+        """
+        append new information to the RunRecord in the form a dictionary
+        i.e. run.append(dict(batch=3, niter=44))
+        """
         for k in newD.keys():
             self.D[k].append(newD[k])
 

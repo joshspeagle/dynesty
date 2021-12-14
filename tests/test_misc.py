@@ -1,4 +1,3 @@
-import pickle
 import numpy as np
 import pytest
 import dynesty
@@ -197,3 +196,28 @@ def test_results():
         pass
     for k, v in res.asdict().items():
         pass
+
+
+@pytest.mark.parametrize('ndim', [2, 10])
+def test_deterministic(ndim):
+    # test we are deterministic
+
+    results = []
+    for i in range(2):
+        rstate = get_rstate()
+
+        sampler = dynesty.DynamicNestedSampler(loglike,
+                                               prior_transform,
+                                               ndim,
+                                               nlive=nlive,
+                                               rstate=rstate)
+        sampler.run_nested()
+        res = sampler.results
+        results.append(res)
+
+    for k in results[0].keys():
+        val0 = results[0][k]
+        val1 = results[1][k]
+        if (isinstance(val0, int) or isinstance(val0, float)
+                or isinstance(val0, np.ndarray)):
+            assert np.allclose(val0, val1)

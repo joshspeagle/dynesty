@@ -192,7 +192,7 @@ class RunRecord:
                 'batch_bounds'
             ])  # loglikelihood bounds used in batch
         for k in keys:
-            self.D[k] = []
+            D[k] = []
         self.D = D
 
     def append(self, newD):

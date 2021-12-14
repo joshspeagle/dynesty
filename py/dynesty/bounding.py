@@ -42,12 +42,7 @@ __all__ = [
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
-# Try and import k-means clustering (used with 'multi').
-try:
-    from scipy.cluster.vq import kmeans2
-    HAVE_KMEANS = True
-except ImportError:
-    HAVE_KMEANS = False
+from scipy.cluster.vq import kmeans2
 
 
 class UnitCube:
@@ -570,10 +565,6 @@ class MultiEllipsoid:
             with the unit cube. Default is `False`.
 
         """
-
-        if not HAVE_KMEANS:
-            raise ValueError("scipy.cluster.vq.kmeans2 is required "
-                             "to compute ellipsoid decompositions.")
 
         npoints, ndim = points.shape
         if npoints == 1:
@@ -1498,10 +1489,6 @@ def bounding_ellipsoids(points):
         collection of points.
 
     """
-
-    if not HAVE_KMEANS:
-        raise ValueError("scipy.cluster.vq.kmeans2 is required to compute "
-                         "ellipsoid decompositions.")  # pragma: no cover
 
     # Calculate the bounding ellipsoid for the points possibly
     # enlarged to a minimum volume.

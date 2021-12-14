@@ -44,11 +44,11 @@ class Gaussian:
         return self.prior_win * (2. * u - 1.)
 
 
-@pytest.mark.parametrize("dynamic,periodic,ndim", [(False, False, 3),
-                                                   (True, False, 3),
-                                                   (True, True, 3),
-                                                   (True, False, 1)])
-def test_gaussian(dynamic, periodic, ndim):
+@pytest.mark.parametrize("dynamic,periodic,ndim,bound",
+                         [(False, False, 3, 'multi'),
+                          (True, False, 3, 'multi'), (True, True, 3, 'multi'),
+                          (True, False, 1, 'multi')])
+def test_gaussian(dynamic, periodic, ndim, bound):
     rstate = get_rstate()
     g = Gaussian(ndim=ndim)
     if periodic:
@@ -61,14 +61,16 @@ def test_gaussian(dynamic, periodic, ndim):
                                                g.ndim,
                                                nlive=nlive,
                                                rstate=rstate,
-                                               periodic=periodic)
+                                               periodic=periodic,
+                                               bound=bound)
     else:
         sampler = dynesty.NestedSampler(g.loglikelihood,
                                         g.prior_transform,
                                         g.ndim,
                                         nlive=nlive,
                                         rstate=rstate,
-                                        periodic=periodic)
+                                        periodic=periodic,
+                                        bound=bound)
     sampler.run_nested(print_progress=printing)
     results = sampler.results
     # check plots
@@ -80,7 +82,15 @@ def test_gaussian(dynamic, periodic, ndim):
                      fig=(plt.gcf(), plt.gcf().axes),
                      show_titles=True)
     plt.close()
-    dyplot.cornerplot(results, show_titles=True, truths=[-.1, 0, .1])
+
+    truths = np.zeros(ndim)
+    truths[0] = -.1
+    span = [[-10, 10]] * ndim
+    if ndim > 1:
+        truths[1] = .1
+        span[1] = .9
+
+    dyplot.cornerplot(results, show_titles=True, truths=truths)
     plt.close()
     if ndim != 1:
         # cornerbound
@@ -88,11 +98,11 @@ def test_gaussian(dynamic, periodic, ndim):
                            it=500,
                            prior_transform=g.prior_transform,
                            show_live=True,
-                           span=[(-10, 10), (-10, 10)])
+                           span=span)
         dyplot.cornerbound(results,
                            it=500,
                            show_live=True,
-                           span=[(-10, 10), (-10, 10)],
+                           span=span,
                            fig=(plt.gcf(), plt.gcf().axes))
         plt.close()
         # boundplot
@@ -101,13 +111,11 @@ def test_gaussian(dynamic, periodic, ndim):
                          it=1000,
                          prior_transform=g.prior_transform,
                          show_live=True,
-                         span=[(-10, 10), (-10, 10)])
+                         span=span)
         plt.close()
 
         # cornerpoints
         dyplot.cornerpoints(results)
         plt.close()
-        dyplot.cornerpoints(results,
-                            span=[[-10, 10], .9, [-10, 10]],
-                            truths=[-0.1, 0, .1])
+        dyplot.cornerpoints(results, span=span, truths=truths)
         plt.close()

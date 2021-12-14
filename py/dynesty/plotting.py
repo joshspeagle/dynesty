@@ -34,6 +34,7 @@ def _make_subplots(fig, nx, ny, xsize, ysize):
     # Setting up default plot layout.
     if fig is None:
         fig, axes = pl.subplots(nx, ny, figsize=(xsize, ysize))
+        axes = np.asarray(axes).reshape(nx, ny)
     else:
         fig, axes = fig
         try:
@@ -1743,6 +1744,7 @@ def boundplot(results,
 
     # Setting up default plot layout.
     fig, axes = _make_subplots(fig, 1, 1, 6, 6)
+    axes = axes[0, 0]
 
     # Plotting.
     axes.plot(x1, x2, color=color, zorder=1, **plot_kwargs)

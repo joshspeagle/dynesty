@@ -63,7 +63,7 @@ def check_results(results,
 
 
 class Gaussian:
-    def __init__(self, corr=.95):
+    def __init__(self, corr=.95, prior_win=10):
         self.ndim = 3
         self.mean = np.linspace(-1, 1, self.ndim)
         self.cov = np.identity(self.ndim)  # set covariance to identity matrix
@@ -72,7 +72,7 @@ class Gaussian:
         self.cov_inv = linalg.inv(self.cov)  # precision matrix
         self.lnorm = -0.5 * (np.log(2 * np.pi) * self.ndim +
                              np.log(linalg.det(self.cov)))
-        self.prior_win = 10  # +/- 10 on both sides
+        self.prior_win = prior_win  # +/- on both sides
         self.logz_truth = self.ndim * (-np.log(2 * self.prior_win))
 
     # 3-D correlated multivariate normal log-likelihood
@@ -160,15 +160,17 @@ def test_gaussian():
 @pytest.mark.parametrize(
     "bound,sample",
     list(
-        itertools.product(['single', 'multi', 'balls', 'cubes'],
-                          ['unif', 'rwalk', 'slice', 'rslice'])) +
-    list(itertools.product(['none'], ['rwalk', 'slice', 'rslice'])))
+        itertools.product(['single', 'multi', 'balls', 'cubes', 'none'],
+                          ['unif', 'rwalk', 'slice', 'rslice'])))
 def test_bounding_sample(bound, sample):
     # check various bounding methods
 
     rstate = get_rstate()
     if bound == 'none':
-        g = Gaussian(0.1)
+        if sample != 'unif':
+            g = Gaussian(0.1)
+        else:
+            g = Gaussian(corr=0., prior_win=3)
         # make live easy if bound is none
     else:
         g = Gaussian()

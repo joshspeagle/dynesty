@@ -16,7 +16,8 @@ import numpy as np
 from .nestedsamplers import _SAMPLING
 from .dynamicsampler import (DynamicSampler, _get_update_interval_ratio,
                              _SAMPLERS, sample_init)
-from .utils import LogLikelihood, get_random_generator, get_enlarge_bootstrap
+from .utils import (LogLikelihood, get_random_generator, get_enlarge_bootstrap,
+                    get_nonbounded)
 
 __all__ = ["NestedSampler", "DynamicNestedSampler", "_function_wrapper"]
 
@@ -460,20 +461,7 @@ def NestedSampler(loglikelihood,
     if nlive <= 2 * ndim:
         warnings.warn("Beware! Having `nlive <= 2 * ndim` is extremely risky!")
 
-    # Gather boundary conditions.
-    if periodic is not None and reflective is not None:
-        if np.intersect1d(periodic, reflective) != 0:
-            raise ValueError("You have specified a parameter as both "
-                             "periodic and reflective.")
-
-    if periodic is not None or reflective is not None:
-        nonbounded = np.ones(npdim, dtype='bool')
-        if periodic is not None:
-            nonbounded[periodic] = False
-        if reflective is not None:
-            nonbounded[reflective] = False
-    else:
-        nonbounded = None
+    nonbounded = get_nonbounded(npdim, periodic, reflective)
     kwargs['nonbounded'] = nonbounded
     kwargs['periodic'] = periodic
     kwargs['reflective'] = reflective
@@ -872,21 +860,7 @@ def DynamicNestedSampler(loglikelihood,
     kwargs['cite'] = (_CITES['default'] + "\n" + _CITES['dynamic'] + "\n" +
                       _CITES[bound] + "\n" + _CITES[sample])
 
-    # Gather boundary conditions.
-    if periodic is not None and reflective is not None:
-        if np.intersect1d(periodic, reflective) != 0:
-            raise ValueError("You have specified a parameter as both "
-                             "periodic and reflective.")
-
-    if periodic is not None or reflective is not None:
-        nonbounded = np.ones(npdim, dtype='bool')
-        if periodic is not None:
-            nonbounded[periodic] = False
-        if reflective is not None:
-            nonbounded[reflective] = False
-    else:
-        nonbounded = None
-
+    nonbounded = get_nonbounded(npdim, periodic, reflective)
     kwargs['nonbounded'] = nonbounded
     kwargs['periodic'] = periodic
     kwargs['reflective'] = reflective

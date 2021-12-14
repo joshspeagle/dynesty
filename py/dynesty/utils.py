@@ -192,6 +192,26 @@ def get_enlarge_bootstrap(sample, enlarge, bootstrap):
                              'sense unless bootstrap=1 or enlarge = 1')
 
 
+def get_nonbounded(ndim, periodic, reflective):
+    """
+    Return a boolean mask for dimensions that are either
+    periodic or reflective
+    """
+    if periodic is not None and reflective is not None:
+        if np.intersect1d(periodic, reflective) != 0:
+            raise ValueError("You have specified a parameter as both "
+                             "periodic and reflective.")
+
+    if periodic is not None or reflective is not None:
+        nonbounded = np.ones(ndim, dtype=bool)
+        if periodic is not None:
+            nonbounded[periodic] = False
+        if reflective is not None:
+            nonbounded[reflective] = False
+    else:
+        nonbounded = None
+
+
 def get_print_func(print_func, print_progress):
     pbar = None
     if print_func is None:

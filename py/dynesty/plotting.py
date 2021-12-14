@@ -17,7 +17,7 @@ from scipy.ndimage import gaussian_filter as norm_kde
 from scipy.stats import gaussian_kde
 from .utils import resample_equal, unitcheck
 from .utils import quantile as _quantile
-from .utils import get_random_generator
+from .utils import get_random_generator, get_nonbounded
 from . import bounding
 
 str_type = str
@@ -42,19 +42,6 @@ def _make_subplots(fig, nx, ny, xsize, ysize):
         except ValueError:
             raise ValueError("Provided axes do not match the required shape")
     return fig, axes
-
-
-def _get_nonbounded(bounds, periodic, reflective):
-    # Gather boundary conditions.
-    if periodic is not None or reflective is not None:
-        nonbounded = np.ones(bounds[0].n, dtype='bool')
-        if periodic is not None:
-            nonbounded[periodic] = False
-        if reflective is not None:
-            nonbounded[reflective] = False
-    else:
-        nonbounded = None
-    return nonbounded
 
 
 def runplot(results,
@@ -1608,7 +1595,7 @@ def boundplot(results,
         raise ValueError("No bounds were saved in the results!")
     nsamps = len(results['samples'])
 
-    nonbounded = _get_nonbounded(bounds, periodic, reflective)
+    nonbounded = get_nonbounded(bounds[0].n, periodic, reflective)
 
     if it is not None:
         if it >= nsamps:
@@ -1927,7 +1914,7 @@ def cornerbound(results,
         raise ValueError("No bounds were saved in the results!")
     nsamps = len(results['samples'])
 
-    nonbounded = _get_nonbounded(bounds, periodic, reflective)
+    nonbounded = get_nonbounded(bounds[0].n, periodic, reflective)
 
     if it is not None:
         if it >= nsamps:

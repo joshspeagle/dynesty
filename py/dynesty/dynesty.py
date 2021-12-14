@@ -137,6 +137,32 @@ def __get_walks_slices(walks0, slices0, sample, ndim):
     return walks, slices
 
 
+def _parse_pool_queue(pool, queue_size):
+    """
+    Common functionality of interpretign the pool and queue_size
+    arguments to Dynamic and static nested samplers
+    """
+    if queue_size is not None and queue_size < 1:
+        raise ValueError("The queue must contain at least one element!")
+    elif (queue_size == 1) or (pool is None and queue_size is None):
+        M = map
+        queue_size = 1
+    elif pool is not None:
+        M = pool.map
+        if queue_size is None:
+            try:
+                queue_size = pool.size
+            except AttributeError:
+                raise ValueError("Cannot initialize `queue_size` because "
+                                 "`pool.size` has not been provided. Please"
+                                 "define `pool.size` or specify `queue_size` "
+                                 "explicitly.")
+    else:
+        raise ValueError("`queue_size > 1` but no `pool` provided.")
+
+    return M, queue_size
+
+
 def NestedSampler(loglikelihood,
                   prior_transform,
                   ndim,
@@ -501,23 +527,7 @@ def NestedSampler(loglikelihood,
         max(min(np.round(update_interval_ratio * nlive), sys.maxsize), 1))
 
     # Set up parallel (or serial) evaluation.
-    if queue_size is not None and queue_size < 1:
-        raise ValueError("The queue must contain at least one element!")
-    elif (queue_size == 1) or (pool is None and queue_size is None):
-        M = map
-        queue_size = 1
-    elif pool is not None:
-        M = pool.map
-        if queue_size is None:
-            try:
-                queue_size = pool.size
-            except AttributeError:
-                raise ValueError("Cannot initialize `queue_size` because "
-                                 "`pool.size` has not been provided. Please"
-                                 "define `pool.size` or specify `queue_size` "
-                                 "explicitly.")
-    else:
-        raise ValueError("`queue_size > 1` but no `pool` provided.")
+    M, queue_size = _parse_pool_queue(pool, queue_size)
     if use_pool is None:
         use_pool = dict()
 
@@ -923,21 +933,7 @@ def DynamicNestedSampler(loglikelihood,
         kwargs['max_move'] = max_move
 
     # Set up parallel (or serial) evaluation.
-    if queue_size is not None and queue_size < 1:
-        raise ValueError("The queue must contain at least one element!")
-    elif (queue_size == 1) or (pool is None and queue_size is None):
-        queue_size = 1
-    elif pool is not None:
-        if queue_size is None:
-            try:
-                queue_size = pool.size
-            except AttributeError:
-                raise ValueError("Cannot initialize `queue_size` because "
-                                 "`pool.size` has not been provided. Please "
-                                 "define `pool.size` or specify `queue_size` "
-                                 "explicitly.")
-    else:
-        raise ValueError("`queue_size > 1` but no `pool` provided.")
+    queue_size = _parse_pool_queue(pool, queue_size)[1]
     if use_pool is None:
         use_pool = dict()
 

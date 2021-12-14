@@ -221,3 +221,25 @@ def test_deterministic(ndim):
         if (isinstance(val0, int) or isinstance(val0, float)
                 or isinstance(val0, np.ndarray)):
             assert np.allclose(val0, val1)
+
+
+def test_update_interval():
+    # test that we cab set update_interval
+    # ideally i'd need to see if it makes a difference...
+    ndim = 2
+    rstate = get_rstate()
+
+    sampler = dynesty.NestedSampler(loglike,
+                                    prior_transform,
+                                    ndim,
+                                    nlive=nlive,
+                                    rstate=rstate,
+                                    update_interval=10)
+    sampler.run_nested()
+    sampler = dynesty.NestedSampler(loglike,
+                                    prior_transform,
+                                    ndim,
+                                    nlive=nlive,
+                                    rstate=rstate,
+                                    update_interval=0.5)
+    sampler.run_nested()

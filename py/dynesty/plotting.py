@@ -614,10 +614,7 @@ def traceplot(results,
         # Plot trace.
 
         # Establish axes.
-        if np.shape(samples)[0] == 1:
-            ax = axes[1]
-        else:
-            ax = axes[i, 0]
+        ax = axes[i, 0]
         # Set color(s)/colormap(s).
         if trace_color is not None:
             if isinstance(trace_color, str_type):
@@ -670,11 +667,7 @@ def traceplot(results,
 
         # Plot marginalized 1-D posterior.
 
-        # Establish axes.
-        if np.shape(samples)[0] == 1:
-            ax = axes[0]
-        else:
-            ax = axes[i, 1]
+        ax = axes[i, 1]
         # Set color(s).
         if isinstance(post_color, str_type):
             color = post_color
@@ -912,7 +905,8 @@ def cornerpoints(results,
         raise ValueError("Weights must be 1-D.")
     if nsamps != weights.shape[0]:
         raise ValueError("The number of weights and samples disagree!")
-
+    if ndim == 1:
+        raise ValueError("cornerpoints does not make sense for 1-D posterior")
     # Determine plotting bounds.
     if span is not None:
         if len(span) != ndim:
@@ -1274,10 +1268,7 @@ def cornerplot(results,
 
     # Plotting.
     for i, x in enumerate(samples):
-        if np.shape(samples)[0] == 1:
-            ax = axes
-        else:
-            ax = axes[i, i]
+        ax = axes[i, i]
 
         # Plot the 1-D marginalized posteriors.
 
@@ -1721,6 +1712,7 @@ def boundplot(results,
 
     # Projecting samples to input dimensions and possibly
     # the native model space.
+    print(dims, psamps.shape, live_u.shape)
     if prior_transform is None:
         x1, x2 = psamps[:, dims].T
         if show_live:
@@ -1912,7 +1904,9 @@ def cornerbound(results,
         bounds = results['bound']
     except KeyError:
         raise ValueError("No bounds were saved in the results!")
-    nsamps = len(results['samples'])
+    nsamps, ndim = results['samples'].shape
+    if ndim == 1:
+        raise ValueError('cornerbound does not work for 1-D posteriors')
 
     nonbounded = get_nonbounded(bounds[0].n, periodic, reflective)
 
@@ -1939,7 +1933,7 @@ def cornerbound(results,
                              "number of samples in the run.")
         try:
             samples_bound = results['samples_bound']
-        except:
+        except KeyError:
             raise ValueError("Cannot reconstruct the bound used to "
                              "compute the specified dead point since "
                              "sample bound indices were not saved "
@@ -2087,10 +2081,7 @@ def cornerbound(results,
     # Plot the 2-D projected samples.
     for i, x in enumerate(psamps[1:]):
         for j, y in enumerate(psamps[:-1]):
-            try:
-                ax = axes[i, j]
-            except:
-                ax = axes
+            ax = axes[i, j]
             # Setup axes.
             if span is not None:
                 ax.set_xlim(span[j])

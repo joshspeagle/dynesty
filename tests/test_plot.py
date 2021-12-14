@@ -44,11 +44,12 @@ class Gaussian:
         return self.prior_win * (2. * u - 1.)
 
 
-@pytest.mark.parametrize("dynamic,periodic", [(False, False), (True, False),
-                                              (True, True)])
-def test_gaussian(dynamic, periodic):
+@pytest.mark.parametrize("dynamic,periodic,ndim", [(False, False, 3),
+                                                   (True, False, 3),
+                                                   (True, True, 3),
+                                                   (True, False, 1)])
+def test_gaussian(dynamic, periodic, ndim):
     rstate = get_rstate()
-    ndim = 3
     g = Gaussian(ndim=ndim)
     if periodic:
         periodic = [0]
@@ -79,29 +80,34 @@ def test_gaussian(dynamic, periodic):
                      fig=(plt.gcf(), plt.gcf().axes),
                      show_titles=True)
     plt.close()
-    dyplot.cornerpoints(results)
-    plt.close()
-    dyplot.cornerpoints(results,
-                        span=[[-10, 10], .9, [-10, 10]],
-                        truths=[-0.1, 0, .1])
-    plt.close()
     dyplot.cornerplot(results, show_titles=True, truths=[-.1, 0, .1])
     plt.close()
-    dyplot.boundplot(results,
-                     dims=(0, 1),
-                     it=1000,
-                     prior_transform=g.prior_transform,
-                     show_live=True,
-                     span=[(-10, 10), (-10, 10)])
-    plt.close()
-    dyplot.cornerbound(results,
-                       it=500,
-                       prior_transform=g.prior_transform,
-                       show_live=True,
-                       span=[(-10, 10), (-10, 10)])
-    dyplot.cornerbound(results,
-                       it=500,
-                       show_live=True,
-                       span=[(-10, 10), (-10, 10)],
-                       fig=(plt.gcf(), plt.gcf().axes))
-    plt.close()
+    if ndim != 1:
+        # cornerbound
+        dyplot.cornerbound(results,
+                           it=500,
+                           prior_transform=g.prior_transform,
+                           show_live=True,
+                           span=[(-10, 10), (-10, 10)])
+        dyplot.cornerbound(results,
+                           it=500,
+                           show_live=True,
+                           span=[(-10, 10), (-10, 10)],
+                           fig=(plt.gcf(), plt.gcf().axes))
+        plt.close()
+        # boundplot
+        dyplot.boundplot(results,
+                         dims=(0, 1)[:min(ndim, 2)],
+                         it=1000,
+                         prior_transform=g.prior_transform,
+                         show_live=True,
+                         span=[(-10, 10), (-10, 10)])
+        plt.close()
+
+        # cornerpoints
+        dyplot.cornerpoints(results)
+        plt.close()
+        dyplot.cornerpoints(results,
+                            span=[[-10, 10], .9, [-10, 10]],
+                            truths=[-0.1, 0, .1])
+        plt.close()

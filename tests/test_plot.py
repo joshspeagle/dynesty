@@ -44,23 +44,30 @@ class Gaussian:
         return self.prior_win * (2. * u - 1.)
 
 
-@pytest.mark.parametrize("dynamic", [(False), (True)])
-def test_gaussian(dynamic):
+@pytest.mark.parametrize("dynamic,periodic", [(False, False), (True, False),
+                                              (True, True)])
+def test_gaussian(dynamic, periodic):
     rstate = get_rstate()
     ndim = 3
     g = Gaussian(ndim=ndim)
+    if periodic:
+        periodic = [0]
+    else:
+        periodic = None
     if dynamic:
         sampler = dynesty.DynamicNestedSampler(g.loglikelihood,
                                                g.prior_transform,
                                                g.ndim,
                                                nlive=nlive,
-                                               rstate=rstate)
+                                               rstate=rstate,
+                                               periodic=periodic)
     else:
         sampler = dynesty.NestedSampler(g.loglikelihood,
                                         g.prior_transform,
                                         g.ndim,
                                         nlive=nlive,
-                                        rstate=rstate)
+                                        rstate=rstate,
+                                        periodic=periodic)
     sampler.run_nested(print_progress=printing)
     results = sampler.results
     # check plots
@@ -92,7 +99,7 @@ def test_gaussian(dynamic):
                        prior_transform=g.prior_transform,
                        show_live=True,
                        span=[(-10, 10), (-10, 10)])
-    dyplot.cornerbound(sampler.results,
+    dyplot.cornerbound(results,
                        it=500,
                        show_live=True,
                        span=[(-10, 10), (-10, 10)],

@@ -44,6 +44,19 @@ def _make_subplots(fig, nx, ny, xsize, ysize):
     return fig, axes
 
 
+def _get_nonbounded(bounds, periodic, reflective):
+    # Gather boundary conditions.
+    if periodic is not None or reflective is not None:
+        nonbounded = np.ones(bounds[0].n, dtype='bool')
+        if periodic is not None:
+            nonbounded[periodic] = False
+        if reflective is not None:
+            nonbounded[reflective] = False
+    else:
+        nonbounded = None
+    return nonbounded
+
+
 def runplot(results,
             span=None,
             logplot=False,
@@ -1591,19 +1604,11 @@ def boundplot(results,
     # Extract bounding distributions.
     try:
         bounds = results['bound']
-    except:
+    except KeyError:
         raise ValueError("No bounds were saved in the results!")
     nsamps = len(results['samples'])
 
-    # Gather boundary conditions.
-    if periodic is not None or reflective is not None:
-        nonbounded = np.ones(bounds[0].n, dtype='bool')
-        if periodic is not None:
-            nonbounded[periodic] = False
-        if reflective is not None:
-            nonbounded[reflective] = False
-    else:
-        nonbounded = None
+    nonbounded = _get_nonbounded(bounds, periodic, reflective)
 
     if it is not None:
         if it >= nsamps:
@@ -1922,15 +1927,7 @@ def cornerbound(results,
         raise ValueError("No bounds were saved in the results!")
     nsamps = len(results['samples'])
 
-    # Gather boundary conditions.
-    if periodic is not None or reflective is not None:
-        nonbounded = np.ones(bounds[0].n, dtype='bool')
-        if periodic is not None:
-            nonbounded[periodic] = False
-        if reflective is not None:
-            nonbounded[reflective] = False
-    else:
-        nonbounded = None
+    nonbounded = _get_nonbounded(bounds, periodic, reflective)
 
     if it is not None:
         if it >= nsamps:

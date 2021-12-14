@@ -24,7 +24,7 @@ from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
 from .results import Results
 from .utils import (get_seed_sequence, get_print_func, _kld_error,
                     compute_integrals, IteratorResult, IteratorResultShort,
-                    get_enlarge_bootstrap)
+                    get_enlarge_bootstrap, RunRecord)
 
 __all__ = [
     "DynamicSampler",
@@ -323,36 +323,6 @@ def stopping_function(results,
         return stop <= 1.
 
 
-class RunRecord:
-    def __init__(self):
-        # results
-        D = {}
-        D['id'] = []  # live point labels
-        D['u'] = []  # unit cube samples
-        D['v'] = []  # transformed variable samples
-        D['logl'] = []  # loglikelihoods of samples
-        D['logvol'] = []  # expected ln(volume)
-        D['logwt'] = []  # ln(weights)
-        D['logz'] = []  # cumulative ln(evidence)
-        D['logzvar'] = []  # cumulative error on ln(evidence)
-        D['h'] = []  # cumulative information
-        D['nc'] = []  # number of calls at each iteration
-        D['boundidx'] = []  # index of bound dead point was drawn from
-        D['it'] = []  # iteration the live (now dead) point was proposed
-        D['n'] = []  # number of live points interior to dead point
-        D['bounditer'] = []  # active bound at a specific iteration
-        D['scale'] = []  # scale factor at each iteration
-        D['batch'] = []  # live point batch ID
-        # these are special since their length is == the number of batches
-        D['batch_nlive'] = []  # number of live points added in batch
-        D['batch_bounds'] = []  # loglikelihood bounds used in batch
-        self.D = D
-
-    def append(self, newD):
-        for k in newD.keys():
-            self.D[k].append(newD[k])
-
-
 def sample_init(live_points,
                 prior_transform,
                 loglikelihood,
@@ -547,9 +517,9 @@ class DynamicSampler:
         self.base = False  # base run complete
         self.nlive0 = nlive0
 
-        self.saved_run = RunRecord()
-        self.base_run = RunRecord()
-        self.new_run = RunRecord()
+        self.saved_run = RunRecord(dynamic=True)
+        self.base_run = RunRecord(dynamic=True)
+        self.new_run = RunRecord(dynamic=True)
 
         self.new_logl_min, self.new_logl_max = -np.inf, np.inf  # logl bounds
 
@@ -601,9 +571,9 @@ class DynamicSampler:
         self.eff = 1.
         self.base = False
 
-        self.saved_run = RunRecord()
-        self.base_run = RunRecord()
-        self.new_run = RunRecord()
+        self.saved_run = RunRecord(dynamic=True)
+        self.base_run = RunRecord(dynamic=True)
+        self.new_run = RunRecord(dynamic=True)
         self.new_logl_min, self.new_logl_max = -np.inf, np.inf
 
     @property
@@ -1072,7 +1042,7 @@ class DynamicSampler:
         batch_sampler.save_bounds = save_bounds
 
         # Reset "new" results.
-        self.new_run = RunRecord()
+        self.new_run = RunRecord(dynamic=True)
 
         # Initialize ln(likelihood) bounds.
         if logl_bounds is None:
@@ -1378,7 +1348,7 @@ class DynamicSampler:
         old_batch_nlive = self.saved_run.D['batch_nlive']
         # Reset saved results.
         del self.saved_run
-        self.saved_run = RunRecord()
+        self.saved_run = RunRecord(dynamic=True)
 
         # Start our counters at the beginning of each set of dead points.
         idx_saved, idx_new = 0, 0  # start of our dead points
@@ -1454,7 +1424,7 @@ class DynamicSampler:
         self.saved_run.D['h'].extend(new_h.tolist())
 
         # Reset results.
-        self.new_run = RunRecord()
+        self.new_run = RunRecord(dynamic=True)
         self.new_logl_min, self.new_logl_max = -np.inf, np.inf
 
         # Increment batch counter.

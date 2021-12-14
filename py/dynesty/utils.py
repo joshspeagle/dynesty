@@ -154,6 +154,38 @@ class LogLikelihood:
         return state
 
 
+class RunRecord:
+    def __init__(self, dynamic=False):
+        # results
+        D = {}
+        D['id'] = []  # live point labels
+        D['u'] = []  # unit cube samples
+        D['v'] = []  # transformed variable samples
+        D['logl'] = []  # loglikelihoods of samples
+        D['logvol'] = []  # expected ln(volume)
+        D['logwt'] = []  # ln(weights)
+        D['logz'] = []  # cumulative ln(evidence)
+        D['logzvar'] = []  # cumulative error on ln(evidence)
+        D['h'] = []  # cumulative information
+        D['nc'] = []  # number of calls at each iteration
+        D['boundidx'] = []  # index of bound dead point was drawn from
+        D['it'] = []  # iteration the live (now dead) point was proposed
+        D['n'] = []  # number of live points interior to dead point
+        D['bounditer'] = []  # active bound at a specific iteration
+        D['scale'] = []  # scale factor at each iteration
+        if dynamic:
+            D['batch'] = []  # live point batch ID
+            # these are special since their length is == the number of batches
+            D['batch_nlive'] = []  # number of live points added in batch
+            D['batch_bounds'] = []  # loglikelihood bounds used in batch
+
+        self.D = D
+
+    def append(self, newD):
+        for k in newD.keys():
+            self.D[k].append(newD[k])
+
+
 def get_enlarge_bootstrap(sample, enlarge, bootstrap):
     """
     Determine the enlarge, bootstrap for a given run

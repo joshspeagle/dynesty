@@ -16,40 +16,12 @@ from .results import Results, print_fn
 from .bounding import UnitCube
 from .sampling import sample_unif
 from .utils import (get_seed_sequence, get_print_func, progress_integration,
-                    IteratorResult)
+                    IteratorResult, RunRecord)
 
 __all__ = ["Sampler"]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 MAXINT = 2**32 - 1
-
-
-# For the moment it's a copy from the one in dynamic sampler
-# but it can probably be united
-class RunRecord:
-    def __init__(self):
-        # results
-        D = {}
-        D['id'] = []  # live point labels
-        D['u'] = []  # unit cube samples
-        D['v'] = []  # transformed variable samples
-        D['logl'] = []  # loglikelihoods of samples
-        D['logvol'] = []  # expected ln(volume)
-        D['logwt'] = []  # ln(weights)
-        D['logz'] = []  # cumulative ln(evidence)
-        D['logzvar'] = []  # cumulative error on ln(evidence)
-        D['h'] = []  # cumulative information
-        D['nc'] = []  # number of calls at each iteration
-        D['boundidx'] = []  # index of bound dead point was drawn from
-        D['it'] = []  # iteration the live (now dead) point was proposed
-        D['n'] = []  # number of live points interior to dead point
-        D['bounditer'] = []  # active bound at a specific iteration
-        D['scale'] = []  # scale factor at each iteration
-        self.D = D
-
-    def append(self, newD):
-        for k in newD.keys():
-            self.D[k].append(newD[k])
 
 
 class Sampler:

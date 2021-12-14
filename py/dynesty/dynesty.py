@@ -14,7 +14,7 @@ import traceback
 import numpy as np
 
 from .nestedsamplers import _SAMPLING
-from .dynamicsampler import (DynamicSampler, __get_update_interval_ratio,
+from .dynamicsampler import (DynamicSampler, _get_update_interval_ratio,
                              _SAMPLERS, sample_init)
 from .utils import LogLikelihood, get_random_generator, get_enlarge_bootstrap
 
@@ -90,7 +90,7 @@ _CITES = {'default':  # default set of citations
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
-def __get_auto_sample(ndim, gradient):
+def _get_auto_sample(ndim, gradient):
     """ Decode which sampling method to use
 
     Arguments:
@@ -110,7 +110,7 @@ def __get_auto_sample(ndim, gradient):
     return sample
 
 
-def __get_walks_slices(walks0, slices0, sample, ndim):
+def _get_walks_slices(walks0, slices0, sample, ndim):
     """
     Get the best number of steps for random walk/slicing based on
     the type of sampler and dimension
@@ -435,9 +435,9 @@ def NestedSampler(loglikelihood,
 
     # Sampling method.
     if sample == 'auto':
-        sample = __get_auto_sample(ndim, gradient)
+        sample = _get_auto_sample(ndim, gradient)
 
-    walks, slices = __get_walks_slices(walks, slices, sample, ndim)
+    walks, slices = _get_walks_slices(walks, slices, sample, ndim)
 
     if ncdim != npdim and sample in ['slice', 'hslice', 'rslice']:
         raise ValueError('ncdim unsupported for slice sampling')
@@ -521,8 +521,9 @@ def NestedSampler(loglikelihood,
     if max_move is not None:
         kwargs['max_move'] = max_move
 
-    update_interval_ratio = __get_update_interval_ratio(
-        update_interval, sample, bound, ndim, nlive, slices, walks)
+    update_interval_ratio = _get_update_interval_ratio(update_interval, sample,
+                                                       bound, ndim, nlive,
+                                                       slices, walks)
     update_interval = int(
         max(min(np.round(update_interval_ratio * nlive), sys.maxsize), 1))
 
@@ -845,15 +846,16 @@ def DynamicNestedSampler(loglikelihood,
 
     # Sampling method.
     if sample == 'auto':
-        sample = __get_auto_sample(ndim, gradient)
+        sample = _get_auto_sample(ndim, gradient)
 
-    walks, slices = __get_walks_slices(walks, slices, sample, ndim)
+    walks, slices = _get_walks_slices(walks, slices, sample, ndim)
 
     if ncdim != npdim and sample in ['slice', 'hslice', 'rslice']:
         raise ValueError('ncdim unsupported for slice sampling')
 
-    update_interval_ratio = __get_update_interval_ratio(
-        update_interval, sample, bound, ndim, 1, slices, walks)
+    update_interval_ratio = _get_update_interval_ratio(update_interval, sample,
+                                                       bound, ndim, 1, slices,
+                                                       walks)
 
     kwargs = {}
 

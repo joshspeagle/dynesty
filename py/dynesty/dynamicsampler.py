@@ -159,8 +159,8 @@ def weight_function(results, args=None, return_weights=False):
         return (logl_min, logl_max)
 
 
-def __get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
-                                slices, walks):
+def _get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
+                               slices, walks):
     """
     Get the update_interval divided by the number of live points
     """

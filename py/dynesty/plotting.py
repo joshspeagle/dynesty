@@ -1712,7 +1712,6 @@ def boundplot(results,
 
     # Projecting samples to input dimensions and possibly
     # the native model space.
-    print(dims, psamps.shape, live_u.shape)
     if prior_transform is None:
         x1, x2 = psamps[:, dims].T
         if show_live:

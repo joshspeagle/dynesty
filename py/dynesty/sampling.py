@@ -257,9 +257,9 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
         else:
             nreject += 1
     if naccept == 0:
-        # Technically we can find out the likelihood value
-        # stored somewhere
-        # But I'm currently recomputing it
+        # No MCMC steps were accepted. To avoid repeated nested
+        # samples return a random draw from the prior.
+        u = rstate.uniform(0, 1, n)
         v = prior_transform(u)
         logl = loglikelihood(v)
 

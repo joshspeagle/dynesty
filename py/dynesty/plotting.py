@@ -195,7 +195,7 @@ def runplot(results,
             mark_final_live = False
 
     # Determine plotting bounds for each subplot.
-    data = [nlive, np.exp(logl), np.exp(logwt), np.exp(logz)]
+    data = [nlive, np.exp(logl), np.exp(logwt), logz if logplot else np.exp(logz)]
     if kde:
         # Derive kernel density estimate.
         wt_kde = gaussian_kde(resample_equal(-logvol, data[2]))  # KDE
@@ -216,17 +216,22 @@ def runplot(results,
             span[i] = (max(data[i]) * span[i], max(data[i]))
     if lnz_error and no_span:
         if logplot:
-            zspan = (np.exp(logz[-1] - 1.3 * 3. * logzerr[-1]),
-                     np.exp(logz[-1] + 1.3 * 3. * logzerr[-1]))
+            # Same lower bound as in ultranest: https://github.com/JohannesBuchner/UltraNest/blob/master/ultranest/plot.py#L139.
+            zspan = (logz[-1] - 10.3 * 3. * logzerr[-1],
+                     logz[-1] + 1.3 * 3. * logzerr[-1])
         else:
             zspan = (0., 1.05 * np.exp(logz[-1] + 3. * logzerr[-1]))
         span[3] = zspan
 
     # Setting up default plot layout.
+    had_fig = fig or False
     fig, axes = _make_subplots(fig, 4, 1, 16, 16)
     axes = axes.flatten()
     xspan = [ax.get_xlim() for ax in axes]
-    yspan = [ax.get_ylim() for ax in axes]
+    if had_fig:
+        yspan = [ax.get_ylim() for ax in axes]
+    else:
+        yspan = span
     # One exception: if the bounds are the plotting default `(0., 1.)`,
     # overwrite them.
     xspan = [t if t != (0., 1.) else (0., -min(logvol)) for t in xspan]
@@ -256,7 +261,7 @@ def runplot(results,
     # Plotting.
     labels = [
         'Live Points', 'Likelihood\n(normalized)', 'Importance\nWeight',
-        'Evidence'
+        'log(Evidence)' if logplot else 'Evidence'
     ]
     if kde:
         labels[2] += ' PDF'
@@ -286,20 +291,32 @@ def runplot(results,
         ax.set_ylabel(labels[i], **label_kwargs)
         # Plot run.
         if logplot and i == 3:
-            ax.semilogy(-logvol, d, color=c, **plot_kwargs)
+            ax.plot(-logvol, d, color=c, **plot_kwargs)
             yspan = [ax.get_ylim() for _ax in axes]
         elif kde and i == 2:
             ax.plot(-logvol_new, d, color=c, **plot_kwargs)
         else:
             ax.plot(-logvol, d, color=c, **plot_kwargs)
         if i == 3 and lnz_error:
-            [
-                ax.fill_between(-logvol,
-                                np.exp(logz + s * logzerr),
-                                np.exp(logz - s * logzerr),
-                                color=c,
-                                alpha=0.2) for s in range(1, 4)
-            ]
+            if logplot:
+                # Same mask as in ultranest: https://github.com/JohannesBuchner/UltraNest/blob/master/ultranest/plot.py#L139.
+                mask = logz >= ax.get_ylim()[0] - 10
+                [
+                    ax.fill_between(
+                        -logvol[mask],
+                        (logz + s * logzerr)[mask],
+                        (logz - s * logzerr)[mask],
+                        color=c,
+                        alpha=0.2) for s in range(1, 4)
+                 ]
+            else:
+                [
+                    ax.fill_between(-logvol,
+                        np.exp(logz + s * logzerr),
+                        np.exp(logz - s * logzerr),
+                        color=c,
+                        alpha=0.2) for s in range(1, 4)
+                ]
         # Mark addition of final live points.
         if mark_final_live:
             ax.axvline(-logvol[live_idx],
@@ -311,7 +328,10 @@ def runplot(results,
                 ax.axhline(live_idx, color=c, ls="dashed", lw=2, **plot_kwargs)
         # Add truth value(s).
         if i == 3 and lnz_truth is not None:
-            ax.axhline(np.exp(lnz_truth), color=truth_color, **truth_kwargs)
+            if logplot:
+                ax.axhline(lnz_truth, color=truth_color, **truth_kwargs)
+            else:
+                ax.axhline(np.exp(lnz_truth), color=truth_color, **truth_kwargs)
 
     return fig, axes
 

@@ -244,15 +244,9 @@ volume by 25%, although this can also be done in real-time using
 bootstrapping methods (this procedure can lead to some instability in the size
 of the bounds if fewer than the optimal number of live points are being used;
 see the :ref:`FAQ` for additional details). 
-The volume enlargement factor and/or the number of 
+The volume enlargement factor or the number of 
 bootstrap realizations used can be specified using the `enlarge` 
 and `bootstrap` arguments. 
-
-For instance, if we want to use 50 bootstraps to determine expansion factors
-with an additional fixed volume enlargement factor of 10%, we would specify::
-    
-    NestedSampler(loglike, ptform, ndim, nlive=1500, bound='balls',
-                  bootstrap=50, enlarge=1.10)
 
 Additional information on the bounding objects can be found under
 :ref:`Bounding` and in :ref:`Examples`.
@@ -266,7 +260,7 @@ sampling methods (see the :ref:`API` for additional details), but if
 we wanted to instead use a particular value we could just specify that via::
 
     NestedSampler(loglike, ptform, ndim, nlive=1500, bound='balls',
-                  bootstrap=50, enlarge=1.10, update_interval=1.2)
+                  bootstrap=50, update_interval=1.2)
 
 Passing a float like `1.2` sets the update interval to be after 
 `round(1.2 * nlive)` functional calls so that it scales based on the
@@ -275,7 +269,7 @@ the prior volume). If we'd like to specific the number of function calls
 directly, however, we can instead pass an integer::
 
     NestedSampler(loglike, ptform, ndim, nlive=1500, bound='balls',
-                  bootstrap=50, enlarge=1.10, update_interval=600)
+                  bootstrap=50, update_interval=600)
 
 This now specifies that we will update our bounds after `600` function
 calls.

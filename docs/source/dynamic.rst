@@ -52,7 +52,7 @@ We can illustrate this directly using the same example from
         return 20. * u - 10.
 
     # Sample from our distribution.
-    sampler = dynesty.NestedSampler(loglikelihood, prior_transform, ndim,
+    sampler = dynesty.NestedSampler(loglike, ptform, ndim,
                                     bound='single', nlive=1000)
     sampler.run_nested(dlogz=0.01)
     res = sampler.results

@@ -258,9 +258,7 @@ Previously the default choice for :math:`S_p` in ``dynesty`` was to use the
 :math:`\hat{P}(\boldsymbol{\Theta})` we construct from our set of samples
 :math:`\left\lbrace \boldsymbol{\Theta}_1, \dots, \boldsymbol{\Theta}_N
 \right\rbrace` and the true posterior density :math:`P(\boldsymbol{\Theta})`
-is below some threshold. 
-
-We determine the "difference" between the two distributions using the
+is below some threshold.  We determine the "difference" between the two distributions using the
 `Kullback–Leibler (KL) divergence 
 <https://en.wikipedia.org/wiki/Kullback-Leibler_divergence>`_:
 

@@ -210,7 +210,7 @@ def stopping_function(results,
     The posterior stopping value is based on the estimated effective number
     of samples.
 
-        stop_post = target_neff / nef
+        stop_post = target_neff / neff
 
     Estimates of the mean and standard deviation are computed using `n_mc`
     realizations of the input using a provided `'error'` keyword (either
@@ -271,7 +271,7 @@ def stopping_function(results,
         raise ValueError("The provided `evid_thresh` {0} is not non-negative "
                          "even though `1. - pfrac` is {1}.".format(
                              evid_thresh, 1. - pfrac))
-    target_neff = args['target_neff']
+    target_neff = args.get('target_neff', 10000)
 
     if pfrac > 0. and target_neff < 0.:
         raise ValueError("The provided `target_neff` {0} is not non-negative "

@@ -19,6 +19,7 @@ printing = get_printing()
 
 
 class Gaussian:
+
     def __init__(self, ndim=3, corr=.95):
         self.ndim = ndim
         self.mean = np.linspace(-1, 1, self.ndim)
@@ -75,6 +76,7 @@ def test_gaussian(dynamic, periodic, ndim, bound):
     results = sampler.results
     # check plots
     dyplot.runplot(results)
+    dyplot.runplot(results, logplot=True)
     dyplot.runplot(results, fig=(plt.gcf(), plt.gcf().axes))
     plt.close()
     dyplot.traceplot(results)

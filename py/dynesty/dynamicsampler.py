@@ -460,6 +460,7 @@ class DynamicSampler:
         A dictionary of additional parameters (described below).
 
     """
+
     def __init__(self, loglikelihood, prior_transform, npdim, bound, method,
                  update_interval_ratio, first_update, rstate, queue_size, pool,
                  use_pool, ncdim, nlive0, kwargs):
@@ -774,11 +775,10 @@ class DynamicSampler:
             maxcall = sys.maxsize
         if maxiter is None:
             maxiter = sys.maxsize
+        nlive = nlive or self.nlive0
+        update_interval = self.__get_update_interval(update_interval, nlive)
         if nlive <= 2 * self.ncdim:
             warnings.warn("Beware: `nlive_init <= 2 * ndim`!")
-
-        update_interval = self.__get_update_interval(update_interval, nlive)
-        nlive = nlive or self.nlive0
 
         if not resume:
             # Reset saved results to avoid any possible conflicts.

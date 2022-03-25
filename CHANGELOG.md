@@ -26,6 +26,7 @@ The samplers such as rstagger has been removed and the default choice of the sam
 
 - More code testing + validation
 - Many speedups (ellipsoid bounds, bootstrap, jitter_run, #239, #256, #329, )
+- do not use  KL divergence function for stopping, instead use the criterion based on the number of effective samples. The old behaviour can still be achieved by using the dynesty.utils.old_stopping_function ( #332 )
 - Remove the pointvol parameter used in internal calculations, such as ellipsoid splits (#284)
 - Internal refactoring reducing duplication (saved_run, integral calculations, different samplers etc)
 - Make dynesty fully deterministic if random state is provided (#292)
@@ -43,7 +44,6 @@ The samplers such as rstagger has been removed and the default choice of the sam
 - more stable multi-ellipsoidal splitting using BIC (#286)
 - make uncertainties smaller (more correct; i.e. remove factor of two in the calculations of evidence uncertainty #306)
 - exception is raised if unknown arguments are provided for nestedsampler/dynamic samplers ( #295 )
-- do not use  kl_divergence f-n for stopping ( #332 )
 - refactor the addition of batches in dynamic sampling, preventing possibly infinite loop ( #326)
 - improve stability of resample_equal ( #351)
 - new results interface (#330)

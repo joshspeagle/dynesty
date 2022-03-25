@@ -46,6 +46,7 @@ class LogLikelihood:
     """ Class that calls the likelihood function (using a pool if provided)
     Also if requested it saves the history of evaluations
     """
+
     def __init__(self,
                  loglikelihood,
                  ndim,
@@ -160,6 +161,7 @@ class RunRecord:
     run so it is basically a collection of various lists of
     quantities
     """
+
     def __init__(self, dynamic=False):
         """
         If dynamic is true. We initialize the class for
@@ -255,8 +257,14 @@ def get_nonbounded(ndim, periodic, reflective):
     if periodic is not None or reflective is not None:
         nonbounded = np.ones(ndim, dtype=bool)
         if periodic is not None:
+            if np.max(periodic) > ndim:
+                raise ValueError(
+                    'Incorrect periodic variable index (larger than ndim')
             nonbounded[periodic] = False
         if reflective is not None:
+            if np.max(reflective) > ndim:
+                raise ValueError(
+                    'Incorrect periodic variable index (larger than ndim')
             nonbounded[reflective] = False
     else:
         nonbounded = None

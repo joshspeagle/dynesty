@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 import dynesty
 from scipy.special import erf
@@ -41,3 +42,11 @@ def test_periodic():
     sampler.run_nested(dlogz=1, print_progress=printing)
     assert (np.abs(sampler.results.logz[-1] - logz_true) <
             thresh * sampler.results.logzerr[-1])
+
+    with pytest.raises(ValueError):
+        sampler = dynesty.DynamicNestedSampler(loglike,
+                                               prior_transform,
+                                               ndim,
+                                               nlive=nlive,
+                                               reflective=[22],
+                                               rstate=rstate)

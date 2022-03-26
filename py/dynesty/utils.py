@@ -1624,7 +1624,7 @@ def old_stopping_function(results,
             "be removed in future releases", DeprecationWarning)
     # Initialize values.
     if args is None:
-        args = dict({})
+        args = {}
     if M is None:
         M = map
 

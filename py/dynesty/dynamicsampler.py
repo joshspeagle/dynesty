@@ -115,7 +115,7 @@ def weight_function(results, args=None, return_weights=False):
 
     # Initialize hyperparameters.
     if args is None:
-        args = dict({})
+        args = {}
     pfrac = args.get('pfrac', 0.8)
     if not 0. <= pfrac <= 1.:
         raise ValueError(
@@ -257,7 +257,7 @@ def stopping_function(results,
 
     # Initialize values.
     if args is None:
-        args = dict({})
+        args = {}
     if M is None:
         M = map
 

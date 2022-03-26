@@ -136,18 +136,30 @@ def test_neff():
     # test of neff functionality
     ndim = 2
     rstate = get_rstate()
+    sampler = dynesty.NestedSampler(loglike,
+                                    prior_transform,
+                                    ndim,
+                                    nlive=nlive,
+                                    rstate=rstate)
+    assert sampler.n_effective == 0
+    sampler.run_nested()
+    assert sampler.n_effective > 10
+
     sampler = dynesty.DynamicNestedSampler(loglike,
                                            prior_transform,
                                            ndim,
                                            nlive=nlive,
                                            rstate=rstate)
+    assert sampler.n_effective == 0
     sampler.run_nested(dlogz_init=1, n_effective=1000)
+    assert sampler.n_effective > 1000
     sampler = dynesty.DynamicNestedSampler(loglike,
                                            prior_transform,
                                            ndim,
                                            nlive=nlive,
                                            rstate=rstate)
     sampler.run_nested(dlogz_init=1, n_effective=10000)
+    assert sampler.n_effective > 10000
 
 
 def test_oldstop():

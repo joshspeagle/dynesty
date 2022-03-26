@@ -24,7 +24,7 @@ from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
 from .results import Results
 from .utils import (get_seed_sequence, get_print_func, _kld_error,
                     compute_integrals, IteratorResult, IteratorResultShort,
-                    get_enlarge_bootstrap, RunRecord)
+                    get_enlarge_bootstrap, RunRecord, get_neff_from_logwt)
 
 __all__ = [
     "DynamicSampler",
@@ -308,9 +308,7 @@ def stopping_function(results,
 
     stop_evid = lnz_std / evid_thresh
 
-    wts = np.exp(results.logwt - results.logwt.max())
-    wts = wts / wts.sum()
-    n_effective = 1. / (wts**2).sum()
+    n_effective = get_neff_from_logwt(results.logwt)
     stop_post = target_n_effective / n_effective
 
     # Effective stopping value.
@@ -655,15 +653,12 @@ class DynamicSampler:
         `1` if there is only one non-zero element in `wts`.
 
         """
-
-        if len(self.saved_run.D['logwt']) == 0:
-            # If there are no saved weights, return 0.
+        logwt = self.saved_run.D['logwt']
+        if len(logwt) == 0 or np.isneginf(np.max(logwt)):
+            # If there are no saved weights, or its -inf return 0.
             return 0
         else:
-            # Otherwise, compute Kish ESS.
-            logwts = np.array(self.saved_run.D['logwt'])
-            logneff = logsumexp(logwts) * 2 - logsumexp(logwts * 2)
-            return np.exp(logneff)
+            return get_neff_from_logwt(np.asarray(logwt))
 
     @property
     def citations(self):

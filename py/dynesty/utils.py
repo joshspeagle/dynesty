@@ -296,6 +296,28 @@ def get_seed_sequence(rstate, nitems):
     return seeds
 
 
+def get_neff_from_logwt(logwt):
+    """
+    Compute the number of effective samples from an array of unnormalized
+    log-weights. We use Kish Effective Sample Size (ESS)  formula.
+
+    Parameters:
+    logwt: numpy array
+        Array of unnormalized weights
+
+    Returns:
+    neff: int
+        The effective number of samples
+    """
+
+    # If weights are normalized to the sum of 1,
+    # the estimate is  N = 1/\sum(w_i^2)
+    # if the weights are not normalized
+    # N = (\sum w_i)^2 / \sum(w_i^2)
+    W = np.exp(logwt - logwt.max())
+    return W.sum()**2 / (W**2).sum()
+
+
 def unitcheck(u, nonbounded=None):
     """Check whether `u` is inside the unit cube. Given a masked array
     `nonbounded`, also allows periodic boundaries conditions to exceed

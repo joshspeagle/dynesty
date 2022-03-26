@@ -11,12 +11,11 @@ import warnings
 import math
 import copy
 import numpy as np
-from scipy.special import logsumexp
 from .results import Results, print_fn
 from .bounding import UnitCube
 from .sampling import sample_unif
 from .utils import (get_seed_sequence, get_print_func, progress_integration,
-                    IteratorResult, RunRecord)
+                    IteratorResult, RunRecord, get_neff_from_logwt)
 
 __all__ = ["Sampler"]
 
@@ -253,16 +252,12 @@ class Sampler:
         `1` if there is only one non-zero element in `wts`.
 
         """
-
-        if (len(self.saved_run.D['logwt']) == 0) or (np.max(
-                self.saved_run.D['logwt']) > 0.01 * np.nan_to_num(-np.inf)):
+        logwt = self.saved_run.D['logwt']
+        if len(logwt) == 0 or np.isneginf(np.max(logwt)):
             # If there are no saved weights, or its -inf return 0.
             return 0
         else:
-            # Otherwise, compute Kish ESS.
-            logwts = np.array(self.saved_run.D['logwt'])
-            logneff = logsumexp(logwts) * 2 - logsumexp(logwts * 2)
-            return np.exp(logneff)
+            return get_neff_from_logwt(np.asarray(logwt))
 
     @property
     def citations(self):

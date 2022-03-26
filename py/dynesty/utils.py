@@ -214,29 +214,25 @@ def get_enlarge_bootstrap(sample, enlarge, bootstrap):
     DEFAULT_ENLARGE = 1.25
     DEFAULT_UNIF_BOOTSTRAP = 5
     if enlarge is not None and bootstrap is None:
-        """If enlarge is specified and bootstrap is not we just use enlarge
-        with no nootstrapping"""
+        # If enlarge is specified and bootstrap is not we just use enlarge
+        # with no nootstrapping
         assert enlarge >= 1
         return enlarge, 0
     elif enlarge is None and bootstrap is not None:
-        """
-        If bootstrap is specified but enlarge is not we just use bootstrap
-        And if we allow zero bootstrap if we want to force no bootstrap
-        """
+        # If bootstrap is specified but enlarge is not we just use bootstrap
+        # And if we allow zero bootstrap if we want to force no bootstrap
         assert ((bootstrap > 1) or (bootstrap == 0))
         return 1, bootstrap
     elif enlarge is None and bootstrap is None:
-        """
-        If neither enlarge or bootstrap are specified we are doing
-        things in auto-mode. I.e. use enlarge unless the uniform
-        sampler is selected
-        """
+        # If neither enlarge or bootstrap are specified we are doing
+        # things in auto-mode. I.e. use enlarge unless the uniform
+        # sampler is selected
         if sample == 'unif':
             return 1, DEFAULT_UNIF_BOOTSTRAP
         else:
             return DEFAULT_ENLARGE, 0
     else:
-        """Both enlarge and bootstrap were specified"""
+        # Both enlarge and bootstrap were specified
         if bootstrap == 0 or enlarge == 1:
             return enlarge, bootstrap
         else:

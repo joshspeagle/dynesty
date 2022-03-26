@@ -555,10 +555,8 @@ def traceplot(results,
     # Extract weighted samples.
     samples = results['samples']
     logvol = results['logvol']
-    try:
-        weights = np.exp(results['logwt'] - results['logz'][-1])
-    except KeyError:
-        weights = results['weights']
+    weights = np.exp(results['logwt'] - results['logz'][-1])
+
     if kde:
         # Derive kernel density estimate.
         wt_kde = gaussian_kde(resample_equal(-logvol, weights))  # KDE
@@ -898,10 +896,8 @@ def cornerpoints(results,
     # Extract weighted samples.
     samples = results['samples']
     logvol = results['logvol']
-    try:
-        weights = np.exp(results['logwt'] - results['logz'][-1])
-    except:
-        weights = results['weights']
+    weights = np.exp(results['logwt'] - results['logz'][-1])
+
     if kde:
         # Derive kernel density estimate.
         wt_kde = gaussian_kde(resample_equal(-logvol, weights))  # KDE
@@ -1222,10 +1218,7 @@ def cornerplot(results,
 
     # Extract weighted samples.
     samples = results['samples']
-    try:
-        weights = np.exp(results['logwt'] - results['logz'][-1])
-    except:
-        weights = results['weights']
+    weights = np.exp(results['logwt'] - results['logz'][-1])
 
     # Deal with 1D results. A number of extra catches are also here
     # in case users are trying to plot other results besides the `Results`

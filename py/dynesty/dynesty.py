@@ -15,7 +15,7 @@ import numpy as np
 
 from .nestedsamplers import _SAMPLING
 from .dynamicsampler import (DynamicSampler, _get_update_interval_ratio,
-                             _SAMPLERS, sample_init)
+                             _SAMPLERS, initialize_live_points)
 from .utils import (LogLikelihood, get_random_generator, get_enlarge_bootstrap,
                     get_nonbounded)
 
@@ -548,15 +548,15 @@ def NestedSampler(loglikelihood,
         kwargs['grad'] = grad
         kwargs['compute_jac'] = compute_jac
 
-    live_points = sample_init(live_points,
-                              ptform,
-                              loglike,
-                              M,
-                              nlive=nlive,
-                              npdim=npdim,
-                              rstate=rstate,
-                              use_pool_ptform=use_pool.get(
-                                  'prior_transform', True))
+    live_points = initialize_live_points(live_points,
+                                         ptform,
+                                         loglike,
+                                         M,
+                                         nlive=nlive,
+                                         npdim=npdim,
+                                         rstate=rstate,
+                                         use_pool_ptform=use_pool.get(
+                                             'prior_transform', True))
 
     # Initialize our nested sampler.
     sampler = _SAMPLERS[bound](loglike,

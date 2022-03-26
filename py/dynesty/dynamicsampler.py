@@ -322,15 +322,39 @@ def stopping_function(results,
         return stop <= 1.
 
 
-def sample_init(live_points,
-                prior_transform,
-                loglikelihood,
-                M,
-                nlive=None,
-                npdim=None,
-                rstate=None,
-                use_pool_ptform=None):
-    # Initialize the first set of live points.
+def initialize_live_points(live_points,
+                           prior_transform,
+                           loglikelihood,
+                           M,
+                           nlive=None,
+                           npdim=None,
+                           rstate=None,
+                           use_pool_ptform=None):
+    """
+    Initialize the first set of live points before starting the sampling
+
+    Parameters:
+    live_points: tuple of arrays or None
+        This can be either none or tuple of 3 arrays (u, v, logl), i.e.
+        point location in cube coordinates, point location in original
+        coordinates, and logl values
+    prior_transform: function
+    log_likelihood: function
+    M: function
+        The function supporting parallel calls like M(func, list)
+    nlive: int
+        Number of live-points
+    npdim: int
+        Number of dimensions
+    rstate: :class: numpy.random.RandomGenerator
+    use_pool_ptform: bool or None
+        The flag to perform prior transform using multiprocessing pool or not
+
+    Returns:
+    (live_u, live_v, live_logl): tuple
+        The tuple of arrays. The first is in unit cube coordinates, the second
+        is in the original coordinates and the last are the logl values
+    """
     if live_points is None:
         # If no live points are provided, propose them by randomly
         # sampling from the unit cube.
@@ -394,7 +418,7 @@ def sample_init(live_points,
             'You likely have a plateau in the likelihood. '
             'Nested sampling is *NOT* guaranteed to work in this case',
             RuntimeWarning)
-    return [live_u, live_v, live_logl]
+    return (live_u, live_v, live_logl)
 
 
 class DynamicSampler:
@@ -792,7 +816,7 @@ class DynamicSampler:
             # Reset saved results to avoid any possible conflicts.
             self.reset()
 
-            self.live_u, self.live_v, self.live_logl = sample_init(
+            self.live_u, self.live_v, self.live_logl = initialize_live_points(
                 live_points,
                 self.prior_transform,
                 self.loglikelihood,
@@ -1064,7 +1088,7 @@ class DynamicSampler:
         if psel:
             # If the lower bound encompasses all saved samples, we want
             # to propose a new set of points from the unit cube.
-            live_u, live_v, live_logl = sample_init(
+            live_u, live_v, live_logl = initialize_live_points(
                 None,
                 self.prior_transform,
                 self.loglikelihood,

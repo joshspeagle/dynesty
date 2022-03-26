@@ -488,7 +488,7 @@ def sample_slice(args):
 
     # Setup.
     n = len(u)
-    assert (axes.shape[0] == n)
+    assert axes.shape[0] == n
     slices = kwargs.get('slices', 5)  # number of slices
     nc = 0
     nexpand = 0
@@ -589,7 +589,7 @@ def sample_rslice(args):
 
     # Setup.
     n = len(u)
-    assert (axes.shape[0] == n)
+    assert axes.shape[0] == n
     slices = kwargs.get('slices', 5)  # number of slices
     nc = 0
     nexpand = 0
@@ -688,7 +688,7 @@ def sample_hslice(args):
 
     # Setup.
     n = len(u)
-    assert (axes.shape[0] == len(u))
+    assert axes.shape[0] == len(u)
     slices = kwargs.get('slices', 5)  # number of slices
     grad = kwargs.get('grad', None)  # gradient of log-likelihood
     max_move = kwargs.get('max_move', 100)  # limit for `ncall`

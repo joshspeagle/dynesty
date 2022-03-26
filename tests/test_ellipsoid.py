@@ -86,7 +86,7 @@ def test_samples_multi():
     assert ((pval > 1e-3) and (pval < 1 - 1e-3))
 
 
-def test_overlap():
+def test_cube_overlap():
     rstate = get_rstate()
     ndim = 10
     cen = np.zeros(ndim) + .5
@@ -100,7 +100,38 @@ def test_overlap():
     assert ((frac - true_answer) < 5 * uncertainty)
 
 
+def test_overlap():
+    rstate = get_rstate()
+    ndim = 2
+    cen1 = np.array([0, 0])
+    cen2 = np.array([1, 0])
+    rad = 0.7
+    sig = np.eye(ndim) * rad**2
+
+    ell1 = db.Ellipsoid(cen1, sig)
+    ell2 = db.Ellipsoid(cen2, sig)
+    ell = db.MultiEllipsoid([ell1, ell2])
+    nsamp = 10000
+    xs = rstate.uniform(size=(nsamp, ndim))
+    ind1 = np.sum((xs - cen1[None, :])**2, axis=1) < rad**2
+    ind2 = np.sum((xs - cen2[None, :])**2, axis=1) < rad**2
+    for i in range(nsamp):
+        n1 = int(ind1[i])
+        n2 = int(ind2[i])
+        assert ell.overlap(xs[i]) == n1 + n2
+        assert ell.overlap(xs[i], j=0) == n2
+        within = ell.within(xs[i])
+        within2 = []
+        if n1 == 1:
+            within2.append(0)
+        if n2 == 1:
+            within2.append(1)
+        within2 = np.array(within2)
+        assert np.all(within == within2)
+
+
 def test_mc_logvol():
+
     def capvol(n, r, h):
         # see https://en.wikipedia.org/wiki/Spherical_cap
         Cn = np.pi**(n / 2.) / scipy.special.gamma(1 + n / 2.)

@@ -956,43 +956,25 @@ class SupFriends:
 
         nctrs = len(ctrs)  # number of cubes
 
-        # If there is only one cube, sample from it.
-        if nctrs == 1:
+        while True:
             ds = rstate.uniform(-1, 1, size=self.n)
             dx = np.dot(ds, self.axes)
-            x = ctrs[0] + dx
-            if return_q:
-                return x, 1
+            # If there is only one cube, sample from it.
+            if nctrs == 1:
+                x = ctrs[0] + dx
+                q = 1
             else:
-                return x
-
-        # Select a cube at random.
-        idx = rstate.integers(nctrs)
-
-        # Select a point from the chosen cube.
-        ds = rstate.uniform(-1, 1, size=self.n)
-        dx = np.dot(ds, self.axes)
-        x = ctrs[idx] + dx
-
-        # Check how many cubes the point lies within, passing over
-        # the `idx`-th cube `x` was sampled from.
-        q = self.overlap(x, ctrs)
-
-        if return_q:
-            # If `q` is being returned, assume the user wants to
-            # explicitly apply the `1. / q` acceptance criterion to
-            # properly sample from the union of balls.
-            return x, q
-        else:
-            # If `q` is not being returned, assume the user wants this
-            # done internally.
-            while rstate.uniform() > (1. / q):
+                # Select a cube at random.
                 idx = rstate.integers(nctrs)
-                ds = rstate.uniform(-1, 1, size=self.n)
-                dx = np.dot(ds, self.axes)
                 x = ctrs[idx] + dx
+                # Check how many cubes the point lies within, passing over
+                # the `idx`-th cube `x` was sampled from.
                 q = self.overlap(x, ctrs)
-            return x
+            if q == 1 or rstate.uniform() < (1. / q):
+                if return_q:
+                    return x, q
+                else:
+                    return x
 
     def samples(self, nsamples, ctrs, rstate=None):
         """

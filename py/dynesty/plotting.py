@@ -44,6 +44,15 @@ def _make_subplots(fig, nx, ny, xsize, ysize):
     return fig, axes
 
 
+def rotate_ticks(ax, xy):
+    if xy == 'x':
+        labs = ax.get_xticklabels()
+    else:
+        labs = ax.get_yticklabels()
+    for lab in labs:
+        lab.set_rotation(45)
+
+
 def runplot(results,
             span=None,
             logplot=False,
@@ -1000,13 +1009,13 @@ def cornerpoints(results,
             if i < ndim - 2:
                 ax.set_xticklabels([])
             else:
-                [l.set_rotation(45) for l in ax.get_xticklabels()]
+                rotate_ticks(ax, 'x')
                 ax.set_xlabel(labels[j], **label_kwargs)
                 ax.xaxis.set_label_coords(0.5, -0.3)
             if j > 0:
                 ax.set_yticklabels([])
             else:
-                [l.set_rotation(45) for l in ax.get_yticklabels()]
+                rotate_ticks(ax, 'y')
                 ax.set_ylabel(labels[i + 1], **label_kwargs)
                 ax.yaxis.set_label_coords(-0.3, 0.5)
             # Plot distribution.
@@ -1305,11 +1314,11 @@ def cornerplot(results,
         if i < ndim - 1:
             if top_ticks:
                 ax.xaxis.set_ticks_position("top")
-                [l.set_rotation(45) for l in ax.get_xticklabels()]
+                rotate_ticks(ax, 'x')
             else:
                 ax.set_xticklabels([])
         else:
-            [l.set_rotation(45) for l in ax.get_xticklabels()]
+            rotate_ticks(ax, 'x')
             ax.set_xlabel(labels[i], **label_kwargs)
             ax.xaxis.set_label_coords(0.5, -0.3)
         # Generate distribution.
@@ -1402,13 +1411,13 @@ def cornerplot(results,
             if i < ndim - 1:
                 ax.set_xticklabels([])
             else:
-                [l.set_rotation(45) for l in ax.get_xticklabels()]
+                rotate_ticks(ax, 'x')
                 ax.set_xlabel(labels[j], **label_kwargs)
                 ax.xaxis.set_label_coords(0.5, -0.3)
             if j > 0:
                 ax.set_yticklabels([])
             else:
-                [l.set_rotation(45) for l in ax.get_yticklabels()]
+                rotate_ticks(ax, 'y')
                 ax.set_ylabel(labels[i], **label_kwargs)
                 ax.yaxis.set_label_coords(-0.3, 0.5)
             # Generate distribution.
@@ -1614,7 +1623,7 @@ def boundplot(results,
         # Extract bound iterations.
         try:
             bound_iter = np.array(results['bound_iter'])
-        except:
+        except KeyError:
             raise ValueError("Cannot reconstruct the bound used at the "
                              "specified iteration since bound "
                              "iterations were not saved in the results.")
@@ -1630,7 +1639,7 @@ def boundplot(results,
                              "number of samples in the run.")
         try:
             samples_bound = results['samples_bound']
-        except:
+        except KeyError:
             raise ValueError("Cannot reconstruct the bound used to "
                              "compute the specified dead point since "
                              "sample bound indices were not saved "
@@ -2124,13 +2133,13 @@ def cornerbound(results,
             if i < ndim - 2:
                 ax.set_xticklabels([])
             else:
-                [l.set_rotation(45) for l in ax.get_xticklabels()]
+                rotate_ticks(ax, 'x')
                 ax.set_xlabel(labels[j], **label_kwargs)
                 ax.xaxis.set_label_coords(0.5, -0.3)
             if j > 0:
                 ax.set_yticklabels([])
             else:
-                [l.set_rotation(45) for l in ax.get_yticklabels()]
+                rotate_ticks(ax, 'y')
                 ax.set_ylabel(labels[i + 1], **label_kwargs)
                 ax.yaxis.set_label_coords(-0.3, 0.5)
             # Plot distribution.

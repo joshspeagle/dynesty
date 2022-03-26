@@ -691,43 +691,24 @@ class RadFriends:
 
         nctrs = len(ctrs)  # number of balls
 
-        # If there is only one ball, sample from it.
-        if nctrs == 1:
+        while True:
             ds = randsphere(self.n, rstate=rstate)
             dx = np.dot(ds, self.axes)
-            x = ctrs[0] + dx
-            if return_q:
-                return x, 1
+
+            # If there is only one ball, sample from it.
+            if nctrs == 1:
+                q = 1
+                x = ctrs[0] + dx
             else:
-                return x
-
-        # Select a ball at random.
-        idx = rstate.integers(nctrs)
-
-        # Select a point from the chosen ball.
-        ds = randsphere(self.n, rstate=rstate)
-        dx = np.dot(ds, self.axes)
-        x = ctrs[idx] + dx
-
-        # Check how many balls the point lies within, passing over
-        # the `idx`-th ball `x` was sampled from.
-        q = self.overlap(x, ctrs)
-
-        if return_q:
-            # If `q` is being returned, assume the user wants to
-            # explicitly apply the `1. / q` acceptance criterion to
-            # properly sample from the union of balls.
-            return x, q
-        else:
-            # If `q` is not being returned, assume the user wants this
-            # done internally.
-            while rstate.uniform() > (1. / q):
+                # Select a ball at random.
                 idx = rstate.integers(nctrs)
-                ds = randsphere(self.n, rstate=rstate)
-                dx = np.dot(ds, self.axes)
                 x = ctrs[idx] + dx
                 q = self.overlap(x, ctrs)
-            return x
+            if q == 1 or rstate.uniform() < (1. / q):
+                if return_q:
+                    return x, q
+                else:
+                    return x
 
     def samples(self, nsamples, ctrs, rstate=None):
         """

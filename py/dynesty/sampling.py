@@ -1008,7 +1008,7 @@ def sample_hslice(args):
                                      np.array(nodes_r))
         Nchords = len(nodes_l)
         axlen = np.zeros(Nchords, dtype='float')
-        for i, (nl, nm, nr) in enumerate(zip(nodes_l, nodes_m, nodes_r)):
+        for i, (nl, nr) in enumerate(zip(nodes_l, nodes_r)):
             axlen[i] = linalg.norm(nr - nl)
 
         # Slice sample from all chords simultaneously. This is equivalent to

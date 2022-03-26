@@ -9,8 +9,12 @@ import sys
 import copy
 import numpy as np
 import shutil
+from collections import namedtuple
 
 __all__ = ["Results", "print_fn"]
+
+PrintFnArgs = namedtuple('PrintFnArgs',
+                         ['niter', 'short_str', 'mid_str', 'long_str'])
 
 
 def print_fn(results,
@@ -158,7 +162,10 @@ def get_print_fn_args(results,
         long_str.append("stop: {:6.3f}".format(stop_val))
         mid_str.append("stop: {:6.3f}".format(stop_val))
 
-    return niter, short_str, mid_str, long_str
+    return PrintFnArgs(niter=niter,
+                       short_str=short_str,
+                       mid_str=mid_str,
+                       long_str=long_str)
 
 
 def print_fn_tqdm(pbar,
@@ -171,19 +178,18 @@ def print_fn_tqdm(pbar,
                   nbatch=None,
                   logl_min=-np.inf,
                   logl_max=np.inf):
-    niter, short_str, mid_str, long_str = get_print_fn_args(
-        results,
-        niter,
-        ncall,
-        add_live_it=add_live_it,
-        dlogz=dlogz,
-        stop_val=stop_val,
-        nbatch=nbatch,
-        logl_min=logl_min,
-        logl_max=logl_max)
+    fn_args = get_print_fn_args(results,
+                                niter,
+                                ncall,
+                                add_live_it=add_live_it,
+                                dlogz=dlogz,
+                                stop_val=stop_val,
+                                nbatch=nbatch,
+                                logl_min=logl_min,
+                                logl_max=logl_max)
 
-    pbar.set_postfix_str(" | ".join(long_str), refresh=False)
-    pbar.update(niter - pbar.n)
+    pbar.set_postfix_str(" | ".join(fn_args.long_str), refresh=False)
+    pbar.update(fn_args.niter - pbar.n)
 
 
 def print_fn_fallback(results,
@@ -195,16 +201,17 @@ def print_fn_fallback(results,
                       nbatch=None,
                       logl_min=-np.inf,
                       logl_max=np.inf):
-    niter, short_str, mid_str, long_str = get_print_fn_args(
-        results,
-        niter,
-        ncall,
-        add_live_it=add_live_it,
-        dlogz=dlogz,
-        stop_val=stop_val,
-        nbatch=nbatch,
-        logl_min=logl_min,
-        logl_max=logl_max)
+    fn_args = get_print_fn_args(results,
+                                niter,
+                                ncall,
+                                add_live_it=add_live_it,
+                                dlogz=dlogz,
+                                stop_val=stop_val,
+                                nbatch=nbatch,
+                                logl_min=logl_min,
+                                logl_max=logl_max)
+    niter, short_str, mid_str, long_str = (fn_args.niter, fn_args.short_str,
+                                           fn_args.mid_str, fn_args.long_str)
 
     long_str = ["iter: {:d}".format(niter)] + long_str
 

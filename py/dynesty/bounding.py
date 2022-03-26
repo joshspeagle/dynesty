@@ -89,13 +89,10 @@ class UnitCube:
 
         """
 
-        xs = np.array([self.sample(rstate=rstate) for i in range(nsamples)])
-
-        return xs
+        return rstate.uniform(size=(nsamples, self.n))
 
     def update(self, points, rstate=None, bootstrap=0, pool=None):
         """Filler function."""
-
         pass
 
 

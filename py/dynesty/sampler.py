@@ -70,6 +70,7 @@ class Sampler:
         should be used to execute operations in parallel.
 
     """
+
     def __init__(self, loglikelihood, prior_transform, npdim, live_points,
                  update_interval, first_update, rstate, queue_size, pool,
                  use_pool, ncdim):
@@ -130,6 +131,8 @@ class Sampler:
         self.added_live = False  # whether leftover live points were used
         self.eff = 0.  # overall sampling efficiency
         self.cite = ''  # Default empty
+        self.save_samples = True
+        self.save_bounds = True
         # results
         self.saved_run = RunRecord()
 

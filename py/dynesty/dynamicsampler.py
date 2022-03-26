@@ -524,6 +524,15 @@ class DynamicSampler:
 
         self.new_logl_min, self.new_logl_max = -np.inf, np.inf  # logl bounds
 
+        # these are set-up during sampling
+        self.live_u = None
+        self.live_v = None
+        self.live_it = None
+        self.live_bound = None
+        self.live_logl = None
+        self.live_init = None
+        self.nlive_init = None
+
     def __getstate__(self):
         """Get state information for pickling."""
 

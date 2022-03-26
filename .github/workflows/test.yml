@@ -16,10 +16,10 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.6, 3.8]
+        python-version: [3.6, 3.8, 3.10]
 
     steps:
-      - name: Checkout 
+      - name: Checkout
         uses: actions/checkout@v2
       - name: Python setup
         uses: actions/setup-python@v2
@@ -47,7 +47,7 @@ jobs:
         run: pylint --fail-under=8 --extension-pkg-whitelist=scipy.special  py/dynesty/*py
       - name: RandomCheck
         # check that np.random is not used directly
-        run: grep -e 'np\.random\.' py/*/*y  | ( ! grep -v plotting.py ) | ( ! grep -v SeedSe  ) | ( ! grep -v default_rng ) | (! grep -v Generator ) 
+        run: grep -e 'np\.random\.' py/*/*y  | ( ! grep -v plotting.py ) | ( ! grep -v SeedSe  ) | ( ! grep -v default_rng ) | (! grep -v Generator )
       - name: TestWithCov
         # Run coverage only for 3.6
         if: ${{ matrix.python-version == '3.6'}}

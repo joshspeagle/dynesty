@@ -977,7 +977,7 @@ class SupFriends:
 
         # If there is only one cube, sample from it.
         if nctrs == 1:
-            ds = (2. * rstate.uniform(size=self.n) - 1.)
+            ds = rstate.uniform(-1, 1, size=self.n)
             dx = np.dot(ds, self.axes)
             x = ctrs[0] + dx
             if return_q:
@@ -989,7 +989,7 @@ class SupFriends:
         idx = rstate.integers(nctrs)
 
         # Select a point from the chosen cube.
-        ds = (2. * rstate.uniform(size=self.n) - 1.)
+        ds = rstate.uniform(-1, 1, size=self.n)
         dx = np.dot(ds, self.axes)
         x = ctrs[idx] + dx
 
@@ -1007,7 +1007,7 @@ class SupFriends:
             # done internally.
             while rstate.uniform() > (1. / q):
                 idx = rstate.integers(nctrs)
-                ds = (2. * rstate.uniform(size=self.n) - 1.)
+                ds = rstate.uniform(-1, 1, size=self.n)
                 dx = np.dot(ds, self.axes)
                 x = ctrs[idx] + dx
                 q = self.overlap(x, ctrs)

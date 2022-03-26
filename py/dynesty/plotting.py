@@ -152,11 +152,11 @@ def runplot(results,
 
     # Initialize values.
     if label_kwargs is None:
-        label_kwargs = dict()
+        label_kwargs = {}
     if plot_kwargs is None:
-        plot_kwargs = dict()
+        plot_kwargs = {}
     if truth_kwargs is None:
-        truth_kwargs = dict()
+        truth_kwargs = {}
 
     # Set defaults.
     plot_kwargs['linewidth'] = plot_kwargs.get('linewidth', 5)
@@ -195,7 +195,11 @@ def runplot(results,
             mark_final_live = False
 
     # Determine plotting bounds for each subplot.
-    data = [nlive, np.exp(logl), np.exp(logwt), logz if logplot else np.exp(logz)]
+    data = [
+        nlive,
+        np.exp(logl),
+        np.exp(logwt), logz if logplot else np.exp(logz)
+    ]
     if kde:
         # Derive kernel density estimate.
         wt_kde = gaussian_kde(resample_equal(-logvol, data[2]))  # KDE
@@ -302,20 +306,18 @@ def runplot(results,
                 # Same mask as in ultranest: https://github.com/JohannesBuchner/UltraNest/blob/master/ultranest/plot.py#L139.
                 mask = logz >= ax.get_ylim()[0] - 10
                 [
-                    ax.fill_between(
-                        -logvol[mask],
-                        (logz + s * logzerr)[mask],
-                        (logz - s * logzerr)[mask],
-                        color=c,
-                        alpha=0.2) for s in range(1, 4)
-                 ]
+                    ax.fill_between(-logvol[mask], (logz + s * logzerr)[mask],
+                                    (logz - s * logzerr)[mask],
+                                    color=c,
+                                    alpha=0.2) for s in range(1, 4)
+                ]
             else:
                 [
                     ax.fill_between(-logvol,
-                        np.exp(logz + s * logzerr),
-                        np.exp(logz - s * logzerr),
-                        color=c,
-                        alpha=0.2) for s in range(1, 4)
+                                    np.exp(logz + s * logzerr),
+                                    np.exp(logz - s * logzerr),
+                                    color=c,
+                                    alpha=0.2) for s in range(1, 4)
                 ]
         # Mark addition of final live points.
         if mark_final_live:
@@ -331,7 +333,9 @@ def runplot(results,
             if logplot:
                 ax.axhline(lnz_truth, color=truth_color, **truth_kwargs)
             else:
-                ax.axhline(np.exp(lnz_truth), color=truth_color, **truth_kwargs)
+                ax.axhline(np.exp(lnz_truth),
+                           color=truth_color,
+                           **truth_kwargs)
 
     return fig, axes
 
@@ -525,17 +529,17 @@ def traceplot(results,
 
     # Initialize values.
     if title_kwargs is None:
-        title_kwargs = dict()
+        title_kwargs = {}
     if label_kwargs is None:
-        label_kwargs = dict()
+        label_kwargs = {}
     if trace_kwargs is None:
-        trace_kwargs = dict()
+        trace_kwargs = {}
     if connect_kwargs is None:
-        connect_kwargs = dict()
+        connect_kwargs = {}
     if post_kwargs is None:
-        post_kwargs = dict()
+        post_kwargs = {}
     if truth_kwargs is None:
-        truth_kwargs = dict()
+        truth_kwargs = {}
 
     # Set defaults.
     connect_kwargs['alpha'] = connect_kwargs.get('alpha', 0.7)
@@ -875,11 +879,11 @@ def cornerpoints(results,
 
     # Initialize values.
     if truth_kwargs is None:
-        truth_kwargs = dict()
+        truth_kwargs = {}
     if label_kwargs is None:
-        label_kwargs = dict()
+        label_kwargs = {}
     if plot_kwargs is None:
-        plot_kwargs = dict()
+        plot_kwargs = {}
 
     # Set defaults.
     plot_kwargs['s'] = plot_kwargs.get('s', 1)
@@ -1196,15 +1200,15 @@ def cornerplot(results,
     if quantiles is None:
         quantiles = []
     if truth_kwargs is None:
-        truth_kwargs = dict()
+        truth_kwargs = {}
     if label_kwargs is None:
-        label_kwargs = dict()
+        label_kwargs = {}
     if title_kwargs is None:
-        title_kwargs = dict()
+        title_kwargs = {}
     if hist_kwargs is None:
-        hist_kwargs = dict()
+        hist_kwargs = {}
     if hist2d_kwargs is None:
-        hist2d_kwargs = dict()
+        hist2d_kwargs = {}
 
     # Set defaults.
     hist_kwargs['alpha'] = hist_kwargs.get('alpha', 0.6)
@@ -1580,11 +1584,11 @@ def boundplot(results,
 
     # Initialize values.
     if plot_kwargs is None:
-        plot_kwargs = dict()
+        plot_kwargs = {}
     if label_kwargs is None:
-        label_kwargs = dict()
+        label_kwargs = {}
     if live_kwargs is None:
-        live_kwargs = dict()
+        live_kwargs = {}
 
     # Check that either `idx` or `it` has been specified.
     if (it is None and idx is None) or (it is not None and idx is not None):
@@ -1899,11 +1903,11 @@ def cornerbound(results,
 
     # Initialize values.
     if label_kwargs is None:
-        label_kwargs = dict()
+        label_kwargs = {}
     if plot_kwargs is None:
-        plot_kwargs = dict()
+        plot_kwargs = {}
     if live_kwargs is None:
-        live_kwargs = dict()
+        live_kwargs = {}
 
     # Check that either `idx` or `it` is specified.
     if (it is None and idx is None) or (it is not None and idx is not None):
@@ -2346,7 +2350,7 @@ def _hist2d(x,
     # Plot the data points.
     if plot_datapoints:
         if data_kwargs is None:
-            data_kwargs = dict()
+            data_kwargs = {}
         data_kwargs["color"] = data_kwargs.get("color", color)
         data_kwargs["ms"] = data_kwargs.get("ms", 2.0)
         data_kwargs["mec"] = data_kwargs.get("mec", "none")
@@ -2363,7 +2367,7 @@ def _hist2d(x,
 
     if plot_contours and fill_contours:
         if contourf_kwargs is None:
-            contourf_kwargs = dict()
+            contourf_kwargs = {}
         contourf_kwargs["colors"] = contourf_kwargs.get("colors", contour_cmap)
         contourf_kwargs["antialiased"] = contourf_kwargs.get(
             "antialiased", False)
@@ -2379,7 +2383,7 @@ def _hist2d(x,
     # Plot the contour edge colors.
     if plot_contours:
         if contour_kwargs is None:
-            contour_kwargs = dict()
+            contour_kwargs = {}
         contour_kwargs["colors"] = contour_kwargs.get("colors", color)
         ax.contour(X2, Y2, H2.T, V, **contour_kwargs)
 

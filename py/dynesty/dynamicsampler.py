@@ -1605,14 +1605,14 @@ class DynamicSampler:
         if wt_function is None:
             wt_function = weight_function
         if wt_kwargs is None:
-            wt_kwargs = dict()
+            wt_kwargs = {}
         if stop_function is None:
             default_stop_function = True
             stop_function = stopping_function
         else:
             default_stop_function = False
         if stop_kwargs is None:
-            stop_kwargs = dict()
+            stop_kwargs = {}
         if default_stop_function:
             if n_effective is None:
                 # The reason to scale with square of number of
@@ -1798,7 +1798,7 @@ class DynamicSampler:
         if wt_function is None:
             wt_function = weight_function
         if wt_kwargs is None:
-            wt_kwargs = dict()
+            wt_kwargs = {}
         if stop_val is None:
             stop_val = np.nan
 

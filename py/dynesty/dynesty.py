@@ -468,7 +468,7 @@ def NestedSampler(loglikelihood,
 
     # Keyword arguments controlling the first update.
     if first_update is None:
-        first_update = dict()
+        first_update = {}
 
     # Random state.
     if rstate is None:
@@ -518,7 +518,7 @@ def NestedSampler(loglikelihood,
     # Set up parallel (or serial) evaluation.
     M, queue_size = _parse_pool_queue(pool, queue_size)
     if use_pool is None:
-        use_pool = dict()
+        use_pool = {}
 
     # Wrap functions.
     ptform = _function_wrapper(prior_transform,
@@ -867,7 +867,7 @@ def DynamicNestedSampler(loglikelihood,
 
     # Keyword arguments controlling the first update.
     if first_update is None:
-        first_update = dict()
+        first_update = {}
 
     # Random state.
     if rstate is None:
@@ -883,7 +883,7 @@ def DynamicNestedSampler(loglikelihood,
     if ptform_args is None:
         ptform_args = []
     if ptform_kwargs is None:
-        ptform_kwargs = dict()
+        ptform_kwargs = {}
 
     # gradient
     if grad_args is None:
@@ -911,7 +911,7 @@ def DynamicNestedSampler(loglikelihood,
     # Set up parallel (or serial) evaluation.
     queue_size = _parse_pool_queue(pool, queue_size)[1]
     if use_pool is None:
-        use_pool = dict()
+        use_pool = {}
 
     # Wrap functions.
     ptform = _function_wrapper(prior_transform,
@@ -957,6 +957,7 @@ class _function_wrapper:
     `emcee <http://dan.iel.fm/emcee/>`_.
 
     """
+
     def __init__(self, func, args, kwargs, name='input'):
         self.func = func
         self.args = args

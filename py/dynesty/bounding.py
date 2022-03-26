@@ -704,7 +704,7 @@ class RadFriends:
                 idx = rstate.integers(nctrs)
                 x = ctrs[idx] + dx
                 q = self.overlap(x, ctrs)
-            if q == 1 or rstate.uniform() < (1. / q):
+            if q == 1 or return_q or rstate.uniform() < (1. / q):
                 if return_q:
                     return x, q
                 else:
@@ -970,7 +970,7 @@ class SupFriends:
                 # Check how many cubes the point lies within, passing over
                 # the `idx`-th cube `x` was sampled from.
                 q = self.overlap(x, ctrs)
-            if q == 1 or rstate.uniform() < (1. / q):
+            if q == 1 or return_q or rstate.uniform() < (1. / q):
                 if return_q:
                     return x, q
                 else:

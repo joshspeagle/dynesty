@@ -300,7 +300,7 @@ def stopping_function(results,
         seeds = get_seed_sequence(rstate, n_mc)
         args = zip(rlist, error_list, approx_list, seeds)
         outputs = list(M(_kld_error, args))
-        lnz_arr = np.array([res.logz[-1] for res in outputs])
+        lnz_arr = np.array([res[1].logz[-1] for res in outputs])
         # Evidence stopping value.
         lnz_std = np.std(lnz_arr)
     else:

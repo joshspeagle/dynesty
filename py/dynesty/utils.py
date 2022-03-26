@@ -269,6 +269,8 @@ def get_nonbounded(ndim, periodic, reflective):
     else:
         nonbounded = None
 
+    return nonbounded
+
 
 def get_print_func(print_func, print_progress):
     pbar = None

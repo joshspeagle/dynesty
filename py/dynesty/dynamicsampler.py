@@ -210,7 +210,7 @@ def stopping_function(results,
     The posterior stopping value is based on the estimated effective number
     of samples.
 
-        stop_post = target_neff / neff
+        stop_post = target_n_effective / n_effective
 
     Estimates of the mean and standard deviation are computed using `n_mc`
     realizations of the input using a provided `'error'` keyword (either
@@ -228,7 +228,7 @@ def stopping_function(results,
 
     args : dictionary of keyword arguments, optional
         Arguments used to set the stopping values. Default values are
-        `pfrac = 1.0`, `evid_thresh = 0.1`, `target_neff=10000`,
+        `pfrac = 1.0`, `evid_thresh = 0.1`, `target_n_effective = 10000`,
         `n_mc = 0`, `error = 'sim_approx'`, and `approx = True`.
 
     rstate : `~numpy.random.Generator`, optional
@@ -271,12 +271,12 @@ def stopping_function(results,
         raise ValueError("The provided `evid_thresh` {0} is not non-negative "
                          "even though `1. - pfrac` is {1}.".format(
                              evid_thresh, 1. - pfrac))
-    target_neff = args.get('target_neff', 10000)
+    target_n_effective = args.get('target_n_effective', 10000)
 
-    if pfrac > 0. and target_neff < 0.:
-        raise ValueError("The provided `target_neff` {0} is not non-negative "
-                         "even though `pfrac` is {1}.".format(
-                             target_neff, pfrac))
+    if pfrac > 0. and target_n_effective < 0.:
+        raise ValueError(
+            "The provided `target_n_effective` {0} is not non-negative "
+            "even though `pfrac` is {1}.".format(target_n_effective, pfrac))
     n_mc = args.get('n_mc', 0)
     if n_mc < 0:
         raise ValueError("The number of realizations {0} must be greater "
@@ -310,8 +310,8 @@ def stopping_function(results,
 
     wts = np.exp(results.logwt - results.logwt.max())
     wts = wts / wts.sum()
-    neff = 1. / (wts**2).sum()
-    stop_post = target_neff / neff
+    n_effective = 1. / (wts**2).sum()
+    stop_post = target_n_effective / n_effective
 
     # Effective stopping value.
     stop = pfrac * stop_post + (1. - pfrac) * stop_evid
@@ -1628,7 +1628,7 @@ class DynamicSampler:
                 # defining covariance is roughly 0.5 * N^2
                 n_effective = max(self.npdim * self.npdim, 10000)
 
-            stop_kwargs['target_neff'] = n_effective
+            stop_kwargs['target_n_effective'] = n_effective
         nlive_init = nlive_init or self.nlive0
         nlive_batch = nlive_batch or self.nlive0
 

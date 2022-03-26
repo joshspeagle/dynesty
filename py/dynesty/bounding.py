@@ -55,6 +55,7 @@ class UnitCube:
         The number of dimensions of the unit cube.
 
     """
+
     def __init__(self, ndim):
         self.n = ndim  # dimension
         self.vol = 1.  # volume
@@ -122,6 +123,7 @@ class Ellipsoid:
         Covariance matrix describing the axes.
 
     """
+
     def __init__(self, ctr, cov, am=None, axes=None):
         self.n = len(ctr)  # dimension
         self.ctr = np.asarray(ctr)  # center coordinates
@@ -361,6 +363,7 @@ class MultiEllipsoid:
         initialize :class:`MultiEllipsoid` if :data:`ctrs` also provided.
 
     """
+
     def __init__(self, ells=None, ctrs=None, covs=None):
         if ells is not None:
             # Try to initialize quantities using provided `Ellipsoid` objects.
@@ -637,6 +640,7 @@ class RadFriends:
         Covariance structure (correlation and size) of each ball.
 
     """
+
     def __init__(self, ndim, cov=None):
         self.n = ndim
 
@@ -919,6 +923,7 @@ class SupFriends:
         Covariance structure (correlation and size) of each cube.
 
     """
+
     def __init__(self, ndim, cov=None):
         self.n = ndim
 
@@ -1142,6 +1147,7 @@ class SupFriends:
         self.axes_inv /= hsmax
 
         detsign, detln = linalg.slogdet(self.am)
+        assert detsign > 0
         self.logvol_cube = (self.n * np.log(2.) - 0.5 * detln)
         self.expand = 1.
 
@@ -1507,7 +1513,7 @@ def _bootstrap_points(points, rseed):
     Tuple with selected, and not-selected points
     """
     rstate = get_random_generator(rseed)
-    npoints, ndim = points.shape
+    npoints = points.shape[0]
 
     # Resampling.
     idxs = rstate.integers(npoints, size=npoints)
@@ -1576,12 +1582,12 @@ def _friends_bootstrap_radius(args):
         # Compute distances from our "missing" points its closest neighbor
         # among the resampled points using the Euclidean norm
         # (i.e. "radius" of n-sphere).
-        dists, ids = kdtree.query(points_out, k=1, eps=0, p=2)
+        dists = kdtree.query(points_out, k=1, eps=0, p=2)[0]
     elif ftype == 'cubes':
         # Compute distances from our "missing" points its closest neighbor
         # among the resampled points using the Euclidean norm
         # (i.e. "half-side-length" of n-cube).
-        dists, ids = kdtree.query(points_out, k=1, eps=0, p=np.inf)
+        dists = kdtree.query(points_out, k=1, eps=0, p=np.inf)[0]
 
     # Conservative upper-bound on radius.
     dist = max(dists)
@@ -1600,10 +1606,10 @@ def _friends_leaveoneout_radius(points, ftype):
 
     if ftype == 'balls':
         # Compute radius to two nearest neighbors (self + neighbor).
-        dists, ids = kdtree.query(points, k=2, eps=0, p=2)
+        dists = kdtree.query(points, k=2, eps=0, p=2)[0]
     elif ftype == 'cubes':
         # Compute half-side-length to two nearest neighbors (self + neighbor).
-        dists, ids = kdtree.query(points, k=2, eps=0, p=np.inf)
+        dists = kdtree.query(points, k=2, eps=0, p=np.inf)[0]
 
     dist = dists[:, 1]  # distances to LOO nearest neighbor
 

@@ -153,11 +153,11 @@ def _parse_pool_queue(pool, queue_size):
         if queue_size is None:
             try:
                 queue_size = pool.size
-            except AttributeError:
+            except AttributeError as e:
                 raise ValueError("Cannot initialize `queue_size` because "
                                  "`pool.size` has not been provided. Please"
                                  "define `pool.size` or specify `queue_size` "
-                                 "explicitly.")
+                                 "explicitly.") from e
     else:
         raise ValueError("`queue_size > 1` but no `pool` provided.")
 

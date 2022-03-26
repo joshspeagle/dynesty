@@ -236,8 +236,8 @@ def get_enlarge_bootstrap(sample, enlarge, bootstrap):
         if bootstrap == 0 or enlarge == 1:
             return enlarge, bootstrap
         else:
-            raise ValueError('Enlarge and bootstrap together do not make'
-                             'sense unless bootstrap=1 or enlarge = 1')
+            raise ValueError('Enlarge and bootstrap together do not make '
+                             'sense unless bootstrap=0 or enlarge = 1')
 
 
 def get_nonbounded(ndim, periodic, reflective):

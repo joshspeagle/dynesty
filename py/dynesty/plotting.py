@@ -220,7 +220,8 @@ def runplot(results,
             span[i] = (max(data[i]) * span[i], max(data[i]))
     if lnz_error and no_span:
         if logplot:
-            # Same lower bound as in ultranest: https://github.com/JohannesBuchner/UltraNest/blob/master/ultranest/plot.py#L139.
+            # Same lower bound as in ultranest:
+            # https://github.com/JohannesBuchner/UltraNest/blob/master/ultranest/plot.py#L139.
             zspan = (logz[-1] - 10.3 * 3. * logzerr[-1],
                      logz[-1] + 1.3 * 3. * logzerr[-1])
         else:
@@ -303,7 +304,8 @@ def runplot(results,
             ax.plot(-logvol, d, color=c, **plot_kwargs)
         if i == 3 and lnz_error:
             if logplot:
-                # Same mask as in ultranest: https://github.com/JohannesBuchner/UltraNest/blob/master/ultranest/plot.py#L139.
+                # Same mask as in ultranest:
+                # https://github.com/JohannesBuchner/UltraNest/blob/master/ultranest/plot.py#L139
                 mask = logz >= ax.get_ylim()[0] - 10
                 [
                     ax.fill_between(-logvol[mask], (logz + s * logzerr)[mask],

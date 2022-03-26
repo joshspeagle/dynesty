@@ -273,8 +273,8 @@ _RESULTS_STRUCTURE = [
     ('batch_bounds', 'array[XXX]',
      "The log-likelihood bounds used to run a batch.", 'nbatch???'),
     ('batch_nlive', 'array[int]',
-     """The number of live points added in a given batch ???  How is it different from samples_n""",
-     'nbatch???'),
+     "The number of live points added in a given batch ???"
+     "How is it different from samples_n", 'nbatch???'),
     ('scale', 'array[float]', "Scalar scale applied for proposals", 'niter')
 ]
 
@@ -285,7 +285,7 @@ class Results:
     functions for summarizing the output.
     The object is meant to be unchangeable record of the static or
     dynamic nested run.
-    
+
     Results attributes
     """
 

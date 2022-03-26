@@ -30,6 +30,7 @@ from scipy import spatial
 from scipy import cluster
 from scipy import linalg as lalg
 from scipy.special import logsumexp, gammaln
+from scipy.cluster.vq import kmeans2
 from .utils import unitcheck, get_seed_sequence, get_random_generator
 
 __all__ = [
@@ -41,8 +42,6 @@ __all__ = [
 ]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
-
-from scipy.cluster.vq import kmeans2
 
 
 class UnitCube:

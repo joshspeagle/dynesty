@@ -65,11 +65,6 @@ class UnitCube:
 
         return unitcheck(x)
 
-    def randoffset(self, rstate=None):
-        """Draw a random offset from the center of the unit cube."""
-
-        return self.sample(rstate=rstate) - 0.5
-
     def sample(self, rstate=None):
         """
         Draw a sample uniformly distributed within the unit cube.
@@ -227,11 +222,6 @@ class Ellipsoid:
 
         return self.distance(x) <= 1.0
 
-    def randoffset(self, rstate=None):
-        """Return a random offset from the center of the ellipsoid."""
-
-        return np.dot(self.axes, randsphere(self.n, rstate=rstate))
-
     def sample(self, rstate=None):
         """
         Draw a sample uniformly distributed within the ellipsoid.
@@ -243,7 +233,7 @@ class Ellipsoid:
 
         """
 
-        return self.ctr + self.randoffset(rstate=rstate)
+        return self.ctr + np.dot(self.axes, randsphere(self.n, rstate=rstate))
 
     def samples(self, nsamples, rstate=None):
         """

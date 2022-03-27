@@ -41,35 +41,35 @@ LOGZ_TRUTH_EGG = 235.856
 
 def test_pool():
     # test pool on egg problem
-    pool = mp.Pool(2)
     rstate = get_rstate()
-    sampler = dynesty.NestedSampler(loglike_egg,
-                                    prior_transform_egg,
-                                    ndim,
-                                    nlive=nlive,
-                                    pool=pool,
-                                    queue_size=2,
-                                    rstate=rstate)
-    sampler.run_nested(dlogz=0.1, print_progress=printing)
-    assert (abs(LOGZ_TRUTH_EGG - sampler.results.logz[-1]) <
-            5. * sampler.results.logzerr[-1])
+    with mp.Pool(2) as pool:
+        sampler = dynesty.NestedSampler(loglike_egg,
+                                        prior_transform_egg,
+                                        ndim,
+                                        nlive=nlive,
+                                        pool=pool,
+                                        queue_size=100,
+                                        rstate=rstate)
+        sampler.run_nested(dlogz=0.1, print_progress=printing)
+        assert (abs(LOGZ_TRUTH_EGG - sampler.results.logz[-1]) <
+                5. * sampler.results.logzerr[-1])
 
 
 def test_pool_dynamic():
     # test pool in dynamic mode
     # here for speed I do a gaussian
-    pool = mp.Pool(2)
     rstate = get_rstate()
-    sampler = dynesty.DynamicNestedSampler(loglike_gau,
-                                           prior_transform_gau,
-                                           ndim,
-                                           nlive=nlive,
-                                           pool=pool,
-                                           queue_size=2,
-                                           rstate=rstate)
-    sampler.run_nested(dlogz_init=1, print_progress=printing)
-    assert (abs(LOGZ_TRUTH_GAU - sampler.results.logz[-1]) <
-            5. * sampler.results.logzerr[-1])
+    with mp.Pool(2) as pool:
+        sampler = dynesty.DynamicNestedSampler(loglike_gau,
+                                               prior_transform_gau,
+                                               ndim,
+                                               nlive=nlive,
+                                               pool=pool,
+                                               queue_size=100,
+                                               rstate=rstate)
+        sampler.run_nested(dlogz_init=1, print_progress=printing)
+        assert (abs(LOGZ_TRUTH_GAU - sampler.results.logz[-1]) <
+                5. * sampler.results.logzerr[-1])
 
 
 POOL_KW = ['prior_transform', 'loglikelihood', 'propose_point', 'update_bound']
@@ -79,18 +79,17 @@ POOL_KW = ['prior_transform', 'loglikelihood', 'propose_point', 'update_bound']
 def test_usepool(func):
     # test all the use_pool options, toggle them one by one
     rstate = get_rstate()
-    pool = mp.Pool(2)
     use_pool = {}
     for k in POOL_KW:
         use_pool[k] = False
     use_pool[func] = True
-
-    sampler = dynesty.DynamicNestedSampler(loglike_gau,
-                                           prior_transform_gau,
-                                           ndim,
-                                           nlive=nlive,
-                                           rstate=rstate,
-                                           use_pool=use_pool,
-                                           pool=pool,
-                                           queue_size=2)
-    sampler.run_nested(maxiter=10000, print_progress=printing)
+    with mp.Pool(2) as pool:
+        sampler = dynesty.DynamicNestedSampler(loglike_gau,
+                                               prior_transform_gau,
+                                               ndim,
+                                               nlive=nlive,
+                                               rstate=rstate,
+                                               use_pool=use_pool,
+                                               pool=pool,
+                                               queue_size=100)
+        sampler.run_nested(maxiter=10000, print_progress=printing)

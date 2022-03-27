@@ -395,7 +395,7 @@ def runplot(results,
 
 def traceplot(results,
               span=None,
-              quantiles=[0.025, 0.5, 0.975],
+              quantiles=(0.025, 0.5, 0.975),
               smooth=0.02,
               thin=1,
               dims=None,
@@ -415,7 +415,7 @@ def traceplot(results,
               labels=None,
               label_kwargs=None,
               show_titles=False,
-              title_quantiles=[0.025, 0.5, 0.975],
+              title_quantiles=(0.025, 0.5, 0.975),
               title_fmt=".2f",
               title_kwargs=None,
               truths=None,
@@ -787,7 +787,7 @@ def traceplot(results,
                 ax.axvline(q, lw=2, ls="dashed", color=color)
             if verbose:
                 print("Quantiles:")
-                print(labels[i], [blob for blob in zip(quantiles, qs)])
+                print(labels[i], list(zip(quantiles, qs)))
         # Add truth value(s).
         if truths is not None:
             plot_thruth(ax,
@@ -1370,7 +1370,7 @@ def cornerplot(results,
                 ax.axvline(q, lw=2, ls="dashed", color=color)
             if verbose:
                 print("Quantiles:")
-                print(labels[i], [blob for blob in zip(quantiles, qs)])
+                print(labels[i], list(zip(quantiles, qs)))
         # Add truth value(s).
         if truths is not None:
             plot_thruth(ax,

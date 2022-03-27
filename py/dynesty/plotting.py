@@ -78,6 +78,21 @@ truths can be None or one value or a list
             func(t, color=truth_color, **truth_kwargs)
 
 
+def check_span(span, samples, weights):
+    """
+If span is a list of scalars, replace it by the list of bounds.
+If the input is list of pairs, it is kept intact
+    """
+    for i, _ in enumerate(span):
+        try:
+            iter(span[i])
+            if len(span[i]) != 2:
+                raise ValueError('Incorrect span value')
+        except TypeError:
+            q = [0.5 - 0.5 * span[i], 0.5 + 0.5 * span[i]]
+            span[i] = _quantile(samples[i], q, weights=weights)
+
+
 def runplot(results,
             span=None,
             logplot=False,
@@ -249,8 +264,10 @@ def runplot(results,
         raise ValueError("More bounds provided in `span` than subplots!")
     for i, _ in enumerate(span):
         try:
-            ymin, ymax = span[i]
-        except:
+            iter(span[i])
+            if len(span[i]) != 2:
+                raise ValueError('Incorrect span value')
+        except TypeError:
             span[i] = (max(data[i]) * span[i], max(data[i]))
     if lnz_error and no_span:
         if logplot:
@@ -648,12 +665,7 @@ def traceplot(results,
     span = list(span)
     if len(span) != ndim:
         raise ValueError("Dimension mismatch between samples and span.")
-    for i, _ in enumerate(span):
-        try:
-            xmin, xmax = span[i]
-        except:
-            q = [0.5 - 0.5 * span[i], 0.5 + 0.5 * span[i]]
-            span[i] = _quantile(samples[i], q, weights=weights)
+    check_span(span, samples, weights)
 
     # Setting up labels.
     if labels is None:
@@ -963,12 +975,7 @@ def cornerpoints(results,
     if span is not None:
         if len(span) != ndim:
             raise ValueError("Dimension mismatch between samples and span.")
-        for i, _ in enumerate(span):
-            try:
-                xmin, xmax = span[i]
-            except:
-                q = [0.5 - 0.5 * span[i], 0.5 + 0.5 * span[i]]
-                span[i] = _quantile(samples[i], q, weights=weights)
+        check_span(span, samples, weights)
 
     # Set labels
     if labels is None:
@@ -1269,12 +1276,7 @@ def cornerplot(results,
     span = list(span)
     if len(span) != ndim:
         raise ValueError("Dimension mismatch between samples and span.")
-    for i, _ in enumerate(span):
-        try:
-            xmin, xmax = span[i]
-        except:
-            q = [0.5 - 0.5 * span[i], 0.5 + 0.5 * span[i]]
-            span[i] = _quantile(samples[i], q, weights=weights)
+    check_span(span, samples, weights)
 
     # Set labels
     if labels is None:
@@ -2242,12 +2244,7 @@ def _hist2d(x,
     span = list(span)
     if len(span) != 2:
         raise ValueError("Dimension mismatch between samples and span.")
-    for i, _ in enumerate(span):
-        try:
-            xmin, xmax = span[i]
-        except:
-            q = [0.5 - 0.5 * span[i], 0.5 + 0.5 * span[i]]
-            span[i] = _quantile(data[i], q, weights=weights)
+    check_span(span, data, weights)
 
     # The default "sigma" contour levels.
     if levels is None:

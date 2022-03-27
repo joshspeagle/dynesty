@@ -93,4 +93,4 @@ def test_usepool(func):
                                            use_pool=use_pool,
                                            pool=pool,
                                            queue_size=2)
-    sampler.run_nested(maxiter=10000)
+    sampler.run_nested(maxiter=10000, print_progress=printing)

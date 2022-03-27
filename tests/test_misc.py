@@ -4,11 +4,13 @@ import dynesty
 import pickle
 import dynesty.utils as dyutil
 
-from utils import get_rstate
+from utils import get_rstate, get_printing
 """
 Run a series of basic tests changing various things like
 maxcall options and potentially other things
 """
+
+printing = get_printing()
 
 nlive = 100
 
@@ -50,14 +52,14 @@ def test_maxcall():
                                     ndim,
                                     nlive=nlive,
                                     rstate=rstate)
-    sampler.run_nested(dlogz=1, maxcall=1000)
+    sampler.run_nested(dlogz=1, maxcall=1000, print_progress=printing)
 
     sampler = dynesty.DynamicNestedSampler(loglike,
                                            prior_transform,
                                            ndim,
                                            nlive=nlive,
                                            rstate=rstate)
-    sampler.run_nested(dlogz_init=1, maxcall=1000)
+    sampler.run_nested(dlogz_init=1, maxcall=1000, print_progress=printing)
 
 
 def test_pickle():
@@ -69,14 +71,14 @@ def test_pickle():
                                     ndim,
                                     nlive=nlive,
                                     rstate=rstate)
-    sampler.run_nested()
+    sampler.run_nested(print_progress=printing)
     pickle.dumps(sampler)
     sampler = dynesty.DynamicNestedSampler(loglike,
                                            prior_transform,
                                            ndim,
                                            nlive=nlive,
                                            rstate=rstate)
-    sampler.run_nested()
+    sampler.run_nested(print_progress=printing)
     pickle.dumps(sampler)
 
 
@@ -89,14 +91,14 @@ def test_inf():
                                     ndim,
                                     nlive=nlive,
                                     rstate=rstate)
-    sampler.run_nested()
+    sampler.run_nested(print_progress=printing)
 
     sampler = dynesty.DynamicNestedSampler(loglike_inf,
                                            prior_transform,
                                            ndim,
                                            nlive=nlive,
                                            rstate=rstate)
-    sampler.run_nested(dlogz_init=1)
+    sampler.run_nested(dlogz_init=1, print_progress=printing)
 
 
 def test_unravel():
@@ -108,7 +110,7 @@ def test_unravel():
                                     ndim,
                                     nlive=nlive,
                                     rstate=rstate)
-    sampler.run_nested()
+    sampler.run_nested(print_progress=printing)
     dyutil.unravel_run(sampler.results)
 
     sampler = dynesty.DynamicNestedSampler(loglike,
@@ -116,7 +118,7 @@ def test_unravel():
                                            ndim,
                                            nlive=nlive,
                                            rstate=rstate)
-    sampler.run_nested(dlogz_init=1, maxcall=1000)
+    sampler.run_nested(dlogz_init=1, maxcall=1000, print_progress=printing)
     dyutil.unravel_run(sampler.results)
     logps = sampler.results.logl
     dyutil.reweight_run(sampler.results, logps / 4.)
@@ -136,7 +138,7 @@ def test_livepoints():
                                     nlive=nlive,
                                     live_points=live_points,
                                     rstate=rstate)
-    sampler.run_nested()
+    sampler.run_nested(print_progress=printing)
     dyutil.unravel_run(sampler.results)
 
 
@@ -150,7 +152,7 @@ def test_exc():
                                         ndim,
                                         nlive=nlive,
                                         rstate=rstate)
-        sampler.run_nested()
+        sampler.run_nested(print_progress=printing)
 
 
 def test_neff():
@@ -163,7 +165,7 @@ def test_neff():
                                     nlive=nlive,
                                     rstate=rstate)
     assert sampler.n_effective == 0
-    sampler.run_nested()
+    sampler.run_nested(print_progress=printing)
     assert sampler.n_effective > 10
 
     sampler = dynesty.DynamicNestedSampler(loglike,
@@ -172,14 +174,16 @@ def test_neff():
                                            nlive=nlive,
                                            rstate=rstate)
     assert sampler.n_effective == 0
-    sampler.run_nested(dlogz_init=1, n_effective=1000)
+    sampler.run_nested(dlogz_init=1, n_effective=1000, print_progress=printing)
     assert sampler.n_effective > 1000
     sampler = dynesty.DynamicNestedSampler(loglike,
                                            prior_transform,
                                            ndim,
                                            nlive=nlive,
                                            rstate=rstate)
-    sampler.run_nested(dlogz_init=1, n_effective=10000)
+    sampler.run_nested(dlogz_init=1,
+                       n_effective=10000,
+                       print_progress=printing)
     assert sampler.n_effective > 10000
 
 
@@ -194,7 +198,10 @@ def test_oldstop():
                                            ndim,
                                            nlive=nlive,
                                            rstate=rstate)
-    sampler.run_nested(dlogz_init=1, n_effective=None, stop_function=stopfn)
+    sampler.run_nested(dlogz_init=1,
+                       n_effective=None,
+                       stop_function=stopfn,
+                       print_progress=printing)
 
 
 def test_stop_nmc():
@@ -208,7 +215,8 @@ def test_stop_nmc():
                                            rstate=rstate)
     sampler.run_nested(dlogz_init=1,
                        n_effective=None,
-                       stop_kwargs=dict(n_mc=25))
+                       stop_kwargs=dict(n_mc=25),
+                       print_progress=printing)
 
 
 def test_results():
@@ -221,7 +229,7 @@ def test_results():
                                            ndim,
                                            nlive=nlive,
                                            rstate=rstate)
-    sampler.run_nested()
+    sampler.run_nested(print_progress=printing)
     res = sampler.results
     for k in res.keys():
         pass
@@ -244,7 +252,7 @@ def test_deterministic(ndim):
                                                ndim,
                                                nlive=nlive,
                                                rstate=rstate)
-        sampler.run_nested()
+        sampler.run_nested(print_progress=printing)
         res = sampler.results
         results.append(res)
 
@@ -268,11 +276,11 @@ def test_update_interval():
                                     nlive=nlive,
                                     rstate=rstate,
                                     update_interval=10)
-    sampler.run_nested()
+    sampler.run_nested(print_progress=printing)
     sampler = dynesty.NestedSampler(loglike,
                                     prior_transform,
                                     ndim,
                                     nlive=nlive,
                                     rstate=rstate,
                                     update_interval=0.5)
-    sampler.run_nested()
+    sampler.run_nested(print_progress=printing)

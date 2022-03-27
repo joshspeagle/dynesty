@@ -291,7 +291,10 @@ def test_ravel_unravel():
                                             rstate=rstate,
                                             nlive=nlive)
     maxiter = 1800
-    dsampler.run_nested(maxiter=maxiter, use_stop=False, nlive_batch=100)
+    dsampler.run_nested(maxiter=maxiter,
+                        use_stop=False,
+                        nlive_batch=100,
+                        print_progress=printing)
     dres = dsampler.results
 
     dres_list = dyfunc.unravel_run(dres)

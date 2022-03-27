@@ -53,6 +53,31 @@ def rotate_ticks(ax, xy):
         lab.set_rotation(45)
 
 
+def plot_thruth(ax,
+                truths,
+                truth_color,
+                truth_kwargs,
+                vertical=None,
+                horizontal=None):
+    """
+Plot the thruth line (horizontal or vertical).
+truths can be None or one value or a list
+"""
+    if vertical:
+        func = ax.axvline
+    elif horizontal:
+        func = ax.axhline
+    else:
+        raise ValueError('vertical or horizontal option must be specified')
+    if truths is not None:
+        try:
+            curt = iter(truths)
+        except TypeError:
+            curt = [truths]
+        for t in curt:
+            func(t, color=truth_color, **truth_kwargs)
+
+
 def runplot(results,
             span=None,
             logplot=False,
@@ -689,14 +714,12 @@ def traceplot(results,
                         color=connect_color,
                         **connect_kwargs)
         # Add truth value(s).
-        if truths is not None and truths[i] is not None:
-            try:
-                [
-                    ax.axhline(t, color=truth_color, **truth_kwargs)
-                    for t in truths[i]
-                ]
-            except:
-                ax.axhline(truths[i], color=truth_color, **truth_kwargs)
+        if truths is not None:
+            plot_thruth(ax,
+                        truths[i],
+                        truth_color,
+                        truth_kwargs,
+                        horizontal=True)
 
         # Plot marginalized 1-D posterior.
 
@@ -754,14 +777,12 @@ def traceplot(results,
                 print("Quantiles:")
                 print(labels[i], [blob for blob in zip(quantiles, qs)])
         # Add truth value(s).
-        if truths is not None and truths[i] is not None:
-            try:
-                [
-                    ax.axvline(t, color=truth_color, **truth_kwargs)
-                    for t in truths[i]
-                ]
-            except:
-                ax.axvline(truths[i], color=truth_color, **truth_kwargs)
+        if truths is not None:
+            plot_thruth(ax,
+                        truths[i],
+                        truth_color,
+                        truth_kwargs,
+                        vertical=True)
         # Set titles.
         if show_titles:
             title = None
@@ -1035,26 +1056,16 @@ def cornerpoints(results,
                        **plot_kwargs)
             # Add truth values
             if truths is not None:
-                if truths[j] is not None:
-                    try:
-                        [
-                            ax.axvline(t, color=truth_color, **truth_kwargs)
-                            for t in truths[j]
-                        ]
-                    except:
-                        ax.axvline(truths[j],
-                                   color=truth_color,
-                                   **truth_kwargs)
-                if truths[i + 1] is not None:
-                    try:
-                        [
-                            ax.axhline(t, color=truth_color, **truth_kwargs)
-                            for t in truths[i + 1]
-                        ]
-                    except:
-                        ax.axhline(truths[i + 1],
-                                   color=truth_color,
-                                   **truth_kwargs)
+                plot_thruth(ax,
+                            truths[j],
+                            truth_color,
+                            truth_kwargs,
+                            vertical=True)
+                plot_thruth(ax,
+                            truths[i + 1],
+                            truth_color,
+                            truth_kwargs,
+                            horizontal=True)
 
     return (fig, axes)
 
@@ -1359,14 +1370,12 @@ def cornerplot(results,
                 print("Quantiles:")
                 print(labels[i], [blob for blob in zip(quantiles, qs)])
         # Add truth value(s).
-        if truths is not None and truths[i] is not None:
-            try:
-                [
-                    ax.axvline(t, color=truth_color, **truth_kwargs)
-                    for t in truths[i]
-                ]
-            except:
-                ax.axvline(truths[i], color=truth_color, **truth_kwargs)
+        if truths is not None:
+            plot_thruth(ax,
+                        truths[i],
+                        truth_color,
+                        truth_kwargs,
+                        vertical=True)
         # Set titles.
         if show_titles:
             title = None
@@ -1444,20 +1453,16 @@ def cornerplot(results,
                     **hist2d_kwargs)
             # Add truth values
             if truths is not None:
-                if truths[j] is not None:
-                    try:
-                        curt = iter(truths[j])
-                    except TypeError:
-                        curt = [truths[j]]
-                    for t in curt:
-                        ax.axvline(t, color=truth_color, **truth_kwargs)
-                if truths[i] is not None:
-                    try:
-                        curt = iter(truths[i])
-                    except TypeError:
-                        curt = [truths[i]]
-                    for t in curt:
-                        ax.axhline(t, color=truth_color, **truth_kwargs)
+                plot_thruth(ax,
+                            truths[j],
+                            truth_color,
+                            truth_kwargs,
+                            vertical=True)
+                plot_thruth(ax,
+                            truths[i],
+                            truth_color,
+                            truth_kwargs,
+                            horizontal=True)
 
     return (fig, axes)
 

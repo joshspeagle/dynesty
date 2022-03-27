@@ -358,20 +358,19 @@ def runplot(results,
                 # Same mask as in ultranest:
                 # https://github.com/JohannesBuchner/UltraNest/blob/master/ultranest/plot.py#L139
                 mask = logz >= ax.get_ylim()[0] - 10
-                [
+                for s in range(1, 4):
                     ax.fill_between(-logvol[mask], (logz + s * logzerr)[mask],
                                     (logz - s * logzerr)[mask],
                                     color=c,
-                                    alpha=0.2) for s in range(1, 4)
-                ]
+                                    alpha=0.2)
             else:
-                [
+                for s in range(1, 4):
                     ax.fill_between(-logvol,
                                     np.exp(logz + s * logzerr),
                                     np.exp(logz - s * logzerr),
                                     color=c,
-                                    alpha=0.2) for s in range(1, 4)
-                ]
+                                    alpha=0.2)
+
         # Mark addition of final live points.
         if mark_final_live:
             ax.axvline(-logvol[live_idx],
@@ -2263,9 +2262,10 @@ def _hist2d(x,
     # This "color map" is the list of colors for the contour levels if the
     # contours are filled.
     rgba_color = colorConverter.to_rgba(color)
-    contour_cmap = [list(rgba_color) for l in levels] + [rgba_color]
-    for i, l in enumerate(levels):
-        contour_cmap[i][-1] *= float(i) / (len(levels) + 1)
+    n_levels = len(levels)
+    contour_cmap = [list(rgba_color)] * n_levels + [rgba_color]
+    for i in range(n_levels):
+        contour_cmap[i][-1] *= float(i) / (n_levels + 1)
 
     # Initialize smoothing.
     if (isinstance(smooth, int_type) or isinstance(smooth, float_type)):

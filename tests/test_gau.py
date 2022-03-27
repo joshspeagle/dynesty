@@ -63,6 +63,7 @@ def check_results(results,
 
 
 class Gaussian:
+
     def __init__(self, corr=.95, prior_win=10):
         self.ndim = 3
         self.mean = np.linspace(-1, 1, self.ndim)
@@ -170,8 +171,9 @@ def test_bounding_sample(bound, sample):
         if sample != 'unif':
             g = Gaussian(0.1)
         else:
-            g = Gaussian(corr=0., prior_win=3)
-        # make live easy if bound is none
+            g = Gaussian(corr=0., prior_win=10)
+            # make live easy if bound is none
+            # but also not too easy so propose_point() is exercised
     else:
         g = Gaussian()
     sampler = dynesty.NestedSampler(g.loglikelihood,

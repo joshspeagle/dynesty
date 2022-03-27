@@ -53,6 +53,7 @@ class SuperSampler(Sampler):
     This is a class that provides common functionality to all the
     implemented samplers
     """
+
     def __init__(self,
                  loglikelihood,
                  prior_transform,
@@ -263,6 +264,7 @@ class UnitCubeSampler(SuperSampler):
         A dictionary of additional parameters.
 
     """
+
     def __init__(self,
                  loglikelihood,
                  prior_transform,
@@ -383,6 +385,7 @@ class SingleEllipsoidSampler(SuperSampler):
         A dictionary of additional parameters.
 
     """
+
     def __init__(self,
                  loglikelihood,
                  prior_transform,
@@ -528,6 +531,7 @@ class MultiEllipsoidSampler(SuperSampler):
         A dictionary of additional parameters.
 
     """
+
     def __init__(self,
                  loglikelihood,
                  prior_transform,
@@ -705,6 +709,7 @@ class RadFriendsSampler(SuperSampler):
         A dictionary of additional parameters.
 
     """
+
     def __init__(self,
                  loglikelihood,
                  prior_transform,
@@ -854,6 +859,7 @@ class SupFriendsSampler(SuperSampler):
         A dictionary of additional parameters.
 
     """
+
     def __init__(self,
                  loglikelihood,
                  prior_transform,

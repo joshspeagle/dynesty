@@ -1446,24 +1446,18 @@ def cornerplot(results,
             if truths is not None:
                 if truths[j] is not None:
                     try:
-                        [
-                            ax.axvline(t, color=truth_color, **truth_kwargs)
-                            for t in truths[j]
-                        ]
-                    except:
-                        ax.axvline(truths[j],
-                                   color=truth_color,
-                                   **truth_kwargs)
+                        curt = iter(truths[j])
+                    except TypeError:
+                        curt = [truths[j]]
+                    for t in curt:
+                        ax.axvline(t, color=truth_color, **truth_kwargs)
                 if truths[i] is not None:
                     try:
-                        [
-                            ax.axhline(t, color=truth_color, **truth_kwargs)
-                            for t in truths[i]
-                        ]
-                    except:
-                        ax.axhline(truths[i],
-                                   color=truth_color,
-                                   **truth_kwargs)
+                        curt = iter(truths[i])
+                    except TypeError:
+                        curt = [truths[i]]
+                    for t in curt:
+                        ax.axhline(t, color=truth_color, **truth_kwargs)
 
     return (fig, axes)
 

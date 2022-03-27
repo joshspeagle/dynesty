@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 import dynesty
+import pickle
 import dynesty.utils as dyutil
 
 from utils import get_rstate
@@ -57,6 +58,26 @@ def test_maxcall():
                                            nlive=nlive,
                                            rstate=rstate)
     sampler.run_nested(dlogz_init=1, maxcall=1000)
+
+
+def test_pickle():
+    # test of maxcall functionality
+    ndim = 2
+    rstate = get_rstate()
+    sampler = dynesty.NestedSampler(loglike,
+                                    prior_transform,
+                                    ndim,
+                                    nlive=nlive,
+                                    rstate=rstate)
+    sampler.run_nested()
+    pickle.dumps(sampler)
+    sampler = dynesty.DynamicNestedSampler(loglike,
+                                           prior_transform,
+                                           ndim,
+                                           nlive=nlive,
+                                           rstate=rstate)
+    sampler.run_nested()
+    pickle.dumps(sampler)
 
 
 def test_inf():

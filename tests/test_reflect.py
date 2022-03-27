@@ -7,6 +7,7 @@ from utils import get_rstate, get_printing
 nlive = 100
 printing = get_printing()
 win = 100
+ndim = 2
 
 
 def loglike(x):
@@ -17,36 +18,41 @@ def prior_transform(x):
     return (2 * x - 1) * win
 
 
-def test_periodic():
+@pytest.mark.parametrize("sampler,dynamic", [('rwalk', True), ('unif', True),
+                                             ('unif', False)])
+def test_periodic(sampler, dynamic):
     # hard test of dynamic sampler with high dlogz_init and small number
     # of live points
     logz_true = np.log(np.sqrt(2 * np.pi) * erf(win / np.sqrt(2)) / (2 * win))
     thresh = 5
-    ndim = 2
     rstate = get_rstate()
-    sampler = dynesty.DynamicNestedSampler(loglike,
+    if dynamic:
+        dns = dynesty.DynamicNestedSampler(loglike,
                                            prior_transform,
                                            ndim,
                                            nlive=nlive,
+                                           sample=sampler,
                                            reflective=[0],
                                            rstate=rstate)
-    sampler.run_nested(dlogz_init=1, print_progress=printing)
-    assert (np.abs(sampler.results.logz[-1] - logz_true) <
-            thresh * sampler.results.logzerr[-1])
-    sampler = dynesty.NestedSampler(loglike,
+    else:
+        dns = dynesty.NestedSampler(loglike,
                                     prior_transform,
                                     ndim,
                                     nlive=nlive,
+                                    sample=sampler,
                                     reflective=[0],
                                     rstate=rstate)
-    sampler.run_nested(dlogz=1, print_progress=printing)
-    assert (np.abs(sampler.results.logz[-1] - logz_true) <
-            thresh * sampler.results.logzerr[-1])
+    dns.run_nested(print_progress=printing)
+    assert (np.abs(dns.results.logz[-1] - logz_true) <
+            thresh * dns.results.logzerr[-1])
 
+
+def test_error():
+    rstate = get_rstate()
     with pytest.raises(ValueError):
-        sampler = dynesty.DynamicNestedSampler(loglike,
-                                               prior_transform,
-                                               ndim,
-                                               nlive=nlive,
-                                               reflective=[22],
-                                               rstate=rstate)
+        dynesty.DynamicNestedSampler(loglike,
+                                     prior_transform,
+                                     ndim,
+                                     nlive=nlive,
+                                     reflective=[22],
+                                     rstate=rstate)

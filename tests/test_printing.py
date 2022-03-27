@@ -45,3 +45,20 @@ def test_printing(withtqdm):
         pass
     else:
         dynesty.utils.tqdm = tqdm
+
+
+def prior_transform_wide(x):
+    return (2 * x - 1) * 10000
+
+
+def test_print_large():
+    # test with very large logl values
+    import dynesty
+    ndim = 2
+    rstate = get_rstate()
+    sampler = dynesty.DynamicNestedSampler(loglike,
+                                           prior_transform_wide,
+                                           ndim,
+                                           nlive=nlive,
+                                           rstate=rstate)
+    sampler.run_nested(print_progress=printing, maxiter=1000)

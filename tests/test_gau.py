@@ -50,6 +50,7 @@ def check_results(results,
     within the tolerances
 
     """
+    results.summary()
     pos = results.samples
     wts = np.exp(results.logwt - results.logz[-1])
     mean, cov = dyfunc.mean_and_cov(pos, wts)

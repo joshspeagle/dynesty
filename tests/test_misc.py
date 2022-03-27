@@ -237,6 +237,9 @@ def test_results():
         pass
     for k, v in res.asdict().items():
         pass
+    print(res)
+    print(str(res))
+    print('logl' in res)
 
 
 @pytest.mark.parametrize('ndim', [2, 10])

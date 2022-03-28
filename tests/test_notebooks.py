@@ -30,4 +30,7 @@ def test_notebooks(nb):
         assert stat == 0
     finally:
         if delete:
-            os.unlink(fname_converted)
+            try:
+                os.unlink(fname_converted)
+            except:
+                pass

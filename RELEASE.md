@@ -17,6 +17,6 @@ It may be also needed to update the actual .ipynb files in the repo (and/or look
 * update the changelog
 * change the internal version number
 * git tag on github
-* release on pypi
-* update AUTHORS
+* release on pypi and github
+* refresh AUTHORS
 * add a zenodo record

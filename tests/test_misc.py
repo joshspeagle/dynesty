@@ -331,3 +331,11 @@ def test_large_logl():
     res = sampler.results
 
     assert res.logzerr[-1] < 1
+
+
+def test_norstate():
+    # test of neff functionality
+    ndim = 2
+    dynesty.NestedSampler(loglike, prior_transform, ndim, nlive=nlive)
+
+    dynesty.DynamicNestedSampler(loglike, prior_transform, ndim, nlive=nlive)

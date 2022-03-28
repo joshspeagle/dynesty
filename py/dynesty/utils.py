@@ -1043,7 +1043,7 @@ def reweight_run(res, logp_new, logp_old=None):
     return new_res
 
 
-def unravel_run(res, save_proposals=True, print_progress=True):
+def unravel_run(res, print_progress=True):
     """
     Unravels a run with `K` live points into `K` "strands" (a nested sampling
     run with only 1 live point). **WARNING: the anciliary quantities provided
@@ -1055,10 +1055,6 @@ def unravel_run(res, save_proposals=True, print_progress=True):
     res : :class:`~dynesty.results.Results` instance
         The :class:`~dynesty.results.Results` instance taken from a previous
         nested sampling run.
-
-    save_proposals : bool, optional
-        Whether to save a reference to the proposal distributions from the
-        original run in each unraveled strand. Default is `True`.
 
     print_progress : bool, optional
         Whether to output the current progress to `~sys.stderr`.
@@ -1130,16 +1126,6 @@ def unravel_run(res, save_proposals=True, print_progress=True):
                      logz=saved_logz,
                      logzerr=np.sqrt(saved_logzvar),
                      information=saved_h)
-
-        # Add proposal information (if available).
-        if save_proposals:
-            try:
-                rdict['prop'] = res.prop
-                rdict['prop_iter'] = res.prop_iter[strand]
-                rdict['samples_prop'] = res.samples_prop[strand]
-                rdict['scale'] = res.scale[strand]
-            except AttributeError:
-                pass
 
         # Add on batch information (if available).
         try:

@@ -289,20 +289,6 @@ class Sampler:
             # within `dynamicsampler`).
             return loglstar >= self.logl_first_update
 
-    def _empty_queue(self):
-        """Dump all live point proposals currently on the queue."""
-
-        while True:
-            try:
-                # Remove unused points from the queue.
-                self.queue.pop()
-                self.unused += 1  # add to the total number of unused points
-                self.nqueue -= 1
-            except IndexError:
-                # If the queue is empty, we're done!
-                self.nqueue = 0
-                break
-
     def _fill_queue(self, loglstar):
         """Sequentially add new live point proposals to the queue."""
 

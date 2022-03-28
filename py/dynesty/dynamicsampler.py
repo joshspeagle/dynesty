@@ -938,6 +938,13 @@ class DynamicSampler:
                                      bounditer=results.bounditer,
                                      eff=self.eff,
                                      delta_logz=results.delta_logz)
+        new_vals = {}
+        (new_vals['logwt'], new_vals['logz'], new_vals['logzvar'],
+         new_vals['h']) = compute_integrals(logl=self.saved_run.D['logl'],
+                                            logvol=self.saved_run.D['logvol'])
+        for curk in ['logwt', 'logz', 'logzvar', 'h']:
+            self.saved_run.D[curk] = new_vals[curk].tolist()
+            self.base_run.D[curk] = new_vals[curk].tolist()
 
         self.base = True  # baseline run complete
         self.saved_run.D['batch'] = np.zeros(len(self.saved_run.D['id']),
@@ -1683,7 +1690,6 @@ class DynamicSampler:
                                    dlogz=dlogz_init,
                                    logl_max=logl_max_init)
 
-            # Add points in batches.
             for n in range(self.batch, maxbatch):
                 # Update stopping criteria.
                 res = self.results

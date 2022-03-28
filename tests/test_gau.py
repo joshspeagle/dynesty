@@ -55,6 +55,8 @@ def check_results(results,
     wts = np.exp(results.logwt - results.logz[-1])
     mean, cov = dyfunc.mean_and_cov(pos, wts)
     logz = results.logz[-1]
+    logzerr = results.logzerr[-1]
+    assert logzerr < 10  # check that it is not too large
     npt.assert_array_less(np.abs(mean - mean_truth), sig * mean_tol)
     npt.assert_array_less(np.abs(cov - cov_truth), sig * cov_tol)
     npt.assert_array_less(np.abs((logz_truth - logz)), sig * logz_tol)

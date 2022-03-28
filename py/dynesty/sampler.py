@@ -160,7 +160,7 @@ class Sampler:
             del state['rstate']
 
             # deal with pool
-            if state['pool'] is not None:
+            if state.get('pool') is not None:
                 del state['pool']  # remove pool
                 del state['M']  # remove `pool.map` function hook
         except AttributeError:

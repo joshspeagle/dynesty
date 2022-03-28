@@ -3,6 +3,7 @@ import pytest
 import dynesty
 import pickle
 import dynesty.utils as dyutil
+from multiprocessing import Pool
 
 from utils import get_rstate, get_printing
 """
@@ -62,24 +63,35 @@ def test_maxcall():
     sampler.run_nested(dlogz_init=1, maxcall=1000, print_progress=printing)
 
 
-def test_pickle():
-    # test of maxcall functionality
+@pytest.mark.parametrize('with_pool', [True, False])
+def test_pickle(with_pool):
+    # test of pickling functionality
     ndim = 2
     rstate = get_rstate()
+
+    if with_pool:
+        kw = dict(pool=Pool(2), queue_size=100)
+    else:
+        kw = {}
     sampler = dynesty.NestedSampler(loglike,
                                     prior_transform,
                                     ndim,
                                     nlive=nlive,
-                                    rstate=rstate)
-    sampler.run_nested(print_progress=printing)
+                                    rstate=rstate,
+                                    **kw)
+    sampler.run_nested(print_progress=printing, maxiter=100)
     pickle.dumps(sampler)
     sampler = dynesty.DynamicNestedSampler(loglike,
                                            prior_transform,
                                            ndim,
                                            nlive=nlive,
-                                           rstate=rstate)
-    sampler.run_nested(print_progress=printing)
+                                           rstate=rstate,
+                                           **kw)
+    sampler.run_nested(print_progress=printing, maxiter=100)
     pickle.dumps(sampler)
+    if with_pool:
+        kw['pool'].close()
+        kw['pool'].join()
 
 
 def test_inf():

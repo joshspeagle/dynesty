@@ -12,11 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [1.2.0] - XXXXX_DATE
 
-This version has multiple changes that should improve stability and speed.
-Specifically the default dynamic sampling behaviour has been changed to
-focus on the effective number of posterior samples as opposed to KL divergence.
-The samplers such as rstagger has been removed and the default choice of the sampler may be different depending on the dimensionality of the problem.
-
+This version has multiple changes that should improve stability and speed. The default dynamic sampling behaviour has been changed to focus on the effective number of posterior samples as opposed to KL divergence. The rstagger sampler has been removed and the default choice of the sampler may be different compared to previous releases depending on the dimensionality of the problem. dynesty should now provide 100% reproduceable results if the rstate object is provided. It needs to be a new generation Random Generator (as opposed to numpy.RandomState)
 
 ### Added
 
@@ -25,26 +21,29 @@ The samplers such as rstagger has been removed and the default choice of the sam
 
 ### Changed
 
-- More code testing with code coverage of >85% + validation
-- Many speedups (ellipsoid bounds, bootstrap, jitter_run, #239, #256, #329, )
-- do not use KL divergence function for stopping, instead use the criterion based on the number of effective samples. The old behaviour can still be achieved by using the dynesty.utils.old_stopping_function ( #332 )
-- Remove the pointvol parameter used in internal calculations, such as ellipsoid splits (#284)
+- More testing with code coverage of >87% + validation on test problems
 - Internal refactoring reducing code duplication (saved_run, integral calculations, different samplers etc)
-- Make dynesty fully deterministic if random state is provided (#292)
+- Multiple speedups (ellipsoid bounds, bootstrap, jitter_run, #239, #256, #329)
+- Exception is raised if unknown arguments are provided for nestedsampler/dynamic samplers ( #295 )
+
 - Migrate to new numpy random generator functionality from RandomState (#280)
-- Fix bugs in dynamic sampling that leads to sampler not finding points in the interval ( dynamic sampler bug, incorrect logl interval #244)
+- Make dynesty fully deterministic if random state is provided (#292)
+
+- Remove the pointvol parameter used in internal calculations, such as ellipsoid splits (#284)
+- Get rid of vol_dec parameter ( #286 )
 - Improve bounding ellipsoids algorithms, for example how we are dealing with degenerate ellipsoids #264, #268
+- Introduce more stable multi-ellipsoidal splitting using BIC (#286)
+
+- Do not use KL divergence function for stopping criteria based on posterior, instead use the criterion based on the number of effective samples. The old behaviour can still be achieved by using the dynesty.utils.old_stopping_function (#332)
+- Fix bugs in dynamic sampling that can lead to sampler not finding points in the interval (#244)
 - Major refactor of rslice/slice sampling increasing its stability (#269, #271)
-- disable ncdim when slice sampling ( #271 )
-- change the defaults for slices/walks/bootstrap (vs number of dimensions) (#297)
-- change default samplers (vs ndim, i.e. use rslice for high dimensions) (#286)
-- remove rstagger sampler (#322)
-- fix rwalk sampler. Previously the chains were not Markovian (#319, #323, #324)
-- change step adaptation of rwalk and rslice (#260, #323)
-- get rid of vol_dec parameter ( #286 )
-- more stable multi-ellipsoidal splitting using BIC (#286)
-- change the calculation of evidence uncertainties, remove factor the unnecessary factor two (#306)
-- exception is raised if unknown arguments are provided for nestedsampler/dynamic samplers ( #295 )
-- refactor the addition of batches in dynamic sampling, preventing possibly infinite loop ( #326)
-- improve stability of resample_equal ( #351)
-- new Results interface (#330)
+- Disable ncdim when slice sampling ( #271 )
+- Change the defaults for slices/walks/bootstrap (vs number of dimensions) (#297)
+- Change default samplers (vs ndim, i.e. use rslice for high dimensions) (#286)
+- Remove rstagger sampler, as it was producing incorrect results/based on non-Markovian chains (#322)
+- Fix rwalk sampler. Previously the chains were not Markovian (#319, #323, #324)
+- Change step adaptation of rwalk and rslice (#260, #323)
+- Change the calculation of evidence uncertainties, remove factor the unnecessary factor two, and improve numerical stability of calculations (#306, #360)
+- Refactor the addition of batches in dynamic sampling, preventing possibly infinite loop ( #326)
+- Improve stability of resample_equal ( #351)
+- New Results interface with a dedicated object, rather than a wrapper around the dictionary (#330)

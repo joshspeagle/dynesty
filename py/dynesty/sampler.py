@@ -15,7 +15,8 @@ from .results import Results, print_fn
 from .bounding import UnitCube
 from .sampling import sample_unif
 from .utils import (get_seed_sequence, get_print_func, progress_integration,
-                    IteratorResult, RunRecord, get_neff_from_logwt)
+                    IteratorResult, RunRecord, get_neff_from_logwt,
+                    compute_integrals)
 
 __all__ = ["Sampler"]
 
@@ -929,6 +930,16 @@ class Sampler:
                                    add_live_it=i + 1,
                                    dlogz=dlogz,
                                    logl_max=logl_max)
+
+            # Here we recompute the integrals using the full run
+            new_logwt, new_logz, new_logzvar, new_h = compute_integrals(
+                logl=self.saved_run.D['logl'],
+                logvol=self.saved_run.D['logvol'])
+            self.saved_run.D['logwt'] = new_logwt.tolist()
+            self.saved_run.D['logz'] = new_logz.tolist()
+            self.saved_run.D['logzvar'] = new_logzvar.tolist()
+            self.saved_run.D['h'] = new_h.tolist()
+
         finally:
             if pbar is not None:
                 pbar.close()

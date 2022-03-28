@@ -287,3 +287,35 @@ def test_update_interval():
                                     rstate=rstate,
                                     update_interval=0.5)
     sampler.run_nested(print_progress=printing)
+
+
+def prior_transform_large_logl(u):
+    scale = 10
+    v = scale * (2 * u - 1)
+    return v
+
+
+def loglike_large_logl(v):
+    logp = np.sum(-0.5 * v**2)
+    if v[0] < 0:
+        logp = -1e300
+    return logp
+
+
+def test_large_logl():
+    # This is to test that the logzerr calculation is all right
+    # if there are very large (negative) logl vaues
+    # See bug #360
+    ndim = 2
+    rstate = get_rstate()
+    sampler = dynesty.NestedSampler(loglike_large_logl,
+                                    prior_transform_large_logl,
+                                    ndim,
+                                    sample='rslice',
+                                    nlive=200,
+                                    rstate=rstate)
+
+    sampler.run_nested(print_progress=printing)
+    res = sampler.results
+
+    assert res.logzerr[-1] < 1

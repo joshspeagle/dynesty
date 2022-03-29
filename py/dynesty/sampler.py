@@ -148,24 +148,18 @@ class Sampler:
     def update(self):
         raise RuntimeError('Should be overriden')
 
+    def __setstate__(self, state):
+        self.__dict__ = state
+        self.pool = None
+        self.M = map
+
     def __getstate__(self):
         """Get state information for pickling."""
 
         state = self.__dict__.copy()
-
-        # attempt to remove from internal sampler, if not dealt within
-        # DynamicSampler class
-        try:
-            # remove random module
-            del state['rstate']
-
-            # deal with pool
-            if state.get('pool') is not None:
-                del state['pool']  # remove pool
-                del state['M']  # remove `pool.map` function hook
-        except AttributeError:
-            pass
-
+        for k in ['M', 'pool']:
+            if k in state:
+                del state[k]
         return state
 
     def reset(self):

@@ -4,7 +4,7 @@ import dynesty
 import pickle
 import dynesty.utils as dyutil
 from multiprocessing import Pool
-
+import itertools
 from utils import get_rstate, get_printing
 """
 Run a series of basic tests changing various things like
@@ -63,8 +63,9 @@ def test_maxcall():
     sampler.run_nested(dlogz_init=1, maxcall=1000, print_progress=printing)
 
 
-@pytest.mark.parametrize('with_pool', [True, False])
-def test_pickle(with_pool):
+@pytest.mark.parametrize('dynamic,with_pool',
+                         itertools.product([True, False], [True, False]))
+def test_pickle(dynamic, with_pool):
     # test of pickling functionality
     ndim = 2
     rstate = get_rstate()
@@ -73,22 +74,24 @@ def test_pickle(with_pool):
         kw = dict(pool=Pool(2), queue_size=100)
     else:
         kw = {}
-    sampler = dynesty.NestedSampler(loglike,
-                                    prior_transform,
-                                    ndim,
-                                    nlive=nlive,
-                                    rstate=rstate,
-                                    **kw)
+    if dynamic:
+        sampler = dynesty.DynamicNestedSampler(loglike,
+                                               prior_transform,
+                                               ndim,
+                                               nlive=nlive,
+                                               rstate=rstate,
+                                               **kw)
+    else:
+        sampler = dynesty.NestedSampler(loglike,
+                                        prior_transform,
+                                        ndim,
+                                        nlive=nlive,
+                                        rstate=rstate,
+                                        **kw)
     sampler.run_nested(print_progress=printing, maxiter=100)
-    pickle.dumps(sampler)
-    sampler = dynesty.DynamicNestedSampler(loglike,
-                                           prior_transform,
-                                           ndim,
-                                           nlive=nlive,
-                                           rstate=rstate,
-                                           **kw)
+    S = pickle.dumps(sampler)
+    sampler = pickle.loads(S)
     sampler.run_nested(print_progress=printing, maxiter=100)
-    pickle.dumps(sampler)
     if with_pool:
         kw['pool'].close()
         kw['pool'].join()

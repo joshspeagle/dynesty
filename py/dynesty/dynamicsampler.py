@@ -554,24 +554,19 @@ class DynamicSampler:
         self.live_init = None
         self.nlive_init = None
 
+    def __setstate__(self, state):
+        self.__dict__ = state
+        self.pool = None
+        self.M = map
+
     def __getstate__(self):
         """Get state information for pickling."""
 
         state = self.__dict__.copy()
 
         # deal with pool
-        if state['pool'] is not None:
-            del state['pool']  # remove pool
-            del state['M']  # remove `pool.map` function hook
-
-        # deal with internal sampler (to be safe)
-        if state['sampler'] is not None:
-            try:  # attempt to remove the same things
-                if state['sampler'].pool is not None:
-                    del state['sampler'].pool
-                    del state['sampler'].M
-            except AttributeError:
-                pass
+        del state['pool']  # remove pool
+        del state['M']  # remove `pool.map` function hook
 
         return state
 

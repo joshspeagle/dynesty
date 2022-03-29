@@ -76,15 +76,22 @@ def test_gaussian(dynamic, periodic, ndim, bound):
     results = sampler.results
     # check plots
     dyplot.runplot(results)
+    dyplot.runplot(results, span=[(0., 10.), 0.001, 0.2, (5., 6.)])
     dyplot.runplot(results, logplot=True)
-    dyplot.runplot(results, fig=(plt.gcf(), plt.gcf().axes))
+    dyplot.runplot(results,
+                   fig=(plt.gcf(), plt.gcf().axes),
+                   max_x_ticks=0,
+                   max_y_ticks=0)
     plt.close()
     dyplot.traceplot(results)
+    dyplot.traceplot(results, smooth=[10] * ndim)
+    dyplot.traceplot(results, connect=True)
     dyplot.traceplot(results,
                      fig=(plt.gcf(), plt.gcf().axes),
                      show_titles=True,
                      truths=np.zeros(ndim),
-                     verbose=True)
+                     verbose=True,
+                     max_n_ticks=0)
     plt.close()
 
     truths = np.zeros(ndim)
@@ -98,7 +105,8 @@ def test_gaussian(dynamic, periodic, ndim, bound):
     dyplot.cornerplot(results,
                       smooth=10,
                       verbose=True,
-                      hist2d_kwargs=dict(plot_datapoints=True))
+                      hist2d_kwargs=dict(plot_datapoints=True),
+                      max_n_ticks=0)
     plt.close()
     if ndim != 1:
         # cornerbound
@@ -120,12 +128,13 @@ def test_gaussian(dynamic, periodic, ndim, bound):
                          prior_transform=g.prior_transform,
                          show_live=True,
                          span=span)
+        dyplot.boundplot(results, dims=(0, 1)[:min(ndim, 2)], it=1000)
         plt.close()
 
         # cornerpoints
         dyplot.cornerpoints(results)
         plt.close()
-        dyplot.cornerpoints(results, span=span, truths=truths)
+        dyplot.cornerpoints(results, span=span, truths=truths, max_n_ticks=0)
         plt.close()
 
 

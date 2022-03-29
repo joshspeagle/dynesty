@@ -671,7 +671,7 @@ def traceplot(results,
         labels = [r"$x_{" + str(i + 1) + "}$" for i in range(ndim)]
 
     # Setting up smoothing.
-    if (isinstance(smooth, int_type) or isinstance(smooth, float_type)):
+    if isinstance(smooth, (int_type, float_type)):
         smooth = [smooth for i in range(ndim)]
 
     # Setting up default plot layout.
@@ -1282,7 +1282,7 @@ def cornerplot(results,
         labels = [r"$x_{" + str(i + 1) + "}$" for i in range(ndim)]
 
     # Setting up smoothing.
-    if (isinstance(smooth, int_type) or isinstance(smooth, float_type)):
+    if isinstance(smooth, (int_type, float_type)):
         smooth = [smooth for i in range(ndim)]
 
     # Setup axis layout (from `corner.py`).
@@ -1703,8 +1703,7 @@ def boundplot(results,
                 live_u[uidx] = samples[r]
     rstate = get_random_generator()
     # Draw samples from the bounding distribution.
-    if not isinstance(bound, bounding.RadFriends) and not isinstance(
-            bound, bounding.SupFriends):
+    if not isinstance(bound, (bounding.RadFriends, bounding.SupFriends)):
         # If bound is "fixed", go ahead and draw samples from it.
         psamps = bound.samples(ndraws, rstate=rstate)
     else:
@@ -2028,10 +2027,10 @@ def cornerbound(results,
 
     rstate = get_random_generator()
     # Draw samples from the bounding distribution.
-    try:
+    if not isinstance(bound, (bounding.RadFriends, bounding.SupFriends)):
         # If bound is "fixed", go ahead and draw samples from it.
         psamps = bound.samples(ndraws, rstate=rstate)
-    except:
+    else:
         # If bound is based on the distribution of live points at a
         # specific iteration, we need to reconstruct what those were.
         if not show_live:
@@ -2268,7 +2267,7 @@ def _hist2d(x,
         contour_cmap[i][-1] *= float(i) / (n_levels + 1)
 
     # Initialize smoothing.
-    if (isinstance(smooth, int_type) or isinstance(smooth, float_type)):
+    if isinstance(smooth, (int_type, float_type)):
         smooth = [smooth, smooth]
     bins = []
     svalues = []

@@ -82,7 +82,8 @@ def test_gaussian(dynamic, periodic, ndim, bound):
     dyplot.traceplot(results)
     dyplot.traceplot(results,
                      fig=(plt.gcf(), plt.gcf().axes),
-                     show_titles=True)
+                     show_titles=True,
+                     truths=np.zeros(ndim))
     plt.close()
 
     truths = np.zeros(ndim)
@@ -93,6 +94,7 @@ def test_gaussian(dynamic, periodic, ndim, bound):
         span[1] = .9
 
     dyplot.cornerplot(results, show_titles=True, truths=truths)
+    dyplot.cornerplot(results, smooth=10, verbose=True)
     plt.close()
     if ndim != 1:
         # cornerbound

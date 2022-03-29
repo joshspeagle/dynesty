@@ -2165,8 +2165,7 @@ def _hist2d(x,
             fill_contours=True,
             contour_kwargs=None,
             contourf_kwargs=None,
-            data_kwargs=None,
-            **kwargs):
+            data_kwargs=None):
     """
     Internal function called by :meth:`cornerplot` used to generate a
     a 2-D histogram/contour of samples.

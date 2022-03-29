@@ -123,3 +123,22 @@ def test_gaussian(dynamic, periodic, ndim, bound):
         plt.close()
         dyplot.cornerpoints(results, span=span, truths=truths)
         plt.close()
+
+
+def test_gaussianx():
+    ndim = 3
+    rstate = get_rstate()
+    g = Gaussian(ndim=ndim)
+    sampler = dynesty.NestedSampler(g.loglikelihood,
+                                    g.prior_transform,
+                                    g.ndim,
+                                    nlive=nlive,
+                                    rstate=rstate,
+                                    bound='balls')
+    sampler.run_nested(print_progress=printing)
+    results = sampler.results
+    dyplot.boundplot(results,
+                     dims=(0, 1)[:min(ndim, 2)],
+                     it=1000,
+                     prior_transform=g.prior_transform,
+                     show_live=False)

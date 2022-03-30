@@ -23,7 +23,7 @@ from .results import Results, print_fn, results_substitute
 
 __all__ = [
     "unitcheck", "resample_equal", "mean_and_cov", "quantile", "jitter_run",
-    "resample_run", "simulate_run", "reweight_run", "unravel_run",
+    "resample_run", "reweight_run", "unravel_run",
     "merge_runs", "kld_error", "_merge_two", "_get_nsamps_samples_n",
     "get_enlarge_bootstrap"
 ]
@@ -602,8 +602,7 @@ def jitter_run(res, rstate=None, approx=False):
     """
     Probes **statistical uncertainties** on a nested sampling run by
     explicitly generating a *realization* of the prior volume associated
-    with each sample (dead point). Companion function to :meth:`resample_run`
-    and :meth:`simulate_run`.
+    with each sample (dead point). Companion function to :meth:`resample_run`.
 
     Parameters
     ----------
@@ -790,7 +789,7 @@ def resample_run(res, rstate=None, return_idx=False):
     splits a nested sampling run with `K` particles (live points) into a
     series of `K` "strands" (i.e. runs with a single live point) which are then
     bootstrapped to construct a new "resampled" run. Companion function to
-    :meth:`jitter_run` and :meth:`simulate_run`.
+    :meth:`jitter_run`.
 
     Parameters
     ----------
@@ -942,52 +941,6 @@ def resample_run(res, rstate=None, return_idx=False):
                             np.maximum(np.asarray(saved_logzvar), 0)),
                         information=np.asarray(saved_h))
     new_res = Results(new_res_dict)
-
-    if return_idx:
-        return new_res, samp_idx
-    else:
-        return new_res
-
-
-def simulate_run(res, rstate=None, return_idx=False, approx=False):
-    """
-    Probes **combined uncertainties** (statistical and sampling) on a nested
-    sampling run by wrapping :meth:`jitter_run` and :meth:`resample_run`.
-
-    Parameters
-    ----------
-    res : :class:`~dynesty.results.Results` instance
-        The :class:`~dynesty.results.Results` instance taken from a previous
-        nested sampling run.
-
-    rstate : `~numpy.random.Generator`, optional
-        `~numpy.random.Generator` instance.
-
-    return_idx : bool, optional
-        Whether to return the list of resampled indices used to construct
-        the new run. Default is `False`.
-
-    approx : bool, optional
-        Whether to approximate all sets of uniform order statistics by their
-        associated marginals (from the Beta distribution). Default is `False`.
-
-    Returns
-    -------
-    new_res : :class:`~dynesty.results.Results` instance
-        A new :class:`~dynesty.results.Results` instance with corresponding
-        samples and weights based on our "simulated" samples and
-        prior volumes.
-
-    """
-
-    if rstate is None:
-        rstate = get_random_generator()
-
-    # Resample run.
-    new_res, samp_idx = resample_run(res, rstate=rstate, return_idx=True)
-
-    # Jitter run.
-    new_res = jitter_run(new_res, rstate=rstate, approx=approx)
 
     if return_idx:
         return new_res, samp_idx
@@ -1575,7 +1528,7 @@ def old_stopping_function(results,
                           M=None,
                           return_vals=False):
     """
-    The default stopping function utilized by :class:`DynamicSampler`.
+    The old stopping function utilized by :class:`DynamicSampler`.
     Zipped parameters are passed to the function via :data:`args`.
     Assigns the run a stopping value based on a weighted average of the
     stopping values for the posterior and evidence::

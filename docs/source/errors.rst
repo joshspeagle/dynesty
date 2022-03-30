@@ -447,7 +447,7 @@ and are not intended for heavy use in most practical applications.**
 Bootstrapping Runs
 ------------------
 
-In theory, to properly incorporate sampling errors we have to marginalize
+In theory, to properly incorporate these sampling errors we have to marginalize
 over all possible paths particles can take through the distribution. In
 practice, however, we can approximate the set of all possible paths
 using the discrete set of paths taken from the set of :math:`K` particles (live
@@ -521,21 +521,10 @@ how our (stratified) bootstrap affects other quantities::
 
 .. image:: ../images/errors_006.png
 
-Combined Uncertainties
-======================
+Uncertainty Estimates in Practice
+=================================
 
-Probing the combined statistical and sampling uncertainties just involves
-combining the results from :ref:`Bootstrapping Runs` and :ref:`Jittering Runs`.
-This is implemented via the :meth:`~dynesty.utils.simulate_run` function in
-``dynesty`` or can be done explicitly by the user::
-
-    # simulating combined uncertainties (explicit)
-    new_res = dyfunc.jitter_run(dyfunc.resample_run(res))
-
-    # simulating combined uncertainties (implicit)
-    new_res2 = dyfunc.simulate_run(res)
-
-Let's first examine the behavior using the same examples as
+Let's examine the behavior using the same examples as
 shown in :ref:`Jittering Runs` and :ref:`Bootstrapping Runs`.
 
 .. code-block:: python
@@ -581,10 +570,6 @@ shown in :ref:`Jittering Runs` and :ref:`Bootstrapping Runs`.
 
 .. image:: ../images/errors_008.png
 
-We see that the final errors are about 50% larger than our approximation.
-This is quite typical, and reflects uncertainties that we ignored when
-deriving our approximation above.
-
 Validation Against Repeated Runs
 ================================
 
@@ -620,11 +605,6 @@ against a set a repeated Nested Sampling runs:
     rsamp_res = []
     for i in range(Nrepeat):
         rsamp_res.append(dyfunc.resample_run(r))
-        
-    # generate simulated runs
-    samp_res = []
-    for i in range(Nrepeat):
-        samp_res.append(dyfunc.simulate_run(r))
 
 As an initial test, we can compare the estimated :math:`\ln \hat{\mathcal{Z}}`
 from each set of runs:
@@ -650,17 +630,7 @@ from each set of runs:
     # repeated runs
     lnz_arr = [results.logz[-1] for results in repeat_res]
     lnz_mean, lnz_std = np.mean(lnz_arr), np.std(lnz_arr)
-    print('Rep. (mean): {:6.3f} +/- {:6.3f}'.format(lnz_mean, lnz_std))
-
-    # simulated draws
-    lnz_arr = [results.logz[-1] for results in sim_res]
-    lnz_mean, lnz_std = np.mean(lnz_arr), np.std(lnz_arr)
-    print('Comb.:       {:6.3f} +/- {:6.3f}'.format(lnz_mean, lnz_std))
-
-    # jittered draws from repeated runs
-    lnz_arr = [dyfunc.jitter_run(results).logz[-1] for results in repeat_res]
-    lnz_mean, lnz_std = np.mean(lnz_arr), np.std(lnz_arr)
-    print('Rep. (sim.): {:6.3f} +/- {:6.3f}'.format(lnz_mean, lnz_std))
+    print('Repeat: {:6.3f} +/- {:6.3f}'.format(lnz_mean, lnz_std))
 
 .. rst-class:: sphx-glr-script-out
 
@@ -669,9 +639,10 @@ Out::
     Approx.:     -8.670 +/-  0.207
     Sim.:        -8.696 +/-  0.192
     Resamp.:     -8.676 +/-  0.180
-    Rep. (mean): -8.912 +/-  0.211
-    Comb.:       -8.699 +/-  0.262
-    Rep. (sim.): -8.946 +/-  0.289
+    Repeat:      -8.912 +/-  0.211
+
+We find the approximate, simulated, and resampled uncertainties show relatively
+good agreement.
 
 We can also compare the first and second moments of the posterior:
 
@@ -703,31 +674,13 @@ We can also compare the first and second moments of the posterior:
     x_std = np.round(np.std(x_arr, axis=0), 3)
     print('Rep. (mean): {0} +/- {1}'.format(x_mean, x_std))
 
-    # simulated draws
-    x_arr = np.array([dyfunc.mean_and_cov(results.samples, 
-                      weights=np.exp(results.logwt))[0]
-                      for results in sim_res])
-    x_mean = np.round(np.mean(x_arr, axis=0), 3)
-    x_std = np.round(np.std(x_arr, axis=0), 3)
-    print('Comb.:       {0} +/- {1}'.format(x_mean, x_std))
-
-    # jittered draws from repeated runs
-    x_arr = np.array([dyfunc.mean_and_cov(results.samples, 
-                      weights=np.exp(dyfunc.jitter_run(results).logwt))[0]
-                      for results in repeat_res])
-    x_mean = np.round(np.mean(x_arr, axis=0), 3)
-    x_std = np.round(np.std(x_arr, axis=0), 3)
-    print('Rep. (sim.): {0} +/- {1}'.format(x_mean, x_std))
-
 .. rst-class:: sphx-glr-script-out
 
 Out::
 
     Sim.:        [-0.022 -0.022 -0.021] +/- [0.016 0.016 0.016]
     Resamp.:     [-0.023 -0.023 -0.022] +/- [0.016 0.017 0.017]
-    Rep. (mean): [0.002 0.002 0.002] +/- [0.016 0.016 0.016]
-    Comb.:       [-0.022 -0.022 -0.021] +/- [0.021 0.021 0.022]
-    Rep. (sim.): [0.003 0.003 0.002] +/- [0.023 0.023 0.023]
+    Repeat:      [ 0.002  0.002  0.002] +/- [0.016 0.016 0.016]
 
 .. code-block:: python
 
@@ -760,36 +713,16 @@ Out::
     x_std = np.round(np.std(x_arr, axis=0), 3)
     print('Rep. (mean): {0} +/- {1}'.format(x_mean, x_std))
 
-    # simulated draws
-    x_arr = np.array([dyfunc.mean_and_cov(results.samples, 
-                      weights=np.exp(results.logwt))[1]
-                      for results in sim_res])
-    x_arr = [np.diag(x) for x in x_arr]
-    x_mean = np.round(np.mean(x_arr, axis=0), 3)
-    x_std = np.round(np.std(x_arr, axis=0), 3)
-    print('Comb.:       {0} +/- {1}'.format(x_mean, x_std))
-
-    # jittered draws from repeated runs
-    x_arr = np.array([dyfunc.mean_and_cov(results.samples, 
-                      weights=np.exp(dyfunc.jitter_run(results).logwt))[1]
-                      for results in repeat_res])
-    x_arr = [np.diag(x) for x in x_arr]
-    x_mean = np.round(np.mean(x_arr, axis=0), 3)
-    x_std = np.round(np.std(x_arr, axis=0), 3)
-    print('Rep. (sim.): {0} +/- {1}'.format(x_mean, x_std))
-
 .. rst-class:: sphx-glr-script-out
 
 Out::
 
     Sim.:        [1.041 1.038 1.046] +/- [0.026 0.026 0.026]
     Resamp.:     [1.039 1.035 1.044] +/- [0.026 0.026 0.027]
-    Rep. (mean): [0.994 0.994 0.993] +/- [0.026 0.026 0.026]
-    Comb.:       [1.041 1.037 1.045] +/- [0.035 0.036 0.037]
-    Rep. (sim.): [0.993 0.993 0.992] +/- [0.035 0.034 0.035]
+    Repeat:      [0.994 0.994 0.993] +/- [0.026 0.026 0.026]
 
-Our simulated uncertainties seem to do an excellent job of capturing the
-intrinsic combined statistical and sampling uncertainties.
+Our simulated and resampled uncertainties seem to do an excellent job of capturing the
+intrinsic uncertainties in both the mean and the standard deviation here.
 
 Posterior Uncertainties
 =======================
@@ -823,16 +756,15 @@ to construct an empirical estimate of this quantity based on realizations of
     \ln \hat{p}_i^\prime - \ln \hat{p}_i \right)
 
 KL divergences between (realizations of) Nested Sampling runs can be computed
-in ``dynesty`` using the :meth:`~dynesty.utils.kl_divergence` and 
-:meth:`~dynesty.utils.kld_error` functions. The former is slower but slightly
-more flexible while the latter generates comparisons directly over 
-realizations of a single run. Let's examine the results from the Static Nested
+in ``dynesty`` using the
+:meth:`~dynesty.utils.kld_error` functions. 
+Let's examine the results from the Static Nested
 Sampling run used above to get a sense of what these look like::
 
     # compute KL divergences
     klds = []
     for i in range(Nrepeat):
-        kld = dyfunc.kld_error(res2, error='simulate')
+        kld = dyfunc.kld_error(res2, error='jitter')
         klds.append(kld)
 
     # plot (cumulative) KL divergences

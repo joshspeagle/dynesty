@@ -253,7 +253,7 @@ effective number of posterior samples i.e.
 where :math:`N_{target,effective}` is user specified target number of
 of effective samples.
 
-Previously the default choice for :math:`S_p` in ``dynesty`` was to use the 
+Previously, the default choice for :math:`S_p` in ``dynesty`` was to use the 
 "difference" between the posterior density estimate
 :math:`\hat{P}(\boldsymbol{\Theta})` we construct from our set of samples
 :math:`\left\lbrace \boldsymbol{\Theta}_1, \dots, \boldsymbol{\Theta}_N
@@ -296,7 +296,7 @@ us a probe of the underlying distance :math:`H(\hat{P}|P)` between
 :math:`\hat{P}(\boldsymbol{\Theta})` and the true
 posterior density :math:`P(\boldsymbol{\Theta})`. 
 
-For posterior estimation, the default metric used to determine when to stop
+For posterior estimation, the metric used to determine when to stop
 adding new samples is the fractional sample standard deviation in
 :math:`H(\hat{P}^\prime|\hat{P})`:
 
@@ -306,6 +306,9 @@ adding new samples is the fractional sample standard deviation in
     \dots, H(\hat{P}^\prime_n|\hat{P}) \rbrace)}{
     \mathbb{E}(\lbrace H(\hat{P}^\prime_1|\hat{P}),
     \dots, H(\hat{P}^\prime_n|\hat{P}) \rbrace)}
+
+While this function is no longer the default, it can be accessed through the
+utility functions provided with the ``dynesty`` package.
 
 More discussion can be found in :ref:`Nested Sampling Errors`.
 

@@ -106,11 +106,10 @@ def test_gaussian():
                                     ncdim=ndim_gau,
                                     rstate=rstate)
     sampler.run_nested(print_progress=printing)
-    # check that jitter/resample/simulate_run work
+    # check that jitter/resample work
     # for not dynamic sampler
     dyfunc.jitter_run(sampler.results, rstate=rstate)
     dyfunc.resample_run(sampler.results, rstate=rstate)
-    dyfunc.simulate_run(sampler.results, rstate=rstate)
 
     # add samples
     # check continuation behavior

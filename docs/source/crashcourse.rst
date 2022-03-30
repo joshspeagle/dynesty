@@ -94,8 +94,8 @@ For instance::
     # Resample weighted samples.
     samples_equal = dyfunc.resample_equal(samples, weights)
 
-    # Generate a new set of results with statistical+sampling uncertainties.
-    results_sim = dyfunc.simulate_run(results)
+    # Generate a new set of results with sampling uncertainties.
+    results_sim = dyfunc.resample_run(results)
 
 Finally, a list of papers you should cite based on the configuration
 and sampler you are using can be compiled by simply running::

@@ -129,11 +129,10 @@ def test_gaussian():
                                     nlive=nlive,
                                     rstate=rstate)
     sampler.run_nested(print_progress=printing)
-    # check that jitter/resample/simulate_run work
+    # check that jitter/resample work
     # for not dynamic sampler
     dyfunc.jitter_run(sampler.results, rstate=rstate)
     dyfunc.resample_run(sampler.results, rstate=rstate)
-    dyfunc.simulate_run(sampler.results, rstate=rstate)
 
     # add samples
     # check continuation behavior
@@ -275,8 +274,6 @@ def test_dynamic():
     dres = dyfunc.jitter_run(dsampler.results, rstate=rstate)
     check_results_gau(dres, g, rstate)
     dres = dyfunc.resample_run(dsampler.results, rstate=rstate)
-    check_results_gau(dres, g, rstate)
-    dres = dyfunc.simulate_run(dsampler.results, rstate=rstate)
     check_results_gau(dres, g, rstate)
 
     dyfunc.kld_error(dsampler.results, rstate=rstate)

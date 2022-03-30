@@ -1218,7 +1218,7 @@ def check_result_static(res):
 
 
 def kld_error(res,
-              error='simulate',
+              error='jitter',
               rstate=None,
               return_new=False,
               approx=False):
@@ -1234,10 +1234,9 @@ def kld_error(res,
         :class:`~dynesty.results.Results` instance for the distribution we
         are computing the KL divergence *from*.
 
-    error : {`'jitter'`, `'resample'`, `'simulate'`}, optional
-        The error method employed, corresponding to :meth:`jitter_run`,
-        :meth:`resample_run`, and :meth:`simulate_run`, respectively.
-        Default is `'simulate'`.
+    error : {`'jitter'`, `'resample'`}, optional
+        The error method employed, corresponding to :meth:`jitter_run` or
+        :meth:`resample_run`. Default is `'jitter'`.
 
     rstate : `~numpy.random.Generator`, optional
         `~numpy.random.Generator` instance.
@@ -1270,10 +1269,6 @@ def kld_error(res,
         new_res = jitter_run(res, rstate=rstate, approx=approx)
     elif error == 'resample':
         new_res, samp_idx = resample_run(res, rstate=rstate, return_idx=True)
-        logp2 = logp2[samp_idx]  # re-order our original results to match
-    elif error == 'simulate':
-        new_res, samp_idx = resample_run(res, rstate=rstate, return_idx=True)
-        new_res = jitter_run(new_res)
         logp2 = logp2[samp_idx]  # re-order our original results to match
     else:
         raise ValueError(
@@ -1542,9 +1537,7 @@ def old_stopping_function(results,
         stop_post = (kld_std / kld_mean) / post_thresh
     Estimates of the mean and standard deviation are computed using `n_mc`
     realizations of the input using a provided `'error'` keyword (either
-    `'jitter'` or `'simulate'`, which call related functions :meth:`jitter_run`
-    and :meth:`simulate_run` in :mod:`dynesty.utils`, respectively, or
-    `'sim_approx'`
+    `'jitter'` or `'resample'`).
     Returns the boolean `stop <= 1`. If `True`, the :class:`DynamicSampler`
     will stop adding new samples to our results.
     Parameters
@@ -1554,7 +1547,7 @@ def old_stopping_function(results,
     args : dictionary of keyword arguments, optional
         Arguments used to set the stopping values. Default values are
         `pfrac = 1.0`, `evid_thresh = 0.1`, `post_thresh = 0.02`,
-        `n_mc = 128`, `error = 'sim_approx'`, and `approx = True`.
+        `n_mc = 128`, `error = 'jitter'`, and `approx = True`.
     rstate : `~numpy.random.Generator`, optional
         `~numpy.random.Generator` instance.
     M : `map` function, optional
@@ -1607,12 +1600,10 @@ def old_stopping_function(results,
     if n_mc < 20:
         warnings.warn("Using a small number of realizations might result in "
                       "excessively noisy stopping value estimates.")
-    error = args.get('error', 'sim_approx')
-    if error not in {'jitter', 'simulate', 'sim_approx'}:
+    error = args.get('error', 'jitter')
+    if error not in {'jitter', 'resample'}:
         raise ValueError(
             "The chosen `'error'` option {0} is not valid.".format(error))
-    if error == 'sim_approx':
-        error = 'jitter'
     approx = args.get('approx', True)
 
     # Compute realizations of ln(evidence) and the KL divergence.

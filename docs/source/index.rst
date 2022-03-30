@@ -95,6 +95,10 @@ Changelog
 
 .. image:: ../images/logo.gif
     :align: center
+    
+1.2 (2022-03-30)
+------------------
+* TBD. (TODO for Segasai.)
 
 1.1 (2021-04-05)
 ------------------

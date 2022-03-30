@@ -242,13 +242,14 @@ is robust under a wide variety of circumstances.
 **The stopping criterion for Dynamic Nested Sampling is taking a long
 time to evaluate. Is that normal?**
 
-For large numbers of samples with a large number of varying live points, 
-this is normal. Every new particle increases the complexity of
-simulating the errors used in the stopping criterion (see :ref:`Nested
-Sampling Errors`), so the time required tends to scale with the number of
-batches added. This is especially true if the "full" live point simulation
-is being used (via the `error = 'simulate'` argument) rather than the
-approximation enabled by default (`error = 'sim_approx'`).
+This might mean you are using a version of ``dynesty`` below v1.2 or
+you are using a large number of simulations to estimate the errors.
+In earlier versions, the stopping criteria was much more computationally
+intensive to evaluate. However, in both earlier and current versions, using
+(1) large numbers of simulations with (2) large numbers of samples 
+with (3) a large number of varying live points can make the stopping criteria
+difficult to evaluate quickly. See 
+:ref:`Nested Sampling Errors` for additional details.
 
 **I'm trying to sample using gradients but getting extremely poor performance.
 I thought gradients were supposed to make sampling more efficient!

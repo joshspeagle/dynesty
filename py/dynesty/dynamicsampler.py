@@ -214,9 +214,8 @@ def stopping_function(results,
 
     Estimates of the mean and standard deviation are computed using `n_mc`
     realizations of the input using a provided `'error'` keyword (either
-    `'jitter'` or `'simulate'`, which call related functions :meth:`jitter_run`
-    and :meth:`simulate_run` in :mod:`dynesty.utils`, respectively, or
-    `'sim_approx'`
+    `'jitter'` or `'resample'`, which call related functions :meth:`jitter_run`
+    and :meth:`resample_run` in :mod:`dynesty.utils`, respectively.
 
     Returns the boolean `stop <= 1`. If `True`, the :class:`DynamicSampler`
     will stop adding new samples to our results.
@@ -229,7 +228,7 @@ def stopping_function(results,
     args : dictionary of keyword arguments, optional
         Arguments used to set the stopping values. Default values are
         `pfrac = 1.0`, `evid_thresh = 0.1`, `target_n_effective = 10000`,
-        `n_mc = 0`, `error = 'sim_approx'`, and `approx = True`.
+        `n_mc = 0`, `error = 'jitter'`, and `approx = True`.
 
     rstate : `~numpy.random.Generator`, optional
         `~numpy.random.Generator` instance.
@@ -284,12 +283,10 @@ def stopping_function(results,
     if n_mc > 0 and n_mc < 20:
         warnings.warn("Using a small number of realizations might result in "
                       "excessively noisy stopping value estimates.")
-    error = args.get('error', 'sim_approx')
-    if error not in {'jitter', 'simulate', 'sim_approx'}:
+    error = args.get('error', 'jitter')
+    if error not in {'jitter', 'resample'}:
         raise ValueError(
             "The chosen `'error'` option {0} is not valid.".format(error))
-    if error == 'sim_approx':
-        error = 'jitter'
     approx = args.get('approx', True)
 
     if n_mc > 1:

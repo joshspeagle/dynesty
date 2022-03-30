@@ -2,7 +2,7 @@
 References and Acknowledgements
 ===============================
 
-**The release paper describing the code dynesty version 1.0 can be found**
+**The release paper describing the code corresponding to dynesty 1.0 can be found**
 `here <https://github.com/joshspeagle/dynesty/tree/master/paper/dynesty.pdf>`_.
 We remark that later dynesty versions have multiple changes with respect to the paper, therefore please ensure that you cite the software itself and the appropriate version of dynesty through  `zenodo <https://doi.org/10.5281/zenodo.3348367>`_
 

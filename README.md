@@ -1,4 +1,5 @@
 [![Build Status](https://github.com/joshspeagle/dynesty/workflows/Dynesty/badge.svg)](https://github.com/joshspeagle/dynesty/actions)
+[![Documentation Status](https://readthedocs.org/projects/dynesty/badge/?version=latest)](https://dynesty.readthedocs.io/en/latest/?badge=latest)
 [![Coverage Status](https://coveralls.io/repos/github/joshspeagle/dynesty/badge.svg?branch=master)](https://coveralls.io/github/joshspeagle/dynesty?branch=master)
 
 dynesty

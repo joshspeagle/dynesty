@@ -2,8 +2,9 @@
 References and Acknowledgements
 ===============================
 
-**The release paper describing the code can be found**
+**The release paper describing the code dynesty version 1.0 can be found**
 `here <https://github.com/joshspeagle/dynesty/tree/master/paper/dynesty.pdf>`_.
+We remark that later dynesty versions have multiple changes with respect to the paper, therefore please ensure that you cite the software itself and the appropriate version of dynesty through  `zenodo <https://doi.org/10.5281/zenodo.3348367>`_
 
 A list of papers that you should cite can always be generated directly
 from the `sampler` object by calling::
@@ -78,8 +79,7 @@ Code
 
 ``dynesty`` is the spiritual successor to Nested Sampling package `nestle 
 <http://kylebarbary.com/nestle/>`_ and has benefited enormously from the work
-put in by `Kyle Barbary <http://kylebarbary.com/>`_ and 
-`other contributors 
+put in by `Kyle Barbary <http://kylebarbary.com/>`_ and  `other contributors 
 <https://github.com/joshspeagle/dynesty/blob/master/AUTHORS.md>`_.
 
 Much of the API is inspired by the ensemble MCMC package

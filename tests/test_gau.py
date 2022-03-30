@@ -210,6 +210,25 @@ def test_bounding_bootstrap(bound, sample):
     check_results_gau(sampler.results, g, rstate)
 
 
+def test_bounding_enlarge():
+    # check various bounding methods
+
+    rstate = get_rstate()
+    g = Gaussian()
+    bound = 'multi'
+    sample = 'unif'
+    sampler = dynesty.NestedSampler(g.loglikelihood,
+                                    g.prior_transform,
+                                    g.ndim,
+                                    nlive=nlive,
+                                    bound=bound,
+                                    sample=sample,
+                                    enlarge=1.5,
+                                    rstate=rstate)
+    sampler.run_nested(print_progress=printing)
+    check_results_gau(sampler.results, g, rstate)
+
+
 # extra checks for gradients
 def test_slice_nograd():
     rstate = get_rstate()

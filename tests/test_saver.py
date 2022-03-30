@@ -10,7 +10,7 @@ are broken
 
 """
 
-nlive = 100
+nlive = 500
 printing = get_printing()
 
 # EGGBOX
@@ -25,8 +25,9 @@ def prior_transform(x):
     return 20 * x - 10
 
 
-@pytest.mark.parametrize('dopool', [False, True])
-def test_saving(dopool):
+@pytest.mark.parametrize('dopool,maxiter', [(False, 1000), (True, 1000),
+                                            (False, 11000)])
+def test_saving(dopool, maxiter):
     # test saving
     ndim = 2
     fname = 'dynesty_test_%d.h5' % (os.getpid())
@@ -35,7 +36,7 @@ def test_saving(dopool):
     if dopool:
         pool = mp.Pool(2)
         kw['pool'] = pool
-        kw['queue_size'] = 2
+        kw['queue_size'] = 100
 
     sampler = dynesty.NestedSampler(loglike,
                                     prior_transform,
@@ -45,7 +46,7 @@ def test_saving(dopool):
                                     history_filename=fname,
                                     rstate=rstate,
                                     **kw)
-    sampler.run_nested(dlogz=1, print_progress=printing, maxiter=3000)
+    sampler.run_nested(dlogz=0.01, print_progress=printing, maxiter=maxiter)
     assert (os.path.exists(fname))
     try:
         os.unlink(fname)

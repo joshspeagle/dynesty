@@ -4,7 +4,8 @@ References and Acknowledgements
 
 **The release paper describing the code corresponding to dynesty 1.0 can be found**
 `here <https://github.com/joshspeagle/dynesty/tree/master/paper/dynesty.pdf>`_.
-We remark that later dynesty versions have multiple changes with respect to the paper, therefore please ensure that you cite the software itself and the appropriate version of dynesty through  `zenodo <https://doi.org/10.5281/zenodo.3348367>`_
+We remark that more recent dynesty versions have multiple changes with respect to the paper. Therefore
+please ensure that you cite the paper and the specific version of dynesty you used through `zenodo <https://doi.org/10.5281/zenodo.3348367>`_
 
 A list of papers that you should cite can always be generated directly
 from the `sampler` object by calling::

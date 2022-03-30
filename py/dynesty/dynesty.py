@@ -22,71 +22,125 @@ from .utils import (LogLikelihood, get_random_generator, get_enlarge_bootstrap,
 __all__ = ["NestedSampler", "DynamicNestedSampler", "_function_wrapper"]
 
 
-_CITES = {'default':  # default set of citations
-          "Code and Methods:\n================\n"
-          "Speagle (2020): "
-          "ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S\n\n"
-          "Nested Sampling:\n===============\n"
-          "Skilling (2004): "
-          "ui.adsabs.harvard.edu/abs/2004AIPC..735..395S\n"
-          "Skilling (2006): "
-          "projecteuclid.org/euclid.ba/1340370944\n",
-          'dynamic':  # dynamic nested sampling
-          "Dynamic Nested Sampling:\n=======================\n"
-          "Higson et al. (2019): "
-          "doi.org/10.1007/s11222-018-9844-0\n",
-          'none': "Bounding Method:\n===============\n",  # no bound
-          'single':  # single ellipsoid
-          "Bounding Method:\n===============\n"
-          "Mukherjee, Parkinson & Liddle (2006): "
-          "ui.adsabs.harvard.edu/abs/2006ApJ...638L..51M\n",
-          'multi':  # multiple ellipsoids
-          "Bounding Method:\n===============\n"
-          "Feroz, Hobson & Bridges (2009): "
-          "ui.adsabs.harvard.edu/abs/2009MNRAS.398.1601F\n",
-          'balls':  # overlapping balls
-          "Bounding Method:\n===============\n"
-          "Buchner (2016): "
-          "ui.adsabs.harvard.edu/abs/2014arXiv1407.5459B\n"
-          "Buchner (2017): "
-          "ui.adsabs.harvard.edu/abs/2017arXiv170704476B\n",
-          'cubes':  # overlapping cubes
-          "Bounding Method:\n===============\n"
-          "Buchner (2016): "
-          "ui.adsabs.harvard.edu/abs/2014arXiv1407.5459B\n"
-          "Buchner (2017): "
-          "ui.adsabs.harvard.edu/abs/2017arXiv170704476B\n",
-          'unif': "Sampling Method:\n===============\n",  # uniform sampling
-          'rwalk':  # random walk
-          "Sampling Method:\n===============\n"
-          "Skilling (2006): "
-          "projecteuclid.org/euclid.ba/1340370944\n",
-          'slice':  # multivariate slice
-          "Sampling Method:\n===============\n"
-          "Neal (2003): "
-          "projecteuclid.org/euclid.aos/1056562461\n"
-          "Handley, Hobson & Lasenby (2015a): "
-          "ui.adsabs.harvard.edu/abs/2015MNRAS.450L..61H\n"
-          "Handley, Hobson & Lasenby (2015b): "
-          "ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H\n",
-          'rslice':  # random slice
-          "Sampling Method:\n===============\n"
-          "Neal (2003): "
-          "projecteuclid.org/euclid.aos/1056562461\n"
-          "Handley, Hobson & Lasenby (2015a): "
-          "ui.adsabs.harvard.edu/abs/2015MNRAS.450L..61H\n"
-          "Handley, Hobson & Lasenby (2015b): "
-          "ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H\n",
-          'hslice':  # "hamiltonian" slice
-          "Sampling Method:\n===============\n"
-          "Neal (2003): "
-          "projecteuclid.org/euclid.aos/1056562461\n"
-          "Skilling (2012): "
-          "aip.scitation.org/doi/abs/10.1063/1.3703630\n"
-          "Feroz & Skilling (2013): "
-          "ui.adsabs.harvard.edu/abs/2013AIPC.1553..106F\n"
-          "Speagle (2020): "
-          "ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S\n"}
+def _get_citations(nested_type, bound, sampler):
+    """
+    Return a string of citations for given dynesty run
+
+    Parameters
+    ----------
+    nested_type: string
+        Either dynamic or static
+    bound: string
+        Bound type used
+    sampler: string
+        Internal sampler type
+
+    Returns
+    -------
+    citations: string
+         The long printable string of citations
+    """
+
+    # In all cases the references are organized as
+    # a tuple of reference string and url
+    # or a list of tuples
+
+    # Main references for the code
+    default_refs = [("Speagle (2020)",
+                     "ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S"),
+                    ("Speagle et al.", "doi.org/10.5281/zenodo.3348367")]
+
+    # Basics of nested sampling algorithm
+    nested_refs = [
+        ("Skilling (2004)", "ui.adsabs.harvard.edu/abs/2004AIPC..735..395S"),
+        ("Skilling (2006)", "projecteuclid.org/euclid.ba/1340370944")
+    ]
+
+    # The dynamic nested sampling
+    dynamic_refs = [("Higson et al. (2019)",
+                     "doi.org/10.1007/s11222-018-9844-0")]
+
+    # citations for different bounds in a dictionary
+    bound_refs = {
+        'none':
+        '',
+        'single': ("Mukherjee, Parkinson & Liddle (2006)",
+                   "ui.adsabs.harvard.edu/abs/2006ApJ...638L..51M"),
+        'multi': ("Feroz, Hobson & Bridges (2009)",
+                  "ui.adsabs.harvard.edu/abs/2009MNRAS.398.1601F"),
+        'balls':
+        [("Buchner (2016)", "ui.adsabs.harvard.edu/abs/2014arXiv1407.5459B"),
+         ("Buchner (2017)", "ui.adsabs.harvard.edu/abs/2017arXiv170704476B")],
+        'cubes':
+        [("Buchner (2016)", "ui.adsabs.harvard.edu/abs/2014arXiv1407.5459B"),
+         ("Buchner (2017)", "ui.adsabs.harvard.edu/abs/2017arXiv170704476B")]
+    }
+
+    # citations for different samplers
+    sampler_refs = {
+        'unif':
+        '',
+        'rwalk':
+        [("Skilling (2006)", "projecteuclid.org/euclid.ba/1340370944")],
+        'slice': [("Neal (2003)", "projecteuclid.org/euclid.aos/1056562461"),
+                  ("Handley, Hobson & Lasenby (2015a)",
+                   "ui.adsabs.harvard.edu/abs/2015MNRAS.450L..61H"),
+                  ("Handley, Hobson & Lasenby (2015b)",
+                   "ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H")],
+        'rslice': [("Neal (2003):", "projecteuclid.org/euclid.aos/1056562461"),
+                   ("Handley, Hobson & Lasenby (2015a)",
+                    "ui.adsabs.harvard.edu/abs/2015MNRAS.450L..61H"),
+                   ("Handley, Hobson & Lasenby (2015b)",
+                    "ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H")],
+        'hslice':
+        [("Neal (2003)", "projecteuclid.org/euclid.aos/1056562461"),
+         ("Skilling (2012)", "aip.scitation.org/doi/abs/10.1063/1.3703630"),
+         ("Feroz & Skilling (2013)",
+          "ui.adsabs.harvard.edu/abs/2013AIPC.1553..106F"),
+         ("Speagle (2020)", "ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S")]
+    }
+
+    def reflist_tostring(x):
+        """ internal function to convert reference lists to
+        a printable string
+        """
+        if isinstance(x, str):
+            return x
+        elif isinstance(x, tuple):
+            return x[0] + ': ' + x[1]
+        elif isinstance(x, list):
+            return '\n'.join([_[0] + ': ' + _[1] for _ in x])
+        else:
+            return str(x)
+
+    default_citations = reflist_tostring(default_refs)
+    nested_citations = reflist_tostring(nested_refs)
+    bound_citations = reflist_tostring(bound_refs[bound])
+    sampler_citations = reflist_tostring(sampler_refs[sampler])
+
+    assert nested_type in ['dynamic', 'static']
+    if nested_type == 'dynamic':
+        dynamic_citations = reflist_tostring(dynamic_refs)
+        dynamic_citations = f"""Dynamic Nested Sampling:\n=======================
+{dynamic_citations}"""
+    else:
+        dynamic_citations = ""
+
+    citations = f"""Code and Methods:\n ================
+{default_citations}
+
+Nested Sampling:\n===============
+{nested_citations}
+{dynamic_citations}
+
+Bounding Method:\n===============
+{bound_citations}
+
+Sampling Method:\n===============
+{sampler_citations}
+"""
+    return citations
+
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
@@ -454,8 +508,7 @@ def NestedSampler(loglikelihood,
     kwargs['update_func'] = update_func
 
     # Citation generator.
-    kwargs['cite'] = (_CITES['default'] + "\n" + _CITES[bound] + "\n" +
-                      _CITES[sample])
+    kwargs['cite'] = _get_citations('static', bound, sample)
 
     # Dimensional warning check.
     if nlive <= 2 * ndim:
@@ -857,8 +910,7 @@ def DynamicNestedSampler(loglikelihood,
     kwargs['update_func'] = update_func
 
     # Citation generator.
-    kwargs['cite'] = (_CITES['default'] + "\n" + _CITES['dynamic'] + "\n" +
-                      _CITES[bound] + "\n" + _CITES[sample])
+    kwargs['cite'] = _get_citations('dynamic', bound, sample)
 
     nonbounded = get_nonbounded(npdim, periodic, reflective)
     kwargs['nonbounded'] = nonbounded

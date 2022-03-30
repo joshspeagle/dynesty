@@ -187,7 +187,7 @@ def test_bounding_sample(bound, sample):
                                     rstate=rstate)
     sampler.run_nested(print_progress=printing)
     check_results_gau(sampler.results, g, rstate)
-    sampler.citations
+    print(sampler.citations)
 
 
 @pytest.mark.parametrize("bound,sample",

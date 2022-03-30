@@ -19,5 +19,6 @@ It may be also needed to update the actual .ipynb files in the repo (and/or look
 * change the internal version number
 * git tag on github
 * release on pypi and github
-* refresh AUTHORS
+* refresh AUTHORS.md
+* refresh citation information if needed in dynesty.py, docs and readme
 * add a zenodo record

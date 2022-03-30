@@ -41,7 +41,9 @@ be installed directly from a local copy of the repository by running::
 Citations
 =========
 
-If you find `dynesty` useful in your research, a list of papers that you
+If you find `dynesty` useful in your research, please cite the
+`software <https://doi.org/10.5281/zenodo.3348367>`_ and relevant papers.
+A list of papers that you
 should cite can be generated directly from the `sampler` object by calling::
 
     print(sampler.citations)
@@ -58,7 +60,7 @@ Returns the following list of papers that should be cited::
 
     Code and Methods:
     ================
-    Speagle (2020): ui.adsabs.harvard.edu/abs/2019arXiv190402180S
+    Speagle (2020): https://ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S
 
     Nested Sampling:
     ===============
@@ -85,7 +87,7 @@ you should also cite
 <http://ui.adsabs.harvard.edu/abs/2008arXiv0801.3887C>`_,
 `Higson et al. (2018)
 <projecteuclid.org/euclid.ba/1508897094>`_,
-and `Speagle (2019) <https://ui.adsabs.harvard.edu/abs/2019arXiv190402180S>`_.
+and `Speagle (2020) <https://ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S>`_.
 
 See :ref:`References and Acknowledgements` for additional details.
 

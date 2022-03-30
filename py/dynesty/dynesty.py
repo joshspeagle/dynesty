@@ -25,7 +25,7 @@ __all__ = ["NestedSampler", "DynamicNestedSampler", "_function_wrapper"]
 _CITES = {'default':  # default set of citations
           "Code and Methods:\n================\n"
           "Speagle (2020): "
-          "ui.adsabs.harvard.edu/abs/2019arXiv190402180S\n\n"
+          "ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S\n\n"
           "Nested Sampling:\n===============\n"
           "Skilling (2004): "
           "ui.adsabs.harvard.edu/abs/2004AIPC..735..395S\n"
@@ -86,7 +86,7 @@ _CITES = {'default':  # default set of citations
           "Feroz & Skilling (2013): "
           "ui.adsabs.harvard.edu/abs/2013AIPC.1553..106F\n"
           "Speagle (2020): "
-          "ui.adsabs.harvard.edu/abs/2019arXiv190402180S\n"}
+          "ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S\n"}
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 

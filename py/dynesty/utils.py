@@ -19,13 +19,17 @@ try:
 except ImportError:
     tqdm = None
 
+try:
+    import h5py
+except ImportError:
+    h5py = None
+
 from .results import Results, print_fn, results_substitute
 
 __all__ = [
     "unitcheck", "resample_equal", "mean_and_cov", "quantile", "jitter_run",
-    "resample_run", "reweight_run", "unravel_run",
-    "merge_runs", "kld_error", "_merge_two", "_get_nsamps_samples_n",
-    "get_enlarge_bootstrap"
+    "resample_run", "reweight_run", "unravel_run", "merge_runs", "kld_error",
+    "_merge_two", "_get_nsamps_samples_n", "get_enlarge_bootstrap"
 ]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
@@ -111,7 +115,9 @@ class LogLikelihood:
 
     def history_init(self):
         """ Initialize the hdf5 storage of evaluations """
-        import h5py
+        if h5py is None:
+            raise RuntimeError(
+                'h5py module is required for saving history of calls')
         self.history_counter = 0
         try:
             with h5py.File(self.history_filename, mode='w') as fp:
@@ -131,7 +137,6 @@ class LogLikelihood:
             # if failed to save before, do not try again
             # also quickly return if saving is not needed
             return
-        import h5py
         try:
             with h5py.File(self.history_filename, mode='a') as fp:
                 # pylint: disable=no-member

@@ -1,5 +1,4 @@
 numpy>=1.17.0
 scipy
 matplotlib
-six
 h5py

@@ -50,7 +50,7 @@ Most of the changes in the release have been contributed by [Sergey Koposov](htt
 - Improve stability of resample_equal (#351)
 - New Results interface with a dedicated object, rather than a wrapper around the dictionary (#330)
 
-## 1.1 - 2021-04-05
+## [1.1.0] - 2021-04-05
 - Improved behavior and stability of the bounding distributions (with
   `Sergey Koposov <https://github.com/segasai>`_ and
   `Johannes Buchner <https://github.com/johannesbuchner>`_).
@@ -93,7 +93,7 @@ Most of the changes in the release have been contributed by [Sergey Koposov](htt
 
 - Small quality-of-life improvements.
 
-## [0.9.7] (2019-06-13)
+## [0.9.7] - 2019-06-13
 ### Changed
 - Ensemble bounds can now adapt to elongated distributions (with
   `Johannes Buchner <https://github.com/JohannesBuchner>`_).
@@ -117,13 +117,13 @@ Most of the changes in the release have been contributed by [Sergey Koposov](htt
   `Gregory Ashton <https://github.com/GregoryAshton>`_ and
   `Johannes Buchner <https://github.com/JohannesBuchner>`_.
 
-## 0.9.5 - 2019-03-14
+## [0.9.5] - 2019-03-14
 ### Changed
 - Added support for periodic boundary conditions.
 
 - Set up basic tests for continuous integration.
 
-## 0.9.4 - 2019-03-07
+## [0.9.4] - 2019-03-07
 ### Changed
 - Added a logo!
 
@@ -133,7 +133,7 @@ Most of the changes in the release have been contributed by [Sergey Koposov](htt
 
 - Changed defaults and added several "quality of life" improvements.
 
-## 0.9.3 - 2019-02-10
+## [0.9.3] - 2019-02-10
 ### Changed
 - Updated documentation.
 

@@ -95,10 +95,12 @@ Changelog
 .. image:: ../images/logo.gif
     :align: center
     
-1.2 (2022-03-31)
+1.2.0 (2022-03-31)
 ------------------
 
 This version has multiple changes that should improve stability and speed. The default dynamic sampling behaviour has been changed to focus on the effective number of posterior samples as opposed to KL divergence. The rstagger sampler has been removed and the default choice of the sampler may be different compared to previous releases depending on the dimensionality of the problem. dynesty should now provide 100% reproduceable results if the rstate object is provided. It needs to be a new generation Random Generator (as opposed to numpy.RandomState)
+
+Most of the changes in the release have been contributed by [Sergey Koposov](https://github.com/segasai) who has joined the dynesty project.
 
 * Saving likelihood. It is now possible to save likelihood calls history during sampling into HDF5 file (this is not compatible with parallel sampling yet). The relevant options are  save_history=False, history_filename=None (#235)
 * add_batch() function now has the mode parameter that allows you to manually chose the logl range for the batch (#328)

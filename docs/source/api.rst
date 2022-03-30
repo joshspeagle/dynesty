@@ -7,7 +7,7 @@ This page details the methods and classes provided by the ``dynesty`` module.
 Top-Level Interface
 ===================
 
-.. automodule:: dynesty.dynesty
+.. automodule:: py.dynesty.dynesty
     :members:
     :undoc-members:
     :private-members:
@@ -16,7 +16,7 @@ Top-Level Interface
 Bounding
 ========
 
-.. automodule:: dynesty.bounding
+.. automodule:: py.dynesty.bounding
     :members:
     :undoc-members:
     :private-members:
@@ -25,7 +25,7 @@ Bounding
 Sampling
 ========
 
-.. automodule:: dynesty.sampling
+.. automodule:: py.dynesty.sampling
     :members:
     :undoc-members:
     :private-members:
@@ -34,7 +34,7 @@ Sampling
 Baseline Sampler
 ================
 
-.. automodule:: dynesty.sampler
+.. automodule:: py.dynesty.sampler
     :members:
     :undoc-members:
     :private-members:
@@ -43,7 +43,7 @@ Baseline Sampler
 Static Nested Samplers
 ======================
 
-.. automodule:: dynesty.nestedsamplers
+.. automodule:: py.dynesty.nestedsamplers
     :members:
     :undoc-members:
     :private-members:
@@ -52,7 +52,7 @@ Static Nested Samplers
 Dynamic Nested Sampler
 ======================
 
-.. automodule:: dynesty.dynamicsampler
+.. automodule:: py.dynesty.dynamicsampler
     :members:
     :undoc-members:
     :private-members:
@@ -61,7 +61,7 @@ Dynamic Nested Sampler
 Sampling Results
 ================
 
-.. automodule:: dynesty.results
+.. automodule:: py.dynesty.results
     :members:
     :undoc-members:
     :private-members:
@@ -70,7 +70,7 @@ Sampling Results
 Useful Helper Functions
 =======================
 
-.. automodule:: dynesty.utils
+.. automodule:: py.dynesty.utils
     :members:
     :undoc-members:
     :private-members:
@@ -79,7 +79,7 @@ Useful Helper Functions
 Plotting Utilities
 ==================
 
-.. automodule:: dynesty.plotting
+.. automodule:: py.dynesty.plotting
     :members:
     :undoc-members:
     :private-members:

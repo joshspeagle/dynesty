@@ -11,7 +11,7 @@ and evidences. See :ref:`Crash Course` and :ref:`Getting Started`
 for more information. The latest development version can be found `here
 <http://github.com/joshspeagle/dynesty>`_.
 
-**The release paper describing the code can be found**
+**The release paper describing dynesty 1.0 can be found**
 `here <https://github.com/joshspeagle/dynesty/tree/master/paper/dynesty.pdf>`_.
 
 As a multi-purpose sampler, ``dynesty`` is designed to perform
@@ -23,11 +23,10 @@ estimate Bayesian posteriors and evidences for large-dimensional
 Installation
 ============
 
-``dynesty`` is compatible with both Python 2.7 and Python 3.6. It requires
+``dynesty`` is compatible wit Python 3.6+. It requires
 ``numpy`` (for arithmetic), 
 ``scipy`` (for special functions), 
 ``matplotlib`` (for plotting), and 
-``six`` (to enforce Python 2/3 compliance).
 While not required, ``tqdm`` also allows for a nice progress bar.
 
 Installing the most recent stable version of the package is as easy as::

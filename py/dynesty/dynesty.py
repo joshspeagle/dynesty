@@ -1018,7 +1018,13 @@ class _function_wrapper:
 
     def __call__(self, x):
         try:
-            return self.func(x, *self.args, **self.kwargs)
+            # IMPORTANT
+            # Here we make a copy if the input vector just to ensure
+            # that users can safely modify in-place the arguments to
+            # say prior_transform or likelihood
+            # This comes at performance cost, but it's worthwhile
+            # as it may lead to hard to diagnose weird behaviour
+            return self.func(x.copy(), *self.args, **self.kwargs)
         except:  # noqa
             print("Exception while calling {0} function:".format(self.name))
             print("  params:", x)

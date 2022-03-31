@@ -82,14 +82,25 @@ class Gaussian:
     # 3-D correlated multivariate normal log-likelihood
     def loglikelihood(self, x):
         """Multivariate normal log-likelihood."""
-        return -0.5 * np.dot(
+
+        ret = -0.5 * np.dot(
             (x - self.mean), np.dot(self.cov_inv,
                                     (x - self.mean))) + self.lnorm
+        # notice here we overwrite the input array just to test
+        # that this is not a problem
+        x[:] = -np.ones(len(x))
+        return ret
 
     # prior transform
     def prior_transform(self, u):
         """Flat prior between -10. and 10."""
-        return self.prior_win * (2. * u - 1.)
+        ret = self.prior_win * (2. * u - 1.)
+
+        # notice here we overwrite the input array just to test
+        # that this is not a problem
+        u[:] = -np.ones(len(u))
+
+        return ret
 
     # gradient (no jacobian)
     def grad_x(self, x):

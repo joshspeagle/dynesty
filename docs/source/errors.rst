@@ -35,9 +35,9 @@ volume evolves as:
 .. math::
     \Delta \ln X \approx \frac{1}{K}
 
-As mentioned in :ref:`Role of Priors in Nested Sampling`, the 
+As mentioned in :ref:`Priors in Nested Sampling`, the
 **"information"** gained from moving from the prior
-:math:`\pi(\boldsymbol{\Theta})` to the posterior 
+:math:`\pi(\boldsymbol{\Theta})` to the posterior
 :math:`P(\boldsymbol{\Theta})` can be quantified using the **KL Divergence**
 between the two distributions:
 

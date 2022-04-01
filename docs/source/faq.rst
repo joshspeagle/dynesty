@@ -148,19 +148,19 @@ efficient near the final `dlogz` stopping criterion, that could be a sign that
 the the current set of live points are unable to give rise to bounding
 distributions that are detailed enough to track the shape of the remaining
 prior volume. As above, this behavior could be remedied by using more live
-points or alternate sampling methods. Depending on the goal, the `dlogz` 
+points or alternate sampling methods. Depending on the goal, the `dlogz`
 tolerance could also be adjusted.
 
 Finally, if sampling seems to be progressing efficiently but is just
 taking a long time, it might be because the high-likelihood regions of
-parameter space are small compared to the prior volume. As discussed in 
-:ref:`Role of Priors in Nested Sampling`, the time it takes to sample to a
+parameter space are small compared to the prior volume. As discussed in
+:ref:`Priors in Nested Sampling`, the time it takes to sample to a
 given `dlogz` tolerance scales as the "information" gained by updating from
 the prior to the posterior. Since Nested Sampling starts by sampling from the
 entire prior volume, having overly-broad priors will increase the runtime.
 
 **I noticed that the number of iterations and/or function calls during a run
-don't exactly match up with the limits I specify using, 
+don't exactly match up with the limits I specify using,
 e.g.,** `maxiter` **or** `maxcall` **. Is this a bug?**
 
 No, this is not a bug (i.e. this behavior is not unintended). 

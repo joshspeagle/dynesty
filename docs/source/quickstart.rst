@@ -295,15 +295,15 @@ the provided bounds which can be passed via the `sample` argument:
 In addition, `dynesty` also supports passing **custom callable functions**
 to the `sample` argument, provided they follow the same format as the
 default sampling functions defined `here
-<https://github.com/joshspeagle/dynesty/blob/master/dynesty/sampling.py>`_.
+<https://github.com/joshspeagle/dynesty/blob/master/dynesty/sampling.py>`__.
 These can also be accompanied by custom "update functions" that try to
 adaptively scale proposals to ensure better overall sampling efficiency.
 See `here
-<https://github.com/joshspeagle/dynesty/blob/master/dynesty/nestedsamplers.py>`_
+<https://github.com/joshspeagle/dynesty/blob/master/dynesty/nestedsamplers.py>`__
 for examples of some of the functions that are associated with the default
 sampling methods described above.
 
-By default, `dynesty` automatically picks a sampling method 
+By default, `dynesty` automatically picks a sampling method
 based on the dimensionality of the problem via the `'auto'` argument, which
 uses the following logic:
 
@@ -746,7 +746,7 @@ included in `Results` are listed below:
 
 * `logzerr`: the estimated error (standard deviation) on `logz`, and
 
-* `information`: the estimated "information" (see :ref:`Role of Priors in
+* `information`: the estimated "information" (see :ref:`Priors in
   Nested Sampling`) at each iteration (sample).
 
 If the bounding distributions are also saved (the default behavior), then the

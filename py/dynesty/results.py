@@ -280,12 +280,14 @@ _RESULTS_STRUCTURE = [
 
 
 class Results:
-    """Contains the full output of a run along with a set of helper
+    """
+    Contains the full output of a run along with a set of helper
     functions for summarizing the output.
     The object is meant to be unchangeable record of the static or
     dynamic nested run.
 
-    Results attributes"""
+    Results attributes (name, type, description, array size):
+    """
 
     _ALLOWED = set([_[0] for _ in _RESULTS_STRUCTURE])
 
@@ -389,8 +391,8 @@ Return the list of items in the results object as list of key,value pairs
         print('Summary\n=======\n' + res)
 
 
-Results.__doc__ += '\n\n' + str('\n'.join([str(_) for _ in _RESULTS_STRUCTURE
-                                           ])) + '\n'
+Results.__doc__ += '\n\n' + str('\n'.join(
+    ['| ' + str(_) for _ in _RESULTS_STRUCTURE])) + '\n'
 
 
 def results_substitute(results, kw_dict):

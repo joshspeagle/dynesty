@@ -441,7 +441,7 @@ class DynamicSampler:
         propose new live points.
 
     method : {`'unif'`, `'rwalk'`,
-              `'slice'`, `'rslice'`, `'hslice'`}, optional
+        `'slice'`, `'rslice'`, `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds.
 
@@ -476,7 +476,7 @@ class DynamicSampler:
 
     kwargs : dict, optional
         A dictionary of additional parameters (described below).
-
+    
     """
 
     def __init__(self, loglikelihood, prior_transform, npdim, bound, method,

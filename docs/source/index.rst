@@ -12,7 +12,7 @@ for more information. The latest development version can be found `here
 <http://github.com/joshspeagle/dynesty>`_.
 
 **The release paper describing dynesty 1.0 can be found**
-`here <https://github.com/joshspeagle/dynesty/tree/master/paper/dynesty.pdf>`_.
+`here <https://github.com/joshspeagle/dynesty/tree/master/paper/dynesty.pdf>`__.
 
 As a multi-purpose sampler, ``dynesty`` is designed to perform
 "reasonably well" across a large array of problems but is not optimized for
@@ -181,7 +181,7 @@ Most of the changes in the release have been contributed by [Sergey Koposov](htt
 0.9.7 (2019-06-13)
 -------------------
 * Ensemble bounds can now adapt to elongated distributions (with
-  `Johannes Buchner <https://github.com/JohannesBuchner>`_).
+  `Johannes Buchner <https://github.com/JohannesBuchner>`__).
 
 * Random walks now behave differently near boundaries (with
   `Gregory Ashton <https://github.com/GregoryAshton>`_).
@@ -197,10 +197,10 @@ Most of the changes in the release have been contributed by [Sergey Koposov](htt
 
 
 0.9.5.3 (2019-03-29)
--------------------
+--------------------
 * Various small bugfixes, with contributions by
   `Gregory Ashton <https://github.com/GregoryAshton>`_ and
-  `Johannes Buchner <https://github.com/JohannesBuchner>`_.
+  `Johannes Buchner <https://github.com/JohannesBuchner>`__.
 
 0.9.5 (2019-03-14)
 -------------------

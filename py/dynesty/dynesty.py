@@ -291,8 +291,8 @@ def NestedSampler(loglikelihood,
         (`'multi'`), balls centered on each live point (`'balls'`), and
         cubes centered on each live point (`'cubes'`). Default is `'multi'`.
 
-    sample : {`'auto'`, `'unif'`, `'rwalk'`,
-              `'slice'`, `'rslice'`, `'hslice'`, callable}, optional
+    sample : {`'auto'`, `'unif'`, `'rwalk'`, `'slice'`, `'rslice'`,
+        `'hslice'`, callable}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds. Unique methods available are:
         uniform sampling within the bounds(`'unif'`),
@@ -696,8 +696,8 @@ def DynamicNestedSampler(loglikelihood,
         (`'multi'`), balls centered on each live point (`'balls'`), and
         cubes centered on each live point (`'cubes'`). Default is `'multi'`.
 
-    sample : {`'auto'`, `'unif'`, `'rwalk'`,
-              `'slice'`, `'rslice'`, `'hslice'`}, optional
+    sample : {`'auto'`, `'unif'`, `'rwalk'`, `'slice'`, `'rslice'`,
+        `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds. Unique methods available are:
         uniform sampling within the bounds(`'unif'`),

@@ -233,7 +233,7 @@ class UnitCubeSampler(SuperSampler):
         `live_logl`, the associated loglikelihoods.
 
     method : {`'unif'`, `'rwalk'`,
-              `'slice'`, `'rslice'`, `'hslice'`}, optional
+        `'slice'`, `'rslice'`, `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds.
 
@@ -353,8 +353,8 @@ class SingleEllipsoidSampler(SuperSampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {`'unif'`, `'rwalk'`,
-              `'slice'`, `'rslice'`, `'hslice'`}, optional
+    method : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`,
+        `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds.
 
@@ -499,8 +499,8 @@ class MultiEllipsoidSampler(SuperSampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {`'unif'`, `'rwalk'`,
-              `'slice'`, `'rslice'`, `'hslice'`}, optional
+    method : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`,
+        `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds.
 
@@ -677,8 +677,8 @@ class RadFriendsSampler(SuperSampler):
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    method : {`'unif'`, `'rwalk'`,
-              `'slice'`, `'rslice'`, `'hslice'`}, optional
+    method : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`,
+        `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds.
 
@@ -828,7 +828,7 @@ class SupFriendsSampler(SuperSampler):
         `live_logl`, the associated loglikelihoods.
 
     method : {`'unif'`, `'rwalk'`,
-              `'slice'`, `'rslice'`, `'hslice'`}, optional
+        `'slice'`, `'rslice'`, `'hslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds.
 

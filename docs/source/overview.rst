@@ -47,7 +47,7 @@ is the **evidence**, with the integral taken over the entire domain
 
 For complicated data and models, the posterior is often intractable and must
 be estimated using numerical methods (see, e.g.,
-`here <https://arxiv.org/abs/1506.08640>`_).
+`here <https://arxiv.org/abs/1506.08640>`__).
 
 Nested Sampling
 ===============
@@ -331,8 +331,8 @@ the overall expected runtime. Since, in general, the posterior
 :math:`P(\boldsymbol{\Theta})` is (much) more localized that the prior
 :math:`\pi(\boldsymbol{\Theta})`, the "information" we gain from updating
 from the prior to the posterior can be characterized by the
-**Kullback-Leibler (KL) divergence** (see 
-`here <https://en.wikipedia.org/wiki/Kullback-Leibler_divergence>`_ 
+**Kullback-Leibler (KL) divergence** (see
+`here <https://en.wikipedia.org/wiki/Kullback-Leibler_divergence>`__
 for more information):
 
 .. math::

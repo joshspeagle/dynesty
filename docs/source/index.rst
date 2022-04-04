@@ -96,7 +96,14 @@ Changelog
 
 .. image:: ../images/logo.gif
     :align: center
-    
+
+1.2.1 (2022-04-04)
+------------------
+Small bug fix release
+
+* The arguments of prior_transform and likelihood function are now explicitely copied, so the sampling can work if those function apply changes to argument vectors ( #362 )
+* Fix the compilation of the docs, and update them a bit
+	    
 1.2.0 (2022-03-31)
 ------------------
 

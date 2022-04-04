@@ -30,6 +30,7 @@ import numpy as np
 from .sampler import Sampler
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
                        SupFriends)
+from .proposals import DEFAULT_PROPOSALS, ENSEMBLE_PROPOSALS
 from .sampling import (sample_unif, sample_rwalk, sample_slice, sample_rslice,
                        sample_hslice)
 from .utils import unitcheck, get_enlarge_bootstrap
@@ -136,6 +137,13 @@ class SuperSampler(Sampler):
         self.slices = self.kwargs.get('slices', 5)
         self.fmove = self.kwargs.get('fmove', 0.9)
         self.max_move = self.kwargs.get('max_move', 100)
+
+    @property
+    def proposals(self):
+        proposals = self.kwargs.get("proposals", None)
+        if proposals is None:
+            proposals = DEFAULT_PROPOSALS
+        return proposals
 
     def propose_unif(self, *args):
         pass
@@ -473,6 +481,9 @@ class SingleEllipsoidSampler(SuperSampler):
         else:
             ax = np.identity(self.ncdim)
 
+        if not ENSEMBLE_PROPOSALS.isdisjoint(self.proposals):
+            self.kwargs["live"] = copy.deepcopy(self.live_u)
+
         return u, ax
 
 
@@ -651,6 +662,9 @@ class MultiEllipsoidSampler(SuperSampler):
         else:
             ax = np.identity(self.npdim)
 
+        if not ENSEMBLE_PROPOSALS.isdisjoint(self.proposals):
+            self.kwargs["live"] = copy.deepcopy(self.live_u)
+
         return u, ax
 
 
@@ -801,6 +815,9 @@ class RadFriendsSampler(SuperSampler):
         u = self.live_u[i, :]
         ax = self.radfriends.axes
 
+        if not ENSEMBLE_PROPOSALS.isdisjoint(self.proposals):
+            self.kwargs["live"] = copy.deepcopy(self.live_u)
+
         return u, ax
 
 
@@ -950,5 +967,8 @@ class SupFriendsSampler(SuperSampler):
             i = self.rstate.integers(self.nlive)
         u = self.live_u[i, :]
         ax = self.supfriends.axes
+
+        if not ENSEMBLE_PROPOSALS.isdisjoint(self.proposals):
+            self.kwargs["live"] = copy.deepcopy(self.live_u)
 
         return u, ax

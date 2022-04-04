@@ -252,7 +252,9 @@ def NestedSampler(loglikelihood,
                   update_func=None,
                   ncdim=None,
                   save_history=False,
-                  history_filename=None):
+                  history_filename=None,
+                  proposals=None,
+                  ):
     """
     Initializes and returns a sampler object for Static Nested Sampling.
 
@@ -471,6 +473,10 @@ def NestedSampler(loglikelihood,
         just sample uniformly from the prior distribution.
         If this is `None` (default), this will default to npdim.
 
+    proposals : iterable, optional
+        A list of proposal functions to use for rwalk evolution. This will be
+        used as a fixed proposal cycle.
+
     Returns
     -------
     sampler : sampler from :mod:`~dynesty.nestedsamplers`
@@ -518,6 +524,7 @@ def NestedSampler(loglikelihood,
     kwargs['nonbounded'] = nonbounded
     kwargs['periodic'] = periodic
     kwargs['reflective'] = reflective
+    kwargs['proposals'] = proposals
 
     # Keyword arguments controlling the first update.
     if first_update is None:
@@ -662,7 +669,9 @@ def DynamicNestedSampler(loglikelihood,
                          update_func=None,
                          ncdim=None,
                          save_history=False,
-                         history_filename=None):
+                         history_filename=None,
+                         proposals=None,
+                         ):
     """
     Initializes and returns a sampler object for Dynamic Nested Sampling.
 
@@ -866,6 +875,10 @@ def DynamicNestedSampler(loglikelihood,
         just sample uniformly from the prior distribution.
         If this is `None` (default), this will default to npdim.
 
+    proposals : iterable, optional
+        A list of proposal functions to use for rwalk evolution. This will be
+        used as a fixed proposal cycle.
+
     Returns
     -------
     sampler : a :class:`dynesty.DynamicSampler` instance
@@ -916,6 +929,7 @@ def DynamicNestedSampler(loglikelihood,
     kwargs['nonbounded'] = nonbounded
     kwargs['periodic'] = periodic
     kwargs['reflective'] = reflective
+    kwargs['proposals'] = proposals
 
     # Keyword arguments controlling the first update.
     if first_update is None:

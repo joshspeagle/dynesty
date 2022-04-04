@@ -189,7 +189,6 @@ class RunRecord:
             'n',  # number of live points interior to dead point
             'bounditer',  # active bound at a specific iteration
             'scale'  # scale factor at each iteration
-            'walks'  # number of steps taken at each iteration
         ]
         if dynamic:
             keys.extend([

@@ -58,7 +58,7 @@ def propose_diff_evo(u, live, rstate, **kwargs):
         The current point.
     live: np.ndarray
         The ensemble of live points to select :math:`v` from.
-    rstate: np.random.RandomState
+    rstate: RandomState
         The random state to use to generate random numbers.
     kwargs: dict, unused
         Required for flexibility of the interface
@@ -92,7 +92,7 @@ def propose_ensemble_snooker(u, live, rstate, **kwargs):
         The current point.
     live: np.ndarray
         The ensemble of live points to select :math:`v` from.
-    rstate: np.random.RandomState
+    rstate: RandomState
         The random state to use to generate random numbers.
     kwargs: dict, unused
         Required for flexibility of the interface
@@ -131,7 +131,7 @@ def propose_ensemble_stretch(u, live, rstate, **kwargs):
         The current point.
     live: np.ndarray
         The ensemble of live points to select :math:`v` from.
-    rstate: np.random.RandomState
+    rstate: RandomState
         The random state to use to generate random numbers.
     kwargs: dict, unused
         Required for flexibility of the interface
@@ -170,7 +170,7 @@ def propose_ensemble_walk(u, live, rstate, nsamples=3, **kwargs):
         The current point.
     live: np.ndarray
         The ensemble of live points to select :math:`v` from.
-    rstate: np.random.RandomState
+    rstate: RandomState
         The random state to use to generate random numbers.
     kwargs: dict, unused
         Required for flexibility of the interface
@@ -199,7 +199,7 @@ def propose_along_axis(u, axes, rstate, scale=1, **kwargs):
         The current point.
     axes: np.ndarray
         The principal component decomposition of the bounding ellipsoid.
-    rstate: np.random.RandomState
+    rstate: RandomState
         The random state to use to generate random numbers.
     scale: float
         The scale of the step to take.
@@ -230,7 +230,7 @@ def propose_chi(u, axes, rstate, scale=1, **kwargs):
         The current point.
     axes: np.ndarray
         The principal component decomposition of the bounding ellipsoid.
-    rstate: np.random.RandomState
+    rstate: RandomState
         The random state to use to generate random numbers.
     scale: float
         The scale of the step to take.
@@ -258,7 +258,7 @@ def propose_normal(u, axes, rstate, scale=1, **kwargs):
         The current point.
     axes: np.ndarray
         The principal component decomposition of the bounding ellipsoid.
-    rstate: np.random.RandomState
+    rstate: RandomState
         The random state to use to generate random numbers.
     scale: float
         The scale of the step to take.
@@ -285,7 +285,7 @@ def propose_volumetric(u, axes, rstate, scale=1, **kwargs):
         The current point.
     axes: np.ndarray
         The principal component decomposition of the bounding ellipsoid.
-    rstate: np.random.RandomState
+    rstate: RandomState
         The random state to use to generate random numbers.
     scale: float
         The scale of the step to take.

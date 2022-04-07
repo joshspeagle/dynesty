@@ -29,7 +29,7 @@ import numpy as np
 
 from .sampler import Sampler
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
-                       SupFriends)
+                       SupFriends, rand_choice)
 from .sampling import (sample_unif, sample_rwalk, sample_slice, sample_rslice,
                        sample_hslice)
 from .utils import unitcheck, get_enlarge_bootstrap
@@ -638,7 +638,9 @@ class MultiEllipsoidSampler(SuperSampler):
             # rather than the ellipsoid to which this point belongs.
             # because a non-random ellipsoid can break detailed balance
             # see #364
-            ell_idx = self.rstate.integers(len(self.mell.ells))
+            # here we choose ellipsoid in proportion of its volume
+            probs = np.exp(self.mell.logvols - self.mell.logvol_tot)
+            ell_idx = rand_choice(probs, self.rstate)
             # Choose axes.
             if self.sampling == 'slice':
                 ax = self.mell.ells[ell_idx].paxes

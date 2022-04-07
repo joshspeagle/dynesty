@@ -335,6 +335,9 @@ class UnitCubeSampler(SuperSampler):
         u = self.live_u[i, :]
         ax = np.identity(self.npdim)
 
+        if not ENSEMBLE_PROPOSALS.isdisjoint(self.proposals):
+            self.kwargs["live"] = copy.deepcopy(self.live_u)
+
         return u, ax
 
 

@@ -54,6 +54,10 @@ automatically add more dynamically-allocated samples based on your
 target weight function as long as the stopping criteria hasn't been met.
 If you would like to add a new batch of samples manually,
 running `add_batch` will assign a new set of samples.
+You can also specifically add new batch corresponding to a certain likelihood
+range (i.e. corresponding to where your posterior is concentrated).
+Also, if you care about the posterior mostly, you can use larger values of
+n_effective parameter as that will ensure your posterior is less noisy.
 Finally, :meth:`~dynesty.utils.merge_runs` also works with results generated
 from Dynamic Nested Sampling, so it is just as easy to set off a new run and
 combine it with your original result.
@@ -140,7 +144,7 @@ exceptions. If you are instead deriving expansion factors from bootstrapping,
 it's possible you're experiencing severe Monte Carlo noise (see 
 :ref:`Bounding Questions`). You could try to resolve this by either using
 more live points or switching to an alternate sampling method less sensitive
-to the size of the bounding distributions such as `'rwalk'` or `'slice'`.
+to the size of the bounding distributions such as `'rwalk'` or `'rslice'`.
 
 If sampling progresses efficiently after the first bounding update (i.e. when
 `bound > 0`) for the majority of the run but becomes substantially less

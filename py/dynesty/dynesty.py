@@ -443,7 +443,8 @@ def NestedSampler(loglikelihood,
     slices : int, optional
         For the `'slice'`, `'rslice'`, and `'hslice'` sampling
         options, the number of times to execute a "slice update"
-        before proposing a new live point. Default is `5`.
+        before proposing a new live point. Default is 3 for
+        `'slice'` and 3+ndim for rslice and hslice.
         Note that `'slice'` cycles through **all dimensions**
         when executing a "slice update".
 
@@ -838,7 +839,8 @@ def DynamicNestedSampler(loglikelihood,
     slices : int, optional
         For the `'slice'`, `'rslice'`, and `'hslice'` sampling
         options, the number of times to execute a "slice update"
-        before proposing a new live point. Default is `5`.
+        before proposing a new live point. Default is 3 for
+        `'slice'` and 3+ndim for rslice and hslice.
         Note that `'slice'` cycles through **all dimensions**
         when executing a "slice update".
 

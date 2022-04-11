@@ -9,10 +9,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 
 ### Fixed
-- The problem with biased posteriors was fixed when using multi-ellipsoid bounds
-  and rslice and rwalk samplers. Previously the chains did not satisfy
+
+## [1.2.2] - 2022-04-12
+
+### Added
+
+### Fixed
+- The problem with biased posteriors was fixed when using multi-ellipsoid
+  bounds and rslice and rwalk samplers. Previously the chains did not satisfy
   detailed balance. (issue #364). Original discovery of the problem
-  and help by Colm Talbot.
+  and help by Colm Talbot. In the case of complex posteriors, slower
+  performance may be seen now.
 
 ## [1.2.1] - 2022-04-04
 

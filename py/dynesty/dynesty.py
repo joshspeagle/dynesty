@@ -1026,7 +1026,7 @@ class _function_wrapper:
             # say prior_transform or likelihood
             # This comes at performance cost, but it's worthwhile
             # as it may lead to hard to diagnose weird behaviour
-            return self.func(x.copy(), *self.args, **self.kwargs)
+            return self.func(np.asarray(x).copy(), *self.args, **self.kwargs)
         except:  # noqa
             print("Exception while calling {0} function:".format(self.name))
             print("  params:", x)

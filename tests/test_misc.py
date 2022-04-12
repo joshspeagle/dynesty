@@ -337,8 +337,32 @@ def test_large_logl():
 
 
 def test_norstate():
-    # test of neff functionality
+    # test it can work without rstate
     ndim = 2
     dynesty.NestedSampler(loglike, prior_transform, ndim, nlive=nlive)
 
     dynesty.DynamicNestedSampler(loglike, prior_transform, ndim, nlive=nlive)
+
+
+def prior_transform_tuple(u):
+    # test we can return tuples
+    return u[0], u[1]
+
+
+def loglike_transform_tuple(v):
+    logp = np.sum(-0.5 * v**2)
+    return logp
+
+
+def test_transform_tuple():
+    # This is to test that the logzerr calculation is all right
+    # if there are very large (negative) logl vaues
+    # See bug #360
+    ndim = 2
+    rstate = get_rstate()
+    sampler = dynesty.NestedSampler(loglike_large_logl,
+                                    prior_transform_large_logl,
+                                    ndim,
+                                    rstate=rstate)
+
+    sampler.run_nested(print_progress=printing, maxiter=50)

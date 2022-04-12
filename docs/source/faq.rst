@@ -41,9 +41,9 @@ efficiency of 10%, but that threshold can be adjusted using the
 
 **Is there an easy way to add more samples to an existing set of results?**
 
-Yes! There are actually a bunch of ways to do this. If you have the
+Yes! There are actually a bunch of ways to do this. If you have the static
 `NestedSampler` currently initialized, just executing `run_nested()` will start
-adding samples where you left off. If you're instead interested in adding
+adding samples where you left off.If you're instead interested in adding
 more samples to a previous part of the run, the best strategy is to just
 start a new independent run and then "combine" the old and new runs together
 into a single (improved) run using the :meth:`~dynesty.utils.merge_runs`
@@ -56,8 +56,9 @@ If you would like to add a new batch of samples manually,
 running `add_batch` will assign a new set of samples.
 You can also specifically add new batch corresponding to a certain likelihood
 range (i.e. corresponding to where your posterior is concentrated).
-Also, if you care about the posterior mostly, you can use larger values of
-n_effective parameter as that will ensure your posterior is less noisy.
+Also, if you are primarily interested in the posterior, you can use larger
+values of n_effective parameter of `run_nested` as that will ensure your posterior
+is less noisy.
 Finally, :meth:`~dynesty.utils.merge_runs` also works with results generated
 from Dynamic Nested Sampling, so it is just as easy to set off a new run and
 combine it with your original result.
@@ -370,10 +371,7 @@ also enlarges all the resulting ellipsoids by a constant volume prefactor.
 It also recomputes the ellipsoids from scratch each time there is a
 bounding update, rather than using ellipsoids from previous iterations.
 In general this results in a slightly lower sampling efficiency but greater
-overall robustness. These defaults can be changed 
-through the :ref:`Top-Level Interface` via the
-`enlarge`, `vol_dec` and `vol_check` keywords if you would like to experiment
-with more conservative/aggressive behavior.
+overall robustness.
 
 ``dynesty`` also uses different heuristics than ``MultiNest`` or ``MultiNest``
 when deciding, e.g., when to first construct bounds. By default, ``dynesty``

@@ -18,8 +18,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - The problem with biased posteriors was fixed when using multi-ellipsoid
   bounds and rslice and rwalk samplers. Previously the chains did not satisfy
   detailed balance. (issue #364). Original discovery of the problem
-  and help by Colm Talbot. In the case of complex posteriors, slower
-  performance may be seen now.
+  and help by Colm Talbot. In the case of complex posteriors, somewhat slower
+  performance may be seen.
+- Fix the issue introduced in 1.2.1 when the prior_transform returns a tuple or
+  or a list (rather than numpy array). Now that should be accepted.
+
+
 
 ## [1.2.1] - 2022-04-04
 

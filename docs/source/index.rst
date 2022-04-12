@@ -97,13 +97,25 @@ Changelog
 .. image:: ../images/logo.gif
     :align: center
 
+1.2.2 (2022-04-12)
+------------------
+Bug fix release
+
+* The problem with biased posteriors was fixed when using multi-ellipsoid
+  bounds and rslice and rwalk samplers. Previously the chains did not satisfy
+  detailed balance. (issue #364). Original discovery of the problem
+  and help by Colm Talbot. In the case of complex posteriors, somewhat slower
+  performance may be seen.
+* Fix the issue introduced in 1.2.1 when the prior_transform returns a tuple or
+  or a list (rather than numpy array). Now that should be accepted.
+
 1.2.1 (2022-04-04)
 ------------------
 Small bug fix release
 
 * The arguments of prior_transform and likelihood function are now explicitely copied, so the sampling can work if those function apply changes to argument vectors ( #362 )
 * Fix the compilation of the docs, and update them a bit
-	    
+
 1.2.0 (2022-03-31)
 ------------------
 

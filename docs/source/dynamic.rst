@@ -373,6 +373,9 @@ points in batches of :math:`K_b=100`, we would do::
 Like :meth:`sampler.run_nested`, :meth:`dsampler.run_nested` also allows users
 to specify a range of hard stopping criteria based on: 
 
+* the effective number of samples in the posterior (`n_effective`). The sampler
+  will add batches till this number is reached.
+
 * the maximum number of iterations and log-likelihood calls made during the
   course of the entire run (`maxiter`, `maxcall`),
 
@@ -385,7 +388,15 @@ to specify a range of hard stopping criteria based on:
 
 * the maximum number of allowed batches (`maxbatch`).
 
-As an example, if we wanted to limit the total number of batches to 10, our
+As an example, if we wanted to ensure that our posterior has more than
+30000 effective samples, we would run ::
+
+    dsampler.run_nested(n_effective=30000)
+
+In this case the sampler may chose run the sampler multiple times, till the
+required number is reached.
+
+Alternatively if we wanted to limit the total number of batches to 10, our
 initial run to only 10000 samples and each batch to only 1000 samples, we would
 do::
 

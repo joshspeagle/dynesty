@@ -445,7 +445,8 @@ def NestedSampler(loglikelihood,
     slices : int, optional
         For the `'slice'`, `'rslice'`, and `'hslice'` sampling
         options, the number of times to execute a "slice update"
-        before proposing a new live point. Default is `5`.
+        before proposing a new live point. Default is 3 for
+        `'slice'` and 3+ndim for rslice and hslice.
         Note that `'slice'` cycles through **all dimensions**
         when executing a "slice update".
 
@@ -847,7 +848,8 @@ def DynamicNestedSampler(loglikelihood,
     slices : int, optional
         For the `'slice'`, `'rslice'`, and `'hslice'` sampling
         options, the number of times to execute a "slice update"
-        before proposing a new live point. Default is `5`.
+        before proposing a new live point. Default is 3 for
+        `'slice'` and 3+ndim for rslice and hslice.
         Note that `'slice'` cycles through **all dimensions**
         when executing a "slice update".
 
@@ -1038,7 +1040,7 @@ class _function_wrapper:
             # say prior_transform or likelihood
             # This comes at performance cost, but it's worthwhile
             # as it may lead to hard to diagnose weird behaviour
-            return self.func(x.copy(), *self.args, **self.kwargs)
+            return self.func(np.asarray(x).copy(), *self.args, **self.kwargs)
         except:  # noqa
             print("Exception while calling {0} function:".format(self.name))
             print("  params:", x)

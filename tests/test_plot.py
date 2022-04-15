@@ -138,7 +138,8 @@ def test_gaussian(dynamic, periodic, ndim, bound):
         plt.close()
 
 
-def test_gaussianx():
+@pytest.mark.parametrize("bound", ['balls', 'cubes'])
+def test_gaussianx(bound):
     ndim = 3
     rstate = get_rstate()
     g = Gaussian(ndim=ndim)
@@ -147,7 +148,7 @@ def test_gaussianx():
                                     g.ndim,
                                     nlive=nlive,
                                     rstate=rstate,
-                                    bound='balls')
+                                    bound=bound)
     sampler.run_nested(print_progress=printing)
     results = sampler.results
     dyplot.boundplot(results,

@@ -183,3 +183,19 @@ def test_mc_logvol():
         lv = ell.monte_carlo_logvol(nsamp, rstate=rstate)[0]
         vtrue = two_sphere_vol(cen1, cen2, r1, r2)
         assert (np.abs(np.log(vtrue) - lv) < 1e-2)
+
+
+def test_bounds():
+    rstate = get_rstate()
+    Ndim = 20
+    Ngood = 10
+    eigv = np.abs(rstate.normal(size=Ngood))
+    full_eig = np.concatenate((eigv, np.zeros(Ndim - Ngood)))
+    randM = rstate.normal(size=((Ndim, Ndim)))
+    M = randM.T @ np.diag(full_eig) @ randM
+    R = db.improve_covar_mat(M)[1]
+    assert ((scipy.linalg.eigh(R)[0] > 0).all())
+
+    M = np.zeros((Ndim, Ndim))
+    R = db.improve_covar_mat(M)[1]
+    assert ((scipy.linalg.eigh(R)[0] > 0).all())

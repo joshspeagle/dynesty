@@ -29,7 +29,7 @@ import numpy as np
 
 from .sampler import Sampler
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
-                       SupFriends)
+                       SupFriends, rand_choice)
 from .proposals import DEFAULT_PROPOSALS, ENSEMBLE_PROPOSALS
 from .sampling import (sample_unif, sample_rwalk, sample_slice, sample_rslice,
                        sample_hslice)
@@ -633,15 +633,9 @@ class MultiEllipsoidSampler(SuperSampler):
         u = self.live_u[i, :]
         u_fit = u[:self.ncdim]
 
-        # Check for ellipsoid overlap.
-        ell_idxs = self.mell.within(u_fit)
-        nidx = len(ell_idxs)
-
         # Automatically trigger an update if we're not in any ellipsoid.
-        if nidx == 0:
-
+        if not self.mell.contains(u_fit):
             # Update the bounding ellipsoids.
-
             bound = self.update()
             if self.save_bounds:
                 self.bound.append(bound)
@@ -649,19 +643,23 @@ class MultiEllipsoidSampler(SuperSampler):
             self.since_update = 0
 
             # Check for ellipsoid overlap (again).
-            ell_idxs = self.mell.within(u_fit)
-            nidx = len(ell_idxs)
-            if nidx == 0:
+            if not self.mell.contains(u_fit):
                 raise RuntimeError('Update of the ellipsoid failed')
 
-        # Pick a random ellipsoid that encompasses `u`.
-        ell_idx = ell_idxs[self.rstate.integers(nidx)]
-
-        # Choose axes.
-        if self.sampling in ['rwalk', 'rslice']:
-            ax = self.mell.ells[ell_idx].axes
-        elif self.sampling == 'slice':
-            ax = self.mell.ells[ell_idx].paxes
+        if self.sampling in ['rwalk', 'rslice', 'slice']:
+            # Pick a random ellipsoid (not necessarily the one that contains u)
+            # This a crucial step as we must choose a random ellipsoid,
+            # rather than the ellipsoid to which this point belongs.
+            # because a non-random ellipsoid can break detailed balance
+            # see #364
+            # here we choose ellipsoid in proportion of its volume
+            probs = np.exp(self.mell.logvols - self.mell.logvol_tot)
+            ell_idx = rand_choice(probs, self.rstate)
+            # Choose axes.
+            if self.sampling == 'slice':
+                ax = self.mell.ells[ell_idx].paxes
+            else:
+                ax = self.mell.ells[ell_idx].axes
         else:
             ax = np.identity(self.npdim)
 

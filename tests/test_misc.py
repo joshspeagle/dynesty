@@ -234,16 +234,23 @@ def test_stop_nmc():
                        print_progress=printing)
 
 
-def test_results():
+@pytest.mark.parametrize('dyn', [False, True])
+def test_results(dyn):
     # test of various results interfaces functionality
     ndim = 2
     rstate = get_rstate()
-
-    sampler = dynesty.DynamicNestedSampler(loglike,
-                                           prior_transform,
-                                           ndim,
-                                           nlive=nlive,
-                                           rstate=rstate)
+    if dyn:
+        sampler = dynesty.DynamicNestedSampler(loglike,
+                                               prior_transform,
+                                               ndim,
+                                               nlive=nlive,
+                                               rstate=rstate)
+    else:
+        sampler = dynesty.NestedSampler(loglike,
+                                        prior_transform,
+                                        ndim,
+                                        nlive=nlive,
+                                        rstate=rstate)
     sampler.run_nested(print_progress=printing)
     res = sampler.results
     for k in res.keys():
@@ -255,6 +262,9 @@ def test_results():
     print(res)
     print(str(res))
     print('logl' in res)
+    # check it's pickleable
+    S = pickle.dumps(res)
+    res = pickle.loads(S)
 
 
 @pytest.mark.parametrize('ndim', [2, 10])

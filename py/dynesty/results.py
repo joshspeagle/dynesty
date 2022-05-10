@@ -325,6 +325,17 @@ class Results:
                 'or samples_n information')
         self._initialized = True
 
+    def __copy__(self):
+        # this will be a deep copy
+        return Results(self.asdict().items())
+
+    def copy(self):
+        '''
+        return a copy of the object
+        all numpy arrays will be copied too
+        '''
+        return self.__copy__()
+
     def __setattr__(self, name, value):
         if name[0] != '_' and self._initialized:
             raise RuntimeError("Cannot set attributes directly")
@@ -358,6 +369,7 @@ Return the list of items in the results object as list of key,value pairs
         """
         Return contents of the Results object as dictionary
         """
+        # importantly here we copy attribute values
         return dict((k, copy.copy(getattr(self, k))) for k in self._keys)
 
     def isdynamic(self):

@@ -262,6 +262,7 @@ def test_results(dyn):
     print(res)
     print(str(res))
     print('logl' in res)
+    res1 = res.copy()
     # check it's pickleable
     S = pickle.dumps(res)
     res = pickle.loads(S)

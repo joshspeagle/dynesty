@@ -170,6 +170,23 @@ def test_gaussian():
     res.summary()
 
 
+def test_generator():
+    # Test that we can use the sampler as a generator
+    rstate = get_rstate()
+    g = Gaussian()
+    sampler = dynesty.NestedSampler(g.loglikelihood,
+                                    g.prior_transform,
+                                    g.ndim,
+                                    nlive=nlive,
+                                    rstate=rstate)
+    for it in sampler.sample():
+        pass
+    for it in sampler.add_live_points():
+        pass
+    res = sampler.results
+    check_results_gau(res, g, rstate)
+
+
 # try all combinations excepte none/unif
 @pytest.mark.parametrize(
     "bound,sample",

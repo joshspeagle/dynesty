@@ -61,24 +61,25 @@ Returns the following list of papers that should be cited::
     Code and Methods:
     ================
     Speagle (2020): https://ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S
+    Koposov et al. (2022): https://doi.org/10.5281/zenodo.3348367
 
     Nested Sampling:
     ===============
-    Skilling (2004): ui.adsabs.harvard.edu/abs/2004AIPC..735..395S
-    Skilling (2006): projecteuclid.org/euclid.ba/1340370944
+    Skilling (2004): https://ui.adsabs.harvard.edu/abs/2004AIPC..735..395S
+    Skilling (2006): https://projecteuclid.org/euclid.ba/1340370944
 
     Dynamic Nested Sampling:
     =======================
-    Higson et al. (2019): doi.org/10.1007/s11222-018-9844-0
+    Higson et al. (2019): https://doi.org/10.1007/s11222-018-9844-0
 
     Bounding Method:
     ===============
-    Buchner (2016): ui.adsabs.harvard.edu/abs/2014arXiv1407.5459B
-    Buchner (2017): ui.adsabs.harvard.edu/abs/2017arXiv170704476B
+    Buchner (2016): https://ui.adsabs.harvard.edu/abs/2014arXiv1407.5459B
+    Buchner (2017): https://ui.adsabs.harvard.edu/abs/2017arXiv170704476B
 
     Sampling Method:
     ===============
-    Skilling (2006): projecteuclid.org/euclid.ba/1340370944
+    Skilling (2006): https://projecteuclid.org/euclid.ba/1340370944
 
 If you have utilized some of the error analysis features available through
 the provided utility functions (see :ref:`Nested Sampling Errors`),

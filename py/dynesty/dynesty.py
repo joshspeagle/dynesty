@@ -48,7 +48,7 @@ def _get_citations(nested_type, bound, sampler):
     # Main references for the code
     default_refs = [("Speagle (2020)",
                      "ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S"),
-                    ("Speagle et al.", "doi.org/10.5281/zenodo.3348367")]
+                    ("Koposov et al. (2022)", "doi.org/10.5281/zenodo.3348367")]
 
     # Basics of nested sampling algorithm
     nested_refs = [

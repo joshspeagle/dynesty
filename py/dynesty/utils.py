@@ -156,7 +156,8 @@ class LogLikelihood:
     def __getstate__(self):
         """Get state information for pickling."""
         state = self.__dict__.copy()
-        del state['pool']
+        if 'pool' in state:
+            del state['pool']
         return state
 
 

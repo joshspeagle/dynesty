@@ -9,6 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 - The .copy() method was added to the results class, as the previous versions
   of dynesty had it.
+- Fix the bug where previously you couldn't repeatedly pickle and unpickle
+  a sampler
+- Small speedup of ellipsoidal sampling
 
 ### Fixed
 

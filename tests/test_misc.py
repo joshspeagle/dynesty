@@ -74,6 +74,7 @@ def test_pickle(dynamic, with_pool):
         kw = dict(pool=Pool(2), queue_size=100)
     else:
         kw = {}
+
     if dynamic:
         sampler = dynesty.DynamicNestedSampler(loglike,
                                                prior_transform,
@@ -89,6 +90,10 @@ def test_pickle(dynamic, with_pool):
                                         rstate=rstate,
                                         **kw)
     sampler.run_nested(print_progress=printing, maxiter=100)
+    # i do it twice as there were issues previously
+    # with incorrect pool restoring
+    S = pickle.dumps(sampler)
+    sampler = pickle.loads(S)
     S = pickle.dumps(sampler)
     sampler = pickle.loads(S)
     sampler.run_nested(print_progress=printing, maxiter=100)

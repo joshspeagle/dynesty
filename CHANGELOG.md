@@ -7,13 +7,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 
 ### Added
+### Fixed
+
+## [1.2.3] - 2022-06-02
+
+### Added
 - The .copy() method was added to the results class, as the previous versions
   of dynesty had it.
+
+### Fixed
 - Fix the bug where previously you couldn't repeatedly pickle and unpickle
   a sampler
 - Small speedup of ellipsoidal sampling
-
-### Fixed
 
 ## [1.2.2] - 2022-04-12
 

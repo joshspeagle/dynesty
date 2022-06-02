@@ -98,6 +98,14 @@ Changelog
 .. image:: ../images/logo.gif
     :align: center
 
+1.2.3 (2022-06-02)
+------------------
+Bug fix release
+
+* Add a copy() method to Results object
+* Prevent an issue when pickling/unpickling samplers
+* Small ellipsoidal sampling speedup
+
 1.2.2 (2022-04-12)
 ------------------
 Bug fix release

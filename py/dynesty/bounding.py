@@ -22,7 +22,6 @@ useful helper functions. Bounding objects include:
 """
 
 import warnings
-import math
 import numpy as np
 from numpy import linalg
 from numpy import cov as mle_cov

@@ -9,7 +9,6 @@ Functions for proposing new live points used by
 """
 
 import warnings
-import math
 import numpy as np
 from numpy import linalg
 

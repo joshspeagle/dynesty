@@ -9,7 +9,6 @@ provides access to the two main sampler "super-classes" via
 
 import sys
 import warnings
-import math
 import traceback
 import numpy as np
 

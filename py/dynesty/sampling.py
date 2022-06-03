@@ -10,11 +10,20 @@ Functions for proposing new live points used by
 
 import warnings
 import math
+from copy import deepcopy
+
 import numpy as np
 from numpy import linalg
 
-from .utils import unitcheck, apply_reflect, get_random_generator
-from .bounding import randsphere
+from .utils import apply_boundary, get_random_generator, unitcheck
+from .proposals import (
+    _acceptances,
+    DEFAULT_PROPOSALS,
+    ELLIPSOID_PROPOSALS,
+    ENSEMBLE_PROPOSALS,
+    _failures,
+    _proposal_map,
+)
 
 __all__ = [
     "sample_unif", "sample_rwalk", "sample_slice", "sample_rslice",
@@ -209,9 +218,41 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
     reflective = kwargs.get('reflective')
 
     # Setup.
-    n = len(u)
     n_cluster = axes.shape[0]
     walks = kwargs.get('walks', 25)  # number of steps
+
+    proposal_cycle = kwargs.get("proposals", None)
+    proposal_kwargs = dict(rstate=rstate)
+    if proposal_cycle is None:
+        proposal_cycle = DEFAULT_PROPOSALS
+    proposal_cycle = list(proposal_cycle)
+
+    for prop in proposal_cycle:
+        # make sure rolling count of per proposal efficiency is set up
+        if prop not in _acceptances:
+            _acceptances[prop] = 0
+            _failures[prop] = 0
+
+    if "live" in kwargs:
+        # before starting the sampling we remove from the ensemble:
+        # - duplicate live points
+        # - the starting point
+        live = np.unique(deepcopy(kwargs["live"]), axis=0)[:, :n_cluster]
+        live = np.unique(live, axis=0)
+        matches = np.where(np.equal(u, live).all(axis=1))[0]
+        np.delete(live, matches, 0)
+    else:
+        live = None
+
+    if not ELLIPSOID_PROPOSALS.isdisjoint(proposal_cycle):
+        proposal_kwargs["scale"] = scale
+        proposal_kwargs["axes"] = axes
+    if not ENSEMBLE_PROPOSALS.isdisjoint(proposal_cycle) and live is not None:
+        proposal_kwargs["live"] = live
+
+    for prop in proposal_cycle:
+        if prop not in _proposal_map:
+            raise ValueError(f"Unknown proposal method {prop}.")
 
     naccept = 0
     # Total number of accepted points with L>L*
@@ -224,38 +265,56 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
     # Total number of Likelihood calls (proposals evaluated)
 
     # Here we loop for exactly walks iterations.
-    while ncall < walks:
+    # We loop through the specified proposals in order.
+    for ii in range(walks):
+        prop = proposal_cycle[ii % len(proposal_cycle)]
+        u_prop = rstate.uniform(0, 1, len(u))
+        proposed = _proposal_map[prop](u=u[:n_cluster], **proposal_kwargs)
+        if isinstance(proposed, tuple):
+            u_prop[:n_cluster], ln_jacobian = proposed
+        else:
+            u_prop[:n_cluster] = proposed
+            ln_jacobian = 0
 
-        # This proposes a new point within the ellipsoid
-        # This also potentially modifies the scale
-        u_prop, fail = propose_ball_point(u,
-                                          scale,
-                                          axes,
-                                          n,
-                                          n_cluster,
-                                          rstate=rstate,
-                                          periodic=periodic,
-                                          reflective=reflective,
-                                          nonbounded=nonbounded)
-        # If generation of points within an ellipsoid was
-        # highly inefficient we adjust the scale
-        if fail:
+        if ln_jacobian < np.log(rstate.uniform(0, 1)):
+            _failures[prop] += 1
             nreject += 1
-            ncall += 1
+            continue
+
+        # Only apply boundary conditions if there is no jacobian for the
+        # proposal. This may be overly conservative, but some proposals
+        # that require a Jacobian, e.g., the stretch, break detailed
+        # balance if using a periodic or reflective boundary.
+        if ln_jacobian == 0:
+            u_prop, fail = apply_boundary(
+                u_prop=u_prop,
+                periodic=periodic,
+                reflective=reflective,
+                nonbounded=nonbounded
+            )
+        else:
+            fail = (np.min(u_prop) < 0) or (np.max(u_prop) > 1)
+
+        if fail:
+            _failures[prop] += 1
+            nreject += 1
             continue
 
         # Check proposed point.
-        v_prop = prior_transform(u_prop)
-        logl_prop = loglikelihood(v_prop)
+        v_prop = prior_transform(np.array(u_prop))
+        logl_prop = loglikelihood(np.array(v_prop))
         ncall += 1
 
         if logl_prop > loglstar:
             u = u_prop
             v = v_prop
             logl = logl_prop
+            _acceptances[prop] += 1
             naccept += 1
         else:
+            _failures[prop] += 1
             nreject += 1
+
     if naccept == 0:
         # Technically we can find out the likelihood value
         # stored somewhere
@@ -266,55 +325,6 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
     blob = {'accept': naccept, 'reject': nreject, 'scale': scale}
 
     return u, v, logl, ncall, blob
-
-
-def propose_ball_point(u,
-                       scale,
-                       axes,
-                       n,
-                       n_cluster,
-                       rstate=None,
-                       periodic=None,
-                       reflective=None,
-                       nonbounded=None):
-    """
-    Here we are proposing points uniformly within an n-d ellipsoid.
-    We are only trying once.
-    We return the tuple with
-    1) proposed point or None
-    2) failure flag (if True, the generated point was outside bounds)
-    """
-
-    # starting point for clustered dimensions
-    u_cluster = u[:n_cluster]
-
-    # draw random point for non clustering parameters
-    # we only need to generate them once
-    u_non_cluster = rstate.uniform(0, 1, n - n_cluster)
-    u_prop = np.zeros(n)
-    u_prop[n_cluster:] = u_non_cluster
-
-    # Propose a direction on the unit n-sphere.
-    dr = randsphere(n_cluster, rstate=rstate)
-    # This generates uniform distribution within n-d ball
-
-    # Transform to proposal distribution.
-    du = np.dot(axes, dr)
-    u_prop[:n_cluster] = u_cluster + scale * du
-
-    # Wrap periodic parameters
-    if periodic is not None:
-        u_prop[periodic] = np.mod(u_prop[periodic], 1)
-
-    # Reflect
-    if reflective is not None:
-        u_prop[reflective] = apply_reflect(u_prop[reflective])
-
-    # Check unit cube constraints.
-    if unitcheck(u_prop, nonbounded):
-        return u_prop, False
-    else:
-        return None, True
 
 
 def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,

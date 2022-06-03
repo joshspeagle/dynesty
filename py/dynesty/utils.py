@@ -341,6 +341,22 @@ def unitcheck(u, nonbounded=None):
                 and ub.max() < 1.5)
 
 
+def apply_boundary(u_prop, periodic, reflective, nonbounded):
+    """Apply periodic and reflective boundary conditions to the proposed point"""
+    if periodic is not None:
+        u_prop[periodic] = np.mod(u_prop[periodic], 1)
+
+    # Reflect
+    if reflective is not None:
+        u_prop[reflective] = apply_reflect(u_prop[reflective])
+
+    # Check unit cube constraints.
+    if unitcheck(u_prop, nonbounded):
+        return u_prop, False
+    else:
+        return u_prop, True
+
+
 def apply_reflect(u):
     """
     Iteratively reflect a number until it is contained in [0, 1].

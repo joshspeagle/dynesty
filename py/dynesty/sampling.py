@@ -21,9 +21,6 @@ __all__ = [
     "sample_hslice"
 ]
 
-EPS = float(np.finfo(np.float64).eps)
-SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
-
 
 def sample_unif(args):
     """

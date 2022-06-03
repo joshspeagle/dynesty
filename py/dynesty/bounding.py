@@ -41,8 +41,6 @@ __all__ = [
     "_friends_leaveoneout_radius"
 ]
 
-SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
-
 
 class UnitCube:
     """
@@ -1168,7 +1166,8 @@ def randsphere(n, rstate=None):
     """Draw a point uniformly within an `n`-dimensional unit sphere."""
 
     z = rstate.standard_normal(size=n)  # initial n-dim vector
-    xhat = z * (rstate.uniform()**(1. / n) / lalg.norm(z, check_finite=False))  # scale
+    xhat = z * (rstate.uniform()**(1. / n) / lalg.norm(z, check_finite=False)
+                )  # scale
     return xhat
 
 

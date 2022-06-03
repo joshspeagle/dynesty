@@ -46,9 +46,10 @@ def _get_citations(nested_type, bound, sampler):
     # or a list of tuples
 
     # Main references for the code
-    default_refs = [("Speagle (2020)",
-                     "ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S"),
-                    ("Koposov et al. (2022)", "doi.org/10.5281/zenodo.3348367")]
+    default_refs = [
+        ("Speagle (2020)", "ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S"),
+        ("Koposov et al. (2022)", "doi.org/10.5281/zenodo.3348367")
+    ]
 
     # Basics of nested sampling algorithm
     nested_refs = [
@@ -140,9 +141,6 @@ Sampling Method:\n===============
 {sampler_citations}
 """
     return citations
-
-
-SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 
 def _get_auto_sample(ndim, gradient):

@@ -20,9 +20,6 @@ from .utils import (get_seed_sequence, get_print_func, progress_integration,
 
 __all__ = ["Sampler"]
 
-SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
-MAXINT = 2**32 - 1
-
 
 class Sampler:
     """

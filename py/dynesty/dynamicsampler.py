@@ -40,7 +40,6 @@ _SAMPLERS = {
     'cubes': SupFriendsSampler
 }
 
-SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 _LOWL_VAL = -1e300
 
 

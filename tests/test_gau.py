@@ -271,17 +271,23 @@ def test_slice_nograd():
     check_results_gau(sampler.results, g, rstate)
 
 
-def test_slice_grad():
+@pytest.mark.parametrize("dyn", [False, True])
+def test_slice_grad(dyn):
     rstate = get_rstate()
     g = Gaussian()
-    sampler = dynesty.NestedSampler(g.loglikelihood,
-                                    g.prior_transform,
-                                    g.ndim,
-                                    nlive=nlive,
-                                    sample='hslice',
-                                    gradient=g.grad_x,
-                                    compute_jac=True,
-                                    rstate=rstate)
+    if dyn:
+        CL = dynesty.DynamicNestedSampler
+    else:
+        CL = dynesty.NestedSampler
+
+    sampler = CL(g.loglikelihood,
+                 g.prior_transform,
+                 g.ndim,
+                 nlive=nlive,
+                 sample='hslice',
+                 gradient=g.grad_x,
+                 compute_jac=True,
+                 rstate=rstate)
     sampler.run_nested(print_progress=printing)
     check_results_gau(sampler.results, g, rstate)
 

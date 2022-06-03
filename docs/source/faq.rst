@@ -234,15 +234,20 @@ employed in PolyChord.
 
 **How many slices ("repeats") do you need to use for** `'slice'` **?**
 
-Since slice sampling is a form of non-rejection sampling, 
+Since slice sampling is a form of non-rejection sampling,
 the number of "slices" requires for Nested Sampling is
-(in theory) independent of dimensionality and can remain relatively constant. 
-This is especially true if there are a set of local principle axes 
-that can be effectively captured by the bounding distributions 
+(in theory) independent of dimensionality and can remain relatively constant.
+This is especially true if there are a set of local principle axes
+that can be effectively captured by the bounding distributions
 (e.g., `'multi'`). There are more pathological cases, however,
 where the number of slices can weakly scale with dimensionality. In general
-we find that the default (and conservative) `slices=5` 
-is robust under a wide variety of circumstances.
+we find that the default (and conservative) `slices=3`
+is robust under a wide variety of circumstances. Note that for the
+`'slice'` sampler slices=3 means that slice steps will be done 3 times over
+each of the dimension of the problem (N). I.e. the total number of the moves
+will be 3*N. Also note that for the `'rslice'` sampler the default
+is `slices=3+N` steps as `'rslice'` does not loop over each of the dimension,
+as it chooses the move directions randomly.
 
 **The stopping criterion for Dynamic Nested Sampling is taking a long
 time to evaluate. Is that normal?**

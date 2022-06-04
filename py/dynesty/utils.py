@@ -331,7 +331,7 @@ def unitcheck(u, nonbounded=None):
 
     if nonbounded is None:
         # No periodic boundary conditions provided.
-        return np.min(u) > 0 and np.max(u) < 1
+        return u.min() > 0 and u.max() < 1
     else:
         # Alternating periodic and non-periodic boundary conditions.
         unb = u[nonbounded]

@@ -443,13 +443,21 @@ class SingleEllipsoidSampler(SuperSampler):
         """Propose a new live point by sampling *uniformly*
         within the ellipsoid."""
 
+        if self.ncdim != self.npdim and self.nonbounded is not None:
+            nonb = self.nonbounded[:self.ncdim]
+        else:
+            nonb = self.nonbounded
+        niter = 0
         while True:
             # Sample a point from the ellipsoid.
             u = self.ell.sample(rstate=self.rstate)
-
+            niter += 1
             # Check if `u` is within the unit cube.
-            if unitcheck(u, self.nonbounded):
+            if unitcheck(u, nonb):
                 break  # if it is, we're done!
+
+        # TODO We should probably produce a warning if niter is too large
+
         if self.npdim != self.ncdim:
             u = np.concatenate(
                 [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])
@@ -593,14 +601,19 @@ class MultiEllipsoidSampler(SuperSampler):
             nonb = self.nonbounded[:self.ncdim]
         else:
             nonb = self.nonbounded
+
+        niter = 0
+
         while True:
             # Sample a point from the union of ellipsoids.
             # Returns the point `u`, ellipsoid index `idx`, and number of
             # overlapping ellipsoids `q` at position `u`.
             u, idx = self.mell.sample(rstate=self.rstate)
+            niter += 1
             # Check if the point is within the unit cube.
             if unitcheck(u, nonb):
                 break  # if successful, we're done!
+        # TODO I should warn if niter is too high
         if self.ncdim != self.npdim:
             u = np.concatenate(
                 [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])

@@ -2,6 +2,8 @@ import numpy as np
 from numpy import linalg
 import numpy.testing as npt
 import dynesty
+import pytest
+import itertools
 from dynesty import utils as dyfunc
 from utils import get_rstate, get_printing
 """
@@ -144,5 +146,26 @@ def test_dynamic():
                                             ntotdim,
                                             ncdim=ndim_gau,
                                             rstate=rstate)
+    dsampler.run_nested(print_progress=printing)
+    check_results_gau(dsampler.results, rstate, logz_tol)
+
+
+@pytest.mark.parametrize('bound,periodic',
+                         itertools.product(['single', 'multi'], [False, True]))
+def test_single_periodic(bound, periodic):
+    # check single/multi ellipse bound with and without periodic vars
+    logz_tol = 1
+    rstate = get_rstate()
+    if periodic:
+        periodic = [0]
+    else:
+        periodic = None
+    dsampler = dynesty.NestedSampler(loglikelihood_gau,
+                                     prior_transform_gau,
+                                     ntotdim,
+                                     ncdim=ndim_gau,
+                                     periodic=periodic,
+                                     bound=bound,
+                                     rstate=rstate)
     dsampler.run_nested(print_progress=printing)
     check_results_gau(dsampler.results, rstate, logz_tol)

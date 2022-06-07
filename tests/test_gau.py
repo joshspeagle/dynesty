@@ -277,9 +277,11 @@ def test_slice_grad(dyn):
     g = Gaussian()
     if dyn:
         CL = dynesty.DynamicNestedSampler
+        kw = dict(dlogz_init=1, n_effective=100)
+        # otherwise it's too slow
     else:
         CL = dynesty.NestedSampler
-
+        kw = {}
     sampler = CL(g.loglikelihood,
                  g.prior_transform,
                  g.ndim,
@@ -288,7 +290,7 @@ def test_slice_grad(dyn):
                  gradient=g.grad_x,
                  compute_jac=True,
                  rstate=rstate)
-    sampler.run_nested(print_progress=printing)
+    sampler.run_nested(print_progress=printing, **kw)
     check_results_gau(sampler.results, g, rstate)
 
 

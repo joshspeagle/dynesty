@@ -476,7 +476,8 @@ class MultiEllipsoid:
             else:
                 # If `q` is not being returned, assume the user wants this
                 # done internally so we repeat the loop if needed
-                if q == 1 or rstate.uniform() < (1. / q):
+                # random is faster than uniform
+                if q == 1 or rstate.random() < (1. / q):
                     return x, idx
 
     def samples(self, nsamples, rstate=None):
@@ -701,7 +702,8 @@ class RadFriends:
                 idx = rstate.integers(nctrs)
                 x = ctrs[idx] + dx
                 q = self.overlap(x, ctrs)
-            if q == 1 or return_q or rstate.uniform() < (1. / q):
+            # random is faster than uniform
+            if q == 1 or return_q or rstate.random() < (1. / q):
                 if return_q:
                     return x, q
                 else:
@@ -967,7 +969,8 @@ class SupFriends:
                 # Check how many cubes the point lies within, passing over
                 # the `idx`-th cube `x` was sampled from.
                 q = self.overlap(x, ctrs)
-            if q == 1 or return_q or rstate.uniform() < (1. / q):
+            # random() is faster than uniform()
+            if q == 1 or return_q or rstate.random() < (1. / q):
                 if return_q:
                     return x, q
                 else:
@@ -1165,7 +1168,10 @@ def randsphere(n, rstate=None):
     """Draw a point uniformly within an `n`-dimensional unit sphere."""
 
     z = rstate.standard_normal(size=n)  # initial n-dim vector
-    xhat = z * (rstate.uniform()**(1. / n) / lalg.norm(z, check_finite=False)
+    # notice I use random () instead of uniform
+    # and standard_norm instead of normal as those are faster
+    # as this is a time-critical function
+    xhat = z * (rstate.random()**(1. / n) / lalg.norm(z, check_finite=False)
                 )  # scale
     return xhat
 
@@ -1176,7 +1182,8 @@ def rand_choice(pb, rstate):
     The pb must sum to 1
     """
     p1 = np.cumsum(pb)
-    xr = rstate.uniform()
+    # random is faster than uniform
+    xr = rstate.random()
     return min(np.searchsorted(p1, xr), len(pb) - 1)
 
 

@@ -3,8 +3,18 @@
 
 # Required for the test suite:
 pytest
-jupyter
+pytest-cov
+coveralls
+
+dill
 h5py
 tqdm
+
+jupyter
 ipyparallel
-dill
+
+pylint
+
+sphinx
+sphinx-rtd-theme
+numpydoc

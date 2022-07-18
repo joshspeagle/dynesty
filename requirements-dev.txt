@@ -1,0 +1,10 @@
+# Development requires all of the packages that installation requires
+-r requirements.txt
+
+# Required for the test suite:
+pytest
+jupyter
+h5py
+tqdm
+ipyparallel
+dill

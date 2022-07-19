@@ -95,6 +95,7 @@ class Sampler:
 
         # set to none just for qa
         self.scale = None
+        self.walks = None
         self.method = None
         self.kwargs = {}
 
@@ -463,7 +464,9 @@ class Sampler:
                          boundidx=boundidx,
                          it=point_it,
                          bounditer=bounditer,
-                         scale=self.scale))
+                         scale=self.scale,
+                         walks=self.walks,
+                         ))
             self.eff = 100. * (self.it + i) / self.ncall  # efficiency
 
             # Return our new "dead" point and ancillary quantities.
@@ -765,7 +768,9 @@ class Sampler:
                          nc=nc,
                          it=worst_it,
                          bounditer=bounditer,
-                         scale=self.scale))
+                         scale=self.scale,
+                         walks=self.walks,
+                         ))
 
             # Update the live point (previously our "worst" point).
             self.live_u[worst] = u

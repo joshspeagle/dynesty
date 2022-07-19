@@ -249,7 +249,13 @@ def NestedSampler(loglikelihood,
                   update_func=None,
                   ncdim=None,
                   save_history=False,
-                  history_filename=None):
+                  history_filename=None,
+                  adapt_scale=True,
+                  adapt_walks=False,
+                  adapt_time=None,
+                  max_walks=1000,
+                  target_accept=None,
+                  ):
     """
     Initializes and returns a sampler object for Static Nested Sampling.
 
@@ -504,6 +510,10 @@ def NestedSampler(loglikelihood,
     if update_func is not None and not callable(update_func):
         raise ValueError("Unknown update function: '{0}'".format(update_func))
     kwargs['update_func'] = update_func
+    kwargs['adapt_scale'] = adapt_scale
+    kwargs['adapt_walks'] = adapt_walks
+    kwargs['adapt_time'] = adapt_time
+    kwargs['max_walks'] = max_walks
 
     # Citation generator.
     kwargs['cite'] = _get_citations('static', bound, sample)
@@ -559,6 +569,14 @@ def NestedSampler(loglikelihood,
         kwargs['fmove'] = fmove
     if max_move is not None:
         kwargs['max_move'] = max_move
+    if adapt_walks is not None:
+        kwargs['adapt_time'] = adapt_time
+    if max_walks is not None:
+        kwargs['max_walks'] = max_walks
+    if target_accept is not None:
+        kwargs['target_accept'] = target_accept
+    kwargs['adapt_scale'] = adapt_scale
+    kwargs['adapt_walks'] = adapt_walks
 
     update_interval_ratio = _get_update_interval_ratio(update_interval, sample,
                                                        bound, ndim, nlive,
@@ -660,7 +678,13 @@ def DynamicNestedSampler(loglikelihood,
                          update_func=None,
                          ncdim=None,
                          save_history=False,
-                         history_filename=None):
+                         history_filename=None,
+                         adapt_scale=True,
+                         adapt_walks=False,
+                         adapt_time=None,
+                         max_walks=None,
+                         target_accept=None,
+                         ):
     """
     Initializes and returns a sampler object for Dynamic Nested Sampling.
 
@@ -958,6 +982,14 @@ def DynamicNestedSampler(loglikelihood,
         kwargs['fmove'] = fmove
     if max_move is not None:
         kwargs['max_move'] = max_move
+    if adapt_walks is not None:
+        kwargs['adapt_time'] = adapt_time
+    if max_walks is not None:
+        kwargs['max_walks'] = max_walks
+    if target_accept is not None:
+        kwargs['target_accept'] = target_accept
+    kwargs['adapt_scale'] = adapt_scale
+    kwargs['adapt_walks'] = adapt_walks
 
     # Set up parallel (or serial) evaluation.
     queue_size = _parse_pool_queue(pool, queue_size)[1]

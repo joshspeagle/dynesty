@@ -128,9 +128,18 @@ class SuperSampler(Sampler):
         self.compute_jac = self.kwargs.get('compute_jac', False)
 
         # Initialize random walk parameters.
+        self.adapt_walks = self.kwargs.get("adapt_walks", True)
         self.walks = max(2, self.kwargs.get('walks', 25))
+        self.max_walks = self.kwargs.get("max_walks", 1000)
+        self.adapt_scale = self.kwargs.get("adapt_scale", True)
         self.facc = self.kwargs.get('facc', 0.5)
         self.facc = min(1., max(1. / self.walks, self.facc))
+        self.adapt_time = self.kwargs.get("adapt_time", None)
+        if self.adapt_time is None:
+            self.adapt_time = self.nlive / 5
+        self.target_accept = self.kwargs.get("target_accept", None)
+        if self.target_accept is None:
+            self.target_accept = self.walks * self.facc
 
         # Initialize slice parameters.
         self.slices = self.kwargs.get('slices', 5)
@@ -148,6 +157,12 @@ class SuperSampler(Sampler):
         pass
 
     def update_rwalk(self, blob):
+        if self.adapt_scale:
+            self.update_rwalk_scale(blob)
+        if self.adapt_walks:
+            self.update_rwalk_walks(blob)
+
+    def update_rwalk_scale(self, blob):
         """Update the random walk proposal scale based on the current
         number of accepted/rejected steps.
         For rwalk the scale is important because it
@@ -172,6 +187,20 @@ class SuperSampler(Sampler):
         # See also Robbins-Munro recursion which we don't follow
         # here because our coefficients a_k do not obey \sum a_k^2 = \infty
         self.scale *= math.exp((facc - self.facc) / self.ncdim / self.facc)
+
+    def update_rwalk_walks(self, blob):
+        """Update the number of MCMC steps taken with the rwalk method.
+        This tries to keep the number of accepted steps at each iteration
+        approximately constant.
+        """
+        accept = blob["accept"]
+        if accept == 0:
+            factor = 1.25
+        else:
+            factor = (self.target_accept / accept) ** (1 / self.adapt_time)
+        estimated_steps = self.walks * factor
+        self.walks = max(min([self.max_walks, estimated_steps]), self.target_accept)
+        self.kwargs["walks"] = int(self.walks)
 
     def update_slice(self, blob):
         """Update the slice proposal scale based on the relative

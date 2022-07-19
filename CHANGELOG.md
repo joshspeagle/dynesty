@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Added
 ### Fixed
+- Sampler.n_effective is no longer unnecessarily computed when sampling with
+  an infinite limit on n_effective._
 
 ## [1.2.3] - 2022-06-02
 

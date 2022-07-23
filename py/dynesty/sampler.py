@@ -843,6 +843,7 @@ class Sampler:
             Minimum number of effective posterior samples. If the estimated
             "effective sample size" (ESS) exceeds this number,
             sampling will terminate. Default is no ESS (`np.inf`).
+            This option is deprecated and will be removed in a future release.
 
         add_live : bool, optional
             Whether or not to add the remaining set of live points to
@@ -861,6 +862,15 @@ class Sampler:
             the live points internally. Default is *True*.
 
         """
+
+        # Check for deprecated options
+        if n_effective is not None:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("once")
+                warnings.warn(
+                    "The n_effective option to Sampler.run_nested is "
+                    "deprecated and will be removed in future releases",
+                    DeprecationWarning)
 
         # Define our stopping criteria.
         if dlogz is None:

@@ -63,6 +63,33 @@ def test_maxcall():
     sampler.run_nested(dlogz_init=1, maxcall=1000, print_progress=printing)
 
 
+def test_n_effective_deprecation():
+    # test deprecation of n_effective and n_effective_init
+    ndim = 2
+    rstate = get_rstate()
+
+    sampler = dynesty.NestedSampler(loglike,
+                                    prior_transform,
+                                    ndim,
+                                    nlive=nlive,
+                                    rstate=rstate)
+    with pytest.deprecated_call():
+        sampler.run_nested(dlogz=1, maxcall=10, n_effective=10)
+
+    sampler = dynesty.DynamicNestedSampler(loglike,
+                                           prior_transform,
+                                           ndim,
+                                           nlive=nlive,
+                                           rstate=rstate)
+
+    sample_generator = sampler.sample_initial(n_effective=10)
+    with pytest.deprecated_call():
+        next(sample_generator)
+
+    with pytest.deprecated_call():
+        sampler.run_nested(dlogz_init=1, maxcall=10, n_effective_init=10)
+
+
 @pytest.mark.parametrize('dynamic,with_pool',
                          itertools.product([True, False], [True, False]))
 def test_pickle(dynamic, with_pool):

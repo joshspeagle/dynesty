@@ -681,15 +681,16 @@ class Sampler:
             # Stopping criterion 5: the number of effective posterior
             # samples has been achieved.
             if (n_effective is not None) and not np.isposinf(n_effective):
-                if self.n_effective > n_effective:
+                current_n_effective = self.n_effective
+                if current_n_effective > n_effective:
                     if add_live:
                         self.add_final_live(print_progress=False)
-                        neff = self.n_effective
+
+                        # Recompute n_effective after adding live points
+                        current_n_effective = self.n_effective
                         self._remove_live_points()
                         self.added_live = False
-                    else:
-                        neff = self.n_effective
-                    if neff > n_effective:
+                    if current_n_effective > n_effective:
                         stop_iterations = True
 
             if stop_iterations:

@@ -9,7 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 ### Fixed
 - Sampler.n_effective is no longer unnecessarily computed when sampling with
-  an infinite limit on n_effective._
+  an infinite limit on n_effective.
+- Setting n_effective for .run_nested() and .sample_initial() is deprecated.
 
 ## [1.2.3] - 2022-06-02
 

@@ -393,7 +393,6 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
 
         # If we succeed, move to the new position.
         if logl_prop > loglstar:
-            fscale = (nstep_r - nstep_l) / dirnorm
             break
         # If we fail, check if the new point is to the left/right of
         # our original point along our proposal axis and update
@@ -419,7 +418,7 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
                                        u, nstep_l, nstep_r, nstep_hat, u_prop,
                                        loglstar, logl_prop, direction))
     v_prop = prior_transform(u_prop)
-    return u_prop, v_prop, logl_prop, nc, nexpand, ncontract, fscale
+    return u_prop, v_prop, logl_prop, nc, nexpand, ncontract
 
 
 def sample_slice(args):
@@ -489,7 +488,6 @@ def sample_slice(args):
     nc = 0
     nexpand = 0
     ncontract = 0
-    fscale = []
 
     # Modifying axes and computing lengths.
     axes = scale * axes.T  # scale based on past tuning
@@ -506,21 +504,16 @@ def sample_slice(args):
 
             # Select axis.
             axis = axes[idx]
-            (u_prop, v_prop, logl_prop, nc1, nexpand1, ncontract1,
-             fscale1) = generic_slice_step(u, axis, nonperiodic, loglstar,
-                                           loglikelihood, prior_transform,
-                                           rstate)
+            (u_prop, v_prop, logl_prop, nc1, nexpand1,
+             ncontract1) = generic_slice_step(u, axis, nonperiodic, loglstar,
+                                              loglikelihood, prior_transform,
+                                              rstate)
             u = u_prop
             nc += nc1
             nexpand += nexpand1
             ncontract += ncontract1
-            fscale.append(fscale1)
 
-    blob = {
-        'fscale': np.mean(fscale),
-        'nexpand': nexpand,
-        'ncontract': ncontract
-    }
+    blob = {'nexpand': nexpand, 'ncontract': ncontract}
 
     return u_prop, v_prop, logl_prop, nc, blob
 
@@ -590,7 +583,6 @@ def sample_rslice(args):
     nc = 0
     nexpand = 0
     ncontract = 0
-    fscale = []
 
     # Slice sampling loop.
     for it in range(slices):
@@ -602,20 +594,16 @@ def sample_rslice(args):
         # Transform and scale based on past tuning.
         direction = np.dot(axes, drhat) * scale
 
-        (u_prop, v_prop, logl_prop, nc1, nexpand1, ncontract1,
-         fscale1) = generic_slice_step(u, direction, nonperiodic, loglstar,
-                                       loglikelihood, prior_transform, rstate)
+        (u_prop, v_prop, logl_prop, nc1, nexpand1,
+         ncontract1) = generic_slice_step(u, direction, nonperiodic, loglstar,
+                                          loglikelihood, prior_transform,
+                                          rstate)
         u = u_prop
         nc += nc1
         nexpand += nexpand1
         ncontract += ncontract1
-        fscale.append(fscale1)
 
-    blob = {
-        'fscale': np.mean(fscale),
-        'nexpand': nexpand,
-        'ncontract': ncontract
-    }
+    blob = {'nexpand': nexpand, 'ncontract': ncontract}
 
     return u_prop, v_prop, logl_prop, nc, blob
 

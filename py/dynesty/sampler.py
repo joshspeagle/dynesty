@@ -680,16 +680,17 @@ class Sampler:
 
             # Stopping criterion 5: the number of effective posterior
             # samples has been achieved.
-            if n_effective is not None:
-                if self.n_effective > n_effective:
+            if (n_effective is not None) and not np.isposinf(n_effective):
+                current_n_effective = self.n_effective
+                if current_n_effective > n_effective:
                     if add_live:
                         self.add_final_live(print_progress=False)
-                        neff = self.n_effective
+
+                        # Recompute n_effective after adding live points
+                        current_n_effective = self.n_effective
                         self._remove_live_points()
                         self.added_live = False
-                    else:
-                        neff = self.n_effective
-                    if neff > n_effective:
+                    if current_n_effective > n_effective:
                         stop_iterations = True
 
             if stop_iterations:
@@ -843,6 +844,7 @@ class Sampler:
             Minimum number of effective posterior samples. If the estimated
             "effective sample size" (ESS) exceeds this number,
             sampling will terminate. Default is no ESS (`np.inf`).
+            This option is deprecated and will be removed in a future release.
 
         add_live : bool, optional
             Whether or not to add the remaining set of live points to
@@ -861,6 +863,15 @@ class Sampler:
             the live points internally. Default is *True*.
 
         """
+
+        # Check for deprecated options
+        if n_effective is not None:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("once")
+                warnings.warn(
+                    "The n_effective option to Sampler.run_nested is "
+                    "deprecated and will be removed in future releases",
+                    DeprecationWarning)
 
         # Define our stopping criteria.
         if dlogz is None:

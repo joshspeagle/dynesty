@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Added
 ### Fixed
+- Sampler.n_effective is no longer unnecessarily computed when sampling with
+  an infinite limit on n_effective.
+
+### Changed
+- Setting n_effective for Sampler.run_nested() and DynamicSampler.sample_initial(), and n_effective_init for DynamicSampler.run_nested(), are deprecated.
 
 ## [1.2.3] - 2022-06-02
 

@@ -722,9 +722,7 @@ class DynamicSampler:
             threshold set by `logl_max`. Default is no bound (`np.inf`).
 
         n_effective: int, optional
-            Target number of effective posterior samples. If the estimated
-            "effective sample size" (ESS) exceeds this number,
-            sampling will terminate. Default is no ESS (`np.inf`).
+            This option is deprecated and will be removed in a future release.
 
         live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
             A set of live points used to initialize the nested sampling run.
@@ -787,6 +785,15 @@ class DynamicSampler:
             current evidence.
 
         """
+
+        # Check for deprecated options
+        if n_effective is not np.inf:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("once")
+                warnings.warn(
+                    "The n_effective option to DynamicSampler.sample_initial "
+                    "is deprecated and will be removed in future releases",
+                    DeprecationWarning)
 
         # Initialize inputs.
         if maxcall is None:
@@ -1526,6 +1533,7 @@ class DynamicSampler:
             baseline run. If the estimated "effective sample size" (ESS)
             exceeds this number, sampling will terminate.
             Default is no ESS (`np.inf`).
+            This option is deprecated and will be removed in a future release.
 
         nlive_batch : int, optional
             The number of live points used when adding additional samples
@@ -1611,6 +1619,15 @@ class DynamicSampler:
             live points will result in biased results.**
 
         """
+
+        # Check for deprecated options
+        if n_effective_init is not np.inf:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("once")
+                warnings.warn(
+                    "The n_effective_init option to DynamicSampler.run_nested "
+                    "is deprecated and will be removed in future releases",
+                    DeprecationWarning)
 
         # Initialize values.
         if maxcall is None:

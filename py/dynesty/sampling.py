@@ -333,7 +333,7 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
     rstate: random state
     """
     nc, nexpand, ncontract = 0, 0, 0
-    nexpand_threshold = 10000  # Threshold for warning the user
+    nexpand_threshold = 1000  # Threshold for warning the user
     n = len(u)
     rand0 = rstate.uniform()  # initial scale/offset
     dirlen = linalg.norm(direction)
@@ -364,7 +364,7 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
 
     logl_l = F(nstep_l)[1]
     logl_r = F(nstep_r)[1]
-
+    expansion_warning = False
     if not doubling:
         # "Stepping out" the left and right bounds.
         while logl_l > loglstar:
@@ -376,6 +376,7 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
             logl_r = F(nstep_r)[1]
             nexpand += 1
         if nexpand > nexpand_threshold:
+            expansion_warning = True
             warnings.warn(
                 str.format(
                     'The slice sample interval was expanded more '
@@ -462,7 +463,7 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
                                        u, nstep_l, nstep_r, nstep_hat, u_prop,
                                        loglstar, logl_prop, direction))
     v_prop = prior_transform(u_prop)
-    return u_prop, v_prop, logl_prop, nc, nexpand, ncontract
+    return u_prop, v_prop, logl_prop, nc, nexpand, ncontract, expansion_warning
 
 
 def sample_slice(args):
@@ -524,7 +525,7 @@ def sample_slice(args):
     rstate = get_random_generator(rseed)
     # Periodicity.
     nonperiodic = kwargs.get('nonperiodic', None)
-
+    doubling = kwargs.get('slice_doubling', False)
     # Setup.
     n = len(u)
     assert axes.shape[0] == n
@@ -535,7 +536,7 @@ def sample_slice(args):
 
     # Modifying axes and computing lengths.
     axes = scale * axes.T  # scale based on past tuning
-
+    expansion_warning_set = False
     # Slice sampling loop.
     for it in range(slices):
 
@@ -548,16 +549,24 @@ def sample_slice(args):
 
             # Select axis.
             axis = axes[idx]
-            (u_prop, v_prop, logl_prop, nc1, nexpand1,
-             ncontract1) = generic_slice_step(u, axis, nonperiodic, loglstar,
-                                              loglikelihood, prior_transform,
-                                              False, rstate)
+            (u_prop, v_prop, logl_prop, nc1, nexpand1, ncontract1,
+             expansion_warning) = generic_slice_step(u, axis, nonperiodic,
+                                                     loglstar, loglikelihood,
+                                                     prior_transform, doubling,
+                                                     rstate)
             u = u_prop
             nc += nc1
             nexpand += nexpand1
             ncontract += ncontract1
+            if expansion_warning:
+                expansion_warning_set = True
+                doubling = True
 
-    blob = {'nexpand': nexpand, 'ncontract': ncontract}
+    blob = {
+        'nexpand': nexpand,
+        'ncontract': ncontract,
+        'expansion_warning_set': expansion_warning_set
+    }
 
     return u_prop, v_prop, logl_prop, nc, blob
 
@@ -619,6 +628,7 @@ def sample_rslice(args):
     rstate = get_random_generator(rseed)
     # Periodicity.
     nonperiodic = kwargs.get('nonperiodic', None)
+    doubling = kwargs.get('slice_doubling', False)
 
     # Setup.
     n = len(u)
@@ -627,6 +637,7 @@ def sample_rslice(args):
     nc = 0
     nexpand = 0
     ncontract = 0
+    expansion_warning_set = False
 
     # Slice sampling loop.
     for it in range(slices):
@@ -638,16 +649,24 @@ def sample_rslice(args):
         # Transform and scale based on past tuning.
         direction = np.dot(axes, drhat) * scale
 
-        (u_prop, v_prop, logl_prop, nc1, nexpand1,
-         ncontract1) = generic_slice_step(u, direction, nonperiodic, loglstar,
-                                          loglikelihood, prior_transform,
-                                          False, rstate)
+        (u_prop, v_prop, logl_prop, nc1, nexpand1, ncontract1,
+         expansion_warning) = generic_slice_step(u, direction, nonperiodic,
+                                                 loglstar, loglikelihood,
+                                                 prior_transform, doubling,
+                                                 rstate)
         u = u_prop
         nc += nc1
         nexpand += nexpand1
         ncontract += ncontract1
+        if expansion_warning:
+            doubling = True
+            expansion_warning_set = True
 
-    blob = {'nexpand': nexpand, 'ncontract': ncontract}
+    blob = {
+        'nexpand': nexpand,
+        'ncontract': ncontract,
+        'expansion_warning_set': expansion_warning_set
+    }
 
     return u_prop, v_prop, logl_prop, nc, blob
 

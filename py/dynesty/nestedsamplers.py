@@ -192,6 +192,8 @@ class SuperSampler(Sampler):
         # Remember I can't apply the rule that scale < cube diagonal
         # because scale is multiplied by axes
         self.scale = self.scale * mult
+        if blob['expansion_warning_set']:
+            self.kwargs['slice_doubling'] = True
 
     def update_hslice(self, blob):
         """Update the Hamiltonian slice proposal scale based

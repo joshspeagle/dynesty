@@ -421,6 +421,134 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
     return u_prop, v_prop, logl_prop, nc, nexpand, ncontract
 
 
+def generic_slice_doubling_step(u, direction, nonperiodic, loglstar,
+                                loglikelihood, prior_transform, rstate):
+    """
+    Do a slice generic slice sampling step along a specified dimension using
+    the doubling algorithm from Neal 2003 (algo number 4)
+
+    Arguments
+    u: ndarray (ndim sized)
+        Starting point in unit cube coordinates
+        It MUST satisfy the logl>loglstar criterion
+    direction: ndarray (ndim sized)
+        Step direction vector
+    nonperiodic: ndarray(bool)
+        mask for nonperiodic variables
+    loglstar: float
+        the critical value of logl, so that new logl must be >loglstar
+    loglikelihood: function
+    prior_transform: function
+    rstate: random state
+    """
+    nc, nexpand, ncontract = 0, 0, 0
+    n = len(u)
+    rand0 = rstate.uniform()  # initial scale/offset
+    dirlen = linalg.norm(direction)
+    maxlen = np.sqrt(n) / 2.
+    # maximum initial interval length (the diagonal of the cube)
+    if dirlen > maxlen:
+        # I stopped giving warnings, as it was too noisy
+        dirnorm = dirlen / maxlen
+    else:
+        dirnorm = 1
+    direction = direction / dirnorm
+
+    #  The function that evaluates the logl at the location of
+    # u0 + x*direction0
+    def F(x):
+        nonlocal nc
+        u_new = u + x * direction
+        if unitcheck(u_new, nonperiodic):
+            logl = loglikelihood(prior_transform(u_new))
+        else:
+            logl = -np.inf
+        nc += 1
+        return u_new, logl
+
+    # asymmetric step size on the left/right (see Neal 2003)
+    nstep_l = -rand0
+    nstep_r = (1 - rand0)
+    logl_l = F(nstep_l)[1]
+    logl_r = F(nstep_r)[1]
+
+    # "Stepping out" the left and right bounds.
+    while (logl_l > loglstar or logl_r > loglstar):
+        K = 1
+        V = rstate.uniform()
+        if V < 0.5:
+            nstep_l -= (nstep_r - nstep_l)
+            logl_l = F(nstep_l)[1]
+        else:
+            nstep_r += (nstep_r - nstep_l)
+            logl_r = F(nstep_r)[1]
+        nexpand += K
+        K *= 2
+
+    L = nstep_l
+    R = nstep_r
+
+    def accept(x1):
+        # fig6 of neal 2003
+        lhat, rhat = L, R
+        f_lhat = F(lhat)[1]
+        f_rhat = F(rhat)[1]
+        D = False
+        while rhat - lhat > 1.1:
+            # Define slice and window.
+            M = (lhat + rhat) / 2.
+            # Propose new position.
+            if (M > 0 and x1 >= M) or (M <= 0 and x1 < M):
+                D = True
+            if x1 < M:
+                rhat = M
+                f_rhat = F(rhat)[1]
+            else:
+                lhat = M
+                f_lhat = F(lhat)[1]
+            if D and loglstar >= f_lhat and loglstar >= f_rhat:
+                return False
+        return True
+
+    while True:
+        # Define slice and window.
+        nstep_hat = nstep_r - nstep_l
+
+        # Propose new position.
+        nstep_prop = nstep_l + rstate.uniform() * nstep_hat  # scale from left
+        u_prop, logl_prop = F(nstep_prop)
+        ncontract += 1
+
+        # If we succeed, move to the new position.
+        if logl_prop > loglstar and accept(nstep_prop, L, R):
+            break
+        # If we fail, check if the new point is to the left/right of
+        # our original point along our proposal axis and update
+        # the bounds accordingly.
+        else:
+            if nstep_prop < 0:
+                nstep_l = nstep_prop
+            elif nstep_prop > 0:  # right
+                nstep_r = nstep_prop
+            else:
+                # If `nstep_prop = 0` something has gone horribly wrong.
+                raise RuntimeError("Slice sampler has failed to find "
+                                   "a valid point. Some useful "
+                                   "output quantities:\n"
+                                   "u: {0}\n"
+                                   "nstep_left: {1}\n"
+                                   "nstep_right: {2}\n"
+                                   "nstep_hat: {3}\n"
+                                   "u_prop: {4}\n"
+                                   "loglstar: {5}\n"
+                                   "logl_prop: {6}\n"
+                                   "direction: {7}\n".format(
+                                       u, nstep_l, nstep_r, nstep_hat, u_prop,
+                                       loglstar, logl_prop, direction))
+    v_prop = prior_transform(u_prop)
+    return u_prop, v_prop, logl_prop, nc, nexpand, ncontract
+
+
 def sample_slice(args):
     """
     Return a new live point proposed by a series of random slices

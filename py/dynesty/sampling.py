@@ -219,11 +219,10 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
     ncall = 0
     # Total number of Likelihood calls (proposals evaluated)
 
+    nell = 0
+
     # Here we loop for exactly walks iterations.
     while ncall < walks:
-
-        # This proposes a new point within the ellipsoid
-        # This also potentially modifies the scale
         u_prop, fail = propose_ball_point(u,
                                           scale,
                                           axes,
@@ -233,11 +232,11 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
                                           periodic=periodic,
                                           reflective=reflective,
                                           nonbounded=nonbounded)
-        # If generation of points within an ellipsoid was
-        # highly inefficient we adjust the scale
         if fail:
+            # if the point is not in the cube even, we continue looping
+            # we don't consider it as a step
+            nell += 1
             nreject += 1
-            ncall += 1
             continue
 
         # Check proposed point.
@@ -252,6 +251,9 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
             naccept += 1
         else:
             nreject += 1
+    if nell > 10000 * walks:
+        warnings.warn("The generation of proposal points for random walk "
+                      "is highly inefficient")
     if naccept == 0:
         # Technically we can find out the likelihood value
         # stored somewhere

@@ -559,6 +559,8 @@ def sample_slice(args):
             nexpand += nexpand1
             ncontract += ncontract1
             if expansion_warning:
+                # if we expanded the interval by more than
+                # the threshold we set the warning and enable doubling
                 expansion_warning_set = True
                 doubling = True
 

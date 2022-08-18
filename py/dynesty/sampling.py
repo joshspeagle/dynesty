@@ -313,6 +313,43 @@ def propose_ball_point(u,
         return None, True
 
 
+def _slice_doubling_accept(x1, F, loglstar, L, R, fL, fR):
+    """
+    Acceptance test of slice sampling when doubling mode is used.
+    This is an exact implementation of algo 6 of neal 2003
+    here w=1 and x0=0 as we are working in the
+    coordinate system of F(A) = f(x0+A*w)
+
+    Arguments are
+    1) candidate location x1
+    2) wrapped logl function (see generic_slice_step)
+    3) threshold logl value
+    4) left edge of the full interval
+    5) right edge of the full interval
+    6) value at left edge
+    7) value at right edge
+    """
+    lhat, rhat = L, R
+    f_lhat = fL
+    f_rhat = fR
+    D = False
+    while rhat - lhat > 1.1:
+        # Define slice and window.
+        M = (lhat + rhat) / 2.
+        # Propose new position.
+        if (0 < M <= x1) or (x1 < M <= 0):
+            D = True
+        if x1 < M:
+            rhat = M
+            f_rhat = F(rhat)[1]
+        else:
+            lhat = M
+            f_lhat = F(lhat)[1]
+        if D and loglstar >= f_lhat and loglstar >= f_rhat:
+            return False
+    return True
+
+
 def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
                        prior_transform, doubling, rstate):
     """
@@ -382,8 +419,6 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
                     'The slice sample interval was expanded more '
                     'than {0} times', nexpand_threshold))
 
-        def accept(x):
-            return True
     else:
         # "Stepping out" the left and right bounds.
         K = 1
@@ -399,30 +434,8 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
             K *= 2
         L = nstep_l
         R = nstep_r
-
-        def accept(x1):
-            # exact implementation of algo 6 of neal 2003
-            # here w=1 and x0=0 as we are working in the
-            # coordinate system of F(A) = f(x0+A*w)
-            lhat, rhat = L, R
-            f_lhat = F(lhat)[1]
-            f_rhat = F(rhat)[1]
-            D = False
-            while rhat - lhat > 1.1:
-                # Define slice and window.
-                M = (lhat + rhat) / 2.
-                # Propose new position.
-                if (M > 0 and x1 >= M) or (M <= 0 and x1 < M):
-                    D = True
-                if x1 < M:
-                    rhat = M
-                    f_rhat = F(rhat)[1]
-                else:
-                    lhat = M
-                    f_lhat = F(lhat)[1]
-                if D and loglstar >= f_lhat and loglstar >= f_rhat:
-                    return False
-            return True
+        fL = logl_l
+        fR = logl_r
 
     # Sample within limits. If the sample is not valid, shrink
     # the limits until we hit the `loglstar` bound.
@@ -437,7 +450,10 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
         ncontract += 1
 
         # If we succeed, move to the new position.
-        if logl_prop > loglstar and accept(nstep_prop):
+        # note that if we are using doubling mode we accept only
+        # if _slice_doubling_accept() returns True
+        if logl_prop > loglstar and (not doubling or _slice_doubling_accept(
+                nstep_prop, F, loglstar, L, R, fL, fR)):
             break
         # If we fail, check if the new point is to the left/right of
         # our original point along our proposal axis and update
@@ -558,12 +574,13 @@ def sample_slice(args):
             nc += nc1
             nexpand += nexpand1
             ncontract += ncontract1
-            if expansion_warning:
+            if expansion_warning and not doubling:
                 # if we expanded the interval by more than
                 # the threshold we set the warning and enable doubling
                 expansion_warning_set = True
                 doubling = True
-
+                warnings.warn('Enabling doubling strategy of slice'
+                              'sampling from Neal2003')
     blob = {
         'nexpand': nexpand,
         'ncontract': ncontract,
@@ -660,9 +677,11 @@ def sample_rslice(args):
         nc += nc1
         nexpand += nexpand1
         ncontract += ncontract1
-        if expansion_warning:
+        if expansion_warning and not doubling:
             doubling = True
             expansion_warning_set = True
+            warnings.warn('Enabling doubling strategy of slice'
+                          'sampling from Neal2003')
 
     blob = {
         'nexpand': nexpand,

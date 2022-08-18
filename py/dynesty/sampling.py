@@ -286,7 +286,7 @@ def propose_ball_point(u,
 
     # draw random point for non clustering parameters
     # we only need to generate them once
-    u_non_cluster = rstate.uniform(0, 1, n - n_cluster)
+    u_non_cluster = rstate.random(n - n_cluster)
     u_prop = np.zeros(n)
     u_prop[n_cluster:] = u_non_cluster
 
@@ -372,7 +372,7 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
     nc, nexpand, ncontract = 0, 0, 0
     nexpand_threshold = 1000  # Threshold for warning the user
     n = len(u)
-    rand0 = rstate.uniform()  # initial scale/offset
+    rand0 = rstate.random()  # initial scale/offset
     dirlen = linalg.norm(direction)
     maxlen = np.sqrt(n) / 2.
     # maximum initial interval length (the diagonal of the cube)
@@ -423,7 +423,7 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
         # "Stepping out" the left and right bounds.
         K = 1
         while (logl_l > loglstar or logl_r > loglstar):
-            V = rstate.uniform()
+            V = rstate.random()
             if V < 0.5:
                 nstep_l -= (nstep_r - nstep_l)
                 logl_l = F(nstep_l)[1]
@@ -445,7 +445,7 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
         nstep_hat = nstep_r - nstep_l
 
         # Propose new position.
-        nstep_prop = nstep_l + rstate.uniform() * nstep_hat  # scale from left
+        nstep_prop = nstep_l + rstate.random() * nstep_hat  # scale from left
         u_prop, logl_prop = F(nstep_prop)
         ncontract += 1
 
@@ -1099,7 +1099,7 @@ def sample_hslice(args):
             # Define chord.
             u_l, u_m, u_r = nodes_l[idx], nodes_m[idx], nodes_r[idx]
             u_hat = u_r - u_l
-            rprop = rstate.uniform()
+            rprop = rstate.random()
             u_prop = u_l + rprop * u_hat  # scale from left
             if unitcheck(u_prop, nonperiodic):
                 v_prop = prior_transform(np.asarray(u_prop))

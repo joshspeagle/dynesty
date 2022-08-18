@@ -316,7 +316,7 @@ def propose_ball_point(u,
 def _slice_doubling_accept(x1, F, loglstar, L, R, fL, fR):
     """
     Acceptance test of slice sampling when doubling mode is used.
-    This is an exact implementation of algo 6 of neal 2003
+    This is an exact implementation of algorithm 6 of Neal 2003
     here w=1 and x0=0 as we are working in the
     coordinate system of F(A) = f(x0+A*w)
 
@@ -579,8 +579,8 @@ def sample_slice(args):
                 # the threshold we set the warning and enable doubling
                 expansion_warning_set = True
                 doubling = True
-                warnings.warn('Enabling doubling strategy of slice'
-                              'sampling from Neal2003')
+                warnings.warn('Enabling doubling strategy of slice '
+                              'sampling from Neal(2003)')
     blob = {
         'nexpand': nexpand,
         'ncontract': ncontract,
@@ -680,8 +680,8 @@ def sample_rslice(args):
         if expansion_warning and not doubling:
             doubling = True
             expansion_warning_set = True
-            warnings.warn('Enabling doubling strategy of slice'
-                          'sampling from Neal2003')
+            warnings.warn('Enabling doubling strategy of slice '
+                          'sampling from Neal(2003)')
 
     blob = {
         'nexpand': nexpand,

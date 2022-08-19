@@ -363,8 +363,8 @@ class Sampler:
 
             # If our queue is empty, update any tuning parameters associated
             # with our proposal (sampling) method.
-            if blob is not None and self.nqueue <= 0 and bcheck:
-                self.update_proposal(blob)
+            if blob is not None and bcheck:
+                self.update_proposal(blob, self.nqueue <= 0)
 
             # If we satisfy the log-likelihood constraint, we're done!
             if logl > loglstar:

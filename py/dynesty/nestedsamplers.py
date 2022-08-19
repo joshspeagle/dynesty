@@ -146,11 +146,11 @@ class SuperSampler(Sampler):
     def propose_live(self, *args):
         pass
 
-    def update_unif(self, blob, update):
+    def update_unif(self, blob, update=True):
         """Filler function."""
         pass
 
-    def update_rwalk(self, blob, update):
+    def update_rwalk(self, blob, update=True):
         """Update the random walk proposal scale based on the current
         number of accepted/rejected steps.
         For rwalk the scale is important because it
@@ -158,6 +158,8 @@ class SuperSampler(Sampler):
         I.e. if scale is too large, the proposal efficiency will be very low
         so it's likely that we'll only do one random walk step at the time,
         thus producing very correlated chain.
+        The keyword update determines if we are just accumulating the number
+        of steps or actually adjusting the scale
         """
         self.scale = blob['scale']
         hist = self.rwalk_history
@@ -183,12 +185,14 @@ class SuperSampler(Sampler):
         hist['naccept'] = 0
         hist['nreject'] = 0
 
-    def update_slice(self, blob, update):
+    def update_slice(self, blob, update=True):
         """Update the slice proposal scale based on the relative
         size of the slices compared to our initial guess.
         For slice sampling the scale is only 'advisory' in the sense that
         the right scale will just speed up sampling as we'll have to expand
         or contract less. It won't affect the quality of the samples much.
+        The keyword update determines if we are just accumulating the number
+        of steps or actually adjusting the scale
         """
         # see https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4063214/
         # also 2002.06212
@@ -213,9 +217,12 @@ class SuperSampler(Sampler):
         hist['nexpand'] = 0
         hist['ncontract'] = 0
 
-    def update_hslice(self, blob, update):
+    def update_hslice(self, blob, update=True):
         """Update the Hamiltonian slice proposal scale based
-        on the relative amount of time spent moving vs reflecting."""
+        on the relative amount of time spent moving vs reflecting.
+        The keyword update determines if we are just accumulating the number
+        of steps or actually adjusting the scale
+        """
         hist = self.hslice_history
         hist['nmove'] += blob['nmove']
         hist['nreflect'] += blob['nreflect']

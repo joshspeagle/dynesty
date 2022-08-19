@@ -139,7 +139,7 @@ class Sampler:
     def evolve_point(self, *args):
         raise RuntimeError('Should be overriden')
 
-    def update_proposal(self, *args):
+    def update_proposal(self, *args, **kwargs):
         raise RuntimeError('Should be overriden')
 
     def update(self):
@@ -361,10 +361,12 @@ class Sampler:
             ucheck = ncall >= self.update_interval * (1 + nupdate)
             bcheck = self._beyond_unit_bound(loglstar)
 
-            # If our queue is empty, update any tuning parameters associated
-            # with our proposal (sampling) method.
             if blob is not None and bcheck:
-                self.update_proposal(blob, self.nqueue <= 0)
+                # If our queue is empty, update any tuning parameters associated
+                # with our proposal (sampling) method.
+                # If it's not empty we are just accumulating the
+                # the history of evaluations
+                self.update_proposal(blob, update=self.nqueue <= 0)
 
             # If we satisfy the log-likelihood constraint, we're done!
             if logl > loglstar:

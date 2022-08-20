@@ -15,9 +15,10 @@ import sys
 import warnings
 import math
 import copy
+import pickle
 import numpy as np
 from scipy.special import logsumexp
-
+from . import __version__ as DYNESTY_VERSION
 from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
                              MultiEllipsoidSampler, RadFriendsSampler,
                              SupFriendsSampler)
@@ -41,6 +42,15 @@ _SAMPLERS = {
 }
 
 _LOWL_VAL = -1e300
+
+
+class DynamicSamplerStatesEnum:
+    INIT = 1  # after the constructor
+    LIVEPOINTSINIT = 2  # after generating livepoints
+    INBASE = 3  # during base runs
+    BASE_DONE = 4  # during base runs
+    INBATCH = 5  # after at least one batch
+    BATCH_DONE = 6  # after at least one batch
 
 
 def compute_weights(results):
@@ -534,6 +544,7 @@ class DynamicSampler:
         self.eff = 1.  # sampling efficiency
         self.base = False  # base run complete
         self.nlive0 = nlive0
+        self.internal_state = DynamicSamplerStatesEnum.INIT
 
         self.saved_run = RunRecord(dynamic=True)
         self.base_run = RunRecord(dynamic=True)
@@ -565,6 +576,19 @@ class DynamicSampler:
         del state['M']  # remove `pool.map` function hook
 
         return state
+
+    def save(self, fname):
+        D = {'sampler': self, 'version': DYNESTY_VERSION}
+        with open(fname, 'wb') as fp:
+            pickle.dump(D, fp)
+
+    def restore(fname, pool=None):
+        with open(fname, 'rb') as fp:
+            res = pickle.load(fp)
+        if pool is not None:
+            res.M = pool
+            res.pool = pool
+        return res
 
     def __get_update_interval(self, update_interval, nlive):
         if not isinstance(update_interval, int):
@@ -846,7 +870,7 @@ class DynamicSampler:
                                                ncdim=self.ncdim,
                                                kwargs=self.kwargs)
             self.bound = self.sampler.bound
-
+            self.internal_state = DynamicSamplerStatesEnum.LIVEPOINTSINIT
         # Run the sampler internally as a generator.
         for i in range(1):
             for it, results in enumerate(
@@ -880,6 +904,7 @@ class DynamicSampler:
                 self.ncall += results.nc
                 self.eff = 100. * self.it / self.ncall
                 self.it += 1
+                self.internal_state = DynamicSamplerStatesEnum.INBASE
                 yield IteratorResult(worst=results.worst,
                                      ustar=results.ustar,
                                      vstar=results.vstar,
@@ -952,6 +977,7 @@ class DynamicSampler:
             self.nlive_init)  # initial nlive
         self.saved_run.D['batch_bounds'].append(
             (-np.inf, np.inf))  # initial bounds
+        self.internal_state = DynamicSamplerStatesEnum.BASE_DONE
 
     def sample_batch(self,
                      dlogz=0.01,
@@ -960,7 +986,8 @@ class DynamicSampler:
                      logl_bounds=None,
                      maxiter=None,
                      maxcall=None,
-                     save_bounds=True):
+                     save_bounds=True,
+                     resume=False):
         """
         Generate an additional series of nested samples that will be combined
         with the previous set of dead points. Works by hacking the internal
@@ -1307,6 +1334,8 @@ class DynamicSampler:
                 self.it += 1
                 maxiter_left -= 1
                 iterated_batch = True
+                self.internal_state = DynamicSamplerStatesEnum.INBATCH
+
                 yield IteratorResultShort(worst=results.worst,
                                           ustar=results.ustar,
                                           vstar=results.vstar,
@@ -1489,7 +1518,8 @@ class DynamicSampler:
                    save_bounds=True,
                    print_progress=True,
                    print_func=None,
-                   live_points=None):
+                   live_points=None,
+                   resume=False):
         """
         **The main dynamic nested sampling loop.** After an initial "baseline"
         run using a constant number of live points, dynamically allocates
@@ -1684,8 +1714,10 @@ class DynamicSampler:
                         maxiter=maxiter_init,
                         logl_max=logl_max_init,
                         live_points=live_points,
-                        n_effective=n_effective_init):
-
+                        n_effective=n_effective_init,
+                        resume=resume):
+                    if resume:
+                        resume = False
                     ncall += results.nc
                     niter += 1
 
@@ -1731,7 +1763,8 @@ class DynamicSampler:
                                               save_bounds=save_bounds,
                                               print_progress=print_progress,
                                               print_func=print_func,
-                                              stop_val=stop_val)
+                                              stop_val=stop_val,
+                                              resume=resume)
                     ncall, niter, logl_bounds, results = passback
                 elif logl_bounds[1] != np.inf:
                     # We ran at least one batch and now we're done!
@@ -1764,7 +1797,8 @@ class DynamicSampler:
                   save_bounds=True,
                   print_progress=True,
                   print_func=None,
-                  stop_val=None):
+                  stop_val=None,
+                  resume=False):
         """
         Allocate an additional batch of (nested) samples based on
         the combined set of previous samples using the specified
@@ -1875,7 +1909,8 @@ class DynamicSampler:
                                                      logl_bounds=logl_bounds,
                                                      maxiter=maxiter,
                                                      maxcall=maxcall,
-                                                     save_bounds=save_bounds):
+                                                     save_bounds=save_bounds,
+                                                     resume=resume):
                     if cur_results.worst >= 0:
                         ncall += cur_results.nc
                         niter += 1
@@ -1914,6 +1949,7 @@ class DynamicSampler:
             # Combine batch with previous runs.
             self.combine_runs()
             # Pass back info.
+            self.internal_state = DynamicSamplerStatesEnum.BATCH_DONE
             return ncall, niter, logl_bounds, results
         else:
             raise RuntimeError(

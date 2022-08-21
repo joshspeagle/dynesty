@@ -591,6 +591,9 @@ class DynamicSampler:
         if pool is not None:
             sampler.M = pool
             sampler.pool = pool
+        else:
+            sampler.loglikelihood.pool = None
+            sampler.pool = None
         return sampler
 
     def __get_update_interval(self, update_interval, nlive):
@@ -1309,9 +1312,10 @@ class DynamicSampler:
             # live points *as if* we had terminated the run. This allows us to
             # sample past the original bounds "for free".
         else:
+            print('here')
             batch_sampler = self.batch_sampler
             logl_min, logl_max = self.new_logl_min, self.new_logl_max
-            live_nc = np.empty(nlive_new, dtype='int')
+            live_nc = np.zeros(nlive_new, dtype='int')
             # TODO FIX whether live_nc should be restored
 
         for i in range(1):
@@ -1779,6 +1783,8 @@ class DynamicSampler:
                                               stop_val=stop_val,
                                               resume=resume,
                                               checkpoint_file=checkpoint_file)
+                    if resume:
+                        resume = False
                     ncall, niter, logl_bounds, results = passback
                 elif logl_bounds[1] != np.inf:
                     # We ran at least one batch and now we're done!
@@ -1926,6 +1932,8 @@ class DynamicSampler:
                                                      maxcall=maxcall,
                                                      save_bounds=save_bounds,
                                                      resume=resume):
+                    if resume:
+                        resume = False
                     if checkpoint_file is not None:
                         self.save(checkpoint_file)
                     if cur_results.worst >= 0:

@@ -1310,6 +1310,9 @@ class DynamicSampler:
             # sample past the original bounds "for free".
         else:
             batch_sampler = self.batch_sampler
+            logl_min, logl_max = self.new_logl_min, self.new_logl_max
+            live_nc = np.empty(nlive_new, dtype='int')
+            # TODO FIX whether live_nc should be restored
 
         for i in range(1):
             iterated_batch = False

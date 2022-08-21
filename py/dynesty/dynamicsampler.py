@@ -1723,7 +1723,8 @@ class DynamicSampler:
                         logl_max=logl_max_init,
                         live_points=live_points,
                         n_effective=n_effective_init,
-                        resume=resume):
+                        resume=resume,
+                        save_samples=True):
                     if resume:
                         resume = False
                     ncall += results.nc
@@ -1739,7 +1740,6 @@ class DynamicSampler:
                                    nbatch=0,
                                    dlogz=dlogz_init,
                                    logl_max=logl_max_init)
-            print(resume)
             for n in range(self.batch, maxbatch):
                 # Update stopping criteria.
                 res = self.results

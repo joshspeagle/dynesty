@@ -15,6 +15,7 @@ import sys
 import warnings
 import math
 import copy
+import os
 import pickle
 import numpy as np
 from scipy.special import logsumexp
@@ -579,16 +580,18 @@ class DynamicSampler:
     def save(self, fname):
         from . import __version__ as DYNESTY_VERSION
         D = {'sampler': self, 'version': DYNESTY_VERSION}
-        with open(fname, 'wb') as fp:
+        with open(fname + '.tmp', 'wb') as fp:
             pickle.dump(D, fp)
+        os.rename(fname + '.tmp', fname)
 
     def restore(fname, pool=None):
         with open(fname, 'rb') as fp:
             res = pickle.load(fp)
+        sampler = res['sampler']
         if pool is not None:
-            res.M = pool
-            res.pool = pool
-        return res
+            sampler.M = pool
+            sampler.pool = pool
+        return sampler
 
     def __get_update_interval(self, update_interval, nlive):
         if not isinstance(update_interval, int):
@@ -1523,7 +1526,8 @@ class DynamicSampler:
                    print_progress=True,
                    print_func=None,
                    live_points=None,
-                   resume=False):
+                   resume=False,
+                   checkpoint_file=None):
         """
         **The main dynamic nested sampling loop.** After an initial "baseline"
         run using a constant number of live points, dynamically allocates
@@ -1725,6 +1729,8 @@ class DynamicSampler:
                     ncall += results.nc
                     niter += 1
 
+                    if checkpoint_file is not None:
+                        self.save(checkpoint_file)
                     # Print progress.
                     if print_progress:
                         print_func(results,
@@ -1733,7 +1739,7 @@ class DynamicSampler:
                                    nbatch=0,
                                    dlogz=dlogz_init,
                                    logl_max=logl_max_init)
-
+            print(resume)
             for n in range(self.batch, maxbatch):
                 # Update stopping criteria.
                 res = self.results
@@ -1768,7 +1774,8 @@ class DynamicSampler:
                                               print_progress=print_progress,
                                               print_func=print_func,
                                               stop_val=stop_val,
-                                              resume=resume)
+                                              resume=resume,
+                                              checkpoint_file=checkpoint_file)
                     ncall, niter, logl_bounds, results = passback
                 elif logl_bounds[1] != np.inf:
                     # We ran at least one batch and now we're done!
@@ -1802,7 +1809,8 @@ class DynamicSampler:
                   print_progress=True,
                   print_func=None,
                   stop_val=None,
-                  resume=False):
+                  resume=False,
+                  checkpoint_file=None):
         """
         Allocate an additional batch of (nested) samples based on
         the combined set of previous samples using the specified
@@ -1915,6 +1923,8 @@ class DynamicSampler:
                                                      maxcall=maxcall,
                                                      save_bounds=save_bounds,
                                                      resume=resume):
+                    if checkpoint_file is not None:
+                        self.save(checkpoint_file)
                     if cur_results.worst >= 0:
                         ncall += cur_results.nc
                         niter += 1

@@ -40,7 +40,7 @@ def fit():
 
 def fit_resume(pid):
     fname = 'xx%d.pkl' % pid
-    dns = dds.DynamicSampler.restore(fname)
+    dns = dynesty.DynamicNestedSampler.restore(fname)
     print('resuming')
     dns.run_nested(resume=True)
     os

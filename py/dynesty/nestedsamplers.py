@@ -238,11 +238,11 @@ class SuperSampler(Sampler):
         hist['nreflect'] = 0
         hist['ncontract'] = 0
 
-    def update_user(self, blob, update):
+    def update_user(self, blob, update=True):
         """Update the scale based on the user-defined update function."""
 
         if callable(self.custom_update):
-            self.scale = self.custom_update(blob, self.scale)
+            self.scale = self.custom_update(blob, self.scale, update=update)
 
 
 class UnitCubeSampler(SuperSampler):

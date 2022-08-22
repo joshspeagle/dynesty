@@ -12,7 +12,7 @@ import warnings
 import traceback
 import numpy as np
 
-from .nestedsamplers import _SAMPLING
+from .nestedsamplers import _SAMPLING, SuperSampler
 from .dynamicsampler import (DynamicSampler, _get_update_interval_ratio,
                              _SAMPLERS, initialize_live_points)
 from .utils import (LogLikelihood, get_random_generator, get_enlarge_bootstrap,
@@ -215,416 +215,421 @@ def _parse_pool_queue(pool, queue_size):
     return M, queue_size
 
 
-def NestedSampler(loglikelihood,
-                  prior_transform,
-                  ndim,
-                  nlive=500,
-                  bound='multi',
-                  sample='auto',
-                  periodic=None,
-                  reflective=None,
-                  update_interval=None,
-                  first_update=None,
-                  npdim=None,
-                  rstate=None,
-                  queue_size=None,
-                  pool=None,
-                  use_pool=None,
-                  live_points=None,
-                  logl_args=None,
-                  logl_kwargs=None,
-                  ptform_args=None,
-                  ptform_kwargs=None,
-                  gradient=None,
-                  grad_args=None,
-                  grad_kwargs=None,
-                  compute_jac=False,
-                  enlarge=None,
-                  bootstrap=None,
-                  walks=None,
-                  facc=0.5,
-                  slices=None,
-                  fmove=0.9,
-                  max_move=100,
-                  update_func=None,
-                  ncdim=None,
-                  save_history=False,
-                  history_filename=None):
-    """
-    Initializes and returns a sampler object for Static Nested Sampling.
+class NestedSampler(SuperSampler):
 
-    Parameters
-    ----------
-    loglikelihood : function
-        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
-        array of length `ndim`.
+    def __new__(cls,
+                loglikelihood,
+                prior_transform,
+                ndim,
+                nlive=500,
+                bound='multi',
+                sample='auto',
+                periodic=None,
+                reflective=None,
+                update_interval=None,
+                first_update=None,
+                npdim=None,
+                rstate=None,
+                queue_size=None,
+                pool=None,
+                use_pool=None,
+                live_points=None,
+                logl_args=None,
+                logl_kwargs=None,
+                ptform_args=None,
+                ptform_kwargs=None,
+                gradient=None,
+                grad_args=None,
+                grad_kwargs=None,
+                compute_jac=False,
+                enlarge=None,
+                bootstrap=None,
+                walks=None,
+                facc=0.5,
+                slices=None,
+                fmove=0.9,
+                max_move=100,
+                update_func=None,
+                ncdim=None,
+                save_history=False,
+                history_filename=None):
+        """
+        Initializes and returns a sampler object for Static Nested Sampling.
 
-    prior_transform : function
-        Function translating a unit cube to the parameter space according to
-        the prior. The input is a 1-d `~numpy` array with length `ndim`, where
-        each value is in the range [0, 1). The return value should also be a
-        1-d `~numpy` array with length `ndim`, where each value is a parameter.
-        The return value is passed to the loglikelihood function. For example,
-        for a 2 parameter model with flat priors in the range [0, 2), the
-        function would be::
+        Parameters
+        ----------
+        loglikelihood : function
+            Function returning ln(likelihood) given parameters as a 1-d `~numpy`
+            array of length `ndim`.
 
-            def prior_transform(u):
-                return 2.0 * u
+        prior_transform : function
+            Function translating a unit cube to the parameter space according to
+            the prior. The input is a 1-d `~numpy` array with length `ndim`, where
+            each value is in the range [0, 1). The return value should also be a
+            1-d `~numpy` array with length `ndim`, where each value is a parameter.
+            The return value is passed to the loglikelihood function. For example,
+            for a 2 parameter model with flat priors in the range [0, 2), the
+            function would be::
 
-    ndim : int
-        Number of parameters returned by `prior_transform` and accepted by
-        `loglikelihood`.
+                def prior_transform(u):
+                    return 2.0 * u
 
-    nlive : int, optional
-        Number of "live" points. Larger numbers result in a more finely
-        sampled posterior (more accurate evidence), but also a larger
-        number of iterations required to converge. Default is `500`.
+        ndim : int
+            Number of parameters returned by `prior_transform` and accepted by
+            `loglikelihood`.
 
-    bound : {`'none'`, `'single'`, `'multi'`, `'balls'`, `'cubes'`}, optional
-        Method used to approximately bound the prior using the current
-        set of live points. Conditions the sampling methods used to
-        propose new live points. Choices are no bound (`'none'`), a single
-        bounding ellipsoid (`'single'`), multiple bounding ellipsoids
-        (`'multi'`), balls centered on each live point (`'balls'`), and
-        cubes centered on each live point (`'cubes'`). Default is `'multi'`.
+        nlive : int, optional
+            Number of "live" points. Larger numbers result in a more finely
+            sampled posterior (more accurate evidence), but also a larger
+            number of iterations required to converge. Default is `500`.
 
-    sample : {`'auto'`, `'unif'`, `'rwalk'`, `'slice'`, `'rslice'`,
-        `'hslice'`, callable}, optional
-        Method used to sample uniformly within the likelihood constraint,
-        conditioned on the provided bounds. Unique methods available are:
-        uniform sampling within the bounds(`'unif'`),
-        random walks with fixed proposals (`'rwalk'`),
-        multivariate slice sampling along preferred orientations (`'slice'`),
-        "random" slice sampling along all orientations (`'rslice'`),
-        "Hamiltonian" slices along random trajectories (`'hslice'`), and
-        any callable function which follows the pattern of the sample methods
-        defined in dynesty.sampling.
-        `'auto'` selects the sampling method based on the dimensionality
-        of the problem (from `ndim`).
-        When `ndim < 10`, this defaults to `'unif'`.
-        When `10 <= ndim <= 20`, this defaults to `'rwalk'`.
-        When `ndim > 20`, this defaults to `'hslice'` if a `gradient` is
-        provided and `'rslice'` otherwise. `'slice'`
-        is provided as alternatives for`'rslice'`.
-        Default is `'auto'`.
+        bound : {`'none'`, `'single'`, `'multi'`, `'balls'`, `'cubes'`}, optional
+            Method used to approximately bound the prior using the current
+            set of live points. Conditions the sampling methods used to
+            propose new live points. Choices are no bound (`'none'`), a single
+            bounding ellipsoid (`'single'`), multiple bounding ellipsoids
+            (`'multi'`), balls centered on each live point (`'balls'`), and
+            cubes centered on each live point (`'cubes'`). Default is `'multi'`.
 
-    periodic : iterable, optional
-        A list of indices for parameters with periodic boundary conditions.
-        These parameters *will not* have their positions constrained to be
-        within the unit cube, enabling smooth behavior for parameters
-        that may wrap around the edge. Default is `None` (i.e. no periodic
-        boundary conditions).
+        sample : {`'auto'`, `'unif'`, `'rwalk'`, `'slice'`, `'rslice'`,
+            `'hslice'`, callable}, optional
+            Method used to sample uniformly within the likelihood constraint,
+            conditioned on the provided bounds. Unique methods available are:
+            uniform sampling within the bounds(`'unif'`),
+            random walks with fixed proposals (`'rwalk'`),
+            multivariate slice sampling along preferred orientations (`'slice'`),
+            "random" slice sampling along all orientations (`'rslice'`),
+            "Hamiltonian" slices along random trajectories (`'hslice'`), and
+            any callable function which follows the pattern of the sample methods
+            defined in dynesty.sampling.
+            `'auto'` selects the sampling method based on the dimensionality
+            of the problem (from `ndim`).
+            When `ndim < 10`, this defaults to `'unif'`.
+            When `10 <= ndim <= 20`, this defaults to `'rwalk'`.
+            When `ndim > 20`, this defaults to `'hslice'` if a `gradient` is
+            provided and `'rslice'` otherwise. `'slice'`
+            is provided as alternatives for`'rslice'`.
+            Default is `'auto'`.
 
-    reflective : iterable, optional
-        A list of indices for parameters with reflective boundary conditions.
-        These parameters *will not* have their positions constrained to be
-        within the unit cube, enabling smooth behavior for parameters
-        that may reflect at the edge. Default is `None` (i.e. no reflective
-        boundary conditions).
+        periodic : iterable, optional
+            A list of indices for parameters with periodic boundary conditions.
+            These parameters *will not* have their positions constrained to be
+            within the unit cube, enabling smooth behavior for parameters
+            that may wrap around the edge. Default is `None` (i.e. no periodic
+            boundary conditions).
 
-    update_interval : int or float, optional
-        If an integer is passed, only update the proposal distribution every
-        `update_interval`-th likelihood call. If a float is passed, update the
-        proposal after every `round(update_interval * nlive)`-th likelihood
-        call. Larger update intervals larger can be more efficient
-        when the likelihood function is quick to evaluate. Default behavior
-        is to target a roughly constant change in prior volume, with
-        `1.5` for `'unif'`, `0.15 * walks` for `'rwalk'`.
-        `0.9 * ndim * slices` for `'slice'`, `2.0 * slices` for `'rslice'`,
-        and `25.0 * slices` for `'hslice'`.
+        reflective : iterable, optional
+            A list of indices for parameters with reflective boundary conditions.
+            These parameters *will not* have their positions constrained to be
+            within the unit cube, enabling smooth behavior for parameters
+            that may reflect at the edge. Default is `None` (i.e. no reflective
+            boundary conditions).
 
-    first_update : dict, optional
-        A dictionary containing parameters governing when the sampler should
-        first update the bounding distribution from the unit cube (`'none'`)
-        to the one specified by `sample`. Options are the minimum number of
-        likelihood calls (`'min_ncall'`) and the minimum allowed overall
-        efficiency in percent (`'min_eff'`). Defaults are `2 * nlive` and
-        `10.`, respectively.
+        update_interval : int or float, optional
+            If an integer is passed, only update the proposal distribution every
+            `update_interval`-th likelihood call. If a float is passed, update the
+            proposal after every `round(update_interval * nlive)`-th likelihood
+            call. Larger update intervals larger can be more efficient
+            when the likelihood function is quick to evaluate. Default behavior
+            is to target a roughly constant change in prior volume, with
+            `1.5` for `'unif'`, `0.15 * walks` for `'rwalk'`.
+            `0.9 * ndim * slices` for `'slice'`, `2.0 * slices` for `'rslice'`,
+            and `25.0 * slices` for `'hslice'`.
 
-    npdim : int, optional
-        Number of parameters accepted by `prior_transform`. This might differ
-        from `ndim` in the case where a parameter of loglikelihood is dependent
-        upon multiple independently distributed parameters, some of which may
-        be nuisance parameters.
+        first_update : dict, optional
+            A dictionary containing parameters governing when the sampler should
+            first update the bounding distribution from the unit cube (`'none'`)
+            to the one specified by `sample`. Options are the minimum number of
+            likelihood calls (`'min_ncall'`) and the minimum allowed overall
+            efficiency in percent (`'min_eff'`). Defaults are `2 * nlive` and
+            `10.`, respectively.
 
-    rstate : `~numpy.random.Generator`, optional
-        `~numpy.random.Generator` instance. If not given, the
-         global random state of the `~numpy.random` module will be used.
+        npdim : int, optional
+            Number of parameters accepted by `prior_transform`. This might differ
+            from `ndim` in the case where a parameter of loglikelihood is dependent
+            upon multiple independently distributed parameters, some of which may
+            be nuisance parameters.
 
-    queue_size : int, optional
-        Carry out likelihood evaluations in parallel by queueing up new live
-        point proposals using (at most) `queue_size` many threads. Each thread
-        independently proposes new live points until the proposal distribution
-        is updated. If no value is passed, this defaults to `pool.size` (if
-        a `pool` has been provided) and `1` otherwise (no parallelism).
+        rstate : `~numpy.random.Generator`, optional
+            `~numpy.random.Generator` instance. If not given, the
+             global random state of the `~numpy.random` module will be used.
 
-    pool : user-provided pool, optional
-        Use this pool of workers to execute operations in parallel.
+        queue_size : int, optional
+            Carry out likelihood evaluations in parallel by queueing up new live
+            point proposals using (at most) `queue_size` many threads. Each thread
+            independently proposes new live points until the proposal distribution
+            is updated. If no value is passed, this defaults to `pool.size` (if
+            a `pool` has been provided) and `1` otherwise (no parallelism).
 
-    use_pool : dict, optional
-        A dictionary containing flags indicating where a pool should be used to
-        execute operations in parallel. These govern whether `prior_transform`
-        is executed in parallel during initialization (`'prior_transform'`),
-        `loglikelihood` is executed in parallel during initialization
-        (`'loglikelihood'`), live points are proposed in parallel during a run
-        (`'propose_point'`), and bounding distributions are updated in
-        parallel during a run (`'update_bound'`). Default is `True` for all
-        options.
+        pool : user-provided pool, optional
+            Use this pool of workers to execute operations in parallel.
 
-    live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
-        A set of live points used to initialize the nested sampling run.
-        Contains `live_u`, the coordinates on the unit cube, `live_v`, the
-        transformed variables, and `live_logl`, the associated loglikelihoods.
-        By default, if these are not provided the initial set of live points
-        will be drawn uniformly from the unit `npdim`-cube.
-        **WARNING: It is crucial that the initial set of live points have been
-        sampled from the prior. Failure to provide a set of valid live points
-        will result in incorrect results.**
+        use_pool : dict, optional
+            A dictionary containing flags indicating where a pool should be used to
+            execute operations in parallel. These govern whether `prior_transform`
+            is executed in parallel during initialization (`'prior_transform'`),
+            `loglikelihood` is executed in parallel during initialization
+            (`'loglikelihood'`), live points are proposed in parallel during a run
+            (`'propose_point'`), and bounding distributions are updated in
+            parallel during a run (`'update_bound'`). Default is `True` for all
+            options.
 
-    logl_args : iterable, optional
-        Additional arguments that can be passed to `loglikelihood`.
+        live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
+            A set of live points used to initialize the nested sampling run.
+            Contains `live_u`, the coordinates on the unit cube, `live_v`, the
+            transformed variables, and `live_logl`, the associated loglikelihoods.
+            By default, if these are not provided the initial set of live points
+            will be drawn uniformly from the unit `npdim`-cube.
+            **WARNING: It is crucial that the initial set of live points have been
+            sampled from the prior. Failure to provide a set of valid live points
+            will result in incorrect results.**
 
-    logl_kwargs : dict, optional
-        Additional keyword arguments that can be passed to `loglikelihood`.
+        logl_args : iterable, optional
+            Additional arguments that can be passed to `loglikelihood`.
 
-    ptform_args : iterable, optional
-        Additional arguments that can be passed to `prior_transform`.
+        logl_kwargs : dict, optional
+            Additional keyword arguments that can be passed to `loglikelihood`.
 
-    ptform_kwargs : dict, optional
-        Additional keyword arguments that can be passed to `prior_transform`.
+        ptform_args : iterable, optional
+            Additional arguments that can be passed to `prior_transform`.
 
-    gradient : function, optional
-        A function which returns the gradient corresponding to
-        the provided `loglikelihood` *with respect to the unit cube*.
-        If provided, this will be used when computing reflections
-        when sampling with `'hslice'`. If not provided, gradients are
-        approximated numerically using 2-sided differencing.
+        ptform_kwargs : dict, optional
+            Additional keyword arguments that can be passed to `prior_transform`.
 
-    grad_args : iterable, optional
-        Additional arguments that can be passed to `gradient`.
+        gradient : function, optional
+            A function which returns the gradient corresponding to
+            the provided `loglikelihood` *with respect to the unit cube*.
+            If provided, this will be used when computing reflections
+            when sampling with `'hslice'`. If not provided, gradients are
+            approximated numerically using 2-sided differencing.
 
-    grad_kwargs : dict, optional
-        Additional keyword arguments that can be passed to `gradient`.
+        grad_args : iterable, optional
+            Additional arguments that can be passed to `gradient`.
 
-    compute_jac : bool, optional
-        Whether to compute and apply the Jacobian `dv/du`
-        from the target space `v` to the unit cube `u` when evaluating the
-        `gradient`. If `False`, the gradient provided is assumed to be
-        already defined with respect to the unit cube. If `True`, the gradient
-        provided is assumed to be defined with respect to the target space
-        so the Jacobian needs to be numerically computed and applied. Default
-        is `False`.
+        grad_kwargs : dict, optional
+            Additional keyword arguments that can be passed to `gradient`.
 
-    enlarge : float, optional
-        Enlarge the volumes of the specified bounding object(s) by this
-        fraction. The preferred method is to determine this organically
-        using bootstrapping. If `bootstrap > 0`, this defaults to `1.0`.
-        If `bootstrap = 0`, this instead defaults to `1.25`.
+        compute_jac : bool, optional
+            Whether to compute and apply the Jacobian `dv/du`
+            from the target space `v` to the unit cube `u` when evaluating the
+            `gradient`. If `False`, the gradient provided is assumed to be
+            already defined with respect to the unit cube. If `True`, the gradient
+            provided is assumed to be defined with respect to the target space
+            so the Jacobian needs to be numerically computed and applied. Default
+            is `False`.
 
-    bootstrap : int, optional
-        Compute this many bootstrapped realizations of the bounding
-        objects. Use the maximum distance found to the set of points left
-        out during each iteration to enlarge the resulting volumes. Can
-        lead to unstable bounding ellipsoids. Default is `None` (no bootstrap
-        unless the sampler is uniform). If bootstrap is set to zero,
-        bootstrap is disabled.
+        enlarge : float, optional
+            Enlarge the volumes of the specified bounding object(s) by this
+            fraction. The preferred method is to determine this organically
+            using bootstrapping. If `bootstrap > 0`, this defaults to `1.0`.
+            If `bootstrap = 0`, this instead defaults to `1.25`.
 
-    walks : int, optional
-        For the `'rwalk'` sampling option, the minimum number of steps
-        (minimum 2) before proposing a new live point. Default is `25`.
+        bootstrap : int, optional
+            Compute this many bootstrapped realizations of the bounding
+            objects. Use the maximum distance found to the set of points left
+            out during each iteration to enlarge the resulting volumes. Can
+            lead to unstable bounding ellipsoids. Default is `None` (no bootstrap
+            unless the sampler is uniform). If bootstrap is set to zero,
+            bootstrap is disabled.
 
-    facc : float, optional
-        The target acceptance fraction for the `'rwalk'` sampling option.
-        Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
+        walks : int, optional
+            For the `'rwalk'` sampling option, the minimum number of steps
+            (minimum 2) before proposing a new live point. Default is `25`.
 
-    slices : int, optional
-        For the `'slice'`, `'rslice'`, and `'hslice'` sampling
-        options, the number of times to execute a "slice update"
-        before proposing a new live point. Default is 3 for
-        `'slice'` and 3+ndim for rslice and hslice.
-        Note that `'slice'` cycles through **all dimensions**
-        when executing a "slice update".
+        facc : float, optional
+            The target acceptance fraction for the `'rwalk'` sampling option.
+            Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
 
-    fmove : float, optional
-        The target fraction of samples that are proposed along a trajectory
-        (i.e. not reflecting) for the `'hslice'` sampling option.
-        Default is `0.9`.
+        slices : int, optional
+            For the `'slice'`, `'rslice'`, and `'hslice'` sampling
+            options, the number of times to execute a "slice update"
+            before proposing a new live point. Default is 3 for
+            `'slice'` and 3+ndim for rslice and hslice.
+            Note that `'slice'` cycles through **all dimensions**
+            when executing a "slice update".
 
-    max_move : int, optional
-        The maximum number of timesteps allowed for `'hslice'`
-        per proposal forwards and backwards in time. Default is `100`.
+        fmove : float, optional
+            The target fraction of samples that are proposed along a trajectory
+            (i.e. not reflecting) for the `'hslice'` sampling option.
+            Default is `0.9`.
 
-    update_func : function, optional
-        Any callable function which takes in a `blob` and `scale`
-        as input and returns a modification to the internal `scale` as output.
-        Must follow the pattern of the update methods defined
-        in dynesty.nestedsamplers. If provided, this will supersede the
-        default functions used to update proposals. In the case where a custom
-        callable function is passed to `sample` but no similar function is
-        passed to `update_func`, this will default to no update.
+        max_move : int, optional
+            The maximum number of timesteps allowed for `'hslice'`
+            per proposal forwards and backwards in time. Default is `100`.
 
-    ncdim: int, optional
-        The number of clustering dimensions. The first ncdim dimensions will
-        be sampled using the sampling method, the remaining dimensions will
-        just sample uniformly from the prior distribution.
-        If this is `None` (default), this will default to npdim.
+        update_func : function, optional
+            Any callable function which takes in a `blob` and `scale`
+            as input and returns a modification to the internal `scale` as output.
+            Must follow the pattern of the update methods defined
+            in dynesty.nestedsamplers. If provided, this will supersede the
+            default functions used to update proposals. In the case where a custom
+            callable function is passed to `sample` but no similar function is
+            passed to `update_func`, this will default to no update.
 
-    Returns
-    -------
-    sampler : sampler from :mod:`~dynesty.nestedsamplers`
-        An initialized instance of the chosen sampler specified via `bound`.
+        ncdim: int, optional
+            The number of clustering dimensions. The first ncdim dimensions will
+            be sampled using the sampling method, the remaining dimensions will
+            just sample uniformly from the prior distribution.
+            If this is `None` (default), this will default to npdim.
 
-    """
+        Returns
+        -------
+        sampler : sampler from :mod:`~dynesty.nestedsamplers`
+            An initialized instance of the chosen sampler specified via `bound`.
 
-    # Prior dimensions.
-    if npdim is None:
-        npdim = ndim
-    if ncdim is None:
-        ncdim = npdim
+        """
 
-    # Bounding method.
-    if bound not in _SAMPLERS:
-        raise ValueError("Unknown bounding method: '{0}'".format(bound))
+        # Prior dimensions.
+        if npdim is None:
+            npdim = ndim
+        if ncdim is None:
+            ncdim = npdim
 
-    # Sampling method.
-    if sample == 'auto':
-        sample = _get_auto_sample(ndim, gradient)
+        # Bounding method.
+        if bound not in _SAMPLERS:
+            raise ValueError("Unknown bounding method: '{0}'".format(bound))
 
-    walks, slices = _get_walks_slices(walks, slices, sample, ndim)
+        # Sampling method.
+        if sample == 'auto':
+            sample = _get_auto_sample(ndim, gradient)
 
-    if ncdim != npdim and sample in ['slice', 'hslice', 'rslice']:
-        raise ValueError('ncdim unsupported for slice sampling')
+        walks, slices = _get_walks_slices(walks, slices, sample, ndim)
 
-    # Custom sampling function.
-    if sample not in _SAMPLING and not callable(sample):
-        raise ValueError("Unknown sampling method: '{0}'".format(sample))
+        if ncdim != npdim and sample in ['slice', 'hslice', 'rslice']:
+            raise ValueError('ncdim unsupported for slice sampling')
 
-    kwargs = {}
-    # Custom updating function.
-    if update_func is not None and not callable(update_func):
-        raise ValueError("Unknown update function: '{0}'".format(update_func))
-    kwargs['update_func'] = update_func
+        # Custom sampling function.
+        if sample not in _SAMPLING and not callable(sample):
+            raise ValueError("Unknown sampling method: '{0}'".format(sample))
 
-    # Citation generator.
-    kwargs['cite'] = _get_citations('static', bound, sample)
+        kwargs = {}
+        # Custom updating function.
+        if update_func is not None and not callable(update_func):
+            raise ValueError(
+                "Unknown update function: '{0}'".format(update_func))
+        kwargs['update_func'] = update_func
 
-    # Dimensional warning check.
-    if nlive <= 2 * ndim:
-        warnings.warn("Beware! Having `nlive <= 2 * ndim` is extremely risky!")
+        # Citation generator.
+        kwargs['cite'] = _get_citations('static', bound, sample)
 
-    nonbounded = get_nonbounded(npdim, periodic, reflective)
-    kwargs['nonbounded'] = nonbounded
-    kwargs['periodic'] = periodic
-    kwargs['reflective'] = reflective
+        # Dimensional warning check.
+        if nlive <= 2 * ndim:
+            warnings.warn(
+                "Beware! Having `nlive <= 2 * ndim` is extremely risky!")
 
-    # Keyword arguments controlling the first update.
-    if first_update is None:
-        first_update = {}
+        nonbounded = get_nonbounded(npdim, periodic, reflective)
+        kwargs['nonbounded'] = nonbounded
+        kwargs['periodic'] = periodic
+        kwargs['reflective'] = reflective
 
-    # Random state.
-    if rstate is None:
-        rstate = get_random_generator()
+        # Keyword arguments controlling the first update.
+        if first_update is None:
+            first_update = {}
 
-    # Log-likelihood.
-    if logl_args is None:
-        logl_args = []
-    if logl_kwargs is None:
-        logl_kwargs = {}
+        # Random state.
+        if rstate is None:
+            rstate = get_random_generator()
 
-    # Prior transform.
-    if ptform_args is None:
-        ptform_args = []
-    if ptform_kwargs is None:
-        ptform_kwargs = {}
+        # Log-likelihood.
+        if logl_args is None:
+            logl_args = []
+        if logl_kwargs is None:
+            logl_kwargs = {}
 
-    # gradient
-    if grad_args is None:
-        grad_args = []
-    if grad_kwargs is None:
-        grad_kwargs = {}
+        # Prior transform.
+        if ptform_args is None:
+            ptform_args = []
+        if ptform_kwargs is None:
+            ptform_kwargs = {}
 
-    # Bounding distribution modifications.
-    enlarge, bootstrap = get_enlarge_bootstrap(sample, enlarge, bootstrap)
-    kwargs['enlarge'] = enlarge
-    kwargs['bootstrap'] = bootstrap
+        # gradient
+        if grad_args is None:
+            grad_args = []
+        if grad_kwargs is None:
+            grad_kwargs = {}
 
-    # Sampling.
-    if walks is not None:
-        kwargs['walks'] = walks
-    if facc is not None:
-        kwargs['facc'] = facc
-    if slices is not None:
-        kwargs['slices'] = slices
-    if fmove is not None:
-        kwargs['fmove'] = fmove
-    if max_move is not None:
-        kwargs['max_move'] = max_move
+        # Bounding distribution modifications.
+        enlarge, bootstrap = get_enlarge_bootstrap(sample, enlarge, bootstrap)
+        kwargs['enlarge'] = enlarge
+        kwargs['bootstrap'] = bootstrap
 
-    update_interval_ratio = _get_update_interval_ratio(update_interval, sample,
-                                                       bound, ndim, nlive,
-                                                       slices, walks)
-    update_interval = int(
-        max(min(np.round(update_interval_ratio * nlive), sys.maxsize), 1))
+        # Sampling.
+        if walks is not None:
+            kwargs['walks'] = walks
+        if facc is not None:
+            kwargs['facc'] = facc
+        if slices is not None:
+            kwargs['slices'] = slices
+        if fmove is not None:
+            kwargs['fmove'] = fmove
+        if max_move is not None:
+            kwargs['max_move'] = max_move
 
-    # Set up parallel (or serial) evaluation.
-    M, queue_size = _parse_pool_queue(pool, queue_size)
-    if use_pool is None:
-        use_pool = {}
+        update_interval_ratio = _get_update_interval_ratio(
+            update_interval, sample, bound, ndim, nlive, slices, walks)
+        update_interval = int(
+            max(min(np.round(update_interval_ratio * nlive), sys.maxsize), 1))
 
-    # Wrap functions.
-    ptform = _function_wrapper(prior_transform,
-                               ptform_args,
-                               ptform_kwargs,
-                               name='prior_transform')
-    if use_pool.get('loglikelihood', True):
-        pool_logl = pool
-    else:
-        pool_logl = None
-    loglike = LogLikelihood(_function_wrapper(loglikelihood,
-                                              logl_args,
-                                              logl_kwargs,
-                                              name='loglikelihood'),
-                            ndim,
-                            save=save_history,
-                            history_filename=history_filename
-                            or 'dynesty_logl_history.h5',
-                            pool=pool_logl)
+        # Set up parallel (or serial) evaluation.
+        M, queue_size = _parse_pool_queue(pool, queue_size)
+        if use_pool is None:
+            use_pool = {}
 
-    # Add in gradient.
-    if gradient is not None:
-        grad = _function_wrapper(gradient,
-                                 grad_args,
-                                 grad_kwargs,
-                                 name='gradient')
-        kwargs['grad'] = grad
-        kwargs['compute_jac'] = compute_jac
+        # Wrap functions.
+        ptform = _function_wrapper(prior_transform,
+                                   ptform_args,
+                                   ptform_kwargs,
+                                   name='prior_transform')
+        if use_pool.get('loglikelihood', True):
+            pool_logl = pool
+        else:
+            pool_logl = None
+        loglike = LogLikelihood(_function_wrapper(loglikelihood,
+                                                  logl_args,
+                                                  logl_kwargs,
+                                                  name='loglikelihood'),
+                                ndim,
+                                save=save_history,
+                                history_filename=history_filename
+                                or 'dynesty_logl_history.h5',
+                                pool=pool_logl)
 
-    live_points = initialize_live_points(live_points,
-                                         ptform,
-                                         loglike,
-                                         M,
-                                         nlive=nlive,
-                                         npdim=npdim,
-                                         rstate=rstate,
-                                         use_pool_ptform=use_pool.get(
-                                             'prior_transform', True))
+        # Add in gradient.
+        if gradient is not None:
+            grad = _function_wrapper(gradient,
+                                     grad_args,
+                                     grad_kwargs,
+                                     name='gradient')
+            kwargs['grad'] = grad
+            kwargs['compute_jac'] = compute_jac
 
-    # Initialize our nested sampler.
-    sampler = _SAMPLERS[bound](loglike,
-                               ptform,
-                               npdim,
-                               live_points,
-                               sample,
-                               update_interval,
-                               first_update,
-                               rstate,
-                               queue_size,
-                               pool,
-                               use_pool,
-                               kwargs,
-                               ncdim=ncdim)
+        live_points = initialize_live_points(live_points,
+                                             ptform,
+                                             loglike,
+                                             M,
+                                             nlive=nlive,
+                                             npdim=npdim,
+                                             rstate=rstate,
+                                             use_pool_ptform=use_pool.get(
+                                                 'prior_transform', True))
 
-    return sampler
+        # Initialize our nested sampler.
+        sampler = super().__new__(_SAMPLERS[bound])
+        sampler.__init__(loglike,
+                         ptform,
+                         npdim,
+                         live_points,
+                         sample,
+                         update_interval,
+                         first_update,
+                         rstate,
+                         queue_size,
+                         pool,
+                         use_pool,
+                         kwargs,
+                         ncdim=ncdim)
+
+        return sampler
 
 
 class DynamicNestedSampler(DynamicSampler):

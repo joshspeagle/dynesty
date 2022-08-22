@@ -26,7 +26,8 @@ Includes:
 import math
 import copy
 import numpy as np
-
+import pickle
+import os
 from .sampler import Sampler
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
                        SupFriends, rand_choice)
@@ -243,6 +244,25 @@ class SuperSampler(Sampler):
 
         if callable(self.custom_update):
             self.scale = self.custom_update(blob, self.scale, update=update)
+
+    def save(self, fname):
+        from . import __version__ as DYNESTY_VERSION
+        D = {'sampler': self, 'version': DYNESTY_VERSION}
+        with open(fname + '.tmp', 'wb') as fp:
+            pickle.dump(D, fp)
+        os.rename(fname + '.tmp', fname)
+
+    def restore(fname, pool=None):
+        with open(fname, 'rb') as fp:
+            res = pickle.load(fp)
+        sampler = res['sampler']
+        if pool is not None:
+            sampler.M = pool
+            sampler.pool = pool
+        else:
+            sampler.loglikelihood.pool = None
+            sampler.pool = None
+        return sampler
 
 
 class UnitCubeSampler(SuperSampler):

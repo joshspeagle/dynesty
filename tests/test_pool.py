@@ -72,6 +72,24 @@ def test_pool_dynamic():
                 5. * sampler.results.logzerr[-1])
 
 
+@pytest.mark.parametrize('sample', ['slice', 'rwalk', 'rslice'])
+def test_pool_samplers(sample):
+    # this is to test how the samplers are dealing with queue_size>1
+    rstate = get_rstate()
+    with mp.Pool(2) as pool:
+        sampler = dynesty.NestedSampler(loglike_gau,
+                                        prior_transform_gau,
+                                        ndim,
+                                        nlive=nlive,
+                                        sample=sample,
+                                        pool=pool,
+                                        queue_size=10,
+                                        rstate=rstate)
+        sampler.run_nested(print_progress=printing)
+        assert (abs(LOGZ_TRUTH_GAU - sampler.results.logz[-1]) <
+                5. * sampler.results.logzerr[-1])
+
+
 POOL_KW = ['prior_transform', 'loglikelihood', 'propose_point', 'update_bound']
 
 

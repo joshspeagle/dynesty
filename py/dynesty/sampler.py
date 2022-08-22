@@ -510,7 +510,8 @@ class Sampler:
                n_effective=np.inf,
                add_live=True,
                save_bounds=True,
-               save_samples=True):
+               save_samples=True,
+               resume=False):
         """
         **The main nested sampling loop.** Iteratively replace the worst live
         point with a sample drawn uniformly from the prior until the
@@ -809,7 +810,9 @@ class Sampler:
                    add_live=True,
                    print_progress=True,
                    print_func=None,
-                   save_bounds=True):
+                   save_bounds=True,
+                   checkpoint_file=None,
+                   resume=False):
         """
         **A wrapper that executes the main nested sampling loop.**
         Iteratively replace the worst live point with a sample drawn
@@ -905,6 +908,8 @@ class Sampler:
                                ncall,
                                dlogz=dlogz,
                                logl_max=logl_max)
+                if checkpoint_file is not None:
+                    self.save(checkpoint_file)
 
             # Add remaining live points to samples.
             if add_live:
@@ -929,6 +934,8 @@ class Sampler:
             self.saved_run.D['logz'] = new_logz.tolist()
             self.saved_run.D['logzvar'] = new_logzvar.tolist()
             self.saved_run.D['h'] = new_h.tolist()
+            if checkpoint_file is not None:
+                self.save(checkpoint_file)
 
         finally:
             if pbar is not None:

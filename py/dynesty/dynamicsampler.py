@@ -51,6 +51,7 @@ class DynamicSamplerStatesEnum:
     BASE_DONE = 4  # during base runs
     INBATCH = 5  # after at least one batch
     BATCH_DONE = 6  # after at least one batch
+    INBASEADDLIVE = 7  # during addition of livepoints in the end of the run
 
 
 def compute_weights(results):
@@ -926,7 +927,7 @@ class DynamicSampler:
                                      bounditer=results.bounditer,
                                      eff=self.eff,
                                      delta_logz=results.delta_logz)
-
+            self.internal_state = DynamicSamplerStatesEnum.INBASEADDLIVE
             for it, results in enumerate(self.sampler.add_live_points()):
                 # Grab results.
 
@@ -1312,7 +1313,6 @@ class DynamicSampler:
             # live points *as if* we had terminated the run. This allows us to
             # sample past the original bounds "for free".
         else:
-            print('here')
             batch_sampler = self.batch_sampler
             logl_min, logl_max = self.new_logl_min, self.new_logl_max
             live_nc = np.zeros(nlive_new, dtype='int')
@@ -1737,7 +1737,8 @@ class DynamicSampler:
                     ncall += results.nc
                     niter += 1
 
-                    if checkpoint_file is not None:
+                    if (checkpoint_file is not None and self.internal_state !=
+                            DynamicSamplerStatesEnum.INBASEADDLIVE):
                         self.save(checkpoint_file)
                     # Print progress.
                     if print_progress:

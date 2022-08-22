@@ -726,7 +726,8 @@ def compute_integrals(logl=None, logvol=None, reweight=None):
     # = LV_{i+1} - (LV_{i+1} -LV_i) + log(1-exp(LV_{i+1}-LV{i}))
     dlogvol = np.diff(logvol, prepend=0)
     logdvol = logvol - dlogvol + np.log1p(-np.exp(dlogvol))
-
+    if not np.isfinite(logdvol.sum()):
+        1 / 0
     # logdvol is log(delta(volumes)) i.e. log (X_i-X_{i-1})
     logdvol2 = logdvol + math.log(0.5)
     # These are log(1/2(X_(i+1)-X_i))

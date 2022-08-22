@@ -46,7 +46,7 @@ def fit_resume(pid):
     os
 
 
-@pytest.mark.parametrize("delay", [5, 15])
+@pytest.mark.parametrize("delay", [1, 5, 10, 15])
 def test_resume(delay):
     pp = mp.Process(target=fit)
     pp.start()

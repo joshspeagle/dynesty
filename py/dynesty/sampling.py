@@ -286,7 +286,7 @@ def propose_ball_point(u,
 
     # draw random point for non clustering parameters
     # we only need to generate them once
-    u_non_cluster = rstate.uniform(0, 1, n - n_cluster)
+    u_non_cluster = rstate.random(n - n_cluster)
     u_prop = np.zeros(n)
     u_prop[n_cluster:] = u_non_cluster
 
@@ -313,8 +313,45 @@ def propose_ball_point(u,
         return None, True
 
 
+def _slice_doubling_accept(x1, F, loglstar, L, R, fL, fR):
+    """
+    Acceptance test of slice sampling when doubling mode is used.
+    This is an exact implementation of algorithm 6 of Neal 2003
+    here w=1 and x0=0 as we are working in the
+    coordinate system of F(A) = f(x0+A*w)
+
+    Arguments are
+    1) candidate location x1
+    2) wrapped logl function (see generic_slice_step)
+    3) threshold logl value
+    4) left edge of the full interval
+    5) right edge of the full interval
+    6) value at left edge
+    7) value at right edge
+    """
+    lhat, rhat = L, R
+    f_lhat = fL
+    f_rhat = fR
+    D = False
+    while rhat - lhat > 1.1:
+        # Define slice and window.
+        M = (lhat + rhat) / 2.
+        # Propose new position.
+        if (0 < M <= x1) or (x1 < M <= 0):
+            D = True
+        if x1 < M:
+            rhat = M
+            f_rhat = F(rhat)[1]
+        else:
+            lhat = M
+            f_lhat = F(lhat)[1]
+        if D and loglstar >= f_lhat and loglstar >= f_rhat:
+            return False
+    return True
+
+
 def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
-                       prior_transform, rstate):
+                       prior_transform, doubling, rstate):
     """
     Do a slice generic slice sampling step along a specified dimension
 
@@ -333,9 +370,9 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
     rstate: random state
     """
     nc, nexpand, ncontract = 0, 0, 0
-    nexpand_threshold = 10000  # Threshold for warning the user
+    nexpand_threshold = 1000  # Threshold for warning the user
     n = len(u)
-    rand0 = rstate.uniform()  # initial scale/offset
+    rand0 = rstate.random()  # initial scale/offset
     dirlen = linalg.norm(direction)
     maxlen = np.sqrt(n) / 2.
     # maximum initial interval length (the diagonal of the cube)
@@ -364,21 +401,42 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
 
     logl_l = F(nstep_l)[1]
     logl_r = F(nstep_r)[1]
+    expansion_warning = False
+    if not doubling:
+        # "Stepping out" the left and right bounds.
+        while logl_l > loglstar:
+            nstep_l -= 1
+            logl_l = F(nstep_l)[1]
+            nexpand += 1
+        while logl_r > loglstar:
+            nstep_r += 1
+            logl_r = F(nstep_r)[1]
+            nexpand += 1
+        if nexpand > nexpand_threshold:
+            expansion_warning = True
+            warnings.warn(
+                str.format(
+                    'The slice sample interval was expanded more '
+                    'than {0} times', nexpand_threshold))
 
-    # "Stepping out" the left and right bounds.
-    while logl_l > loglstar:
-        nstep_l -= 1
-        logl_l = F(nstep_l)[1]
-        nexpand += 1
-    while logl_r > loglstar:
-        nstep_r += 1
-        logl_r = F(nstep_r)[1]
-        nexpand += 1
-    if nexpand > nexpand_threshold:
-        warnings.warn(
-            str.format(
-                'The slice sample interval was expanded more than {0} times',
-                nexpand_threshold))
+    else:
+        # "Stepping out" the left and right bounds.
+        K = 1
+        while (logl_l > loglstar or logl_r > loglstar):
+            V = rstate.random()
+            if V < 0.5:
+                nstep_l -= (nstep_r - nstep_l)
+                logl_l = F(nstep_l)[1]
+            else:
+                nstep_r += (nstep_r - nstep_l)
+                logl_r = F(nstep_r)[1]
+            nexpand += K
+            K *= 2
+        L = nstep_l
+        R = nstep_r
+        fL = logl_l
+        fR = logl_r
+
     # Sample within limits. If the sample is not valid, shrink
     # the limits until we hit the `loglstar` bound.
 
@@ -387,12 +445,15 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
         nstep_hat = nstep_r - nstep_l
 
         # Propose new position.
-        nstep_prop = nstep_l + rstate.uniform() * nstep_hat  # scale from left
+        nstep_prop = nstep_l + rstate.random() * nstep_hat  # scale from left
         u_prop, logl_prop = F(nstep_prop)
         ncontract += 1
 
         # If we succeed, move to the new position.
-        if logl_prop > loglstar:
+        # note that if we are using doubling mode we accept only
+        # if _slice_doubling_accept() returns True
+        if logl_prop > loglstar and (not doubling or _slice_doubling_accept(
+                nstep_prop, F, loglstar, L, R, fL, fR)):
             break
         # If we fail, check if the new point is to the left/right of
         # our original point along our proposal axis and update
@@ -418,7 +479,7 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
                                        u, nstep_l, nstep_r, nstep_hat, u_prop,
                                        loglstar, logl_prop, direction))
     v_prop = prior_transform(u_prop)
-    return u_prop, v_prop, logl_prop, nc, nexpand, ncontract
+    return u_prop, v_prop, logl_prop, nc, nexpand, ncontract, expansion_warning
 
 
 def sample_slice(args):
@@ -480,7 +541,7 @@ def sample_slice(args):
     rstate = get_random_generator(rseed)
     # Periodicity.
     nonperiodic = kwargs.get('nonperiodic', None)
-
+    doubling = kwargs.get('slice_doubling', False)
     # Setup.
     n = len(u)
     assert axes.shape[0] == n
@@ -491,7 +552,7 @@ def sample_slice(args):
 
     # Modifying axes and computing lengths.
     axes = scale * axes.T  # scale based on past tuning
-
+    expansion_warning_set = False
     # Slice sampling loop.
     for it in range(slices):
 
@@ -504,16 +565,27 @@ def sample_slice(args):
 
             # Select axis.
             axis = axes[idx]
-            (u_prop, v_prop, logl_prop, nc1, nexpand1,
-             ncontract1) = generic_slice_step(u, axis, nonperiodic, loglstar,
-                                              loglikelihood, prior_transform,
-                                              rstate)
+            (u_prop, v_prop, logl_prop, nc1, nexpand1, ncontract1,
+             expansion_warning) = generic_slice_step(u, axis, nonperiodic,
+                                                     loglstar, loglikelihood,
+                                                     prior_transform, doubling,
+                                                     rstate)
             u = u_prop
             nc += nc1
             nexpand += nexpand1
             ncontract += ncontract1
-
-    blob = {'nexpand': nexpand, 'ncontract': ncontract}
+            if expansion_warning and not doubling:
+                # if we expanded the interval by more than
+                # the threshold we set the warning and enable doubling
+                expansion_warning_set = True
+                doubling = True
+                warnings.warn('Enabling doubling strategy of slice '
+                              'sampling from Neal(2003)')
+    blob = {
+        'nexpand': nexpand,
+        'ncontract': ncontract,
+        'expansion_warning_set': expansion_warning_set
+    }
 
     return u_prop, v_prop, logl_prop, nc, blob
 
@@ -575,6 +647,7 @@ def sample_rslice(args):
     rstate = get_random_generator(rseed)
     # Periodicity.
     nonperiodic = kwargs.get('nonperiodic', None)
+    doubling = kwargs.get('slice_doubling', False)
 
     # Setup.
     n = len(u)
@@ -583,6 +656,7 @@ def sample_rslice(args):
     nc = 0
     nexpand = 0
     ncontract = 0
+    expansion_warning_set = False
 
     # Slice sampling loop.
     for it in range(slices):
@@ -594,16 +668,26 @@ def sample_rslice(args):
         # Transform and scale based on past tuning.
         direction = np.dot(axes, drhat) * scale
 
-        (u_prop, v_prop, logl_prop, nc1, nexpand1,
-         ncontract1) = generic_slice_step(u, direction, nonperiodic, loglstar,
-                                          loglikelihood, prior_transform,
-                                          rstate)
+        (u_prop, v_prop, logl_prop, nc1, nexpand1, ncontract1,
+         expansion_warning) = generic_slice_step(u, direction, nonperiodic,
+                                                 loglstar, loglikelihood,
+                                                 prior_transform, doubling,
+                                                 rstate)
         u = u_prop
         nc += nc1
         nexpand += nexpand1
         ncontract += ncontract1
+        if expansion_warning and not doubling:
+            doubling = True
+            expansion_warning_set = True
+            warnings.warn('Enabling doubling strategy of slice '
+                          'sampling from Neal(2003)')
 
-    blob = {'nexpand': nexpand, 'ncontract': ncontract}
+    blob = {
+        'nexpand': nexpand,
+        'ncontract': ncontract,
+        'expansion_warning_set': expansion_warning_set
+    }
 
     return u_prop, v_prop, logl_prop, nc, blob
 
@@ -1015,7 +1099,7 @@ def sample_hslice(args):
             # Define chord.
             u_l, u_m, u_r = nodes_l[idx], nodes_m[idx], nodes_r[idx]
             u_hat = u_r - u_l
-            rprop = rstate.uniform()
+            rprop = rstate.random()
             u_prop = u_l + rprop * u_hat  # scale from left
             if unitcheck(u_prop, nonperiodic):
                 v_prop = prior_transform(np.asarray(u_prop))

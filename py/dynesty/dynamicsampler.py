@@ -586,9 +586,16 @@ class DynamicSampler:
         os.rename(fname + '.tmp', fname)
 
     def restore(fname, pool=None):
+        from . import __version__ as DYNESTY_VERSION
         with open(fname, 'rb') as fp:
             res = pickle.load(fp)
         sampler = res['sampler']
+        save_ver = res['version']
+        if save_ver != DYNESTY_VERSION:
+            warnings.warn(
+                f'The dynesty version in the checkpoint file ({save_ver})'
+                f'does not match the current dynesty version'
+                '({DYNESTY_VERSION}). That is *NOT* guaranteed to work')
         if pool is not None:
             sampler.M = pool
             sampler.pool = pool

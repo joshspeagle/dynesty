@@ -16,7 +16,7 @@ from .bounding import UnitCube
 from .sampling import sample_unif
 from .utils import (get_seed_sequence, get_print_func, progress_integration,
                     IteratorResult, RunRecord, get_neff_from_logwt,
-                    compute_integrals)
+                    compute_integrals, DelayTimer)
 
 __all__ = ["Sampler"]
 
@@ -812,6 +812,7 @@ class Sampler:
                    print_func=None,
                    save_bounds=True,
                    checkpoint_file=None,
+                   checkpoint_every=60,
                    resume=False):
         """
         **A wrapper that executes the main nested sampling loop.**
@@ -887,6 +888,7 @@ class Sampler:
 
         # Run the main nested sampling loop.
         pbar, print_func = get_print_func(print_func, print_progress)
+        timer = DelayTimer(checkpoint_every)
         try:
             ncall = self.ncall
             for it, results in enumerate(
@@ -908,7 +910,7 @@ class Sampler:
                                ncall,
                                dlogz=dlogz,
                                logl_max=logl_max)
-                if checkpoint_file is not None:
+                if checkpoint_file is not None and timer.is_time():
                     self.save(checkpoint_file)
 
             # Add remaining live points to samples.

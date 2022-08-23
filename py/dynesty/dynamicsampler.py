@@ -25,7 +25,8 @@ from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
 from .results import Results
 from .utils import (get_seed_sequence, get_print_func, _kld_error,
                     compute_integrals, IteratorResult, IteratorResultShort,
-                    get_enlarge_bootstrap, RunRecord, get_neff_from_logwt)
+                    get_enlarge_bootstrap, RunRecord, get_neff_from_logwt,
+                    DelayTimer)
 
 __all__ = [
     "DynamicSampler",
@@ -1541,7 +1542,8 @@ class DynamicSampler:
                    print_func=None,
                    live_points=None,
                    resume=False,
-                   checkpoint_file=None):
+                   checkpoint_file=None,
+                   checkpoint_every=60):
         """
         **The main dynamic nested sampling loop.** After an initial "baseline"
         run using a constant number of live points, dynamically allocates
@@ -1727,6 +1729,7 @@ class DynamicSampler:
 
         # Baseline run.
         pbar, print_func = get_print_func(print_func, print_progress)
+        timer = DelayTimer(checkpoint_every)
         try:
             if not self.base:
                 for results in self.sample_initial(
@@ -1745,7 +1748,8 @@ class DynamicSampler:
                     niter += 1
 
                     if (checkpoint_file is not None and self.internal_state !=
-                            DynamicSamplerStatesEnum.INBASEADDLIVE):
+                            DynamicSamplerStatesEnum.INBASEADDLIVE
+                            and timer.is_time()):
                         self.save(checkpoint_file)
                     # Print progress.
                     if print_progress:
@@ -1827,7 +1831,8 @@ class DynamicSampler:
                   print_func=None,
                   stop_val=None,
                   resume=False,
-                  checkpoint_file=None):
+                  checkpoint_file=None,
+                  checkpoint_every=60):
         """
         Allocate an additional batch of (nested) samples based on
         the combined set of previous samples using the specified
@@ -1928,6 +1933,8 @@ class DynamicSampler:
         # If we have either likelihood calls or iterations remaining,
         # add our new batch of live points.
         ncall, niter, n = self.ncall, self.it - 1, self.batch
+        if checkpoint_file is not None:
+            timer = DelayTimer(checkpoint_every)
         if maxcall > 0 and maxiter > 0:
             pbar, print_func = get_print_func(print_func, print_progress)
             try:
@@ -1942,7 +1949,7 @@ class DynamicSampler:
                                                      resume=resume):
                     if resume:
                         resume = False
-                    if checkpoint_file is not None:
+                    if checkpoint_file is not None and timer.is_time():
                         self.save(checkpoint_file)
                     if cur_results.worst >= 0:
                         ncall += cur_results.nc

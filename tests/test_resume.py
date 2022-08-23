@@ -30,7 +30,7 @@ def start_interrupter(pid, dt):
     return pp
 
 
-def fit(fname, dynamic):
+def fit(fname, dynamic, checkpoint_every=0.01):
     ndim = 2
     if dynamic:
         dns = dynesty.DynamicNestedSampler(like,
@@ -44,7 +44,8 @@ def fit(fname, dynamic):
                                     ndim,
                                     nlive=NLIVE,
                                     rstate=get_rstate())
-    dns.run_nested(checkpoint_file=fname)
+    dns.run_nested(checkpoint_file=fname,
+                   checkpoint_every=checkpoint_every)  # .2
     return dns
 
 
@@ -100,4 +101,20 @@ def test_resume(dynamic, delay):
     else:
         curres = res_static
     fit_resume(fname, dynamic, curres)
+    os.unlink(fname)
+
+
+@pytest.mark.parametrize("dynamic", [False, True])
+def test_save(dynamic):
+    pid = os.getpid()
+    fname = 'xx%d.pkl' % (pid)
+    fit(fname, dynamic, 1)
+
+    with mp.Pool(2) as pool:
+        if dynamic:
+            dns = dynesty.DynamicNestedSampler.restore(fname, pool=pool)
+        else:
+            dns = dynesty.NestedSampler.restore(fname, pool=pool)
+    del dns
+
     os.unlink(fname)

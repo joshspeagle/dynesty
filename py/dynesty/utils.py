@@ -9,6 +9,7 @@ import sys
 import warnings
 import math
 import copy
+import time
 from collections import namedtuple
 from functools import partial
 import numpy as np
@@ -210,6 +211,20 @@ class RunRecord:
         """
         for k in newD.keys():
             self.D[k].append(newD[k])
+
+
+class DelayTimer:
+
+    def __init__(self, dt):
+        self.dt = dt
+        self.last_time = time.time()
+
+    def is_time(self):
+        curt = time.time()
+        if curt - self.last_time > self.dt:
+            self.last_time = curt
+            return True
+        return False
 
 
 def get_enlarge_bootstrap(sample, enlarge, bootstrap):

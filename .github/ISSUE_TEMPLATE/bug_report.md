@@ -2,17 +2,23 @@
 name: Bug report
 about: Create a report to help us improve
 title: ''
-labels: ''
+labels: 'bug'
 assignees: ''
 
 ---
+
+** Dynesty version **
+Specify the exact version, and how you installed it (pip/git)
 
 **Describe the bug**
 [A clear and concise description of what the bug is.]
 
 **Setup**
-I am running version [insert version] from [source] with the following dynesty setup:
+I am runningthe following dynesty setup:
 [insert a copy of the dynesty code used during initialization and runtime] 
+
+** Dynesty output **
+Show (at least the last few lines of) dynesty output
 
 **Bug**
 I find [describe bug] which gives the following error:

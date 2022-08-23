@@ -214,12 +214,26 @@ class RunRecord:
 
 
 class DelayTimer:
+    """ Utility class that allows us to detect a certain
+    time has passed"""
 
     def __init__(self, dt):
+        """ Initialise the time with delay of dt seconds
+
+        Parameters
+        ----------
+
+        dt: float
+            The number of seconds in the timer
+        """
         self.dt = dt
         self.last_time = time.time()
 
     def is_time(self):
+        """
+        Returns true if more than self.dt seconds has passed
+        since the initialization or last call of is_time()
+        """
         curt = time.time()
         if curt - self.last_time > self.dt:
             self.last_time = curt
@@ -741,8 +755,6 @@ def compute_integrals(logl=None, logvol=None, reweight=None):
     # = LV_{i+1} - (LV_{i+1} -LV_i) + log(1-exp(LV_{i+1}-LV{i}))
     dlogvol = np.diff(logvol, prepend=0)
     logdvol = logvol - dlogvol + np.log1p(-np.exp(dlogvol))
-    if not np.isfinite(logdvol.sum()):
-        1 / 0
     # logdvol is log(delta(volumes)) i.e. log (X_i-X_{i-1})
     logdvol2 = logdvol + math.log(0.5)
     # These are log(1/2(X_(i+1)-X_i))

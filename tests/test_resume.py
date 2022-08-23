@@ -20,17 +20,22 @@ def ptform(x):
 
 
 def interrupter(pid, dt):
+    """ This is to kill a process after some time dt """
     time.sleep(dt)
     os.kill(pid, 9)
 
 
 def start_interrupter(pid, dt):
+    """ Start a killer process """
     pp = mp.Process(target=interrupter, args=(pid, dt))
     pp.start()
     return pp
 
 
 def fit(fname, dynamic, checkpoint_every=0.01):
+    """
+    Fit while checkpointing
+    """
     ndim = 2
     if dynamic:
         dns = dynesty.DynamicNestedSampler(like,
@@ -49,14 +54,19 @@ def fit(fname, dynamic, checkpoint_every=0.01):
     return dns
 
 
-def fit_resume(fname, dynamic, result0):
+def fit_resume(fname, dynamic, prev_logz):
+    """
+    Resume and finish the fit as well as compare the logz to 
+    previously computed logz
+    """
     if dynamic:
         dns = dynesty.DynamicNestedSampler.restore(fname)
     else:
         dns = dynesty.NestedSampler.restore(fname)
     print('resuming')
     dns.run_nested(resume=True)
-    assert np.abs(dns.results.logz[-1] - result0) < 1e-3
+    # verify that the logz value is *identical*
+    assert dns.results.logz[-1] == prev_logz
 
 
 class cache:
@@ -67,8 +77,8 @@ class cache:
 
 
 def getlogz():
-    # compute the time of static/dynamic runs as well
-    # logz value
+    """ Compute the execution time of static/dynamic runs as well
+    logz value """
     if cache.dt0 is None:
         t0 = time.time()
         result0 = fit(None, False).results.logz[-1]
@@ -84,6 +94,12 @@ def getlogz():
                          itertools.product([False, True], [.05, .5, .75, .95]))
 @pytest.mark.xdist_group(name="resume_group")
 def test_resume(dynamic, delay):
+    """
+    Test we can interrupt and resume nested runs
+    Note that I used xdist_group here in order to guarantee that if all the
+    tests are run in parallel, this one is executed in one thread because
+    I want to only use one getlogz() call.
+    """
     pid = os.getpid()
     fname = 'xx%d.pkl' % (pid)
     dt_static, dt_dynamic, res_static, res_dynamic = getlogz()
@@ -106,6 +122,12 @@ def test_resume(dynamic, delay):
 
 @pytest.mark.parametrize("dynamic", [False, True])
 def test_save(dynamic):
+    """
+    Here I test two things -- that I can actually save the 
+    files (in  the previous test the saving is done in a separate thread)
+    I also check that I can restore with the pool
+    # TODO check that it can actually work with the pool after restoration
+    """
     pid = os.getpid()
     fname = 'xx%d.pkl' % (pid)
     fit(fname, dynamic, 1)

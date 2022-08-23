@@ -14,6 +14,7 @@ def like(x):
 
 
 NLIVE = 300
+NEFF = 5000
 
 
 def get_fname():
@@ -68,6 +69,7 @@ def fit_main(fname, dynamic, checkpoint_every=0.01, npool=None):
                                                rstate=get_rstate(),
                                                pool=pool,
                                                queue_size=queue_size)
+            neff = NEFF
         else:
             dns = dynesty.NestedSampler(like,
                                         ptform,
@@ -76,10 +78,10 @@ def fit_main(fname, dynamic, checkpoint_every=0.01, npool=None):
                                         rstate=get_rstate(),
                                         pool=pool,
                                         queue_size=queue_size)
-
+            neff = None
         dns.run_nested(checkpoint_file=fname,
                        checkpoint_every=checkpoint_every,
-                       n_effective=1000)  # .2
+                       n_effective=neff)
     return dns
 
 
@@ -90,10 +92,12 @@ def fit_resume(fname, dynamic, prev_logz, pool=None):
     """
     if dynamic:
         dns = dynesty.DynamicNestedSampler.restore(fname, pool=pool)
+        neff = NEFF
     else:
         dns = dynesty.NestedSampler.restore(fname, pool=pool)
+        neff = None
     print('resuming')
-    dns.run_nested(resume=True)
+    dns.run_nested(resume=True, n_effective=neff)
     # verify that the logz value is *identical*
     if prev_logz is not None:
         assert dns.results.logz[-1] == prev_logz
@@ -112,9 +116,11 @@ def getlogz(save_every):
 
     if cache.dt0 is None:
         t0 = time.time()
+        print('caching')
         result0 = fit_main(None, False, save_every).results.logz[-1]
         t1 = time.time()
         result1 = fit_main(None, True, save_every).results.logz[-1]
+        print('done caching')
         t2 = time.time()
         (cache.dt0, cache.dt1, cache.res0, cache.res1) = (t1 - t0, t2 - t1,
                                                           result0, result1)

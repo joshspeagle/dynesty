@@ -10,6 +10,8 @@ import warnings
 import math
 import copy
 import time
+import pickle
+import os
 from collections import namedtuple
 from functools import partial
 import numpy as np
@@ -1665,3 +1667,40 @@ def old_stopping_function(results,
         return stop <= 1., (stop_post, stop_evid, stop)
     else:
         return stop <= 1.
+
+
+def restore_sampler(fname, pool=None):
+    from . import __version__ as DYNESTY_VERSION
+    with open(fname, 'rb') as fp:
+        res = pickle.load(fp)
+    sampler = res['sampler']
+    save_ver = res['version']
+    if save_ver != DYNESTY_VERSION:
+        warnings.warn(
+            f'The dynesty version in the checkpoint file ({save_ver})'
+            f'does not match the current dynesty version'
+            '({DYNESTY_VERSION}). That is *NOT* guaranteed to work')
+    if pool is not None:
+        sampler.M = pool
+        sampler.pool = pool
+    else:
+        sampler.loglikelihood.pool = None
+        sampler.pool = None
+    return sampler
+
+
+def save_sampler(sampler, fname):
+    """
+    Save the state of the dynamic sampler in a file
+
+    Parameters
+    ----------
+    fname: string
+        Filename of the save file.
+
+    """
+    from . import __version__ as DYNESTY_VERSION
+    D = {'sampler': sampler, 'version': DYNESTY_VERSION}
+    with open(fname + '.tmp', 'wb') as fp:
+        pickle.dump(D, fp)
+    os.rename(fname + '.tmp', fname)

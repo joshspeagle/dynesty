@@ -15,8 +15,6 @@ import sys
 import warnings
 import math
 import copy
-import os
-import pickle
 import numpy as np
 from scipy.special import logsumexp
 from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
@@ -26,7 +24,7 @@ from .results import Results
 from .utils import (get_seed_sequence, get_print_func, _kld_error,
                     compute_integrals, IteratorResult, IteratorResultShort,
                     get_enlarge_bootstrap, RunRecord, get_neff_from_logwt,
-                    DelayTimer)
+                    DelayTimer, save_sampler, restore_sampler)
 
 __all__ = [
     "DynamicSampler",
@@ -488,7 +486,6 @@ class DynamicSampler:
 
     kwargs : dict, optional
         A dictionary of additional parameters (described below).
-    
     """
 
     def __init__(self, loglikelihood, prior_transform, npdim, bound, method,
@@ -581,54 +578,34 @@ class DynamicSampler:
         return state
 
     def save(self, fname):
-        """ 
+        """
         Save the state of the dynamic sampler in a file
 
         Parameters
-        ----------   
+        ----------
         fname: string
             Filename of the save file.
 
         """
-        from . import __version__ as DYNESTY_VERSION
-        D = {'sampler': self, 'version': DYNESTY_VERSION}
-        with open(fname + '.tmp', 'wb') as fp:
-            pickle.dump(D, fp)
-        os.rename(fname + '.tmp', fname)
+        save_sampler(self, fname)
 
     def restore(fname, pool=None):
         """
-        Restore the dynamic sampler from a file. 
-        It is assumed that the file was created using .save() method 
-        of DynamicNestedSampler or as a result of checkpointing during 
+        Restore the dynamic sampler from a file.
+        It is assumed that the file was created using .save() method
+        of DynamicNestedSampler or as a result of checkpointing during
         run_nested()
 
         Parameters
-        ----------   
+        ----------
         fname: string
             Filename of the save file.
         pool: object(optional)
-            The multiprocessing pool-like object that supports map() 
+            The multiprocessing pool-like object that supports map()
             calls that will be used in the restored object.
 
         """
-        from . import __version__ as DYNESTY_VERSION
-        with open(fname, 'rb') as fp:
-            res = pickle.load(fp)
-        sampler = res['sampler']
-        save_ver = res['version']
-        if save_ver != DYNESTY_VERSION:
-            warnings.warn(
-                f'The dynesty version in the checkpoint file ({save_ver})'
-                f'does not match the current dynesty version'
-                '({DYNESTY_VERSION}). That is *NOT* guaranteed to work')
-        if pool is not None:
-            sampler.M = pool
-            sampler.pool = pool
-        else:
-            sampler.loglikelihood.pool = None
-            sampler.pool = None
-        return sampler
+        return restore_sampler(fname)
 
     def __get_update_interval(self, update_interval, nlive):
         if not isinstance(update_interval, int):
@@ -1151,7 +1128,8 @@ class DynamicSampler:
                 logl_min, logl_max = logl_bounds
             self.new_logl_min, self.new_logl_max = logl_min, logl_max
 
-            # Check whether the lower bound encompasses all previous saved samples.
+            # Check whether the lower bound encompasses all previous saved
+            # samples.
             psel = np.all(logl_min <= saved_logl)
             if psel:
                 # If the lower bound encompasses all saved samples, we want
@@ -1342,8 +1320,9 @@ class DynamicSampler:
             batch_sampler.added_live = False
 
             # Run the sampler internally as a generator until we hit
-            # the lower likelihood threshold. Afterwards, we add in our remaining
-            # live points *as if* we had terminated the run. This allows us to
+            # the lower likelihood threshold. Afterwards, we add in our
+            # remaining live points *as if* we had terminated the run.
+            # This allows us to
             # sample past the original bounds "for free".
         else:
             batch_sampler = self.batch_sampler
@@ -1700,10 +1679,10 @@ class DynamicSampler:
             If resume is set to true, we will try to resume a previously
             interrupted run
         checkpoint_file: string, optional
-            if not None The state of the sampler will be saved into this 
+            if not None The state of the sampler will be saved into this
             file every checkpoint_every seconds
         checkpoint_every: float, optional
-            The number of seconds between checkpoints that will save 
+            The number of seconds between checkpoints that will save
             the internal state of the sampler
         """
 
@@ -1935,10 +1914,10 @@ class DynamicSampler:
             If resume is set to true, we will try to resume a previously
             interrupted run
         checkpoint_file: string, optional
-            if not None The state of the sampler will be saved into this 
+            if not None The state of the sampler will be saved into this
             file every checkpoint_every seconds
         checkpoint_every: float, optional
-            The number of seconds between checkpoints that will save 
+            The number of seconds between checkpoints that will save
             the internal state of the sampler
         """
 

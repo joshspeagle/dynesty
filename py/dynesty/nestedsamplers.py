@@ -25,16 +25,14 @@ Includes:
 
 import math
 import copy
-import pickle
-import warnings
-import os
 import numpy as np
 from .sampler import Sampler
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
                        SupFriends, rand_choice)
 from .sampling import (sample_unif, sample_rwalk, sample_slice, sample_rslice,
                        sample_hslice)
-from .utils import unitcheck, get_enlarge_bootstrap
+from .utils import (unitcheck, get_enlarge_bootstrap, save_sampler,
+                    restore_sampler)
 
 __all__ = [
     "UnitCubeSampler", "SingleEllipsoidSampler", "MultiEllipsoidSampler",
@@ -247,30 +245,34 @@ class SuperSampler(Sampler):
             self.scale = self.custom_update(blob, self.scale, update=update)
 
     def save(self, fname):
-        from . import __version__ as DYNESTY_VERSION
-        D = {'sampler': self, 'version': DYNESTY_VERSION}
-        with open(fname + '.tmp', 'wb') as fp:
-            pickle.dump(D, fp)
-        os.rename(fname + '.tmp', fname)
+        """
+        Save the state of the dynamic sampler in a file
+
+        Parameters
+        ----------
+        fname: string
+            Filename of the save file.
+
+        """
+        save_sampler(self, fname)
 
     def restore(fname, pool=None):
-        from . import __version__ as DYNESTY_VERSION
-        with open(fname, 'rb') as fp:
-            res = pickle.load(fp)
-        sampler = res['sampler']
-        save_ver = res['version']
-        if save_ver != DYNESTY_VERSION:
-            warnings.warn(
-                f'The dynesty version in the checkpoint file ({save_ver})'
-                f'does not match the current dynesty version'
-                '({DYNESTY_VERSION}). That is *NOT* guaranteed to work')
-        if pool is not None:
-            sampler.M = pool
-            sampler.pool = pool
-        else:
-            sampler.loglikelihood.pool = None
-            sampler.pool = None
-        return sampler
+        """
+        Restore the dynamic sampler from a file.
+        It is assumed that the file was created using .save() method
+        of DynamicNestedSampler or as a result of checkpointing during
+        run_nested()
+
+        Parameters
+        ----------
+        fname: string
+            Filename of the save file.
+        pool: object(optional)
+            The multiprocessing pool-like object that supports map()
+            calls that will be used in the restored object.
+
+        """
+        return restore_sampler(fname)
 
 
 class UnitCubeSampler(SuperSampler):

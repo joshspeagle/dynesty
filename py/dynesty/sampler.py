@@ -362,7 +362,8 @@ class Sampler:
             bcheck = self._beyond_unit_bound(loglstar)
 
             if blob is not None and bcheck:
-                # If our queue is empty, update any tuning parameters associated
+                # If our queue is empty, update any tuning parameters
+                # associated
                 # with our proposal (sampling) method.
                 # If it's not empty we are just accumulating the
                 # the history of evaluations

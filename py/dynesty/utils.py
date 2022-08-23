@@ -234,7 +234,7 @@ class DelayTimer:
     def is_time(self):
         """
         Returns true if more than self.dt seconds has passed
-        since the initialization or last call of is_time()
+        since the initialization or last call of successful is_time()
         """
         curt = time.time()
         if curt - self.last_time > self.dt:
@@ -1701,6 +1701,13 @@ def save_sampler(sampler, fname):
     """
     from . import __version__ as DYNESTY_VERSION
     D = {'sampler': sampler, 'version': DYNESTY_VERSION}
-    with open(fname + '.tmp', 'wb') as fp:
-        pickle.dump(D, fp)
-    os.rename(fname + '.tmp', fname)
+    tmp_fname = fname + '.tmp'
+    try:
+        with open(tmp_fname, 'wb') as fp:
+            pickle.dump(D, fp)
+        os.rename(tmp_fname, fname)
+    except:  # noqa
+        try:
+            os.unlink(tmp_fname)
+        except:  # noqa
+            pass

@@ -6,6 +6,7 @@ import time
 import pytest
 from utils import get_rstate
 import itertools
+import multiprocessing as mp
 
 
 def like(x):
@@ -15,6 +16,13 @@ def like(x):
 NLIVE = 300
 
 
+def get_fname():
+    pid = os.getpid()
+    t = time.time()
+    fname = 'test_%d_%f.pkl' % (pid, t)
+    return fname
+
+
 def ptform(x):
     return 20 * x - 10
 
@@ -22,7 +30,7 @@ def ptform(x):
 def interrupter(pid, dt):
     """ This is to kill a process after some time dt """
     time.sleep(dt)
-    os.kill(pid, 9)
+    os.kill(pid, 2)  # SIGINT
 
 
 def start_interrupter(pid, dt):
@@ -32,37 +40,57 @@ def start_interrupter(pid, dt):
     return pp
 
 
-def fit(fname, dynamic, checkpoint_every=0.01):
+class NullContextManager(object):
+    # https://stackoverflow.com/questions/45187286/how-do-i-write-a-null-no-op-contextmanager-in-python
+    # this is to make it work for 3.6
+    def __init__(self, dummy_resource=None):
+        self.dummy_resource = dummy_resource
+
+    def __enter__(self):
+        return self.dummy_resource
+
+    def __exit__(self, *args):
+        pass
+
+
+def fit(fname, dynamic, checkpoint_every=0.01, npool=None):
     """
     Fit while checkpointing
     """
     ndim = 2
-    if dynamic:
-        dns = dynesty.DynamicNestedSampler(like,
-                                           ptform,
-                                           ndim,
-                                           nlive=NLIVE,
-                                           rstate=get_rstate())
-    else:
-        dns = dynesty.NestedSampler(like,
-                                    ptform,
-                                    ndim,
-                                    nlive=NLIVE,
-                                    rstate=get_rstate())
+    with (NullContextManager() if npool is None else mp.Pool(npool)) as pool:
+        queue_size = npool
+        if dynamic:
+            dns = dynesty.DynamicNestedSampler(like,
+                                               ptform,
+                                               ndim,
+                                               nlive=NLIVE,
+                                               rstate=get_rstate(),
+                                               pool=pool,
+                                               queue_size=queue_size)
+        else:
+            dns = dynesty.NestedSampler(like,
+                                        ptform,
+                                        ndim,
+                                        nlive=NLIVE,
+                                        rstate=get_rstate(),
+                                        pool=pool,
+                                        queue_size=queue_size)
+
     dns.run_nested(checkpoint_file=fname,
                    checkpoint_every=checkpoint_every)  # .2
     return dns
 
 
-def fit_resume(fname, dynamic, prev_logz):
+def fit_resume(fname, dynamic, prev_logz, pool=None):
     """
     Resume and finish the fit as well as compare the logz to 
     previously computed logz
     """
     if dynamic:
-        dns = dynesty.DynamicNestedSampler.restore(fname)
+        dns = dynesty.DynamicNestedSampler.restore(fname, pool=pool)
     else:
-        dns = dynesty.NestedSampler.restore(fname)
+        dns = dynesty.NestedSampler.restore(fname, pool=pool)
     print('resuming')
     dns.run_nested(resume=True)
     # verify that the logz value is *identical*
@@ -90,53 +118,55 @@ def getlogz():
     return cache.dt0, cache.dt1, cache.res0, cache.res1
 
 
-@pytest.mark.parametrize("dynamic,delay",
-                         itertools.product([False, True], [.05, .5, .75, .95]))
+@pytest.mark.parametrize("dynamic,delay_frac,with_pool",
+                         itertools.chain(
+                             itertools.product([False, True],
+                                               [.05, .5, .75, .95], [False]),
+                             itertools.product([False, True], [.5], [True])))
 @pytest.mark.xdist_group(name="resume_group")
-def test_resume(dynamic, delay):
+def test_resume(dynamic, delay_frac, with_pool):
     """
     Test we can interrupt and resume nested runs
     Note that I used xdist_group here in order to guarantee that if all the
     tests are run in parallel, this one is executed in one thread because
     I want to only use one getlogz() call.
     """
-    pid = os.getpid()
-    fname = 'xx%d.pkl' % (pid)
+    fname = get_fname()
     dt_static, dt_dynamic, res_static, res_dynamic = getlogz()
-    pp = mp.Process(target=fit, args=(fname, dynamic))
-    pp.start()
-    fit_pid = pp.pid
+    if with_pool:
+        npool = 2
+    else:
+        npool = None
     if dynamic:
         curdt = dt_dynamic
-    else:
-        curdt = dt_static
-    pp = start_interrupter(fit_pid, delay * curdt)
-    time.sleep(delay + 1)
-    if dynamic:
         curres = res_dynamic
     else:
+        curdt = dt_static
         curres = res_static
-    fit_resume(fname, dynamic, curres)
-    os.unlink(fname)
+    curdt *= delay_frac
+    try:
+        fit_proc = mp.Process(target=fit, args=(fname, dynamic, npool))
+        fit_proc.start()
+        fit_pid = fit_proc.pid
+        interrupt_proc = start_interrupter(fit_pid, curdt)
+        time.sleep(curdt + 1)
+        interrupt_proc.join()
+        fit_proc.join()
+        with (NullContextManager()
+              if npool is None else mp.Pool(npool)) as pool:
+            fit_resume(fname, dynamic, curres, pool=pool)
+    finally:
+        os.unlink(fname)
 
 
 @pytest.mark.parametrize("dynamic", [False, True])
 def test_save(dynamic):
     """
-    Here I test two things -- that I can actually save the 
+    Here I test that I can actually save the 
     files (in  the previous test the saving is done in a separate thread)
-    I also check that I can restore with the pool
-    # TODO check that it can actually work with the pool after restoration
     """
-    pid = os.getpid()
-    fname = 'xx%d.pkl' % (pid)
-    fit(fname, dynamic, 1)
-
-    with mp.Pool(2) as pool:
-        if dynamic:
-            dns = dynesty.DynamicNestedSampler.restore(fname, pool=pool)
-        else:
-            dns = dynesty.NestedSampler.restore(fname, pool=pool)
-    del dns
-
-    os.unlink(fname)
+    try:
+        fname = get_fname()
+        fit(fname, dynamic, 1)
+    finally:
+        os.unlink(fname)

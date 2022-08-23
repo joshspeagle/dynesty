@@ -938,6 +938,7 @@ class Sampler:
             self.saved_run.D['logzvar'] = new_logzvar.tolist()
             self.saved_run.D['h'] = new_h.tolist()
             if checkpoint_file is not None:
+                # I don't check the time timer here
                 self.save(checkpoint_file)
 
         finally:

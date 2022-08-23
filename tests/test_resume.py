@@ -176,7 +176,7 @@ def test_save(dynamic):
     """
     try:
         fname = get_fname()
-        fit(fname, dynamic, 1)
+        fit_main(fname, dynamic, 1)
     finally:
         try:
             os.unlink(fname)

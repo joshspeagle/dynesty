@@ -154,7 +154,9 @@ def test_resume(dynamic, delay_frac, with_pool):
         time.sleep(curdt + 1)
         interrupt_proc.join()
         fit_proc.join()
-        if npool is None:
+        if npool is not None:
+            # in the case of pooled run do not compare
+            # as I am comparing with single threaded version
             curres = None
         with (NullContextManager()
               if npool is None else mp.Pool(npool)) as pool:

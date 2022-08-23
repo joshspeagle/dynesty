@@ -77,8 +77,8 @@ def fit_main(fname, dynamic, checkpoint_every=0.01, npool=None):
                                         pool=pool,
                                         queue_size=queue_size)
 
-    dns.run_nested(checkpoint_file=fname,
-                   checkpoint_every=checkpoint_every)  # .2
+        dns.run_nested(checkpoint_file=fname,
+                       checkpoint_every=checkpoint_every)  # .2
     return dns
 
 
@@ -94,7 +94,8 @@ def fit_resume(fname, dynamic, prev_logz, pool=None):
     print('resuming')
     dns.run_nested(resume=True)
     # verify that the logz value is *identical*
-    assert dns.results.logz[-1] == prev_logz
+    if prev_logz is not None:
+        assert dns.results.logz[-1] == prev_logz
 
 
 class cache:
@@ -153,6 +154,8 @@ def test_resume(dynamic, delay_frac, with_pool):
         time.sleep(curdt + 1)
         interrupt_proc.join()
         fit_proc.join()
+        if npool is None:
+            curres = None
         with (NullContextManager()
               if npool is None else mp.Pool(npool)) as pool:
             fit_resume(fname, dynamic, curres, pool=pool)

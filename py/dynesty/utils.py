@@ -1681,11 +1681,13 @@ def restore_sampler(fname, pool=None):
             f'does not match the current dynesty version'
             '({DYNESTY_VERSION}). That is *NOT* guaranteed to work')
     if pool is not None:
-        sampler.M = pool
+        sampler.M = pool.map
         sampler.pool = pool
+        sampler.loglikelihood.pool = pool
     else:
         sampler.loglikelihood.pool = None
         sampler.pool = None
+        sampler.M = map
     return sampler
 
 

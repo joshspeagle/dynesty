@@ -49,10 +49,11 @@ class DynamicSamplerStatesEnum:
     INIT = 1  # after the constructor
     LIVEPOINTSINIT = 2  # after generating livepoints
     INBASE = 3  # during base runs
-    BASE_DONE = 4  # during base runs
+    BASE_DONE = 4  # base run done
     INBATCH = 5  # after at least one batch
     BATCH_DONE = 6  # after at least one batch
-    INBASEADDLIVE = 7  # during addition of livepoints in the end of the run
+    INBASEADDLIVE = 7  # during addition of livepoints in the
+    # end of the base run
 
 
 def compute_weights(results):
@@ -580,6 +581,15 @@ class DynamicSampler:
         return state
 
     def save(self, fname):
+        """ 
+        Save the state of the dynamic sampler in a file
+
+        Parameters
+        ----------   
+        fname: string
+            Filename of the save file.
+
+        """
         from . import __version__ as DYNESTY_VERSION
         D = {'sampler': self, 'version': DYNESTY_VERSION}
         with open(fname + '.tmp', 'wb') as fp:
@@ -587,6 +597,21 @@ class DynamicSampler:
         os.rename(fname + '.tmp', fname)
 
     def restore(fname, pool=None):
+        """
+        Restore the dynamic sampler from a file. 
+        It is assumed that the file was created using .save() method 
+        of DynamicNestedSampler or as a result of checkpointing during 
+        run_nested()
+
+        Parameters
+        ----------   
+        fname: string
+            Filename of the save file.
+        pool: object(optional)
+            The multiprocessing pool-like object that supports map() 
+            calls that will be used in the restored object.
+
+        """
         from . import __version__ as DYNESTY_VERSION
         with open(fname, 'rb') as fp:
             res = pickle.load(fp)
@@ -1671,7 +1696,15 @@ class DynamicSampler:
             **WARNING: It is crucial that the initial set of live points have
             been sampled from the prior. Failure to provide a set of valid
             live points will result in biased results.**
-
+        resume: bool, optional
+            If resume is set to true, we will try to resume a previously
+            interrupted run
+        checkpoint_file: string, optional
+            if not None The state of the sampler will be saved into this 
+            file every checkpoint_every seconds
+        checkpoint_every: float, optional
+            The number of seconds between checkpoints that will save 
+            the internal state of the sampler
         """
 
         # Check for deprecated options
@@ -1796,6 +1829,8 @@ class DynamicSampler:
                                               resume=resume,
                                               checkpoint_file=checkpoint_file)
                     if resume:
+                        # The assumption here is after the first resume
+                        # iteration we will proceed as normal
                         resume = False
                     ncall, niter, logl_bounds, results = passback
                 elif logl_bounds[1] != np.inf:
@@ -1896,20 +1931,23 @@ class DynamicSampler:
             The value of the stopping criteria to be passed to
             :meth:`print_func`. Used internally within :meth:`run_nested` to
             keep track of progress.
-
+        resume: bool, optional
+            If resume is set to true, we will try to resume a previously
+            interrupted run
+        checkpoint_file: string, optional
+            if not None The state of the sampler will be saved into this 
+            file every checkpoint_every seconds
+        checkpoint_every: float, optional
+            The number of seconds between checkpoints that will save 
+            the internal state of the sampler
         """
 
         # Initialize values.
-        if maxcall is None:
-            maxcall = sys.maxsize
-        if maxiter is None:
-            maxiter = sys.maxsize
-        if wt_function is None:
-            wt_function = weight_function
-        if wt_kwargs is None:
-            wt_kwargs = {}
-        if stop_val is None:
-            stop_val = np.nan
+        maxcall = maxcall or sys.maxsize
+        maxiter = maxiter or sys.maxsize
+        wt_function = wt_function or weight_function
+        wt_kwargs = wt_kwargs or {}
+        stop_val = stop_val or np.nan
 
         res = self.results
 
@@ -1948,9 +1986,9 @@ class DynamicSampler:
                                                      save_bounds=save_bounds,
                                                      resume=resume):
                     if resume:
+                        # only one resume iteration, after that
+                        # we switch to normal
                         resume = False
-                    if checkpoint_file is not None and timer.is_time():
-                        self.save(checkpoint_file)
                     if cur_results.worst >= 0:
                         ncall += cur_results.nc
                         niter += 1
@@ -1981,6 +2019,8 @@ class DynamicSampler:
                                    stop_val=stop_val,
                                    logl_min=logl_min,
                                    logl_max=logl_max)
+                    if checkpoint_file is not None and timer.is_time():
+                        self.save(checkpoint_file)
             finally:
                 if pbar is not None:
                     pbar.close()

@@ -889,7 +889,8 @@ class Sampler:
 
         # Run the main nested sampling loop.
         pbar, print_func = get_print_func(print_func, print_progress)
-        timer = DelayTimer(checkpoint_every)
+        if checkpoint_file is not None:
+            timer = DelayTimer(checkpoint_every)
         try:
             ncall = self.ncall
             for it, results in enumerate(
@@ -911,6 +912,7 @@ class Sampler:
                                ncall,
                                dlogz=dlogz,
                                logl_max=logl_max)
+
                 if checkpoint_file is not None and timer.is_time():
                     self.save(checkpoint_file)
 

@@ -53,7 +53,7 @@ class NullContextManager(object):
         pass
 
 
-def fit(fname, dynamic, checkpoint_every=0.01, npool=None):
+def fit_main(fname, dynamic, checkpoint_every=0.01, npool=None):
     """
     Fit while checkpointing
     """
@@ -109,9 +109,9 @@ def getlogz():
     logz value """
     if cache.dt0 is None:
         t0 = time.time()
-        result0 = fit(None, False).results.logz[-1]
+        result0 = fit_main(None, False).results.logz[-1]
         t1 = time.time()
-        result1 = fit(None, True).results.logz[-1]
+        result1 = fit_main(None, True).results.logz[-1]
         t2 = time.time()
         (cache.dt0, cache.dt1, cache.res0, cache.res1) = (t1 - t0, t2 - t1,
                                                           result0, result1)
@@ -121,7 +121,7 @@ def getlogz():
 @pytest.mark.parametrize("dynamic,delay_frac,with_pool",
                          itertools.chain(
                              itertools.product([False, True],
-                                               [.05, .5, .75, .95], [False]),
+                                               [.2, .5, .75, .9], [False]),
                              itertools.product([False, True], [.5], [True])))
 @pytest.mark.xdist_group(name="resume_group")
 def test_resume(dynamic, delay_frac, with_pool):
@@ -145,7 +145,8 @@ def test_resume(dynamic, delay_frac, with_pool):
         curres = res_static
     curdt *= delay_frac
     try:
-        fit_proc = mp.Process(target=fit, args=(fname, dynamic, npool))
+        fit_proc = mp.Process(target=fit_main,
+                              args=(fname, dynamic, 0.01, npool))
         fit_proc.start()
         fit_pid = fit_proc.pid
         interrupt_proc = start_interrupter(fit_pid, curdt)
@@ -156,7 +157,10 @@ def test_resume(dynamic, delay_frac, with_pool):
               if npool is None else mp.Pool(npool)) as pool:
             fit_resume(fname, dynamic, curres, pool=pool)
     finally:
-        os.unlink(fname)
+        try:
+            os.unlink(fname)
+        except:  # noqa
+            pass
 
 
 @pytest.mark.parametrize("dynamic", [False, True])
@@ -169,4 +173,7 @@ def test_save(dynamic):
         fname = get_fname()
         fit(fname, dynamic, 1)
     finally:
-        os.unlink(fname)
+        try:
+            os.unlink(fname)
+        except:  # noqa
+            pass

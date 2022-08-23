@@ -256,6 +256,7 @@ class SuperSampler(Sampler):
         """
         save_sampler(self, fname)
 
+    @staticmethod
     def restore(fname, pool=None):
         """
         Restore the dynamic sampler from a file.

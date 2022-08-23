@@ -605,7 +605,7 @@ class DynamicSampler:
             calls that will be used in the restored object.
 
         """
-        return restore_sampler(fname)
+        return restore_sampler(fname, pool=pool)
 
     def __get_update_interval(self, update_interval, nlive):
         if not isinstance(update_interval, int):

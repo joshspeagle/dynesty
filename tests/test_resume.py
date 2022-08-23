@@ -78,7 +78,8 @@ def fit_main(fname, dynamic, checkpoint_every=0.01, npool=None):
                                         queue_size=queue_size)
 
         dns.run_nested(checkpoint_file=fname,
-                       checkpoint_every=checkpoint_every)  # .2
+                       checkpoint_every=checkpoint_every,
+                       n_effective=1000)  # .2
     return dns
 
 
@@ -105,14 +106,15 @@ class cache:
     res1 = None
 
 
-def getlogz():
+def getlogz(save_every):
     """ Compute the execution time of static/dynamic runs as well
     logz value """
+
     if cache.dt0 is None:
         t0 = time.time()
-        result0 = fit_main(None, False).results.logz[-1]
+        result0 = fit_main(None, False, save_every).results.logz[-1]
         t1 = time.time()
-        result1 = fit_main(None, True).results.logz[-1]
+        result1 = fit_main(None, True, save_every).results.logz[-1]
         t2 = time.time()
         (cache.dt0, cache.dt1, cache.res0, cache.res1) = (t1 - t0, t2 - t1,
                                                           result0, result1)
@@ -122,7 +124,7 @@ def getlogz():
 @pytest.mark.parametrize("dynamic,delay_frac,with_pool",
                          itertools.chain(
                              itertools.product([False, True],
-                                               [.2, .5, .75, .9], [False]),
+                                               [.1, .5, .75, .9], [False]),
                              itertools.product([False, True], [.5], [True])))
 @pytest.mark.xdist_group(name="resume_group")
 def test_resume(dynamic, delay_frac, with_pool):
@@ -133,7 +135,8 @@ def test_resume(dynamic, delay_frac, with_pool):
     I want to only use one getlogz() call.
     """
     fname = get_fname()
-    dt_static, dt_dynamic, res_static, res_dynamic = getlogz()
+    save_every = 0.1
+    dt_static, dt_dynamic, res_static, res_dynamic = getlogz(save_every)
     if with_pool:
         npool = 2
     else:
@@ -147,7 +150,7 @@ def test_resume(dynamic, delay_frac, with_pool):
     curdt *= delay_frac
     try:
         fit_proc = mp.Process(target=fit_main,
-                              args=(fname, dynamic, 0.01, npool))
+                              args=(fname, dynamic, save_every, npool))
         fit_proc.start()
         fit_pid = fit_proc.pid
         interrupt_proc = start_interrupter(fit_pid, curdt)

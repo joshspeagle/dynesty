@@ -272,7 +272,7 @@ class SuperSampler(Sampler):
             calls that will be used in the restored object.
 
         """
-        return restore_sampler(fname)
+        return restore_sampler(fname, pool=pool)
 
 
 class UnitCubeSampler(SuperSampler):

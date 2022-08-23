@@ -1670,7 +1670,7 @@ def old_stopping_function(results,
 
 
 def restore_sampler(fname, pool=None):
-    from . import __version__ as DYNESTY_VERSION
+    from ._version import __version__ as DYNESTY_VERSION
     with open(fname, 'rb') as fp:
         res = pickle.load(fp)
     sampler = res['sampler']
@@ -1701,7 +1701,7 @@ def save_sampler(sampler, fname):
         Filename of the save file.
 
     """
-    from . import __version__ as DYNESTY_VERSION
+    from ._version import __version__ as DYNESTY_VERSION
     D = {'sampler': sampler, 'version': DYNESTY_VERSION}
     tmp_fname = fname + '.tmp'
     try:

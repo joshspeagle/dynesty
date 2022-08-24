@@ -235,6 +235,10 @@ class DelayTimer:
         """
         Returns true if more than self.dt seconds has passed
         since the initialization or last call of successful is_time()
+        
+        Returns
+        -------
+        bool
         """
         curt = time.time()
         if curt - self.last_time > self.dt:
@@ -338,12 +342,14 @@ def get_neff_from_logwt(logwt):
     Compute the number of effective samples from an array of unnormalized
     log-weights. We use Kish Effective Sample Size (ESS)  formula.
 
-    Parameters:
+    Parameters
+    ----------
     logwt: numpy array
         Array of unnormalized weights
 
-    Returns:
-    neff: int
+    Returns
+    -------
+    int
         The effective number of samples
     """
 
@@ -1670,6 +1676,25 @@ def old_stopping_function(results,
 
 
 def restore_sampler(fname, pool=None):
+    """
+    Restore the dynamic sampler from a file.
+    It is assumed that the file was created using .save() method
+    of DynamicNestedSampler or as a result of checkpointing during
+    run_nested()
+
+    Parameters
+    ----------
+    fname: string
+        Filename of the save file.
+    pool: object(optional)
+        The multiprocessing pool-like object that supports map()
+        calls that will be used in the restored object.
+
+    Returns
+    -------
+    Static or dynamic nested sampling object
+
+    """
     from ._version import __version__ as DYNESTY_VERSION
     with open(fname, 'rb') as fp:
         res = pickle.load(fp)
@@ -1697,6 +1722,8 @@ def save_sampler(sampler, fname):
 
     Parameters
     ----------
+    sampler: object
+        Dynamic or Static nested sampler
     fname: string
         Filename of the save file.
 

@@ -28,19 +28,6 @@ def ptform(x):
     return 20 * x - 10
 
 
-def interrupter(pid, dt):
-    """ This is to kill a process after some time dt """
-    time.sleep(dt)
-    os.kill(pid, 2)  # SIGINT
-
-
-def start_interrupter(pid, dt):
-    """ Start a killer process """
-    pp = mp.Process(target=interrupter, args=(pid, dt))
-    pp.start()
-    return pp
-
-
 class NullContextManager(object):
     # https://stackoverflow.com/questions/45187286/how-do-i-write-a-null-no-op-contextmanager-in-python
     # this is to make it work for 3.6
@@ -158,11 +145,8 @@ def test_resume(dynamic, delay_frac, with_pool):
         fit_proc = mp.Process(target=fit_main,
                               args=(fname, dynamic, save_every, npool))
         fit_proc.start()
-        fit_pid = fit_proc.pid
-        interrupt_proc = start_interrupter(fit_pid, curdt)
-        time.sleep(curdt + 1)
-        interrupt_proc.join()
-        fit_proc.join()
+        time.sleep(curdt)
+        fit_proc.terminate()
         if npool is not None:
             # in the case of pooled run do not compare
             # as I am comparing with single threaded version

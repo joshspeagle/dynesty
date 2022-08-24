@@ -1082,10 +1082,8 @@ class DynamicSampler:
         """
 
         # Initialize default values.
-        if maxcall is None:
-            maxcall = sys.maxsize
-        if maxiter is None:
-            maxiter = sys.maxsize
+        maxcall = maxcall or sys.maxsize
+        maxiter = maxiter or sys.maxsize
 
         maxiter_left = maxiter  # how many iterations we have left
         nlive_new = nlive_new or self.nlive0

@@ -1797,17 +1797,19 @@ class DynamicSampler:
                 if mcall > 0 and miter > 0 and not stop:
                     # Compute our sampling bounds using the provided
                     # weight function.
-                    passback = self.add_batch(nlive=nlive_batch,
-                                              wt_function=wt_function,
-                                              wt_kwargs=wt_kwargs,
-                                              maxiter=miter,
-                                              maxcall=mcall,
-                                              save_bounds=save_bounds,
-                                              print_progress=print_progress,
-                                              print_func=print_func,
-                                              stop_val=stop_val,
-                                              resume=resume,
-                                              checkpoint_file=checkpoint_file)
+                    passback = self.add_batch(
+                        nlive=nlive_batch,
+                        wt_function=wt_function,
+                        wt_kwargs=wt_kwargs,
+                        maxiter=miter,
+                        maxcall=mcall,
+                        save_bounds=save_bounds,
+                        print_progress=print_progress,
+                        print_func=print_func,
+                        stop_val=stop_val,
+                        resume=resume,
+                        checkpoint_file=checkpoint_file,
+                        checkpoint_every=checkpoint_every)
                     if resume:
                         # The assumption here is after the first resume
                         # iteration we will proceed as normal

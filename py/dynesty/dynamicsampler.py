@@ -1104,6 +1104,9 @@ class DynamicSampler:
         update_interval = self.__get_update_interval(update_interval,
                                                      nlive_new)
         if not resume:
+            first_points = []
+            # This will be a list of first points yielded from
+            # this batch before we start proper sampling
             batch_sampler = _SAMPLERS[self.bounding](self.loglikelihood,
                                                      self.prior_transform,
                                                      self.npdim,
@@ -1151,15 +1154,16 @@ class DynamicSampler:
                 self.ncall += nlive_new
                 # Return live points in generator format.
                 for i in range(nlive_new):
-                    yield IteratorResultShort(worst=-i - 1,
-                                              ustar=live_u[i],
-                                              vstar=live_v[i],
-                                              loglstar=live_logl[i],
-                                              nc=live_nc[i],
-                                              worst_it=live_it[i],
-                                              boundidx=0,
-                                              bounditer=0,
-                                              eff=self.eff)
+                    first_points.append(
+                        IteratorResultShort(worst=-i - 1,
+                                            ustar=live_u[i],
+                                            vstar=live_v[i],
+                                            loglstar=live_logl[i],
+                                            nc=live_nc[i],
+                                            worst_it=live_it[i],
+                                            boundidx=0,
+                                            bounditer=0,
+                                            eff=self.eff))
             else:
                 # If the lower bound doesn't encompass all base samples,
                 # we need to create a uniform sample from the prior subject
@@ -1266,15 +1270,16 @@ class DynamicSampler:
                     live_it[i] = self.it
                     self.ncall += live_nc[i]
                     # Return live points in generator format.
-                    yield IteratorResultShort(worst=-i - 1,
-                                              ustar=live_u[i],
-                                              vstar=live_v[i],
-                                              loglstar=live_logl[i],
-                                              nc=live_nc[i],
-                                              worst_it=live_it[i],
-                                              boundidx=live_bound[i],
-                                              bounditer=live_bound[i],
-                                              eff=self.eff)
+                    first_points.append(
+                        IteratorResultShort(worst=-i - 1,
+                                            ustar=live_u[i],
+                                            vstar=live_v[i],
+                                            loglstar=live_logl[i],
+                                            nc=live_nc[i],
+                                            worst_it=live_it[i],
+                                            boundidx=live_bound[i],
+                                            bounditer=live_bound[i],
+                                            eff=self.eff))
             maxiter_left -= nlive_new
             # Overwrite the previous set of live points in our internal sampler
             # with the new batch of points we just generated.
@@ -1325,11 +1330,17 @@ class DynamicSampler:
             # remaining live points *as if* we had terminated the run.
             # This allows us to
             # sample past the original bounds "for free".
+            batch_sampler.first_points = first_points
+            # We save these points in the object to ensure we can
+            # resume from an interrupted run
         else:
             batch_sampler = self.batch_sampler
             logl_min, logl_max = self.new_logl_min, self.new_logl_max
             live_nc = np.zeros(nlive_new, dtype='int')
+            first_points = batch_sampler.first_points
             # TODO FIX whether live_nc should be restored
+        for p in first_points:
+            yield p
 
         for i in range(1):
             iterated_batch = False
@@ -1759,7 +1770,6 @@ class DynamicSampler:
                         resume = False
                     ncall += results.nc
                     niter += 1
-
                     if (checkpoint_file is not None and self.internal_state !=
                             DynamicSamplerStatesEnum.INBASEADDLIVE
                             and timer.is_time()):
@@ -1941,7 +1951,6 @@ class DynamicSampler:
                 "logl_bounds need to be specified for manual mode")
         if mode == 'auto' or mode == 'weight':
             logl_bounds = wt_function(res, wt_kwargs)
-
         # this is just for printing
         if logl_bounds is None:
             logl_min, logl_max = -np.inf, np.inf

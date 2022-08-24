@@ -106,6 +106,7 @@ def getlogz(save_every):
         print('caching')
         result0 = fit_main(None, False, save_every).results.logz[-1]
         t1 = time.time()
+        print('static done')
         result1 = fit_main(None, True, save_every).results.logz[-1]
         print('done caching')
         t2 = time.time()

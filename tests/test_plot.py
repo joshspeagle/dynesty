@@ -76,7 +76,9 @@ def test_gaussian(dynamic, periodic, ndim, bound):
     results = sampler.results
     # check plots
     dyplot.runplot(results)
+    plt.close()
     dyplot.runplot(results, span=[(0., 10.), 0.001, 0.2, (5., 6.)])
+    plt.close()
     dyplot.runplot(results, logplot=True)
     dyplot.runplot(results,
                    fig=(plt.gcf(), plt.gcf().axes),
@@ -85,6 +87,7 @@ def test_gaussian(dynamic, periodic, ndim, bound):
     plt.close()
     dyplot.traceplot(results)
     dyplot.traceplot(results, smooth=[10] * ndim)
+    plt.close()
     dyplot.traceplot(results, connect=True)
     dyplot.traceplot(results,
                      fig=(plt.gcf(), plt.gcf().axes),
@@ -102,6 +105,7 @@ def test_gaussian(dynamic, periodic, ndim, bound):
         span[1] = .9
 
     dyplot.cornerplot(results, show_titles=True, truths=truths)
+    plt.close()
     dyplot.cornerplot(results,
                       smooth=10,
                       verbose=True,
@@ -128,6 +132,7 @@ def test_gaussian(dynamic, periodic, ndim, bound):
                          prior_transform=g.prior_transform,
                          show_live=True,
                          span=span)
+        plt.close()
         dyplot.boundplot(results, dims=(0, 1)[:min(ndim, 2)], it=1000)
         plt.close()
 

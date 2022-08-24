@@ -43,7 +43,7 @@ IteratorResult = namedtuple('IteratorResult', [
     'delta_logz'
 ])
 
-IteratorResultShort = namedtuple('IteratorResult', [
+IteratorResultShort = namedtuple('IteratorResultShort', [
     'worst', 'ustar', 'vstar', 'loglstar', 'nc', 'worst_it', 'boundidx',
     'bounditer', 'eff'
 ])
@@ -1740,3 +1740,4 @@ def save_sampler(sampler, fname):
             os.unlink(tmp_fname)
         except:  # noqa
             pass
+        raise

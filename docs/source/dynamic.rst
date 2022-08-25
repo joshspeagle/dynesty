@@ -339,7 +339,7 @@ using the :meth:`~dynesty.dynamicsampler.DynamicSampler.run_nested` function::
 
     dsampler.run_nested()
 
-or externally as a generator::
+or externally as a generator (not recommended)::
 
     from dynesty.dynamicsampler import stopping_function, weight_function
 
@@ -442,6 +442,39 @@ could be added to the previous set of samples using::
 
     dsampler.add_batch(nlive=250, maxiter=1000)
 
+Adding more batches
+-------------------
+
+To add more points to the posterior you should be using the :meth:`~dynesty.dynamicsampler.DynamicSampler.add_batch` function. This function has an important parameter that affects how those samples will be generated.
+
+    dsampler.add_batch(mode='auto')
+    dsampler.add_batch(mode='full')
+    dsampler.add_batch(mode='manual', logl_bounds=[-4,1])
+
+The default mode auto will use the weight function described previously to find the best log-likelihood interval to place a batch.
+The full mode will place add a batch that covers the full posterior, i.e. this is equivalent to adding another static nested run to what you have already.
+Finally the manual mode allows you to add a batch that covers a certain specific log-likelihood range.
+
+It is important to understand that there multiple reasons to add batches to a dynamic nested run. One is just to reduce the noise in the posterior/increase the number of effective posterior samples, but another reason is that if you have a very multi-modal problem and you are worried whether you fully sample all the modes, you can do a dynamic run and then keep adding batches till you are satisfied with the result.
+
+
+Checkpointing
+-------------
+
+Similarly to static nested sampler, the dynamic sampler supports periodic check-pointing into a file if you are sampling using run_nested() interface.
+    # initialize our sampler
+    sampler = DynamicNestedSampler(loglike, ptform, ndim, nlive=1000, pool=pool)
+    # run the sampler with checkpointing
+    sampler.run_nested(checkpoint_file='dynesty.save')
+
+And to restore 
+    # initialize the sampler
+    sampler = NestedSampler.restore('dynesty.save', pool =mypool)
+    # resume
+    sampler.run_nested(resume=True)
+
+
+    
 Dynamic vs Static
 -----------------
 

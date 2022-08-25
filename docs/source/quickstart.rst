@@ -524,7 +524,7 @@ to add new samples based on where they left off. This is as easy as::
 Checkpointing
 --------------
 
-While running the sampler using run_nested() interface it is possible to check-point (or save) the state of the sampler into a file at regular intervals. This file can then be used to restart/resume the sampling.
+While running the sampler using run_nested() interface it is possible to check-point (or save) the state of the sampler into a file at regular intervals. This file can then be used to restart/resume the sampling::
 
     # initialize our sampler
     sampler = NestedSampler(loglike, ptform, ndim, nlive=1000)
@@ -532,7 +532,7 @@ While running the sampler using run_nested() interface it is possible to check-p
     sampler.run_nested(checkpoint_file='dynesty.save')  
 
 
-You can then restore it now and resume sampling
+You can then restore it now and resume sampling::
 
     # restore our sampler
     sampler = NestedSampler.restore('dynesty.save')
@@ -540,7 +540,7 @@ You can then restore it now and resume sampling
     sampler.run_nested(resume=True)  
 
 
-If you used the pool in the sampler and you want to use the pool after restoring, you need to specify it when restoring
+If you used the pool in the sampler and you want to use the pool after restoring, you need to specify it when restoring::
 
     mypool = multiprocessing.Pool(6)
     # restore the sampler

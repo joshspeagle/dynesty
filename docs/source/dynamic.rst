@@ -445,7 +445,7 @@ could be added to the previous set of samples using::
 Adding more batches
 -------------------
 
-To add more points to the posterior you should be using the :meth:`~dynesty.dynamicsampler.DynamicSampler.add_batch` function. This function has an important parameter that affects how those samples will be generated.
+To add more points to the posterior you should be using the :meth:`~dynesty.dynamicsampler.DynamicSampler.add_batch` function. This function has an important parameter that affects how those samples will be generated::
 
     dsampler.add_batch(mode='auto')
     dsampler.add_batch(mode='full')
@@ -461,13 +461,15 @@ It is important to understand that there multiple reasons to add batches to a dy
 Checkpointing with the dynamic sampler
 --------------------------------------
 
-Similarly to static nested sampler, the dynamic sampler supports periodic check-pointing into a file if you are sampling using run_nested() interface.
+Similarly to static nested sampler, the dynamic sampler supports periodic check-pointing into a file if you are sampling using run_nested() interface::
+
     # initialize our sampler
     sampler = DynamicNestedSampler(loglike, ptform, ndim, nlive=1000, pool=pool)
     # run the sampler with checkpointing
     sampler.run_nested(checkpoint_file='dynesty.save')
 
-And to restore 
+And to restore::
+
     # initialize the sampler
     sampler = NestedSampler.restore('dynesty.save', pool =mypool)
     # resume

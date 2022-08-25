@@ -1700,6 +1700,10 @@ def restore_sampler(fname, pool=None):
         res = pickle.load(fp)
     sampler = res['sampler']
     save_ver = res['version']
+    dynesty_format_version = 1
+    file_format_version = res['format_version']
+    if file_format_version != dynesty_format_version:
+        raise RuntimeError('Incorrect format version')
     if save_ver != DYNESTY_VERSION:
         warnings.warn(
             f'The dynesty version in the checkpoint file ({save_ver})'
@@ -1729,7 +1733,14 @@ def save_sampler(sampler, fname):
 
     """
     from ._version import __version__ as DYNESTY_VERSION
-    D = {'sampler': sampler, 'version': DYNESTY_VERSION}
+    format_version = 1
+    # this is an internal version of the format we are
+    # using. Increase this if incompatible changes are being made
+    D = {
+        'sampler': sampler,
+        'version': DYNESTY_VERSION,
+        'format_version': format_version
+    }
     tmp_fname = fname + '.tmp'
     try:
         with open(tmp_fname, 'wb') as fp:

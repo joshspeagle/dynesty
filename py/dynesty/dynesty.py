@@ -216,6 +216,10 @@ def _parse_pool_queue(pool, queue_size):
 
 
 class NestedSampler(SuperSampler):
+    """
+    The main class performing the static nested sampling.
+    It inherits all the methods of the dynesty.sampler.SuperSampler.
+    """
 
     def __new__(cls,
                 loglikelihood,
@@ -259,17 +263,18 @@ class NestedSampler(SuperSampler):
         Parameters
         ----------
         loglikelihood : function
-            Function returning ln(likelihood) given parameters as a 1-d `~numpy`
-            array of length `ndim`.
+            Function returning ln(likelihood) given parameters as a 1-d
+            `~numpy` array of length `ndim`.
 
         prior_transform : function
-            Function translating a unit cube to the parameter space according to
-            the prior. The input is a 1-d `~numpy` array with length `ndim`, where
-            each value is in the range [0, 1). The return value should also be a
-            1-d `~numpy` array with length `ndim`, where each value is a parameter.
-            The return value is passed to the loglikelihood function. For example,
-            for a 2 parameter model with flat priors in the range [0, 2), the
-            function would be::
+            Function translating a unit cube to the parameter space according
+            to the prior. The input is a 1-d `~numpy` array with length
+            `ndim`, where each value is in the range [0, 1). The return
+            value should also be a 1-d `~numpy` array with length `ndim`,
+            where each value is a parameter.
+            The return value is passed to the loglikelihood function. For
+            example, for a 2 parameter model with flat priors in the range
+            [0, 2), the function would be::
 
                 def prior_transform(u):
                     return 2.0 * u
@@ -283,13 +288,15 @@ class NestedSampler(SuperSampler):
             sampled posterior (more accurate evidence), but also a larger
             number of iterations required to converge. Default is `500`.
 
-        bound : {`'none'`, `'single'`, `'multi'`, `'balls'`, `'cubes'`}, optional
+        bound : {`'none'`, `'single'`, `'multi'`, `'balls'`, `'cubes'`},
+                optional
             Method used to approximately bound the prior using the current
             set of live points. Conditions the sampling methods used to
             propose new live points. Choices are no bound (`'none'`), a single
             bounding ellipsoid (`'single'`), multiple bounding ellipsoids
             (`'multi'`), balls centered on each live point (`'balls'`), and
-            cubes centered on each live point (`'cubes'`). Default is `'multi'`.
+            cubes centered on each live point (`'cubes'`). Default is
+            `'multi'`.
 
         sample : {`'auto'`, `'unif'`, `'rwalk'`, `'slice'`, `'rslice'`,
             `'hslice'`, callable}, optional
@@ -297,10 +304,12 @@ class NestedSampler(SuperSampler):
             conditioned on the provided bounds. Unique methods available are:
             uniform sampling within the bounds(`'unif'`),
             random walks with fixed proposals (`'rwalk'`),
-            multivariate slice sampling along preferred orientations (`'slice'`),
+            multivariate slice sampling along preferred orientations
+            (`'slice'`),
             "random" slice sampling along all orientations (`'rslice'`),
             "Hamiltonian" slices along random trajectories (`'hslice'`), and
-            any callable function which follows the pattern of the sample methods
+            any callable function which follows the pattern of the sample
+            methods
             defined in dynesty.sampling.
             `'auto'` selects the sampling method based on the dimensionality
             of the problem (from `ndim`).
@@ -319,16 +328,18 @@ class NestedSampler(SuperSampler):
             boundary conditions).
 
         reflective : iterable, optional
-            A list of indices for parameters with reflective boundary conditions.
+            A list of indices for parameters with reflective boundary
+            conditions.
             These parameters *will not* have their positions constrained to be
             within the unit cube, enabling smooth behavior for parameters
             that may reflect at the edge. Default is `None` (i.e. no reflective
             boundary conditions).
 
         update_interval : int or float, optional
-            If an integer is passed, only update the proposal distribution every
-            `update_interval`-th likelihood call. If a float is passed, update the
-            proposal after every `round(update_interval * nlive)`-th likelihood
+            If an integer is passed, only update the proposal distribution
+            every `update_interval`-th likelihood call. If a float is passed,
+            update the proposal after every
+            `round(update_interval * nlive)`-th likelihood
             call. Larger update intervals larger can be more efficient
             when the likelihood function is quick to evaluate. Default behavior
             is to target a roughly constant change in prior volume, with
@@ -337,17 +348,20 @@ class NestedSampler(SuperSampler):
             and `25.0 * slices` for `'hslice'`.
 
         first_update : dict, optional
-            A dictionary containing parameters governing when the sampler should
-            first update the bounding distribution from the unit cube (`'none'`)
+            A dictionary containing parameters governing when the sampler
+            should
+            first update the bounding distribution from the unit cube
+            (`'none'`)
             to the one specified by `sample`. Options are the minimum number of
             likelihood calls (`'min_ncall'`) and the minimum allowed overall
             efficiency in percent (`'min_eff'`). Defaults are `2 * nlive` and
             `10.`, respectively.
 
         npdim : int, optional
-            Number of parameters accepted by `prior_transform`. This might differ
-            from `ndim` in the case where a parameter of loglikelihood is dependent
-            upon multiple independently distributed parameters, some of which may
+            Number of parameters accepted by `prior_transform`. This might
+            differ from `ndim` in the case where a parameter of loglikelihood
+            is dependent upon multiple independently distributed parameters,
+            some of which may
             be nuisance parameters.
 
         rstate : `~numpy.random.Generator`, optional
@@ -355,9 +369,10 @@ class NestedSampler(SuperSampler):
              global random state of the `~numpy.random` module will be used.
 
         queue_size : int, optional
-            Carry out likelihood evaluations in parallel by queueing up new live
-            point proposals using (at most) `queue_size` many threads. Each thread
-            independently proposes new live points until the proposal distribution
+            Carry out likelihood evaluations in parallel by queueing up new
+            live point proposals using (at most) `queue_size` many threads.
+            Each thread independently proposes new live points until the
+            proposal distribution
             is updated. If no value is passed, this defaults to `pool.size` (if
             a `pool` has been provided) and `1` otherwise (no parallelism).
 
@@ -365,11 +380,14 @@ class NestedSampler(SuperSampler):
             Use this pool of workers to execute operations in parallel.
 
         use_pool : dict, optional
-            A dictionary containing flags indicating where a pool should be used to
-            execute operations in parallel. These govern whether `prior_transform`
-            is executed in parallel during initialization (`'prior_transform'`),
+            A dictionary containing flags indicating where a pool should be
+            used to execute operations in parallel. These govern whether
+            `prior_transform`
+            is executed in parallel during initialization
+            (`'prior_transform'`),
             `loglikelihood` is executed in parallel during initialization
-            (`'loglikelihood'`), live points are proposed in parallel during a run
+            (`'loglikelihood'`), live points are proposed in parallel during
+            a run
             (`'propose_point'`), and bounding distributions are updated in
             parallel during a run (`'update_bound'`). Default is `True` for all
             options.
@@ -377,11 +395,13 @@ class NestedSampler(SuperSampler):
         live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
             A set of live points used to initialize the nested sampling run.
             Contains `live_u`, the coordinates on the unit cube, `live_v`, the
-            transformed variables, and `live_logl`, the associated loglikelihoods.
-            By default, if these are not provided the initial set of live points
-            will be drawn uniformly from the unit `npdim`-cube.
-            **WARNING: It is crucial that the initial set of live points have been
-            sampled from the prior. Failure to provide a set of valid live points
+            transformed variables, and `live_logl`, the associated
+            loglikelihoods.
+            By default, if these are not provided the initial set of live
+            points will be drawn uniformly from the unit `npdim`-cube.
+            **WARNING: It is crucial that the initial set of live points have
+            been sampled from the prior. Failure to provide a set of valid
+            live points
             will result in incorrect results.**
 
         logl_args : iterable, optional
@@ -394,7 +414,8 @@ class NestedSampler(SuperSampler):
             Additional arguments that can be passed to `prior_transform`.
 
         ptform_kwargs : dict, optional
-            Additional keyword arguments that can be passed to `prior_transform`.
+            Additional keyword arguments that can be passed to
+            `prior_transform`.
 
         gradient : function, optional
             A function which returns the gradient corresponding to
@@ -413,10 +434,11 @@ class NestedSampler(SuperSampler):
             Whether to compute and apply the Jacobian `dv/du`
             from the target space `v` to the unit cube `u` when evaluating the
             `gradient`. If `False`, the gradient provided is assumed to be
-            already defined with respect to the unit cube. If `True`, the gradient
+            already defined with respect to the unit cube. If `True`, the
+            gradient
             provided is assumed to be defined with respect to the target space
-            so the Jacobian needs to be numerically computed and applied. Default
-            is `False`.
+            so the Jacobian needs to be numerically computed and applied.
+            Default is `False`.
 
         enlarge : float, optional
             Enlarge the volumes of the specified bounding object(s) by this
@@ -428,7 +450,8 @@ class NestedSampler(SuperSampler):
             Compute this many bootstrapped realizations of the bounding
             objects. Use the maximum distance found to the set of points left
             out during each iteration to enlarge the resulting volumes. Can
-            lead to unstable bounding ellipsoids. Default is `None` (no bootstrap
+            lead to unstable bounding ellipsoids. Default is `None` (no
+            bootstrap
             unless the sampler is uniform). If bootstrap is set to zero,
             bootstrap is disabled.
 
@@ -459,23 +482,27 @@ class NestedSampler(SuperSampler):
 
         update_func : function, optional
             Any callable function which takes in a `blob` and `scale`
-            as input and returns a modification to the internal `scale` as output.
+            as input and returns a modification to the internal `scale` as
+            output.
             Must follow the pattern of the update methods defined
             in dynesty.nestedsamplers. If provided, this will supersede the
-            default functions used to update proposals. In the case where a custom
+            default functions used to update proposals. In the case where a
+            custom
             callable function is passed to `sample` but no similar function is
             passed to `update_func`, this will default to no update.
 
         ncdim: int, optional
-            The number of clustering dimensions. The first ncdim dimensions will
-            be sampled using the sampling method, the remaining dimensions will
+            The number of clustering dimensions. The first ncdim dimensions
+            will be sampled using the sampling method, the remaining
+            dimensions will
             just sample uniformly from the prior distribution.
             If this is `None` (default), this will default to npdim.
 
         Returns
         -------
         sampler : sampler from :mod:`~dynesty.nestedsamplers`
-            An initialized instance of the chosen sampler specified via `bound`.
+            An initialized instance of the chosen sampler specified via
+            `bound`.
 
         """
 
@@ -633,6 +660,10 @@ class NestedSampler(SuperSampler):
 
 
 class DynamicNestedSampler(DynamicSampler):
+    """
+    The main class for performing dynamic nested sampling.
+    It inherits all the methods from dynesty.dynamicsampler.DynamicSampler
+    """
 
     def __init__(self,
                  loglikelihood,

@@ -1,12 +1,12 @@
-import dynesty
-import numpy as np
-import multiprocessing as mp
 import os
 import time
+import sys
+import multiprocessing as mp
+import dynesty
+import numpy as np
 import pytest
 from utils import get_rstate
 import itertools
-import multiprocessing as mp
 
 
 def like(x):
@@ -83,7 +83,7 @@ def fit_resume(fname, dynamic, prev_logz, pool=None):
     else:
         dns = dynesty.NestedSampler.restore(fname, pool=pool)
         neff = None
-    print('resuming')
+    print('resuming', file=sys.stderr)
     dns.run_nested(resume=True, n_effective=neff)
     # verify that the logz value is *identical*
     if prev_logz is not None:
@@ -103,12 +103,12 @@ def getlogz(save_every):
 
     if cache.dt0 is None:
         t0 = time.time()
-        print('caching')
+        print('caching', file=sys.stderr)
         result0 = fit_main(None, False, save_every).results.logz[-1]
         t1 = time.time()
-        print('static done')
+        print('static done', file=sys.stderr)
         result1 = fit_main(None, True, save_every).results.logz[-1]
-        print('done caching')
+        print('done caching', file=sys.stderr)
         t2 = time.time()
         (cache.dt0, cache.dt1, cache.res0, cache.res1) = (t1 - t0, t2 - t1,
                                                           result0, result1)

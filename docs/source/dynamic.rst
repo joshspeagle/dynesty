@@ -458,7 +458,7 @@ Finally the manual mode allows you to add a batch that covers a certain specific
 It is important to understand that there multiple reasons to add batches to a dynamic nested run. One is just to reduce the noise in the posterior/increase the number of effective posterior samples, but another reason is that if you have a very multi-modal problem and you are worried whether you fully sample all the modes, you can do a dynamic run and then keep adding batches till you are satisfied with the result.
 
 
-Checkpointing
+Checkpointing with dynamic sampler
 -------------
 
 Similarly to static nested sampler, the dynamic sampler supports periodic check-pointing into a file if you are sampling using run_nested() interface.

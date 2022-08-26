@@ -622,7 +622,6 @@ class Sampler:
         self.save_samples = save_samples
         self.save_bounds = save_bounds
         ncall = 0
-
         # Check whether we're starting fresh or continuing a previous run.
         if self.it == 1 or len(self.saved_run.D['logl']) == 0:
             # Initialize values for nested sampling loop.
@@ -643,7 +642,7 @@ class Sampler:
                 self.since_update = 0
         else:
             # Remove live points (if added) from previous run.
-            if self.added_live:
+            if self.added_live and not resume:
                 self._remove_live_points()
 
             # Get final state from previous run.
@@ -651,7 +650,7 @@ class Sampler:
             logz = self.saved_run.D['logz'][-1]  # ln(evidence)
             logzvar = self.saved_run.D['logzvar'][-1]  # var[ln(evidence)]
             logvol = self.saved_run.D['logvol'][-1]  # ln(volume)
-            loglstar = min(self.live_logl)  # ln(likelihood)
+            loglstar = np.min(self.live_logl)  # ln(likelihood)
             delta_logz = np.logaddexp(
                 logz,
                 np.max(self.live_logl) + logvol) - logz  # log-evidence ratio
@@ -659,7 +658,6 @@ class Sampler:
         stop_iterations = False
         # The main nested sampling loop.
         for it in range(sys.maxsize):
-
             # Stopping criterion 1: current number of iterations
             # exceeds `maxiter`.
             if it > maxiter:

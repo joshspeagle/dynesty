@@ -97,17 +97,25 @@ class cache:
     res1 = None
 
 
-def getlogz(save_every):
+def getlogz(fname, save_every):
     """ Compute the execution time of static/dynamic runs as well
     logz value """
 
     if cache.dt0 is None:
         t0 = time.time()
         print('caching', file=sys.stderr)
-        result0 = fit_main(None, False, save_every).results.logz[-1]
+        result0 = fit_main(fname, False, save_every).results.logz[-1]
+        try:
+            os.unlink(fname)
+        except:  # noqa
+            pass
         t1 = time.time()
         print('static done', file=sys.stderr)
-        result1 = fit_main(None, True, save_every).results.logz[-1]
+        result1 = fit_main(fname, True, save_every).results.logz[-1]
+        try:
+            os.unlink(fname)
+        except:  # noqa
+            pass
         print('done caching', file=sys.stderr)
         t2 = time.time()
         (cache.dt0, cache.dt1, cache.res0, cache.res1) = (t1 - t0, t2 - t1,
@@ -118,7 +126,7 @@ def getlogz(save_every):
 @pytest.mark.parametrize("dynamic,delay_frac,with_pool",
                          itertools.chain(
                              itertools.product([False, True],
-                                               [.1, .5, .75, .9], [False]),
+                                               [.2, .5, .75, .9], [False]),
                              itertools.product([False, True], [.5], [True])))
 @pytest.mark.xdist_group(name="resume_group")
 def test_resume(dynamic, delay_frac, with_pool):
@@ -129,8 +137,8 @@ def test_resume(dynamic, delay_frac, with_pool):
     I want to only use one getlogz() call.
     """
     fname = get_fname()
-    save_every = 0.1
-    dt_static, dt_dynamic, res_static, res_dynamic = getlogz(save_every)
+    save_every = .2
+    dt_static, dt_dynamic, res_static, res_dynamic = getlogz(fname, save_every)
     if with_pool:
         npool = 2
     else:

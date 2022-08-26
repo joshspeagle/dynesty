@@ -51,6 +51,7 @@ class DynamicSamplerStatesEnum:
     INBATCH = 5  # after at least one batch
     BATCH_DONE = 6  # after at least one batch
     INBASEADDLIVE = 7  # during addition of livepoints in the
+    INBATCHADDLIVE = 8  # during addition of livepoints in the
     # end of the base run
 
 
@@ -1337,8 +1338,8 @@ class DynamicSampler:
             live_nc = np.zeros(nlive_new, dtype='int')
             first_points = batch_sampler.first_points
             # TODO FIX whether live_nc should be restored
-        for p in first_points:
-            yield p
+        for i in range(len(first_points)):
+            yield first_points.pop(0)
 
         for i in range(1):
             iterated_batch = False
@@ -1348,8 +1349,9 @@ class DynamicSampler:
                                          logl_max=logl_max,
                                          maxiter=maxiter_left,
                                          maxcall=maxcall - sum(live_nc),
-                                         save_samples=False,
-                                         save_bounds=save_bounds)):
+                                         save_samples=True,
+                                         save_bounds=save_bounds,
+                                         resume=resume)):
                 # Save results.
                 D = dict(id=results.worst,
                          u=results.ustar,
@@ -1380,12 +1382,12 @@ class DynamicSampler:
                                           boundidx=results.boundidx,
                                           bounditer=results.bounditer,
                                           eff=self.eff)
-
             if (iterated_batch and results.loglstar < logl_max
                     and np.isfinite(logl_max)) and maxiter_left > 0:
                 warnings.warn('Warning. The maximum likelihood not reached '
                               'in the batch. '
                               'You may not have enough livepoints')
+            self.internal_state = DynamicSamplerStatesEnum.INBATCHADDLIVE
 
             for it, results in enumerate(batch_sampler.add_live_points()):
                 # Save results.
@@ -1962,6 +1964,7 @@ class DynamicSampler:
         ncall, niter, n = self.ncall, self.it - 1, self.batch
         if checkpoint_file is not None:
             timer = DelayTimer(checkpoint_every)
+
         if maxcall > 0 and maxiter > 0:
             pbar, print_func = get_print_func(print_func, print_progress)
             try:
@@ -2008,7 +2011,9 @@ class DynamicSampler:
                                    stop_val=stop_val,
                                    logl_min=logl_min,
                                    logl_max=logl_max)
-                    if checkpoint_file is not None and timer.is_time():
+                    if (checkpoint_file is not None and self.internal_state !=
+                            DynamicSamplerStatesEnum.INBATCHADDLIVE
+                            and timer.is_time()):
                         self.save(checkpoint_file)
             finally:
                 if pbar is not None:

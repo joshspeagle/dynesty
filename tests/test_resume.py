@@ -168,6 +168,10 @@ def test_resume(dynamic, delay_frac, with_pool):
             os.unlink(fname)
         except:  # noqa
             pass
+        try:
+            os.unlink(fname + '.tmp')
+        except:  # noqa
+            pass
 
 
 @pytest.mark.parametrize("dynamic", [False, True])

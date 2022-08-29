@@ -137,7 +137,7 @@ def test_resume(dynamic, delay_frac, with_pool):
     I want to only use one getlogz() call.
     """
     fname = get_fname()
-    save_every = .2
+    save_every = 1
     dt_static, dt_dynamic, res_static, res_dynamic = getlogz(fname, save_every)
     if with_pool:
         npool = 2
@@ -149,20 +149,26 @@ def test_resume(dynamic, delay_frac, with_pool):
     else:
         curdt = dt_static
         curres = res_static
+
+    save_every = min(save_every, curdt / 10)
     curdt *= delay_frac
     try:
         fit_proc = mp.Process(target=fit_main,
                               args=(fname, dynamic, save_every, npool))
         fit_proc.start()
-        time.sleep(curdt)
-        fit_proc.terminate()
-        if npool is not None:
-            # in the case of pooled run do not compare
-            # as I am comparing with single threaded version
-            curres = None
-        with (NullContextManager()
-              if npool is None else mp.Pool(npool)) as pool:
-            fit_resume(fname, dynamic, curres, pool=pool)
+        res = fit_proc.join(curdt)
+        if res is None:
+            print('terminating', file=sys.stderr)
+            fit_proc.terminate()
+            if npool is not None:
+                # in the case of pooled run do not compare
+                # as I am comparing with single threaded version
+                curres = None
+            with (NullContextManager()
+                  if npool is None else mp.Pool(npool)) as pool:
+                fit_resume(fname, dynamic, curres, pool=pool)
+        else:
+            assert res == 0
     finally:
         try:
             os.unlink(fname)

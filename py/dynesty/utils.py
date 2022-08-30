@@ -10,13 +10,13 @@ import warnings
 import math
 import copy
 import time
-import pickle
 import os
 from collections import namedtuple
 from functools import partial
 import numpy as np
 from scipy.special import logsumexp
-
+import pickle as pickle_module
+# To allow replacing of the pickler
 try:
     import tqdm
 except ImportError:
@@ -1697,7 +1697,7 @@ def restore_sampler(fname, pool=None):
     """
     from ._version import __version__ as DYNESTY_VERSION
     with open(fname, 'rb') as fp:
-        res = pickle.load(fp)
+        res = pickle_module.load(fp)
     sampler = res['sampler']
     save_ver = res['version']
     dynesty_format_version = 1
@@ -1744,7 +1744,7 @@ def save_sampler(sampler, fname):
     tmp_fname = fname + '.tmp'
     try:
         with open(tmp_fname, 'wb') as fp:
-            pickle.dump(D, fp)
+            pickle_module.dump(D, fp)
         os.rename(tmp_fname, fname)
     except:  # noqa
         try:

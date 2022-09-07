@@ -10,4 +10,4 @@ from .dynesty import NestedSampler, DynamicNestedSampler
 from . import bounding
 from . import utils
 
-__version__ = "1.2.3"
+from ._version import __version__

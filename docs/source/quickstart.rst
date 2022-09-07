@@ -453,6 +453,7 @@ users an option as to whether they want to parallelize `dynesty` *during*
 runtime (using a user-provided `pool`) or *after* runtime (by merging
 the runs together).
 
+
 Running Internally
 ------------------
 
@@ -520,6 +521,35 @@ to add new samples based on where they left off. This is as easy as::
     sampler.run_nested(dlogz=0.01)
     res3 = sampler.results
 
+Checkpointing
+--------------
+
+While running the sampler using run_nested() interface it is possible to check-point (or save) the state of the sampler into a file at regular intervals. This file can then be used to restart/resume the sampling::
+
+    # initialize our sampler
+    sampler = NestedSampler(loglike, ptform, ndim, nlive=1000)
+    # run the sampler with checkpointing 
+    sampler.run_nested(checkpoint_file='dynesty.save')  
+
+
+You can then restore it now and resume sampling::
+
+    # restore our sampler
+    sampler = NestedSampler.restore('dynesty.save')
+    # resume
+    sampler.run_nested(resume=True)  
+
+
+If you used the pool in the sampler and you want to use the pool after restoring, you need to specify it when restoring::
+
+    mypool = multiprocessing.Pool(6)
+    # restore the sampler
+    sampler = NestedSampler.restore('dynesty.save', pool =mypool)
+    # resume
+    sampler.run_nested(resume=True)
+
+The checkpointing may be helpful if you are running dynesty on HPC with a queue system that has a limit on a wall-time that your jobs can run.
+    
 Running Externally
 ------------------
 

@@ -4,6 +4,7 @@
 # Required for the test suite:
 pytest
 pytest-cov
+pytest-xdist
 coveralls
 
 dill

@@ -26,13 +26,13 @@ Includes:
 import math
 import copy
 import numpy as np
-
 from .sampler import Sampler
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
                        SupFriends, rand_choice)
 from .sampling import (sample_unif, sample_rwalk, sample_slice, sample_rslice,
                        sample_hslice)
-from .utils import unitcheck, get_enlarge_bootstrap
+from .utils import (unitcheck, get_enlarge_bootstrap, save_sampler,
+                    restore_sampler)
 
 __all__ = [
     "UnitCubeSampler", "SingleEllipsoidSampler", "MultiEllipsoidSampler",
@@ -243,6 +243,37 @@ class SuperSampler(Sampler):
 
         if callable(self.custom_update):
             self.scale = self.custom_update(blob, self.scale, update=update)
+
+    def save(self, fname):
+        """
+        Save the state of the dynamic sampler in a file
+
+        Parameters
+        ----------
+        fname: string
+            Filename of the save file.
+
+        """
+        save_sampler(self, fname)
+
+    @staticmethod
+    def restore(fname, pool=None):
+        """
+        Restore the dynamic sampler from a file.
+        It is assumed that the file was created using .save() method
+        of DynamicNestedSampler or as a result of checkpointing during
+        run_nested()
+
+        Parameters
+        ----------
+        fname: string
+            Filename of the save file.
+        pool: object(optional)
+            The multiprocessing pool-like object that supports map()
+            calls that will be used in the restored object.
+
+        """
+        return restore_sampler(fname, pool=pool)
 
 
 class UnitCubeSampler(SuperSampler):

@@ -9,11 +9,14 @@ import sys
 import warnings
 import math
 import copy
+import time
+import os
 from collections import namedtuple
 from functools import partial
 import numpy as np
 from scipy.special import logsumexp
-
+import pickle as pickle_module
+# To allow replacing of the pickler
 try:
     import tqdm
 except ImportError:
@@ -40,7 +43,7 @@ IteratorResult = namedtuple('IteratorResult', [
     'delta_logz'
 ])
 
-IteratorResultShort = namedtuple('IteratorResult', [
+IteratorResultShort = namedtuple('IteratorResultShort', [
     'worst', 'ustar', 'vstar', 'loglstar', 'nc', 'worst_it', 'boundidx',
     'bounditer', 'eff'
 ])
@@ -212,6 +215,38 @@ class RunRecord:
             self.D[k].append(newD[k])
 
 
+class DelayTimer:
+    """ Utility class that allows us to detect a certain
+    time has passed"""
+
+    def __init__(self, dt):
+        """ Initialise the time with delay of dt seconds
+
+        Parameters
+        ----------
+
+        dt: float
+            The number of seconds in the timer
+        """
+        self.dt = dt
+        self.last_time = time.time()
+
+    def is_time(self):
+        """
+        Returns true if more than self.dt seconds has passed
+        since the initialization or last call of successful is_time()
+        
+        Returns
+        -------
+        bool
+        """
+        curt = time.time()
+        if curt - self.last_time > self.dt:
+            self.last_time = curt
+            return True
+        return False
+
+
 def get_enlarge_bootstrap(sample, enlarge, bootstrap):
     """
     Determine the enlarge, bootstrap for a given run
@@ -307,12 +342,14 @@ def get_neff_from_logwt(logwt):
     Compute the number of effective samples from an array of unnormalized
     log-weights. We use Kish Effective Sample Size (ESS)  formula.
 
-    Parameters:
+    Parameters
+    ----------
     logwt: numpy array
         Array of unnormalized weights
 
-    Returns:
-    neff: int
+    Returns
+    -------
+    int
         The effective number of samples
     """
 
@@ -726,7 +763,6 @@ def compute_integrals(logl=None, logvol=None, reweight=None):
     # = LV_{i+1} - (LV_{i+1} -LV_i) + log(1-exp(LV_{i+1}-LV{i}))
     dlogvol = np.diff(logvol, prepend=0)
     logdvol = logvol - dlogvol + np.log1p(-np.exp(dlogvol))
-
     # logdvol is log(delta(volumes)) i.e. log (X_i-X_{i-1})
     logdvol2 = logdvol + math.log(0.5)
     # These are log(1/2(X_(i+1)-X_i))
@@ -1637,3 +1673,82 @@ def old_stopping_function(results,
         return stop <= 1., (stop_post, stop_evid, stop)
     else:
         return stop <= 1.
+
+
+def restore_sampler(fname, pool=None):
+    """
+    Restore the dynamic sampler from a file.
+    It is assumed that the file was created using .save() method
+    of DynamicNestedSampler or as a result of checkpointing during
+    run_nested()
+
+    Parameters
+    ----------
+    fname: string
+        Filename of the save file.
+    pool: object(optional)
+        The multiprocessing pool-like object that supports map()
+        calls that will be used in the restored object.
+
+    Returns
+    -------
+    Static or dynamic nested sampling object
+
+    """
+    from ._version import __version__ as DYNESTY_VERSION
+    with open(fname, 'rb') as fp:
+        res = pickle_module.load(fp)
+    sampler = res['sampler']
+    save_ver = res['version']
+    dynesty_format_version = 1
+    file_format_version = res['format_version']
+    if file_format_version != dynesty_format_version:
+        raise RuntimeError('Incorrect format version')
+    if save_ver != DYNESTY_VERSION:
+        warnings.warn(
+            f'The dynesty version in the checkpoint file ({save_ver})'
+            f'does not match the current dynesty version'
+            '({DYNESTY_VERSION}). That is *NOT* guaranteed to work')
+    if pool is not None:
+        sampler.M = pool.map
+        sampler.pool = pool
+        sampler.loglikelihood.pool = pool
+    else:
+        sampler.loglikelihood.pool = None
+        sampler.pool = None
+        sampler.M = map
+    return sampler
+
+
+def save_sampler(sampler, fname):
+    """
+    Save the state of the dynamic sampler in a file
+
+    Parameters
+    ----------
+    sampler: object
+        Dynamic or Static nested sampler
+    fname: string
+        Filename of the save file.
+
+    """
+    from ._version import __version__ as DYNESTY_VERSION
+    format_version = 1
+    # this is an internal version of the format we are
+    # using. Increase this if incompatible changes are being made
+    D = {
+        'sampler': sampler,
+        'version': DYNESTY_VERSION,
+        'format_version': format_version
+    }
+    tmp_fname = fname + '.tmp'
+    try:
+        with open(tmp_fname, 'wb') as fp:
+            pickle_module.dump(D, fp)
+        os.rename(tmp_fname, fname)
+    except:  # noqa
+        try:
+            os.unlink(tmp_fname)
+        except:  # noqa
+            pass
+        raise

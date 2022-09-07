@@ -16,7 +16,7 @@ from .bounding import UnitCube
 from .sampling import sample_unif
 from .utils import (get_seed_sequence, get_print_func, progress_integration,
                     IteratorResult, RunRecord, get_neff_from_logwt,
-                    compute_integrals)
+                    compute_integrals, DelayTimer)
 
 __all__ = ["Sampler"]
 
@@ -362,7 +362,8 @@ class Sampler:
             bcheck = self._beyond_unit_bound(loglstar)
 
             if blob is not None and bcheck:
-                # If our queue is empty, update any tuning parameters associated
+                # If our queue is empty, update any tuning parameters
+                # associated
                 # with our proposal (sampling) method.
                 # If it's not empty we are just accumulating the
                 # the history of evaluations
@@ -510,7 +511,8 @@ class Sampler:
                n_effective=np.inf,
                add_live=True,
                save_bounds=True,
-               save_samples=True):
+               save_samples=True,
+               resume=False):
         """
         **The main nested sampling loop.** Iteratively replace the worst live
         point with a sample drawn uniformly from the prior until the
@@ -620,7 +622,6 @@ class Sampler:
         self.save_samples = save_samples
         self.save_bounds = save_bounds
         ncall = 0
-
         # Check whether we're starting fresh or continuing a previous run.
         if self.it == 1 or len(self.saved_run.D['logl']) == 0:
             # Initialize values for nested sampling loop.
@@ -641,7 +642,7 @@ class Sampler:
                 self.since_update = 0
         else:
             # Remove live points (if added) from previous run.
-            if self.added_live:
+            if self.added_live and not resume:
                 self._remove_live_points()
 
             # Get final state from previous run.
@@ -649,7 +650,7 @@ class Sampler:
             logz = self.saved_run.D['logz'][-1]  # ln(evidence)
             logzvar = self.saved_run.D['logzvar'][-1]  # var[ln(evidence)]
             logvol = self.saved_run.D['logvol'][-1]  # ln(volume)
-            loglstar = min(self.live_logl)  # ln(likelihood)
+            loglstar = np.min(self.live_logl)  # ln(likelihood)
             delta_logz = np.logaddexp(
                 logz,
                 np.max(self.live_logl) + logvol) - logz  # log-evidence ratio
@@ -657,7 +658,6 @@ class Sampler:
         stop_iterations = False
         # The main nested sampling loop.
         for it in range(sys.maxsize):
-
             # Stopping criterion 1: current number of iterations
             # exceeds `maxiter`.
             if it > maxiter:
@@ -809,7 +809,10 @@ class Sampler:
                    add_live=True,
                    print_progress=True,
                    print_func=None,
-                   save_bounds=True):
+                   save_bounds=True,
+                   checkpoint_file=None,
+                   checkpoint_every=60,
+                   resume=False):
         """
         **A wrapper that executes the main nested sampling loop.**
         Iteratively replace the worst live point with a sample drawn
@@ -884,6 +887,8 @@ class Sampler:
 
         # Run the main nested sampling loop.
         pbar, print_func = get_print_func(print_func, print_progress)
+        if checkpoint_file is not None:
+            timer = DelayTimer(checkpoint_every)
         try:
             ncall = self.ncall
             for it, results in enumerate(
@@ -905,6 +910,9 @@ class Sampler:
                                ncall,
                                dlogz=dlogz,
                                logl_max=logl_max)
+
+                if checkpoint_file is not None and timer.is_time():
+                    self.save(checkpoint_file)
 
             # Add remaining live points to samples.
             if add_live:
@@ -929,6 +937,9 @@ class Sampler:
             self.saved_run.D['logz'] = new_logz.tolist()
             self.saved_run.D['logzvar'] = new_logzvar.tolist()
             self.saved_run.D['h'] = new_h.tolist()
+            if checkpoint_file is not None:
+                # I don't check the time timer here
+                self.save(checkpoint_file)
 
         finally:
             if pbar is not None:

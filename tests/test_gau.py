@@ -53,6 +53,7 @@ def check_results(results,
     results.summary()
     pos = results.samples
     wts = np.exp(results.logwt - results.logz[-1])
+    assert np.allclose(results.importance_weights(), wts)
     mean, cov = dyfunc.mean_and_cov(pos, wts)
     logz = results.logz[-1]
     logzerr = results.logzerr[-1]
@@ -120,6 +121,7 @@ def check_results_gau(results, g, rstate, sig=5, logz_tol=None):
     # just check that resample_equal works
     dyfunc.resample_equal(results.samples,
                           np.exp(results.logwt - results.logz[-1]))
+    results.samples_equal()
     check_results(results,
                   g.mean,
                   g.cov,
@@ -200,8 +202,7 @@ def test_n_effective():
 
     current_n_effective = sampler.n_effective
 
-    for _ in sampler.sample(add_live=False,
-                            n_effective=target_n_effective):
+    for _ in sampler.sample(add_live=False, n_effective=target_n_effective):
         previous_n_effective = current_n_effective
         current_n_effective = sampler.n_effective
 

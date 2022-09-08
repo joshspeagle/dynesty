@@ -412,6 +412,7 @@ argument::
     # initialize sampler with pool with pre-defined queue
     sampler = NestedSampler(loglike, ptform, ndim, pool=pool, queue_size=8)
 
+There is *no* reason to set queue_size to anything other then the number of parallel processes in the pool.
 Parallel operations in `dynesty` are done by simply swapping in the
 `pool.map` function over the default `map` function when making likelihood
 calls. Note that this is a *synchronous* function call, which requires that
@@ -423,16 +424,14 @@ The reason why "parallel" is written in quotes above is that while function
 evaluations can be made in parallel, live point proposals must be done serially
 in order to avoid breaking the statistical properties of Nested Sampling.
 Assuming we are using :math:`M` processes with :math:`K` live points, this
-leads to sub-linear scaling :math:`S` of the form
+leads to sub-linear speed improvements :math:`S` of the form
 (`Handley et al. 2015 <https://arxiv.org/pdf/1506.00171.pdf>`_):
 
 .. math::
 
     S(M, K) = K \ln \left(1 + \frac{M}{K}\right)
 
-This scales pretty linearly as long as the number of processes is much smaller
-than the number of live points, but falls off as the pool becomes relatively
-larger.
+This scales pretty linearly with the number of processes till the number of parallel processes is equal or larger than the number of live-points.
 
 Depending on where the bottleneck of the computation lies, the provided
 `pool` can be disabled during certain function evaluations (e.g., when

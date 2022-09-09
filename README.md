@@ -33,4 +33,8 @@ of the code can be found
 
 ### Attribution
 
-If you find the package useful in your research, please [cite it](https://doi.org/10.5281/zenodo.3348367) together with the papers describing the methods (see the [documentation](https://dynesty.readthedocs.io/en/latest/references.html))
+If you find the package useful in your research, please cite at least 
+* The [python implementation](https://doi.org/10.5281/zenodo.3348367)
+* The [original paper](https://ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S/abstract)
+
+and ideally also papers describing the underlying methods (see the [documentation](https://dynesty.readthedocs.io/en/latest/references.html) for more details)

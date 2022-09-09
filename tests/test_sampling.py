@@ -85,16 +85,17 @@ def doit(model='diamond',
         'rwalk': ds.sample_rwalk
     }[sample]
 
+    eye2 = np.eye(2)
+    TRANS = lambda x: x
     for i in range(niter):
         seed = rng.integers(1e9)
-        args = (u, loglstar, np.eye(2), scale, lambda x: x, curlogl, seed,
-                kwargs)
+        args = (u, loglstar, eye2, scale, TRANS, curlogl, seed, kwargs)
         u = func(args)[0]
         us[i] = u
     return us
 
 
-def test_all():
+def test_diamond_rwalk():
     rs = get_rstate()
     us = doit(model='diamond',
               sample='rwalk',
@@ -104,6 +105,9 @@ def test_all():
               walks=10)
     diamond_test(us)
 
+
+def test_diamond_rslice():
+    rs = get_rstate()
     us = doit(model='diamond',
               sample='rslice',
               scale=.3,
@@ -112,6 +116,9 @@ def test_all():
               niter=100_000)
     diamond_test(us)
 
+
+def test_diamond_rslice_double():
+    rs = get_rstate()
     us = doit(model='diamond',
               sample='rslice',
               scale=.3,
@@ -120,14 +127,9 @@ def test_all():
               doubling=True)
     diamond_test(us)
 
-    us = doit(model='checkerboard',
-              sample='rslice',
-              scale=.001,
-              rstate=rs,
-              niter=100_000,
-              doubling=True)
-    checker_test(us)
 
+def test_checkerboard_rslice():
+    rs = get_rstate()
     us = doit(model='diamond',
               sample='slice',
               scale=.3,
@@ -135,3 +137,14 @@ def test_all():
               slices=1,
               niter=100_000)
     diamond_test(us)
+
+
+def test_checkerboard_rslice_double():
+    rs = get_rstate()
+    us = doit(model='checkerboard',
+              sample='rslice',
+              scale=.001,
+              rstate=rs,
+              niter=100_000,
+              doubling=True)
+    checker_test(us)

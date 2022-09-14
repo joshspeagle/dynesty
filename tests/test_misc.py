@@ -5,7 +5,7 @@ import pickle
 import dynesty.utils as dyutil
 from multiprocessing import Pool
 import itertools
-from utils import get_rstate, get_printing
+from utils import get_rstate, get_printing, NullContextManager
 """
 Run a series of basic tests changing various things like
 maxcall options and potentially other things
@@ -97,36 +97,34 @@ def test_pickle(dynamic, with_pool):
     ndim = 2
     rstate = get_rstate()
 
-    if with_pool:
-        kw = dict(pool=Pool(2), queue_size=100)
-    else:
-        kw = {}
+    with (NullContextManager() if not with_pool else Pool(2)) as pool:
+        if with_pool:
+            kw = dict(pool=pool, queue_size=100)
+        else:
+            kw = {}
 
-    if dynamic:
-        sampler = dynesty.DynamicNestedSampler(loglike,
-                                               prior_transform,
-                                               ndim,
-                                               nlive=nlive,
-                                               rstate=rstate,
-                                               **kw)
-    else:
-        sampler = dynesty.NestedSampler(loglike,
-                                        prior_transform,
-                                        ndim,
-                                        nlive=nlive,
-                                        rstate=rstate,
-                                        **kw)
-    sampler.run_nested(print_progress=printing, maxiter=100)
-    # i do it twice as there were issues previously
-    # with incorrect pool restoring
-    S = pickle.dumps(sampler)
-    sampler = pickle.loads(S)
-    S = pickle.dumps(sampler)
-    sampler = pickle.loads(S)
-    sampler.run_nested(print_progress=printing, maxiter=100)
-    if with_pool:
-        kw['pool'].close()
-        kw['pool'].join()
+        if dynamic:
+            sampler = dynesty.DynamicNestedSampler(loglike,
+                                                   prior_transform,
+                                                   ndim,
+                                                   nlive=nlive,
+                                                   rstate=rstate,
+                                                   **kw)
+        else:
+            sampler = dynesty.NestedSampler(loglike,
+                                            prior_transform,
+                                            ndim,
+                                            nlive=nlive,
+                                            rstate=rstate,
+                                            **kw)
+        sampler.run_nested(print_progress=printing, maxiter=100)
+        # i do it twice as there were issues previously
+        # with incorrect pool restoring
+        S = pickle.dumps(sampler)
+        sampler = pickle.loads(S)
+        S = pickle.dumps(sampler)
+        sampler = pickle.loads(S)
+        sampler.run_nested(print_progress=printing, maxiter=100)
 
 
 def test_inf():

@@ -26,3 +26,16 @@ def get_printing():
         return int(os.environ[kw])
     else:
         return False
+
+
+class NullContextManager(object):
+    # https://stackoverflow.com/questions/45187286/how-do-i-write-a-null-no-op-contextmanager-in-python
+    # this is to make it work for 3.6
+    def __init__(self, dummy_resource=None):
+        self.dummy_resource = dummy_resource
+
+    def __enter__(self):
+        return self.dummy_resource
+
+    def __exit__(self, *args):
+        pass

@@ -5,7 +5,7 @@ import multiprocessing as mp
 import dynesty
 import numpy as np
 import pytest
-from utils import get_rstate
+from utils import get_rstate, NullContextManager
 import itertools
 
 
@@ -26,19 +26,6 @@ def get_fname():
 
 def ptform(x):
     return 20 * x - 10
-
-
-class NullContextManager(object):
-    # https://stackoverflow.com/questions/45187286/how-do-i-write-a-null-no-op-contextmanager-in-python
-    # this is to make it work for 3.6
-    def __init__(self, dummy_resource=None):
-        self.dummy_resource = dummy_resource
-
-    def __enter__(self):
-        return self.dummy_resource
-
-    def __exit__(self, *args):
-        pass
 
 
 def fit_main(fname, dynamic, checkpoint_every=0.01, npool=None):

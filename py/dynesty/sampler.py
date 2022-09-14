@@ -409,11 +409,11 @@ class Sampler:
         # within the remaining volume so that the expected volume enclosed
         # by the `i`-th worst likelihood is
         # `e^(-N / nlive) * (nlive + 1 - i) / (nlive + 1)`.
-        logvols = logvol + np.log(1. - (np.arange(self.nlive) + 1.) /
-                                  (self.nlive + 1.))
+        logvols = np.log(1. - (np.arange(self.nlive) + 1.) / (self.nlive + 1.))
 
         # Defining change in `logvol` used in `logzvar` approximation.
-        dlvs = -np.diff(logvols, prepend=logvol)
+        dlvs = -np.diff(logvols, prepend=0)
+        logvols += logvol
 
         # Sorting remaining live points.
         lsort_idx = np.argsort(self.live_logl)
@@ -446,7 +446,7 @@ class Sampler:
                                        logvol, dlv, h)
             loglstar = loglstar_new
             logz_remain = loglmax + logvol  # remaining ln(evidence)
-            delta_logz = np.logaddexp(logz, logz_remain) - logz  # dlogz
+            delta_logz = np.logaddexp(0, logz_remain - logz)
 
             # Save results.
             if self.save_samples:

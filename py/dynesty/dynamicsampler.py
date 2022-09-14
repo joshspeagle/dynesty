@@ -1383,14 +1383,21 @@ class DynamicSampler:
                                       boundidx=results.boundidx,
                                       bounditer=results.bounditer,
                                       eff=self.eff)
-        if iterated_batch:
-            if results.loglstar < logl_max and np.isfinite(
-                    logl_max) and maxiter_left > 0 and maxcall_left > 0:
-                warnings.warn('Warning. The maximum likelihood not reached '
-                              'in the batch. '
-                              'You may not have enough livepoints')
-            self.internal_state = DynamicSamplerStatesEnum.INBATCHADDLIVE
+        if iterated_batch and results.loglstar < logl_max and np.isfinite(
+                logl_max) and maxiter_left > 0 and maxcall_left > 0:
+            warnings.warn('Warning. The maximum likelihood not reached '
+                          'in the batch. '
+                          'You may not have enough livepoints')
+        self.internal_state = DynamicSamplerStatesEnum.INBATCHADDLIVE
 
+        if not iterated_batch and len(batch_sampler.saved_run.D['logl']) == 0:
+            # This is a special case *if* we only sampled the initial livepoints
+            # but never did sample after
+            batch_sampler.saved_run.D['logvol'] = [-np.inf]
+            batch_sampler.saved_run.D['logl'] = [logl_min]
+            batch_sampler.saved_run.D['logz'] = [-1e100]
+            batch_sampler.saved_run.D['logzvar'] = [0]
+            batch_sampler.saved_run.D['h'] = [0]
         for it, results in enumerate(batch_sampler.add_live_points()):
             # Save results.
             D = dict(id=results.worst,

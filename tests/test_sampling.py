@@ -10,29 +10,28 @@ def diamond_logl(X):
     if X.min() < 0 or X.max() > 1:
         return -np.inf
     D2 = (x1 - 0.5)**2 + (y1 - 0.5)**2
-    if D2 > 0.5**2:
-        return (D2 - 0.5**2) / (0.5 - 0.5**2)
-    else:
-        return -np.inf
+    return np.where(D2 > 0.5**2, D2 - 0.5**2, -np.inf)
 
 
 def checker_logl(X):
     mult = 16 * 2 * np.pi
     x, y = X
     logl = np.sin(x * mult) * np.sin(y * mult)
-    if X.min() < 0 or X.max() > 1:
-        return -np.inf
-    return logl
+    return np.where((x >= 0) & (x <= 1) & (y >= 0) & (y < 1), logl, -np.inf)
 
 
 def pdf_test(func, curx, nbins=100, thresh=6):
     hh, loc = np.histogram(curx, range=[0, 1], bins=nbins)
-    xloc = loc[:-1] + .5 * np.diff(loc)
-    pdf = hh / (loc[1] - loc[0]) / len(curx)
-    epdf = np.maximum(hh, 1)**.5 / (loc[1] - loc[0]) / len(curx)
+    norm = (loc[1] - loc[0]) * len(curx)
+    pdf = hh / norm
 
-    rat = np.abs(func(xloc) - pdf) / epdf
-    assert rat.max() < thresh
+    model_pdf = (func(loc[:-1]) + func(loc[1:])) / 2.
+    frac = 0.1
+    epdf = (model_pdf * norm)**.5 / norm
+    epdf1 = hh**.5 / norm
+    margin = np.maximum(thresh * np.maximum(epdf, epdf1), frac * model_pdf)
+    rat = np.abs(model_pdf - pdf)
+    assert (rat / margin).max() < 1
 
 
 def diamond_test(X):
@@ -49,7 +48,7 @@ def diamond_test(X):
 def checker_test(X, thresh=6):
 
     def func(x):
-        return 1
+        return x * 0 + 1
 
     for i in range(2):
         curx = X[:, i]
@@ -85,16 +84,20 @@ def doit(model='diamond',
         'rwalk': ds.sample_rwalk
     }[sample]
 
+    eye2 = np.eye(2)
+
+    def TRANS(x):
+        return x
+
     for i in range(niter):
         seed = rng.integers(1e9)
-        args = (u, loglstar, np.eye(2), scale, lambda x: x, curlogl, seed,
-                kwargs)
+        args = (u, loglstar, eye2, scale, TRANS, curlogl, seed, kwargs)
         u = func(args)[0]
         us[i] = u
     return us
 
 
-def test_all():
+def test_diamond_rwalk():
     rs = get_rstate()
     us = doit(model='diamond',
               sample='rwalk',
@@ -104,30 +107,31 @@ def test_all():
               walks=10)
     diamond_test(us)
 
+
+def test_diamond_rslice():
+    rs = get_rstate()
     us = doit(model='diamond',
               sample='rslice',
-              scale=.3,
+              scale=.1,
               rstate=rs,
               slices=10,
               niter=100_000)
     diamond_test(us)
 
-    us = doit(model='diamond',
-              sample='rslice',
-              scale=.3,
-              rstate=rs,
-              niter=100_000,
-              doubling=True)
-    diamond_test(us)
 
-    us = doit(model='checkerboard',
+def test_diamond_rslice_double():
+    rs = get_rstate()
+    us = doit(model='diamond',
               sample='rslice',
               scale=.001,
               rstate=rs,
               niter=100_000,
               doubling=True)
-    checker_test(us)
+    diamond_test(us)
 
+
+def test_checkerboard_rslice():
+    rs = get_rstate()
     us = doit(model='diamond',
               sample='slice',
               scale=.3,
@@ -135,3 +139,14 @@ def test_all():
               slices=1,
               niter=100_000)
     diamond_test(us)
+
+
+def test_checkerboard_rslice_double():
+    rs = get_rstate()
+    us = doit(model='checkerboard',
+              sample='rslice',
+              scale=.001,
+              rstate=rs,
+              niter=100_000,
+              doubling=True)
+    checker_test(us)

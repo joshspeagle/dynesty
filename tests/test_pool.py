@@ -51,8 +51,8 @@ def test_pool():
                                         queue_size=100,
                                         rstate=rstate)
         sampler.run_nested(dlogz=0.1, print_progress=printing)
-        assert (abs(LOGZ_TRUTH_EGG - sampler.results.logz[-1]) <
-                5. * sampler.results.logzerr[-1])
+        assert (abs(LOGZ_TRUTH_EGG - sampler.results['logz'][-1]) <
+                5. * sampler.results['logzerr'][-1])
 
 
 def test_pool_dynamic():
@@ -68,8 +68,8 @@ def test_pool_dynamic():
                                                queue_size=100,
                                                rstate=rstate)
         sampler.run_nested(dlogz_init=1, print_progress=printing)
-        assert (abs(LOGZ_TRUTH_GAU - sampler.results.logz[-1]) <
-                5. * sampler.results.logzerr[-1])
+        assert (abs(LOGZ_TRUTH_GAU - sampler.results['logz'][-1]) <
+                5. * sampler.results['logzerr'][-1])
 
 
 @pytest.mark.parametrize('sample', ['slice', 'rwalk', 'rslice'])
@@ -86,8 +86,8 @@ def test_pool_samplers(sample):
                                         queue_size=10,
                                         rstate=rstate)
         sampler.run_nested(print_progress=printing)
-        assert (abs(LOGZ_TRUTH_GAU - sampler.results.logz[-1]) <
-                5. * sampler.results.logzerr[-1])
+        assert (abs(LOGZ_TRUTH_GAU - sampler.results['logz'][-1]) <
+                5. * sampler.results['logzerr'][-1])
 
 
 POOL_KW = ['prior_transform', 'loglikelihood', 'propose_point', 'update_bound']

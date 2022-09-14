@@ -87,7 +87,7 @@ def fit_resume(fname, dynamic, prev_logz, pool=None):
     dns.run_nested(resume=True, n_effective=neff)
     # verify that the logz value is *identical*
     if prev_logz is not None:
-        assert dns.results.logz[-1] == prev_logz
+        assert dns.results['logz'][-1] == prev_logz
 
 
 class cache:
@@ -104,14 +104,14 @@ def getlogz(fname, save_every):
     if cache.dt0 is None:
         t0 = time.time()
         print('caching', file=sys.stderr)
-        result0 = fit_main(fname, False, save_every).results.logz[-1]
+        result0 = fit_main(fname, False, save_every).results['logz'][-1]
         try:
             os.unlink(fname)
         except:  # noqa
             pass
         t1 = time.time()
         print('static done', file=sys.stderr)
-        result1 = fit_main(fname, True, save_every).results.logz[-1]
+        result1 = fit_main(fname, True, save_every).results['logz'][-1]
         try:
             os.unlink(fname)
         except:  # noqa

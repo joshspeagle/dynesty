@@ -43,8 +43,8 @@ def test_periodic(sampler, dynamic):
                                     reflective=[0],
                                     rstate=rstate)
     dns.run_nested(print_progress=printing)
-    assert (np.abs(dns.results.logz[-1] - logz_true) <
-            thresh * dns.results.logzerr[-1])
+    assert (np.abs(dns.results['logz'][-1] - logz_true) <
+            thresh * dns.results['logzerr'][-1])
 
 
 def test_error():

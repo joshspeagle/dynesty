@@ -16,10 +16,10 @@ printing = get_printing
 
 def bootstrap_tol(results, rstate):
     """ Compute the uncertainty of means/covs by doing bootstrapping """
-    n = len(results.logz)
+    n = len(results['logz'])
     niter = 50
     pos = results.samples
-    wts = np.exp(results.logwt - results.logz[-1])
+    wts = results.importance_weights()
     means = []
     covs = []
 
@@ -44,9 +44,9 @@ def check_results(results,
 
     """
     pos = results.samples
-    wts = np.exp(results.logwt - results.logz[-1])
+    wts = results.importance_weights()
     mean, cov = dyfunc.mean_and_cov(pos, wts)
-    logz = results.logz[-1]
+    logz = results['logz'][-1]
     npt.assert_array_less(np.abs(mean - mean_truth), sig * mean_tol)
     npt.assert_array_less(np.abs(cov - cov_truth), sig * cov_tol)
     npt.assert_array_less(np.abs((logz_truth - logz)), sig * logz_tol)
@@ -126,12 +126,12 @@ def test_gaussian():
         results = sampler.results
         result_list.append(results)
         pos = results.samples
-        wts = np.exp(results.logwt - results.logz[-1])
+        wts = results.importance_weights()
         mean, cov = dyfunc.mean_and_cov(pos, wts)
-        logz = results.logz[-1]
+        logz = results['logz'][-1]
         assert (np.abs(logz - logz_truth_gau) < logz_tol)
     res_comb = dyfunc.merge_runs(result_list)
-    assert (np.abs(res_comb.logz[-1] - logz_truth_gau) < logz_tol)
+    assert (np.abs(res_comb['logz'][-1] - logz_truth_gau) < logz_tol)
     # check summary
     res = sampler.results
     res.summary()

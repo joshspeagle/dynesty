@@ -294,7 +294,11 @@ def test_results(dyn):
     print(res)
     print(str(res))
     print('logl' in res)
+    # check attributes
+    assert np.all(res.logz == res['logz'])
+    assert np.all(res.logzerr == res['logzerr'])
     res1 = res.copy()
+    del res1
     # check it's pickleable
     S = pickle.dumps(res)
     res = pickle.loads(S)

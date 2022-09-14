@@ -18,10 +18,10 @@ printing = get_printing()
 
 def bootstrap_tol(results, rstate):
     """ Compute the uncertainty of means/covs by doing bootstrapping """
-    n = len(results.logz)
+    n = len(results['logz'])
     niter = 50
     pos = results.samples
-    wts = np.exp(results.logwt - results.logz[-1])
+    wts = results.importance_weights()
     means = []
     covs = []
 
@@ -52,10 +52,11 @@ def check_results(results,
     """
     results.summary()
     pos = results.samples
-    wts = np.exp(results.logwt - results.logz[-1])
+    wts = np.exp(results['logwt'] - results['logz'][-1])
+    assert np.allclose(results.importance_weights(), wts)
     mean, cov = dyfunc.mean_and_cov(pos, wts)
-    logz = results.logz[-1]
-    logzerr = results.logzerr[-1]
+    logz = results['logz'][-1]
+    logzerr = results['logzerr'][-1]
     assert logzerr < 10  # check that it is not too large
     npt.assert_array_less(np.abs(mean - mean_truth), sig * mean_tol)
     npt.assert_array_less(np.abs(cov - cov_truth), sig * cov_tol)
@@ -115,11 +116,12 @@ class Gaussian:
 
 def check_results_gau(results, g, rstate, sig=5, logz_tol=None):
     if logz_tol is None:
-        logz_tol = sig * results.logzerr[-1]
+        logz_tol = sig * results['logzerr'][-1]
     mean_tol, cov_tol = bootstrap_tol(results, rstate)
     # just check that resample_equal works
     dyfunc.resample_equal(results.samples,
-                          np.exp(results.logwt - results.logz[-1]))
+                          np.exp(results['logwt'] - results['logz'][-1]))
+    results.samples_equal()
     check_results(results,
                   g.mean,
                   g.cov,
@@ -158,13 +160,13 @@ def test_gaussian():
         results = sampler.results
         result_list.append(results)
         pos = results.samples
-        wts = np.exp(results.logwt - results.logz[-1])
+        wts = results.importance_weights()
         mean, cov = dyfunc.mean_and_cov(pos, wts)
-        logz = results.logz[-1]
+        logz = results['logz'][-1]
         assert (np.abs(logz - g.logz_truth) < sig * results.logzerr[-1])
     res_comb = dyfunc.merge_runs(result_list)
-    assert (np.abs(res_comb.logz[-1] - g.logz_truth) <
-            sig * results.logzerr[-1])
+    assert (np.abs(res_comb['logz'][-1] - g.logz_truth) <
+            sig * results['logzerr'][-1])
     # check summary
     res = sampler.results
     res.summary()
@@ -200,8 +202,7 @@ def test_n_effective():
 
     current_n_effective = sampler.n_effective
 
-    for _ in sampler.sample(add_live=False,
-                            n_effective=target_n_effective):
+    for _ in sampler.sample(add_live=False, n_effective=target_n_effective):
         previous_n_effective = current_n_effective
         current_n_effective = sampler.n_effective
 
@@ -279,7 +280,7 @@ def test_bounding_enlarge():
 
 
 # extra checks for gradients
-def test_slice_nograd():
+def test_hslice_nograd():
     rstate = get_rstate()
     g = Gaussian()
     sampler = dynesty.NestedSampler(g.loglikelihood,
@@ -293,7 +294,7 @@ def test_slice_nograd():
 
 
 @pytest.mark.parametrize("dyn", [False, True])
-def test_slice_grad(dyn):
+def test_hslice_grad(dyn):
     rstate = get_rstate()
     g = Gaussian()
     if dyn:
@@ -315,7 +316,7 @@ def test_slice_grad(dyn):
     check_results_gau(sampler.results, g, rstate)
 
 
-def test_slice_grad1():
+def test_hslice_grad1():
     rstate = get_rstate()
     g = Gaussian()
     sampler = dynesty.NestedSampler(g.loglikelihood,
@@ -376,4 +377,4 @@ def test_ravel_unravel():
 
     dres_list = dyfunc.unravel_run(dres)
     dres_merge = dyfunc.merge_runs(dres_list)
-    assert np.abs(dres.logz[-1] - dres_merge.logz[-1]) < 0.01
+    assert np.abs(dres['logz'][-1] - dres_merge['logz'][-1]) < 0.01

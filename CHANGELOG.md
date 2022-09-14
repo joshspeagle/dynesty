@@ -5,23 +5,26 @@ All notable changes to dynesty will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+This is a major release with as several significant improvements. One is the implementation of the check-points to save progress and allow restarting of fits and a new simple interface to obtain equally weighted samples directly from results object.
+
 *IMPORTANT* This release includes some major refactoring of class structure in dynesty in to implement the check-pointing. While we haven't seen any breakage in our tests, it is possible that some of more-unusual workflows may be affected. Please submit a bug report on github if you see anything that doesn't look correct. Also, while every effort was made that checkpointing works correctly, it is possible that some corner-cases have been missed. Please report if you see any issues.
 
 ### Added
 - The nested samplers can now be saved and restored from the file using .save()
-.restore() interface
-- When sampling is performed using run_nested() it is now possible to perform checkpoints at regular intervals, allowing you then resume sampling if it was interrupted
+.restore() interface ( #386 ; by @segasai )
+- When sampling is performed using run_nested() it is now possible to perform checkpoints at regular intervals, allowing you then resume sampling if it was interrupted ( #386 ; by @segasai )
+- The nested sampler results object now allows to retrieve the equal weighted samples directly with results.equal_samples() method as well as allows you to retrieve the importance weights through .importance_weights() method ( #390 ; by @segasai)
 
 ### Fixed
 - Sampler.n_effective is no longer unnecessarily computed when sampling with
-  an infinite limit on n_effective.
+  an infinite limit on n_effective. ( #379 ; by @edbennett )
 
 ### Changed
 - Setting n_effective for Sampler.run_nested() and DynamicSampler.sample_initial(), and n_effective_init for DynamicSampler.run_nested(), are deprecated ( #379 ; by @edbennett )
-- The slice sampling can now switch to doubling interval expansion algorithm from Neal(2003), if at any point of the sampling the interval was expanded more than 1000 times. It should help slice/rslice sampling of difficult posteriors ( #382; by @segasai )
-- The accumulation of statistics using to tune proposal distribution is now more robust when multi-threading/pool is used. Previously statistics from every queue_size call were used and all other were discarded. Now the statistics are accumulated from all the parallel sampling calls. That should help sampling of complex distributions. ( #385 by @segasai ) 
+- The slice sampling can now switch to doubling interval expansion algorithm from Neal(2003), if at any point of the sampling the interval was expanded more than 1000 times. It should help slice/rslice sampling of difficult posteriors ( #382 ; by @segasai )
+- The accumulation of statistics using to tune proposal distribution is now more robust when multi-threading/pool is used. Previously statistics from every queue_size call were used and all other were discarded. Now the statistics are accumulated from all the parallel sampling calls. That should help sampling of complex distributions. ( #385 ; by @segasai ) 
 - The .update_proposal() function that updates the states of samplers
-now has an additional keyword which allows to either just accumulate the statistics from repeated function calls or actual update of the proposal. This was needed to not loose information when queue_size>1 (#385; by @segasai )
+now has an additional keyword which allows to either just accumulate the statistics from repeated function calls or actual update of the proposal. This was needed to not loose information when queue_size>1 ( #385 ; by @segasai )
 
 ## [1.2.3] - 2022-06-02
 

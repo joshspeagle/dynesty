@@ -1,7 +1,6 @@
-The testing suite is executed using pytest with all the tests inside the `tests/`
-folder
+The testing suite is executed using pytest with all the tests inside the `tests/` folder
 
-A few notes
+A few notes on running and writing tests
 
 ### Requirements
 The test suite makes use of packages not included in `requirements.txt`. To install these additional packages, use
@@ -21,7 +20,7 @@ Long tests include notebook tests and some high-dimensional validation tests
 ### Testing in parallel
 If you have many CPUs, you can run the tests in parallel using
 ```
-pytest --workers=10
+pytest  -m 'not slow' --dist loadgroup  -n 10
 ```
 (if you have 10 CPUs). This way the test suite should finish in a few minutes.
 

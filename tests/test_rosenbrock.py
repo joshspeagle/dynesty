@@ -68,9 +68,7 @@ def doit(sample='rslice', nlive=500, seed=1):
     ns.run_nested(print_progress=printing)
     res = ns.results
 
-    C = dyutil.resample_equal(res.samples,
-                              np.exp(res.logwt - res.logz[-1]),
-                              rstate=rstate)
+    C = res.samples_equal(rstate=rstate)
     return C
 
 

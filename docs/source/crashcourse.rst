@@ -82,7 +82,7 @@ For instance::
 
     # Extract sampling results.
     samples = results.samples  # samples
-    weights = np.exp(results.logwt - results.logz[-1])  # normalized weights
+    weights = results.importance_weights()
 
     # Compute 10%-90% quantiles.
     quantiles = [dyfunc.quantile(samps, [0.1, 0.9], weights=weights)
@@ -92,7 +92,7 @@ For instance::
     mean, cov = dyfunc.mean_and_cov(samples, weights)
 
     # Resample weighted samples.
-    samples_equal = dyfunc.resample_equal(samples, weights)
+    samples_equal = results.samples_equal()
 
     # Generate a new set of results with sampling uncertainties.
     results_sim = dyfunc.resample_run(results)

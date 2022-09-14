@@ -3,7 +3,7 @@ import dynesty
 import os
 import multiprocessing as mp
 import pytest
-from utils import get_rstate, get_printing
+from utils import get_rstate, get_printing, NullContextManager
 """
 Run a series of basic tests to check whether saving likelikelihood evals
 are broken
@@ -33,28 +33,26 @@ def test_saving(dopool, maxiter):
     fname = 'dynesty_test_%d.h5' % (os.getpid())
     rstate = get_rstate()
     kw = {}
-    if dopool:
-        pool = mp.Pool(2)
-        kw['pool'] = pool
-        kw['queue_size'] = 100
 
-    sampler = dynesty.NestedSampler(loglike,
-                                    prior_transform,
-                                    ndim,
-                                    nlive=nlive,
-                                    save_history=True,
-                                    history_filename=fname,
-                                    rstate=rstate,
-                                    **kw)
-    sampler.run_nested(dlogz=0.01, print_progress=printing, maxiter=maxiter)
-    assert (os.path.exists(fname))
-    try:
-        os.unlink(fname)
-    except FileNotFoundError:
-        pass
-    if dopool:
+    with (NullContextManager() if not dopool else mp.Pool(2)) as pool:
+        if dopool:
+            pool = pool
+            kw['pool'] = pool
+            kw['queue_size'] = 100
+
+        sampler = dynesty.NestedSampler(loglike,
+                                        prior_transform,
+                                        ndim,
+                                        nlive=nlive,
+                                        save_history=True,
+                                        history_filename=fname,
+                                        rstate=rstate,
+                                        **kw)
+        sampler.run_nested(dlogz=0.01,
+                           print_progress=printing,
+                           maxiter=maxiter)
+        assert (os.path.exists(fname))
         try:
-            pool.close()
-            pool.join()
-        except Exception:
+            os.unlink(fname)
+        except FileNotFoundError:
             pass

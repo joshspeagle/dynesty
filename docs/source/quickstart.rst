@@ -1050,14 +1050,14 @@ samples using the :meth:`~dynesty.utils.mean_and_cov` function::
 
     from dynesty import utils as dyfunc
 
-    samples, weights = res2.samples, np.exp(res2.logwt - res2.logz[-1])
+    samples, weights = res2.samples, res2.importance_weights()
     mean, cov = dyfunc.mean_and_cov(samples, weights)
 
 Runs can also be resampled to give a mew set of points with equal
-weights, similar to MCMC methods, using the 
+weights, similar to MCMC methods, using the
 :meth:`~dynesty.utils.resample_equal` function::
 
-    new_samples = dyfunc.resample_equal(samples, weights)
+    new_samples = res2.samples_equal()
 
-See :ref:`Nested Sampling Errors` for some additional discussion and 
+See :ref:`Nested Sampling Errors` for some additional discussion and
 demonstration of more functions.

@@ -5,7 +5,7 @@ import multiprocessing as mp
 import dynesty
 import numpy as np
 import pytest
-from utils import get_rstate
+from utils import get_rstate, NullContextManager
 import itertools
 
 
@@ -26,19 +26,6 @@ def get_fname():
 
 def ptform(x):
     return 20 * x - 10
-
-
-class NullContextManager(object):
-    # https://stackoverflow.com/questions/45187286/how-do-i-write-a-null-no-op-contextmanager-in-python
-    # this is to make it work for 3.6
-    def __init__(self, dummy_resource=None):
-        self.dummy_resource = dummy_resource
-
-    def __enter__(self):
-        return self.dummy_resource
-
-    def __exit__(self, *args):
-        pass
 
 
 def fit_main(fname, dynamic, checkpoint_every=0.01, npool=None):
@@ -87,7 +74,7 @@ def fit_resume(fname, dynamic, prev_logz, pool=None):
     dns.run_nested(resume=True, n_effective=neff)
     # verify that the logz value is *identical*
     if prev_logz is not None:
-        assert dns.results.logz[-1] == prev_logz
+        assert dns.results['logz'][-1] == prev_logz
 
 
 class cache:
@@ -104,14 +91,14 @@ def getlogz(fname, save_every):
     if cache.dt0 is None:
         t0 = time.time()
         print('caching', file=sys.stderr)
-        result0 = fit_main(fname, False, save_every).results.logz[-1]
+        result0 = fit_main(fname, False, save_every).results['logz'][-1]
         try:
             os.unlink(fname)
         except:  # noqa
             pass
         t1 = time.time()
         print('static done', file=sys.stderr)
-        result1 = fit_main(fname, True, save_every).results.logz[-1]
+        result1 = fit_main(fname, True, save_every).results['logz'][-1]
         try:
             os.unlink(fname)
         except:  # noqa

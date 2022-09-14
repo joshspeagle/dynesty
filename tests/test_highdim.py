@@ -25,6 +25,7 @@ def get_covar(rstate, ndim):
 
 
 class Config:
+
     def __init__(self, rstate, ndim_gau):
         self.ndim_gau = ndim_gau
         self.mean_gau = np.linspace(-1, 1, ndim_gau)
@@ -45,6 +46,7 @@ class si:
 
 # 3-D correlated multivariate normal log-likelihood
 class LogL:
+
     def __init__(self, config):
         self.config = config
 
@@ -59,6 +61,7 @@ class LogL:
 
 
 class Prior:
+
     def __init__(self, config):
         self.config = config
 
@@ -102,24 +105,24 @@ def do_gaussians(sample='rslice',
     """
     Run many tests 
     """
-    pool = mp.Pool(nthreads)
-    res = []
-    ndims = np.arange(ndim_min, ndim_max + 1)
-    for ndim in ndims:
-        rstate = get_rstate(ndim)
-        co = Config(rstate, ndim)
-        slices = None
-        res.append((ndim, co,
-                    pool.apply_async(
-                        do_gaussian, (co, ),
-                        dict(sample=sample,
-                             bound=bound,
-                             rstate=rstate,
-                             slices=slices,
-                             nlive=nlive))))
-    for ndim, co, curres in res:
-        curres = curres.get()
-        print(ndim, curres[0], curres[1], curres[2], co.logz_truth_gau)
+    with mp.Pool(nthreads) as pool:
+        res = []
+        ndims = np.arange(ndim_min, ndim_max + 1)
+        for ndim in ndims:
+            rstate = get_rstate(ndim)
+            co = Config(rstate, ndim)
+            slices = None
+            res.append((ndim, co,
+                        pool.apply_async(
+                            do_gaussian, (co, ),
+                            dict(sample=sample,
+                                 bound=bound,
+                                 rstate=rstate,
+                                 slices=slices,
+                                 nlive=nlive))))
+        for ndim, co, curres in res:
+            curres = curres.get()
+            print(ndim, curres[0], curres[1], curres[2], co.logz_truth_gau)
 
 
 @pytest.mark.slow

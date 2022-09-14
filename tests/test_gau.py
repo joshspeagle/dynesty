@@ -280,7 +280,7 @@ def test_bounding_enlarge():
 
 
 # extra checks for gradients
-def test_slice_nograd():
+def test_hslice_nograd():
     rstate = get_rstate()
     g = Gaussian()
     sampler = dynesty.NestedSampler(g.loglikelihood,
@@ -294,7 +294,7 @@ def test_slice_nograd():
 
 
 @pytest.mark.parametrize("dyn", [False, True])
-def test_slice_grad(dyn):
+def test_hslice_grad(dyn):
     rstate = get_rstate()
     g = Gaussian()
     if dyn:
@@ -316,7 +316,7 @@ def test_slice_grad(dyn):
     check_results_gau(sampler.results, g, rstate)
 
 
-def test_slice_grad1():
+def test_hslice_grad1():
     rstate = get_rstate()
     g = Gaussian()
     sampler = dynesty.NestedSampler(g.loglikelihood,

@@ -1341,80 +1341,82 @@ class DynamicSampler:
         for i in range(len(first_points)):
             yield first_points.pop(0)
 
-        for i in range(1):
-            iterated_batch = False
-            # To identify if the loop below was executed or not
-            for it, results in enumerate(
-                    batch_sampler.sample(dlogz=dlogz,
-                                         logl_max=logl_max,
-                                         maxiter=maxiter_left,
-                                         maxcall=maxcall - sum(live_nc),
-                                         save_samples=True,
-                                         save_bounds=save_bounds,
-                                         resume=resume)):
-                # Save results.
-                D = dict(id=results.worst,
-                         u=results.ustar,
-                         v=results.vstar,
-                         logl=results.loglstar,
-                         nc=results.nc,
-                         it=results.worst_it,
-                         n=nlive_new,
-                         boundidx=results.boundidx,
-                         bounditer=results.bounditer,
-                         scale=batch_sampler.scale)
-                self.new_run.append(D)
+        iterated_batch = False
+        # To identify if the loop below was executed or not
+        maxcall_left = maxcall - np.sum(live_nc)
+        for it, results in enumerate(
+                batch_sampler.sample(dlogz=dlogz,
+                                     logl_max=logl_max,
+                                     maxiter=maxiter_left,
+                                     maxcall=maxcall_left,
+                                     save_samples=True,
+                                     save_bounds=save_bounds,
+                                     resume=resume)):
+            # Save results.
+            D = dict(id=results.worst,
+                     u=results.ustar,
+                     v=results.vstar,
+                     logl=results.loglstar,
+                     nc=results.nc,
+                     it=results.worst_it,
+                     n=nlive_new,
+                     boundidx=results.boundidx,
+                     bounditer=results.bounditer,
+                     scale=batch_sampler.scale)
+            self.new_run.append(D)
 
-                # Increment relevant counters.
-                self.ncall += results.nc
-                self.eff = 100. * self.it / self.ncall
-                self.it += 1
-                maxiter_left -= 1
-                iterated_batch = True
-                self.internal_state = DynamicSamplerStatesEnum.INBATCH
+            # Increment relevant counters.
+            self.ncall += results.nc
+            self.eff = 100. * self.it / self.ncall
+            self.it += 1
+            maxiter_left -= 1
+            maxcall_left -= results.nc
+            iterated_batch = True
+            self.internal_state = DynamicSamplerStatesEnum.INBATCH
 
-                yield IteratorResultShort(worst=results.worst,
-                                          ustar=results.ustar,
-                                          vstar=results.vstar,
-                                          loglstar=results.loglstar,
-                                          nc=results.nc,
-                                          worst_it=results.worst_it,
-                                          boundidx=results.boundidx,
-                                          bounditer=results.bounditer,
-                                          eff=self.eff)
-            if (iterated_batch and results.loglstar < logl_max
-                    and np.isfinite(logl_max)) and maxiter_left > 0:
+            yield IteratorResultShort(worst=results.worst,
+                                      ustar=results.ustar,
+                                      vstar=results.vstar,
+                                      loglstar=results.loglstar,
+                                      nc=results.nc,
+                                      worst_it=results.worst_it,
+                                      boundidx=results.boundidx,
+                                      bounditer=results.bounditer,
+                                      eff=self.eff)
+        if iterated_batch:
+            if results.loglstar < logl_max and np.isfinite(
+                    logl_max) and maxiter_left > 0 and maxcall_left > 0:
                 warnings.warn('Warning. The maximum likelihood not reached '
                               'in the batch. '
                               'You may not have enough livepoints')
             self.internal_state = DynamicSamplerStatesEnum.INBATCHADDLIVE
 
-            for it, results in enumerate(batch_sampler.add_live_points()):
-                # Save results.
-                D = dict(id=results.worst,
-                         u=results.ustar,
-                         v=results.vstar,
-                         logl=results.loglstar,
-                         nc=live_nc[results.worst],
-                         it=results.worst_it,
-                         n=nlive_new - it,
-                         boundidx=results.boundidx,
-                         bounditer=results.bounditer,
-                         scale=batch_sampler.scale)
-                self.new_run.append(D)
+        for it, results in enumerate(batch_sampler.add_live_points()):
+            # Save results.
+            D = dict(id=results.worst,
+                     u=results.ustar,
+                     v=results.vstar,
+                     logl=results.loglstar,
+                     nc=live_nc[results.worst],
+                     it=results.worst_it,
+                     n=nlive_new - it,
+                     boundidx=results.boundidx,
+                     bounditer=results.bounditer,
+                     scale=batch_sampler.scale)
+            self.new_run.append(D)
 
-                # Increment relevant counters.
-                self.eff = 100. * self.it / self.ncall
-                self.it += 1
-                yield IteratorResultShort(worst=results.worst,
-                                          ustar=results.ustar,
-                                          vstar=results.vstar,
-                                          loglstar=results.loglstar,
-                                          nc=live_nc[results.worst],
-                                          worst_it=results.worst_it,
-                                          boundidx=results.boundidx,
-                                          bounditer=results.bounditer,
-                                          eff=self.eff)
+            # Increment relevant counters.
+            self.eff = 100. * self.it / self.ncall
+            self.it += 1
+            yield IteratorResultShort(worst=results.worst,
+                                      ustar=results.ustar,
+                                      vstar=results.vstar,
+                                      loglstar=results.loglstar,
+                                      nc=live_nc[results.worst],
+                                      worst_it=results.worst_it,
+                                      boundidx=results.boundidx,
+                                      bounditer=results.bounditer,
+                                      eff=self.eff)
         del self.batch_sampler
 
     def combine_runs(self):

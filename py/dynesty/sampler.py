@@ -399,29 +399,27 @@ class Sampler:
         else:
             self.added_live = True
 
+        logz = self.saved_run.D['logz'][-1]
+        logzvar = self.saved_run.D['logzvar'][-1]
+        h = self.saved_run.D['h'][-1]
+        loglstar = self.saved_run.D['logl'][-1]
+        logvol = self.saved_run.D['logvol'][-1]
         # After N samples have been taken out, the remaining volume is
         # `e^(-N / nlive)`. The remaining points are distributed uniformly
         # within the remaining volume so that the expected volume enclosed
         # by the `i`-th worst likelihood is
         # `e^(-N / nlive) * (nlive + 1 - i) / (nlive + 1)`.
-        logvols = self.saved_run.D['logvol'][-1]
-        logvols += np.log(1. - (np.arange(self.nlive) + 1.) /
-                          (self.nlive + 1.))
-        logvols_pad = np.concatenate(
-            ([self.saved_run.D['logvol'][-1]], logvols))
+        logvols = logvol + np.log(1. - (np.arange(self.nlive) + 1.) /
+                                  (self.nlive + 1.))
 
         # Defining change in `logvol` used in `logzvar` approximation.
-        dlvs = logvols_pad[:-1] - logvols_pad[1:]
+        dlvs = -np.diff(logvols, prepend=logvol)
 
         # Sorting remaining live points.
         lsort_idx = np.argsort(self.live_logl)
         loglmax = max(self.live_logl)
 
         # Grabbing relevant values from the last dead point.
-        logz = self.saved_run.D['logz'][-1]
-        logzvar = self.saved_run.D['logzvar'][-1]
-        h = self.saved_run.D['h'][-1]
-        loglstar = self.saved_run.D['logl'][-1]
         if self._beyond_unit_bound(loglstar):
             bounditer = self.nbound - 1
         else:

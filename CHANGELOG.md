@@ -5,13 +5,15 @@ All notable changes to dynesty will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+This is a major release with as several significant improvements. One is the implementation of the check-points to save progress and allow restarting of fits and a new simple interface to obtain equally weighted samples directly from results object.
+
 *IMPORTANT* This release includes some major refactoring of class structure in dynesty in to implement the check-pointing. While we haven't seen any breakage in our tests, it is possible that some of more-unusual workflows may be affected. Please submit a bug report on github if you see anything that doesn't look correct. Also, while every effort was made that checkpointing works correctly, it is possible that some corner-cases have been missed. Please report if you see any issues.
 
 ### Added
 - The nested samplers can now be saved and restored from the file using .save()
 .restore() interface ( #386 ; by @segasai )
 - When sampling is performed using run_nested() it is now possible to perform checkpoints at regular intervals, allowing you then resume sampling if it was interrupted ( #386 ; by @segasai )
-- The nested sampler results object now allows to retrieve the equal weighted samples directly with results.equal_samples() method as well as allows you to retrieve the importance weights through .importance_weights() method ( #386 ; by @segasai)
+- The nested sampler results object now allows to retrieve the equal weighted samples directly with results.equal_samples() method as well as allows you to retrieve the importance weights through .importance_weights() method ( #390 ; by @segasai)
 
 ### Fixed
 - Sampler.n_effective is no longer unnecessarily computed when sampling with

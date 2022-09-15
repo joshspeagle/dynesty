@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 import dynesty
 import pickle
+from scipy import linalg
 import dynesty.utils as dyutil
 from multiprocessing import Pool
 import itertools
@@ -411,3 +412,55 @@ def test_transform_tuple():
                                     rstate=rstate)
 
     sampler.run_nested(print_progress=printing, maxiter=50)
+
+
+class Like2:
+
+    def __init__(self):
+        self.ndim = 2
+        self.C2 = np.identity(self.ndim)
+        self.Cinv2 = linalg.inv(self.C2)
+        self.lnorm2 = -0.5 * (np.log(2 * np.pi) * self.ndim +
+                              np.log(linalg.det(self.C2)))
+
+    def loglikelihood(self, x):
+        """Multivariate normal log-likelihood."""
+        return -0.5 * np.dot(x, np.dot(self.Cinv2, x)) + self.lnorm2
+
+    # prior transform
+    def prior_transform(self, u):
+        return 10. * (2. * u - 1.)
+
+
+def test_maxiter_batch():
+    """
+    This tests the situation when maxiter runs out before the batch has time to start
+    See #392
+    """
+    maxiter0 = 10000
+
+    L = Like2()
+    nlive = 50
+    for i in range(2):
+        if i == 0:
+            maxiter = maxiter0
+
+        rstate = get_rstate()
+        dsampler2 = dynesty.DynamicNestedSampler(L.loglikelihood,
+                                                 L.prior_transform,
+                                                 nlive=nlive,
+                                                 ndim=L.ndim,
+                                                 bound='single',
+                                                 sample='unif',
+                                                 rstate=rstate)
+
+        dsampler2.run_nested(maxiter=maxiter, use_stop=False)
+        dres2 = dsampler2.results
+        if i == 0:
+            # I am finding the the first iteration with the batch
+            # [-inf, something]. Then I'm setting maxiter to be just above
+            # that iteration
+            b1 = np.where(~np.isfinite(dres2.batch_bounds[:, 0]))[0][1]
+            maxiter = np.min(
+                np.array(dsampler2.saved_run.D['it'])[
+                    dsampler2.saved_run.D['batch'] == b1]) + nlive // 2

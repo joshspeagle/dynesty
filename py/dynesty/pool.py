@@ -15,12 +15,6 @@ class FunctionCache:
     """
     Singleton class to cache the functions and optional arguments between calls
     """
-    loglike = None
-    prior_transform = None
-    logl_args = None
-    logl_kwargs = None
-    ptform_args = None
-    ptform_kwargs = None
 
 
 def initializer(loglike, prior_transform, logl_args, logl_kwargs, ptform_args,
@@ -82,6 +76,7 @@ class Pool:
         self.prior_transform_0 = prior_transform
         self.loglike = loglike_cache
         self.prior_transform = prior_transform_cache
+        self.pool = None
 
     def __enter__(self):
         """ Activate the pool """

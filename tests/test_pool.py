@@ -44,34 +44,32 @@ def test_pool():
     # test pool on egg problem
     rstate = get_rstate()
     with dypool.Pool(2, loglike_egg, prior_transform_egg) as pool:
-        # with mp.Pool(2) as pool:
-        sampler = dynesty.NestedSampler(  #pool.loglike,
-            #pool.prior_transform,
-            loglike_egg,
-            prior_transform_egg,
-            ndim,
-            nlive=nlive,
-            pool=pool,
-            queue_size=100,
-            rstate=rstate)
+        sampler = dynesty.NestedSampler(pool.loglike,
+                                        pool.prior_transform,
+                                        ndim,
+                                        nlive=nlive,
+                                        pool=pool,
+                                        queue_size=100,
+                                        rstate=rstate)
         sampler.run_nested(dlogz=0.1, print_progress=printing)
+
         assert (abs(LOGZ_TRUTH_EGG - sampler.results['logz'][-1]) <
                 5. * sampler.results['logzerr'][-1])
 
 
 def test_pool_dynamic():
-    # test pool in dynamic mode
-    # here for speed I do a gaussian
+    # test pool on egg problem
     rstate = get_rstate()
-    with mp.Pool(2) as pool:
-        sampler = dynesty.DynamicNestedSampler(loglike_gau,
-                                               prior_transform_gau,
+    with dypool.Pool(2, loglike_gau, prior_transform_gau) as pool:
+        sampler = dynesty.DynamicNestedSampler(pool.loglike,
+                                               pool.prior_transform,
                                                ndim,
                                                nlive=nlive,
                                                pool=pool,
                                                queue_size=100,
                                                rstate=rstate)
         sampler.run_nested(dlogz_init=1, print_progress=printing)
+
         assert (abs(LOGZ_TRUTH_GAU - sampler.results['logz'][-1]) <
                 5. * sampler.results['logzerr'][-1])
 

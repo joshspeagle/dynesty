@@ -444,8 +444,7 @@ class Sampler:
              h) = progress_integration(loglstar, loglstar_new, logz, logzvar,
                                        logvol, dlv, h)
             loglstar = loglstar_new
-            logz_remain = loglmax + logvol  # remaining ln(evidence)
-            delta_logz = np.logaddexp(0, logz_remain - logz)
+            delta_logz = np.logaddexp(0, loglmax + logvol - logz)
 
             # Save results.
             if self.save_samples:
@@ -643,14 +642,13 @@ class Sampler:
                 self._remove_live_points()
 
             # Get final state from previous run.
-            h = self.saved_run['h'][-1]  # information
-            logz = self.saved_run['logz'][-1]  # ln(evidence)
-            logzvar = self.saved_run['logzvar'][-1]  # var[ln(evidence)]
-            logvol = self.saved_run['logvol'][-1]  # ln(volume)
+            h, logz, logzvar, logvol = [
+                self.saved_run[_][-1]
+                for _ in ['h', 'logz', 'logzvar', 'logvol']
+            ]
             loglstar = np.min(self.live_logl)  # ln(likelihood)
-            delta_logz = np.logaddexp(
-                logz,
-                np.max(self.live_logl) + logvol) - logz  # log-evidence ratio
+            delta_logz = np.logaddexp(0,
+                                      np.max(self.live_logl) + logvol - logz)
 
         stop_iterations = False
         # The main nested sampling loop.
@@ -667,8 +665,8 @@ class Sampler:
 
             # Stopping criterion 3: estimated (fractional) remaining evidence
             # lies below some threshold set by `dlogz`.
-            logz_remain = np.max(self.live_logl) + logvol
-            delta_logz = np.logaddexp(logz, logz_remain) - logz
+            delta_logz = np.logaddexp(0,
+                                      np.max(self.live_logl) + logvol - logz)
             if dlogz is not None and delta_logz < dlogz:
                 stop_iterations = True
 

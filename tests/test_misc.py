@@ -462,5 +462,5 @@ def test_maxiter_batch():
             # that iteration
             b1 = np.where(~np.isfinite(dres2.batch_bounds[:, 0]))[0][1]
             maxiter = np.min(
-                np.array(dsampler2.saved_run.D['it'])[
-                    dsampler2.saved_run.D['batch'] == b1]) + nlive // 2
+                np.array(dsampler2.saved_run['it'])[
+                    dsampler2.saved_run['batch'] == b1]) + nlive // 2

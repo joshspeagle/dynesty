@@ -204,7 +204,7 @@ class Sampler:
                 'nc', 'v', 'id', 'it', 'u', 'logwt', 'logl', 'logvol', 'logz',
                 'logzvar', 'h'
         ]:
-            d[k] = np.array(self.saved_run.D[k])
+            d[k] = np.array(self.saved_run[k])
 
         # Add all saved samples to the results.
         if self.save_samples:
@@ -226,12 +226,11 @@ class Sampler:
         if self.save_bounds:
             results.append(('bound', copy.deepcopy(self.bound)))
             results.append(('bound_iter',
-                            np.array(self.saved_run.D['bounditer'],
+                            np.array(self.saved_run['bounditer'],
                                      dtype='int')))
             results.append(('samples_bound',
-                            np.array(self.saved_run.D['boundidx'],
-                                     dtype='int')))
-            results.append(('scale', np.array(self.saved_run.D['scale'])))
+                            np.array(self.saved_run['boundidx'], dtype='int')))
+            results.append(('scale', np.array(self.saved_run['scale'])))
 
         return Results(results)
 
@@ -244,7 +243,7 @@ class Sampler:
         `1` if there is only one non-zero element in `wts`.
 
         """
-        logwt = self.saved_run.D['logwt']
+        logwt = self.saved_run['logwt']
         if len(logwt) == 0 or np.isneginf(np.max(logwt)):
             # If there are no saved weights, or its -inf return 0.
             return 0
@@ -399,11 +398,11 @@ class Sampler:
         else:
             self.added_live = True
 
-        logz = self.saved_run.D['logz'][-1]
-        logzvar = self.saved_run.D['logzvar'][-1]
-        h = self.saved_run.D['h'][-1]
-        loglstar = self.saved_run.D['logl'][-1]
-        logvol = self.saved_run.D['logvol'][-1]
+        logz = self.saved_run['logz'][-1]
+        logzvar = self.saved_run['logzvar'][-1]
+        h = self.saved_run['h'][-1]
+        loglstar = self.saved_run['logl'][-1]
+        logvol = self.saved_run['logvol'][-1]
         # After N samples have been taken out, the remaining volume is
         # `e^(-N / nlive)`. The remaining points are distributed uniformly
         # within the remaining volume so that the expected volume enclosed
@@ -496,7 +495,7 @@ class Sampler:
                         'logzvar', 'h', 'nc', 'boundidx', 'it', 'bounditer',
                         'scale'
                 ]:
-                    del self.saved_run.D[k][-self.nlive:]
+                    del self.saved_run[k][-self.nlive:]
         else:
             raise ValueError("No live points were added to the "
                              "list of samples!")
@@ -621,7 +620,7 @@ class Sampler:
         self.save_bounds = save_bounds
         ncall = 0
         # Check whether we're starting fresh or continuing a previous run.
-        if self.it == 1 or len(self.saved_run.D['logl']) == 0:
+        if self.it == 1 or len(self.saved_run['logl']) == 0:
             # Initialize values for nested sampling loop.
             h = 0.  # information, initially *0.*
             logz = -1.e300  # ln(evidence), initially *0.*
@@ -644,10 +643,10 @@ class Sampler:
                 self._remove_live_points()
 
             # Get final state from previous run.
-            h = self.saved_run.D['h'][-1]  # information
-            logz = self.saved_run.D['logz'][-1]  # ln(evidence)
-            logzvar = self.saved_run.D['logzvar'][-1]  # var[ln(evidence)]
-            logvol = self.saved_run.D['logvol'][-1]  # ln(volume)
+            h = self.saved_run['h'][-1]  # information
+            logz = self.saved_run['logz'][-1]  # ln(evidence)
+            logzvar = self.saved_run['logzvar'][-1]  # var[ln(evidence)]
+            logvol = self.saved_run['logvol'][-1]  # ln(volume)
             loglstar = np.min(self.live_logl)  # ln(likelihood)
             delta_logz = np.logaddexp(
                 logz,
@@ -929,12 +928,11 @@ class Sampler:
 
             # Here we recompute the integrals using the full run
             new_logwt, new_logz, new_logzvar, new_h = compute_integrals(
-                logl=self.saved_run.D['logl'],
-                logvol=self.saved_run.D['logvol'])
-            self.saved_run.D['logwt'] = new_logwt.tolist()
-            self.saved_run.D['logz'] = new_logz.tolist()
-            self.saved_run.D['logzvar'] = new_logzvar.tolist()
-            self.saved_run.D['h'] = new_h.tolist()
+                logl=self.saved_run['logl'], logvol=self.saved_run['logvol'])
+            self.saved_run['logwt'] = new_logwt.tolist()
+            self.saved_run['logz'] = new_logz.tolist()
+            self.saved_run['logzvar'] = new_logzvar.tolist()
+            self.saved_run['h'] = new_h.tolist()
             if checkpoint_file is not None:
                 # I don't check the time timer here
                 self.save(checkpoint_file)

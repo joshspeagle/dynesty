@@ -165,7 +165,7 @@ class LogLikelihood:
 
 class RunRecord:
     """
-    This is the class that saves the results of the nested
+    This is the dictionary like class that saves the results of the nested
     run so it is basically a collection of various lists of
     quantities
     """
@@ -199,8 +199,8 @@ class RunRecord:
                 # these are special since their length
                 # is == the number of batches
                 'batch_nlive',  # number of live points added in batch
-                'batch_bounds'
-            ])  # loglikelihood bounds used in batch
+                'batch_bounds'  # loglikelihood bounds used in batch
+            ])
         for k in keys:
             D[k] = []
         self.D = D
@@ -212,6 +212,15 @@ class RunRecord:
         """
         for k in newD.keys():
             self.D[k].append(newD[k])
+
+    def __getitem__(self, k):
+        return self.D[k]
+
+    def __setitem__(self, k, v):
+        self.D[k] = v
+
+    def keys(self):
+        return self.D.keys()
 
 
 class DelayTimer:

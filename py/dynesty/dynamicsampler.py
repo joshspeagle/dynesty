@@ -650,7 +650,7 @@ class DynamicSampler:
                 'nc', 'v', 'id', 'batch', 'it', 'u', 'n', 'logwt', 'logl',
                 'logvol', 'logz', 'logzvar', 'h', 'batch_nlive', 'batch_bounds'
         ]:
-            d[k] = np.array(self.saved_run.D[k])
+            d[k] = np.array(self.saved_run[k])
 
         # Add all saved samples (and ancillary quantities) to the results.
         with warnings.catch_warnings():
@@ -671,10 +671,10 @@ class DynamicSampler:
         if self.sampler.save_bounds:
             results.append(('bound', copy.deepcopy(self.bound)))
             results.append(
-                ('bound_iter', np.array(self.saved_run.D['bounditer'])))
+                ('bound_iter', np.array(self.saved_run['bounditer'])))
             results.append(
-                ('samples_bound', np.array(self.saved_run.D['boundidx'])))
-            results.append(('scale', np.array(self.saved_run.D['scale'])))
+                ('samples_bound', np.array(self.saved_run['boundidx'])))
+            results.append(('scale', np.array(self.saved_run['scale'])))
 
         return Results(results)
 
@@ -687,7 +687,7 @@ class DynamicSampler:
         `1` if there is only one non-zero element in `wts`.
 
         """
-        logwt = self.saved_run.D['logwt']
+        logwt = self.saved_run['logwt']
         if len(logwt) == 0 or np.isneginf(np.max(logwt)):
             # If there are no saved weights, or its -inf return 0.
             return 0
@@ -982,19 +982,18 @@ class DynamicSampler:
                                      delta_logz=results.delta_logz)
         new_vals = {}
         (new_vals['logwt'], new_vals['logz'], new_vals['logzvar'],
-         new_vals['h']) = compute_integrals(logl=self.saved_run.D['logl'],
-                                            logvol=self.saved_run.D['logvol'])
+         new_vals['h']) = compute_integrals(logl=self.saved_run['logl'],
+                                            logvol=self.saved_run['logvol'])
         for curk in ['logwt', 'logz', 'logzvar', 'h']:
-            self.saved_run.D[curk] = new_vals[curk].tolist()
-            self.base_run.D[curk] = new_vals[curk].tolist()
+            self.saved_run[curk] = new_vals[curk].tolist()
+            self.base_run[curk] = new_vals[curk].tolist()
 
         self.base = True  # baseline run complete
-        self.saved_run.D['batch'] = np.zeros(len(self.saved_run.D['id']),
-                                             dtype='int')  # batch
+        self.saved_run['batch'] = np.zeros(len(self.saved_run['id']),
+                                           dtype='int')  # batch
 
-        self.saved_run.D['batch_nlive'].append(
-            self.nlive_init)  # initial nlive
-        self.saved_run.D['batch_bounds'].append(
+        self.saved_run['batch_nlive'].append(self.nlive_init)  # initial nlive
+        self.saved_run['batch_bounds'].append(
             (-np.inf, np.inf))  # initial bounds
         self.internal_state = DynamicSamplerStatesEnum.BASE_DONE
 
@@ -1093,11 +1092,11 @@ class DynamicSampler:
             warnings.warn("Beware: `nlive_batch <= 2 * ndim`!")
 
         # Grab results from saved run.
-        saved_u = np.array(self.saved_run.D['u'])
-        saved_v = np.array(self.saved_run.D['v'])
-        saved_logl = np.array(self.saved_run.D['logl'])
-        saved_logvol = np.array(self.saved_run.D['logvol'])
-        saved_scale = np.array(self.saved_run.D['scale'])
+        saved_u = np.array(self.saved_run['u'])
+        saved_v = np.array(self.saved_run['v'])
+        saved_logl = np.array(self.saved_run['logl'])
+        saved_logvol = np.array(self.saved_run['logvol'])
+        saved_scale = np.array(self.saved_run['scale'])
         nblive = self.nlive_init
 
         update_interval = self.__get_update_interval(update_interval,
@@ -1310,12 +1309,12 @@ class DynamicSampler:
             else:
                 vol_idx = np.argmin(
                     np.abs(
-                        np.asarray(self.saved_run.D['logl']) -
+                        np.asarray(self.saved_run['logl']) -
                         self.new_logl_min)) + 1
 
             # truncate information in the saver of the internal sampler
-            for k in batch_sampler.saved_run.D.keys():
-                batch_sampler.saved_run.D[k] = self.saved_run.D[k][:vol_idx]
+            for k in batch_sampler.saved_run.keys():
+                batch_sampler.saved_run[k] = self.saved_run[k][:vol_idx]
 
             batch_sampler.dlv = math.log((nlive_new + 1.) / nlive_new)
 
@@ -1390,14 +1389,14 @@ class DynamicSampler:
                           'You may not have enough livepoints')
         self.internal_state = DynamicSamplerStatesEnum.INBATCHADDLIVE
 
-        if not iterated_batch and len(batch_sampler.saved_run.D['logl']) == 0:
+        if not iterated_batch and len(batch_sampler.saved_run['logl']) == 0:
             # This is a special case *if* we only sampled the initial livepoints
             # but never did sample after
-            batch_sampler.saved_run.D['logvol'] = [-np.inf]
-            batch_sampler.saved_run.D['logl'] = [logl_min]
-            batch_sampler.saved_run.D['logz'] = [-1e100]
-            batch_sampler.saved_run.D['logzvar'] = [0]
-            batch_sampler.saved_run.D['h'] = [0]
+            batch_sampler.saved_run['logvol'] = [-np.inf]
+            batch_sampler.saved_run['logl'] = [logl_min]
+            batch_sampler.saved_run['logz'] = [-1e100]
+            batch_sampler.saved_run['logzvar'] = [0]
+            batch_sampler.saved_run['h'] = [0]
         for it, results in enumerate(batch_sampler.add_live_points()):
             # Save results.
             D = dict(id=results.worst,
@@ -1431,7 +1430,7 @@ class DynamicSampler:
         "stepping through" both runs simultaneously."""
 
         # Make sure we have a run to add.
-        if len(self.new_run.D['id']) == 0:
+        if len(self.new_run['id']) == 0:
             raise ValueError("No new samples are currently saved.")
 
         # Grab results from saved run.
@@ -1442,18 +1441,18 @@ class DynamicSampler:
                 'id', 'u', 'v', 'logl', 'nc', 'boundidx', 'it', 'bounditer',
                 'n', 'scale'
         ]:
-            saved_d[k] = np.array(self.saved_run.D[k])
-            new_d[k] = np.array(self.new_run.D[k])
+            saved_d[k] = np.array(self.saved_run[k])
+            new_d[k] = np.array(self.new_run[k])
 
-        saved_d['batch'] = np.array(self.saved_run.D['batch'])
+        saved_d['batch'] = np.array(self.saved_run['batch'])
         nsaved = len(saved_d['n'])
 
         new_d['id'] = new_d['id'] + max(saved_d['id']) + 1
         nnew = len(new_d['n'])
         llmin, llmax = self.new_logl_min, self.new_logl_max
 
-        old_batch_bounds = self.saved_run.D['batch_bounds']
-        old_batch_nlive = self.saved_run.D['batch_nlive']
+        old_batch_bounds = self.saved_run['batch_bounds']
+        old_batch_nlive = self.saved_run['batch_nlive']
         # Reset saved results.
         del self.saved_run
         self.saved_run = RunRecord(dynamic=True)
@@ -1501,8 +1500,8 @@ class DynamicSampler:
             # Save the number of live points and expected ln(volume).
             logvol -= math.log((nlive + 1.) / nlive)
 
-            self.saved_run.D['n'].append(nlive)
-            self.saved_run.D['logvol'].append(logvol)
+            self.saved_run['n'].append(nlive)
+            self.saved_run['logvol'].append(logvol)
 
             # Attempt to step along our samples. If we're out of samples,
             # set values to defaults.
@@ -1519,17 +1518,17 @@ class DynamicSampler:
                 logl_n = np.inf
                 nlive_n = 0
         # ensure that we correctly merged
-        assert self.saved_run.D['logl'][0] == min(new_d['logl'][0],
-                                                  saved_d['logl'][0])
-        assert self.saved_run.D['logl'][-1] == max(new_d['logl'][-1],
-                                                   saved_d['logl'][-1])
+        assert self.saved_run['logl'][0] == min(new_d['logl'][0],
+                                                saved_d['logl'][0])
+        assert self.saved_run['logl'][-1] == max(new_d['logl'][-1],
+                                                 saved_d['logl'][-1])
 
         new_logwt, new_logz, new_logzvar, new_h = compute_integrals(
-            logl=self.saved_run.D['logl'], logvol=self.saved_run.D['logvol'])
-        self.saved_run.D['logwt'].extend(new_logwt.tolist())
-        self.saved_run.D['logz'].extend(new_logz.tolist())
-        self.saved_run.D['logzvar'].extend(new_logzvar.tolist())
-        self.saved_run.D['h'].extend(new_h.tolist())
+            logl=self.saved_run['logl'], logvol=self.saved_run['logvol'])
+        self.saved_run['logwt'].extend(new_logwt.tolist())
+        self.saved_run['logz'].extend(new_logz.tolist())
+        self.saved_run['logzvar'].extend(new_logzvar.tolist())
+        self.saved_run['h'].extend(new_h.tolist())
 
         # Reset results.
         self.new_run = RunRecord(dynamic=True)
@@ -1539,9 +1538,8 @@ class DynamicSampler:
         self.batch += 1
 
         # Saved batch quantities.
-        self.saved_run.D['batch_nlive'] = old_batch_nlive + [(max(new_d['n']))]
-        self.saved_run.D['batch_bounds'] = old_batch_bounds + [(
-            (llmin, llmax))]
+        self.saved_run['batch_nlive'] = old_batch_nlive + [(max(new_d['n']))]
+        self.saved_run['batch_bounds'] = old_batch_bounds + [((llmin, llmax))]
 
     def run_nested(self,
                    nlive_init=None,

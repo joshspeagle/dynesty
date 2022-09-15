@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 import dynesty
 import multiprocessing as mp
+import dynesty.pool as dypool
 from utils import get_rstate, get_printing
 """
 Run a series of basic tests to check whether anything huge is broken.
@@ -42,14 +43,17 @@ LOGZ_TRUTH_EGG = 235.856
 def test_pool():
     # test pool on egg problem
     rstate = get_rstate()
-    with mp.Pool(2) as pool:
-        sampler = dynesty.NestedSampler(loglike_egg,
-                                        prior_transform_egg,
-                                        ndim,
-                                        nlive=nlive,
-                                        pool=pool,
-                                        queue_size=100,
-                                        rstate=rstate)
+    with dypool.Pool(2, loglike_egg, prior_transform_egg) as pool:
+        # with mp.Pool(2) as pool:
+        sampler = dynesty.NestedSampler(  #pool.loglike,
+            #pool.prior_transform,
+            loglike_egg,
+            prior_transform_egg,
+            ndim,
+            nlive=nlive,
+            pool=pool,
+            queue_size=100,
+            rstate=rstate)
         sampler.run_nested(dlogz=0.1, print_progress=printing)
         assert (abs(LOGZ_TRUTH_EGG - sampler.results['logz'][-1]) <
                 5. * sampler.results['logzerr'][-1])

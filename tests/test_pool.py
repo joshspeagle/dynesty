@@ -43,6 +43,7 @@ LOGZ_TRUTH_EGG = 235.856
 def test_pool():
     # test pool on egg problem
     rstate = get_rstate()
+    # i specify large queue_size here, otherwise it is too slow
     with dypool.Pool(2, loglike_egg, prior_transform_egg) as pool:
         sampler = dynesty.NestedSampler(pool.loglike,
                                         pool.prior_transform,
@@ -57,8 +58,25 @@ def test_pool():
                 5. * sampler.results['logzerr'][-1])
 
 
+def test_pool_x():
+    # check without specifying queue_size
+    rstate = get_rstate()
+    with dypool.Pool(2, loglike_egg, prior_transform_egg) as pool:
+        sampler = dynesty.NestedSampler(pool.loglike,
+                                        pool.prior_transform,
+                                        ndim,
+                                        nlive=50,
+                                        pool=pool,
+                                        rstate=rstate)
+        sampler.run_nested(print_progress=printing, maxiter=100)
+
+        assert (abs(LOGZ_TRUTH_EGG - sampler.results['logz'][-1]) <
+                5. * sampler.results['logzerr'][-1])
+
+
 def test_pool_dynamic():
-    # test pool on egg problem
+    # test pool on gau problem
+    # i specify large queue_size here, otherwise it is too slow
     rstate = get_rstate()
     with dypool.Pool(2, loglike_gau, prior_transform_gau) as pool:
         sampler = dynesty.DynamicNestedSampler(pool.loglike,

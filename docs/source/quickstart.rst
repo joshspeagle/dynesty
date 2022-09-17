@@ -413,6 +413,7 @@ argument::
     sampler = NestedSampler(loglike, ptform, ndim, pool=pool, queue_size=8)
 
 There is *no* reason to set queue_size to anything other then the number of parallel processes in the pool.
+
 Parallel operations in `dynesty` are done by simply swapping in the
 `pool.map` function over the default `map` function when making likelihood
 calls. Note that this is a *synchronous* function call, which requires that
@@ -451,6 +452,31 @@ combine multiple independent Nested Sampling runs into a single run, giving
 users an option as to whether they want to parallelize `dynesty` *during*
 runtime (using a user-provided `pool`) or *after* runtime (by merging
 the runs together).
+
+Dynesty multiprocessing pool
+----------------------------
+
+If you are running multiprocessing on a single machine, probably the easiest way
+of parallelizing is using a dynesty provided pool (which is a thin wrapper around
+python's multiprocessing pool)::
+
+    with Pool(10, loglike, ptform) as pool:
+        sampler = NestedSampler(pool.loglikehood, pool.prior_transform,
+	                        ndim, pool = pool)
+	sampler.run_nested()
+
+Note that we provide the likelihood function and prior transforms
+when we initialize the pool. When we run dynesty we provide the
+loglikelihood and prior tranforms from the pool. This approach minimizes
+the overhead from picking function repeatedly.
+
+If your function has additional arguments that are large, you can also provide
+them when initializing the pool::
+
+    with Pool(10, loglike, ptform, logl_args=loglike_args) as pool:
+        sampler = NestedSampler(pool.loglikehood, pool.prior_transform,
+	                        ndim, pool = pool)
+	sampler.run_nested()
 
 
 Running Internally

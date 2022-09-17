@@ -48,12 +48,43 @@ def prior_transform_cache(x):
 
 
 class Pool:
-    """ The multiprocessing Pool wrapper class
+    """
+    The multiprocessing pool wrapper class
     It is intended to be used as a context manager for dynesty sampler only.
 
-    with dynesty.pool.Pool(16, like, prior_transform) as pool:
-        dns = DynamicNestedSampler(pool.like, pool.prior_transform, ndim
+    Parameters
+    ----------
+    njobs: int
+        The number of multiprocessing jobs/processes
+    loglikelihood: function
+        ln(likelihood) function
+    prior_transform: function
+        Function transforming from a unit cube to the parameter
+        space of interest according to the prior
+    logl_args: tuple(optional)
+        The optional arguments to be added to the likelihood 
+        function call
+    logl_kwargs: tuple(optional)
+        The optional keywords to be added to the likelihood 
+        function call
+    ptform_args: tuple(optional)
+        The optional arguments to be added to the prior transform
+        function call
+    ptform_kwargs: tuple(optional)
+        The optional keywords to be added to the prior transform
+        function call         
+
+    Examples
+    --------
+    To use the dynest pool you have to use it with the context manager::
+    
+        with dynesty.pool.Pool(16, like, prior_transform) as pool:
+            dns = DynamicNestedSampler(pool.like, pool.prior_transform, ndim,
                                      pool =pool)
+
+    Also note that you have to provide the .like/.prior_transform attributes from the pool 
+    object.
+    
     """
 
     def __init__(self,
@@ -64,9 +95,6 @@ class Pool:
                  logl_kwargs=None,
                  ptform_args=None,
                  ptform_kwargs=None):
-        """
-        Initialized the Pool
-        """
         self.logl_args = logl_args
         self.logl_kwargs = logl_kwargs
         self.ptform_args = ptform_args
@@ -79,7 +107,9 @@ class Pool:
         self.pool = None
 
     def __enter__(self):
-        """ Activate the pool """
+        """
+        Activate the pool
+        """
         initargs = (self.loglike_0, self.prior_transform_0, self.logl_args
                     or (), self.logl_kwargs or {}, self.ptform_args
                     or (), self.ptform_kwargs or {})
@@ -87,7 +117,14 @@ class Pool:
         return self
 
     def map(self, F, x):
-        """ Apply the mapping operation """
+        """ Apply the function F to the list x
+        
+        Parameters
+        ==========
+
+        F: function
+        x: iterable
+        """
         return self.pool.map(F, x)
 
     def __exit__(self, exc_type, exc_val, exc_tb):

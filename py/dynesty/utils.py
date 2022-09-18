@@ -14,10 +14,10 @@ import os
 import shutil
 from collections import namedtuple
 from functools import partial
-import numpy as np
-from scipy.special import logsumexp
 import pickle as pickle_module
 # To allow replacing of the pickler
+import numpy as np
+from scipy.special import logsumexp
 try:
     import tqdm
 except ImportError:
@@ -1570,8 +1570,7 @@ def unravel_run(res, print_progress=True):
 
         # Print progress.
         if print_progress:
-            sys.stderr.write('\rStrand: {0}/{1}     '.format(
-                counter + 1, nstrands))
+            sys.stderr.write(f'\rStrand: {counter+1}/{nstrands}     ')
 
     return new_res
 
@@ -1636,8 +1635,7 @@ def merge_runs(res_list, print_progress=True):
                 counter += 1
                 # Print progress.
                 if print_progress:
-                    sys.stderr.write('\rMerge: {0}/{1}     '.format(
-                        counter, ntot))
+                    sys.stderr.write(f'\rMerge: {counter}/{ntot}     ')
             # Overwrite baseline set of results with merged results.
             rlist_base = copy.copy(rlist_new)
 
@@ -1656,7 +1654,7 @@ def merge_runs(res_list, print_progress=True):
         counter += 1
         # Print progress.
         if print_progress:
-            sys.stderr.write('\rMerge: {0}/{1}     '.format(counter, ntot))
+            sys.stderr.write(f'\rMerge: {counter}/{ntot}     ')
 
     res = check_result_static(res)
 
@@ -1749,8 +1747,7 @@ def kld_error(res,
         new_res, samp_idx = resample_run(res, rstate=rstate, return_idx=True)
         logp2 = logp2[samp_idx]  # re-order our original results to match
     else:
-        raise ValueError(
-            "Input `'error'` option '{0}' is not valid.".format(error))
+        raise ValueError("Input `'error'` option '{error}' is not valid.")
 
     # Define our new importance weights.
     logp1 = new_res['logwt'] - new_res['logz'][-1]
@@ -2063,9 +2060,9 @@ def old_stopping_function(results,
             f"The provided `pfrac` {pfrac} is not between 0. and 1.")
     evid_thresh = args.get('evid_thresh', 0.1)
     if pfrac < 1. and evid_thresh < 0.:
-        raise ValueError("The provided `evid_thresh` {0} is not non-negative "
-                         "even though `1. - pfrac` is {1}.".format(
-                             evid_thresh, 1. - pfrac))
+        raise ValueError(
+            f"The provided `evid_thresh` {evid_thresh} is not non-negative "
+            f"even though `pfrac` is {pfrac}.")
     post_thresh = args.get('post_thresh', 0.02)
     if pfrac > 0. and post_thresh < 0.:
         raise ValueError(
@@ -2073,8 +2070,8 @@ def old_stopping_function(results,
             f"even though `pfrac` is {pfrac}.")
     n_mc = args.get('n_mc', 128)
     if n_mc <= 1:
-        raise ValueError("The number of realizations {0} must be greater "
-                         "than 1.".format(n_mc))
+        raise ValueError(f"The number of realizations {n_mc} must be greater "
+                         "than 1.")
     if n_mc < 20:
         warnings.warn("Using a small number of realizations might result in "
                       "excessively noisy stopping value estimates.")

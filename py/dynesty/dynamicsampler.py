@@ -871,8 +871,8 @@ class DynamicSampler:
             live_points = [self.live_u, self.live_v, self.live_logl]
             self.live_init = [np.array(_) for _ in live_points]
             self.ncall += self.nlive_init
-            self.live_bound = np.zeros(self.nlive_init, dtype='int')
-            self.live_it = np.zeros(self.nlive_init, dtype='int')
+            self.live_bound = np.zeros(self.nlive_init, dtype=int)
+            self.live_it = np.zeros(self.nlive_init, dtype=int)
 
             bounding = self.bounding
 
@@ -993,7 +993,7 @@ class DynamicSampler:
 
         self.base = True  # baseline run complete
         self.saved_run['batch'] = np.zeros(len(self.saved_run['id']),
-                                           dtype='int')  # batch
+                                           dtype=int)  # batch
 
         self.saved_run['batch_nlive'].append(self.nlive_init)  # initial nlive
         self.saved_run['batch_bounds'].append(
@@ -1149,9 +1149,9 @@ class DynamicSampler:
                     rstate=self.rstate,
                     use_pool_ptform=self.use_pool_ptform)
 
-                live_bound = np.zeros(nlive_new, dtype='int')
-                live_it = np.zeros(nlive_new, dtype='int') + self.it
-                live_nc = np.ones(nlive_new, dtype='int')
+                live_bound = np.zeros(nlive_new, dtype=int)
+                live_it = np.zeros(nlive_new, dtype=int) + self.it
+                live_nc = np.ones(nlive_new, dtype=int)
                 self.ncall += nlive_new
                 # Return live points in generator format.
                 for i in range(nlive_new):
@@ -1261,10 +1261,10 @@ class DynamicSampler:
                 live_u = np.empty((nlive_new, self.npdim))
                 live_v = np.empty((nlive_new, saved_v.shape[1]))
                 live_logl = np.empty(nlive_new)
-                live_bound = np.zeros(nlive_new, dtype='int')
+                live_bound = np.zeros(nlive_new, dtype=int)
 
-                live_it = np.empty(nlive_new, dtype='int')
-                live_nc = np.empty(nlive_new, dtype='int')
+                live_it = np.empty(nlive_new, dtype=int)
+                live_nc = np.empty(nlive_new, dtype=int)
                 for i in range(nlive_new):
                     (live_u[i], live_v[i], live_logl[i],
                      live_nc[i]) = batch_sampler._new_point(logl_min)
@@ -1337,7 +1337,7 @@ class DynamicSampler:
         else:
             batch_sampler = self.batch_sampler
             logl_min, logl_max = self.new_logl_min, self.new_logl_max
-            live_nc = np.zeros(nlive_new, dtype='int')
+            live_nc = np.zeros(nlive_new, dtype=int)
             first_points = batch_sampler.first_points
             # TODO FIX whether live_nc should be restored
         for i in range(len(first_points)):

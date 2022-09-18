@@ -81,8 +81,8 @@ class Sampler:
         # live points
         self.live_u, self.live_v, self.live_logl = live_points
         self.nlive = len(self.live_u)
-        self.live_bound = np.zeros(self.nlive, dtype='int')
-        self.live_it = np.zeros(self.nlive, dtype='int')
+        self.live_bound = np.zeros(self.nlive, dtype=int)
+        self.live_it = np.zeros(self.nlive, dtype=int)
 
         # bounding updates
         self.update_interval = update_interval
@@ -177,8 +177,8 @@ class Sampler:
                 list(map(self.prior_transform, np.asarray(self.live_u))))
         self.live_logl = self.loglikelihood.map(np.asarray(self.live_v))
 
-        self.live_bound = np.zeros(self.nlive, dtype='int')
-        self.live_it = np.zeros(self.nlive, dtype='int')
+        self.live_bound = np.zeros(self.nlive, dtype=int)
+        self.live_it = np.zeros(self.nlive, dtype=int)
 
         # parallelism
         self.queue = []
@@ -228,11 +228,11 @@ class Sampler:
         # Add any saved bounds (and ancillary quantities) to the results.
         if self.save_bounds:
             results.append(('bound', copy.deepcopy(self.bound)))
-            results.append(('bound_iter',
-                            np.array(self.saved_run['bounditer'],
-                                     dtype='int')))
+            results.append(
+                ('bound_iter', np.array(self.saved_run['bounditer'],
+                                        dtype=int)))
             results.append(('samples_bound',
-                            np.array(self.saved_run['boundidx'], dtype='int')))
+                            np.array(self.saved_run['boundidx'], dtype=int)))
             results.append(('scale', np.array(self.saved_run['scale'])))
 
         return Results(results)

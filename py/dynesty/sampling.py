@@ -1075,7 +1075,7 @@ def sample_hslice(args):
         nodes_l, nodes_m, nodes_r = (np.array(nodes_l), np.array(nodes_m),
                                      np.array(nodes_r))
         Nchords = len(nodes_l)
-        axlen = np.zeros(Nchords, dtype='float')
+        axlen = np.zeros(Nchords, dtype=float)
         for i, (nl, nr) in enumerate(zip(nodes_l, nodes_r)):
             axlen[i] = linalg.norm(nr - nl)
 
@@ -1087,11 +1087,8 @@ def sample_hslice(args):
             if np.any(axlen < 1e-5 * axlen_init):
                 raise RuntimeError("Hamiltonian slice sampling appears to be "
                                    "stuck! Some useful output quantities:\n"
-                                   "u: {0}\n"
-                                   "u_left: {1}\n"
-                                   "u_right: {2}\n"
-                                   "loglstar: {3}.".format(
-                                       u, u_l, u_r, loglstar))
+                                   f"u: {u}\n u_left: {u_l}\n"
+                                   f"u_right: {u_r}\n loglstar: {loglstar}.")
 
             # Select chord.
             axprob = axlen / np.sum(axlen)
@@ -1124,18 +1121,14 @@ def sample_hslice(args):
                     nodes_r[idx] = u_prop
                     axlen[idx] *= rprop
                 else:
-                    raise RuntimeError("Slice sampler has failed to find "
-                                       "a valid point. Some useful "
-                                       "output quantities:\n"
-                                       "u: {0}\n"
-                                       "u_left: {1}\n"
-                                       "u_right: {2}\n"
-                                       "u_hat: {3}\n"
-                                       "u_prop: {4}\n"
-                                       "loglstar: {5}\n"
-                                       "logl_prop: {6}.".format(
-                                           u, u_l, u_r, u_hat, u_prop,
-                                           loglstar, logl_prop))
+                    raise RuntimeError(
+                        "Slice sampler has failed to find "
+                        "a valid point. Some useful "
+                        "output quantities:\n"
+                        f"u: {u}\n u_left: {u_l}\n"
+                        f"u_right: {u_r}\n u_hat: {u_hat}\n"
+                        f"u_prop: {u_prop}\n loglstar: {loglstar}\n"
+                        f"logl_prop: {logl_prop}")
 
     blob = {'nmove': nmove, 'nreflect': nreflect, 'ncontract': ncontract}
 

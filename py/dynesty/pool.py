@@ -62,29 +62,37 @@ class Pool:
         Function transforming from a unit cube to the parameter
         space of interest according to the prior
     logl_args: tuple(optional)
-        The optional arguments to be added to the likelihood 
+        The optional arguments to be added to the likelihood
         function call
     logl_kwargs: tuple(optional)
-        The optional keywords to be added to the likelihood 
+        The optional keywords to be added to the likelihood
         function call
     ptform_args: tuple(optional)
         The optional arguments to be added to the prior transform
         function call
     ptform_kwargs: tuple(optional)
         The optional keywords to be added to the prior transform
-        function call         
+        function call
+
+    Attributes
+    ----------
+    loglikelihood: function
+        ln(likelihood) function
+    prior_transform: function
+        Function transforming from a unit cube to the parameter
+        space of interest according to the prior
 
     Examples
     --------
     To use the dynest pool you have to use it with the context manager::
-    
+
         with dynesty.pool.Pool(16, like, prior_transform) as pool:
             dns = DynamicNestedSampler(pool.like, pool.prior_transform, ndim,
                                      pool =pool)
 
-    Also note that you have to provide the .like/.prior_transform attributes from the pool 
-    object.
-    
+    Also note that you have to provide the .like/.prior_transform attributes
+    from the pool object to the Nested samper rather than your original
+    functions!
     """
 
     def __init__(self,
@@ -118,7 +126,7 @@ class Pool:
 
     def map(self, F, x):
         """ Apply the function F to the list x
-        
+
         Parameters
         ==========
 
@@ -139,4 +147,7 @@ class Pool:
 
     @property
     def size(self):
+        """
+        Return the number of processes in the pool
+        """
         return self.njobs

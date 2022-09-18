@@ -502,8 +502,8 @@ _RESULTS_STRUCTURE = [
     ('logvol', 'array[float]', 'Logvolumes of dead points', 'niter'),
     ('information', 'array[float]', 'Information Integral H', 'niter'),
     ('bound', 'array[object]',
-     "the set of bounding objects used to condition proposals for the base run",
-     'nbound'),
+     "the set of bounding objects used to condition proposals for the "
+     "base run", 'nbound'),
     ('bound_iter', 'array[int]',
      "index of the bound being used for an iteration that generated the point",
      'niter'),

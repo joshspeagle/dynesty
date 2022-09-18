@@ -131,9 +131,10 @@ class Ellipsoid:
             # is a product of squares of eigen values
             self.logvol = logvol_prefactor(self.n) + 0.5 * np.log(l).sum()
         else:
-            raise ValueError("The input precision matrix defining the "
-                             "ellipsoid {0} is apparently singular with "
-                             "l={1} and v={2}.".format(self.cov, l, v))
+            raise ValueError(
+                "The input precision matrix defining the "
+                f"ellipsoid {self.cov} is apparently singular with "
+                f"l={l} and v={v}.")
         if am is None:
             self.am = v @ np.diag(1. / l) @ v.T
             # precision matrix (inverse of covariance)

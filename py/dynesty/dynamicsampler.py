@@ -563,6 +563,7 @@ class DynamicSampler:
         self.live_logl = None
         self.live_init = None
         self.nlive_init = None
+        self.batch_sampler = None
 
     def __setstate__(self, state):
         self.__dict__ = state

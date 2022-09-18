@@ -15,6 +15,7 @@ import sys
 import warnings
 import math
 import copy
+from enum import Enum
 import numpy as np
 from scipy.special import logsumexp
 from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
@@ -43,7 +44,8 @@ _SAMPLERS = {
 _LOWL_VAL = -1e300
 
 
-class DynamicSamplerStatesEnum:
+class DynamicSamplerStatesEnum(Enum):
+    """ """
     INIT = 1  # after the constructor
     LIVEPOINTSINIT = 2  # after generating livepoints
     INBASE = 3  # during base runs
@@ -275,7 +277,7 @@ def stopping_function(results,
     pfrac = args.get('pfrac', 1.0)
     if not 0. <= pfrac <= 1.:
         raise ValueError(
-            "The provided `pfrac` {0} is not between 0. and 1.".format(pfrac))
+            f"The provided `pfrac` {pfrac} is not between 0. and 1.")
     evid_thresh = args.get('evid_thresh', 0.1)
     if pfrac < 1. and evid_thresh < 0.:
         raise ValueError("The provided `evid_thresh` {0} is not non-negative "
@@ -285,12 +287,12 @@ def stopping_function(results,
 
     if pfrac > 0. and target_n_effective < 0.:
         raise ValueError(
-            "The provided `target_n_effective` {0} is not non-negative "
-            "even though `pfrac` is {1}.".format(target_n_effective, pfrac))
+            f"The provided `target_n_effective` {target_n_effective} " +
+            f"is not non-negative even though `pfrac` is {pfrac}")
     n_mc = args.get('n_mc', 0)
     if n_mc < 0:
-        raise ValueError("The number of realizations {0} must be greater "
-                         "or equal to zero.".format(n_mc))
+        raise ValueError(f"The number of realizations {n_mc} must be greater "
+                         "or equal to zero.")
     if n_mc > 0 and n_mc < 20:
         warnings.warn("Using a small number of realizations might result in "
                       "excessively noisy stopping value estimates.")
@@ -1227,10 +1229,10 @@ class DynamicSampler:
                 if cur_nblive == 1:
                     raise RuntimeError('Only one live point is selected\n' +
                                        'Please report the error on github!' +
-                                       'Diagnostics nblive: %d ' % (nblive) +
-                                       'cur_nblive: %d' % (cur_nblive) +
-                                       'n_pos_weight: %d' % (n_pos_weight) +
-                                       'cur_wt: %s' % str(cur_uniwt))
+                                       f'Diagnostics nblive: {nblive} ' +
+                                       f'cur_nblive: {cur_nblive}' +
+                                       f'n_pos_weight: {n_pos_weight}' +
+                                       f'cur_wt: {cur_uniwt}')
                 # We are doing copies here, because live_* stuff is
                 # updated in place
                 live_u = saved_u[subset, :].copy()
@@ -1390,8 +1392,8 @@ class DynamicSampler:
         self.internal_state = DynamicSamplerStatesEnum.INBATCHADDLIVE
 
         if not iterated_batch and len(batch_sampler.saved_run['logl']) == 0:
-            # This is a special case *if* we only sampled the initial livepoints
-            # but never did sample after
+            # This is a special case *if* we only sampled the initial
+            # livepoints but never did sample after
             batch_sampler.saved_run['logvol'] = [-np.inf]
             batch_sampler.saved_run['logl'] = [logl_min]
             batch_sampler.saved_run['logz'] = [-1e100]
@@ -1804,7 +1806,7 @@ class DynamicSampler:
                                                     rstate=self.rstate,
                                                     M=M,
                                                     return_vals=True)
-                    stop_post, stop_evid, stop_val = stop_vals
+                    stop_val = stop_vals[2]
                 else:
                     stop = False
                     stop_val = np.nan
@@ -1964,7 +1966,7 @@ class DynamicSampler:
         else:
             logl_min, logl_max = logl_bounds
         # For printing as well, we just display old logz,logzerr here
-        logz, logzvar = res.logz[-1], res.logzerr[-1]**2
+        logz, logzvar = res['logz'][-1], res['logzerr'][-1]**2
 
         # If we have either likelihood calls or iterations remaining,
         # add our new batch of live points.

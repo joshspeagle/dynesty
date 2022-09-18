@@ -768,7 +768,7 @@ def sample_hslice(args):
     ncontract = 0
 
     # Slice sampling loop.
-    for it in range(slices):
+    for _ in range(slices):
         # Define the left, "inner", and right "nodes" for a given chord.
         # We will plan to slice sampling using these chords.
         nodes_l, nodes_m, nodes_r = [], [], []

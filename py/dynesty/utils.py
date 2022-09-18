@@ -623,7 +623,7 @@ Return the list of items in the results object as list of key,value pairs
         """
         Return the importance weights for the each sample.
         """
-        logwt = self.logwt - self.logz[-1]
+        logwt = self['logwt'] - self['logz'][-1]
         wt = np.exp(logwt)
         wt = wt / wt.sum()
         return wt
@@ -634,7 +634,7 @@ Return the list of items in the results object as list of key,value pairs
         """
         if rstate is None:
             rstate = get_random_generator()
-        return resample_equal(self.samples,
+        return resample_equal(self['samples'],
                               self.importance_weights(),
                               rstate=rstate)
 
@@ -646,19 +646,22 @@ Return the list of items in the results object as list of key,value pairs
             res = ("niter: {:d}\n"
                    "ncall: {:d}\n"
                    "eff(%): {:6.3f}\n"
-                   "logz: {:6.3f} +/- {:6.3f}".format(self.niter,
-                                                      sum(self.ncall),
-                                                      self.eff, self.logz[-1],
-                                                      self.logzerr[-1]))
+                   "logz: {:6.3f} +/- {:6.3f}".format(self['niter'],
+                                                      np.sum(self['ncall']),
+                                                      self['eff'],
+                                                      self['logz'][-1],
+                                                      self['logzerr'][-1]))
         else:
             res = ("nlive: {:d}\n"
                    "niter: {:d}\n"
                    "ncall: {:d}\n"
                    "eff(%): {:6.3f}\n"
-                   "logz: {:6.3f} +/- {:6.3f}".format(self.nlive, self.niter,
-                                                      sum(self.ncall),
-                                                      self.eff, self.logz[-1],
-                                                      self.logzerr[-1]))
+                   "logz: {:6.3f} +/- {:6.3f}".format(self['nlive'],
+                                                      self['niter'],
+                                                      np.sum(self['ncall']),
+                                                      self['eff'],
+                                                      self['logz'][-1],
+                                                      self['logzerr'][-1]))
 
         print('Summary\n=======\n' + res)
 
@@ -1750,7 +1753,7 @@ def kld_error(res,
             "Input `'error'` option '{0}' is not valid.".format(error))
 
     # Define our new importance weights.
-    logp1 = new_res.logwt - new_res.logz[-1]
+    logp1 = new_res['logwt'] - new_res['logz'][-1]
 
     # Compute the KL divergence.
     kld = np.cumsum(np.exp(logp1) * (logp1 - logp2))
@@ -2057,7 +2060,7 @@ def old_stopping_function(results,
     pfrac = args.get('pfrac', 1.0)
     if not 0. <= pfrac <= 1.:
         raise ValueError(
-            "The provided `pfrac` {0} is not between 0. and 1.".format(pfrac))
+            f"The provided `pfrac` {pfrac} is not between 0. and 1.")
     evid_thresh = args.get('evid_thresh', 0.1)
     if pfrac < 1. and evid_thresh < 0.:
         raise ValueError("The provided `evid_thresh` {0} is not non-negative "
@@ -2065,9 +2068,9 @@ def old_stopping_function(results,
                              evid_thresh, 1. - pfrac))
     post_thresh = args.get('post_thresh', 0.02)
     if pfrac > 0. and post_thresh < 0.:
-        raise ValueError("The provided `post_thresh` {0} is not non-negative "
-                         "even though `pfrac` is {1}.".format(
-                             post_thresh, pfrac))
+        raise ValueError(
+            f"The provided `post_thresh` {post_thresh} is not non-negative "
+            f"even though `pfrac` is {pfrac}.")
     n_mc = args.get('n_mc', 128)
     if n_mc <= 1:
         raise ValueError("The number of realizations {0} must be greater "
@@ -2077,8 +2080,7 @@ def old_stopping_function(results,
                       "excessively noisy stopping value estimates.")
     error = args.get('error', 'jitter')
     if error not in {'jitter', 'resample'}:
-        raise ValueError(
-            "The chosen `'error'` option {0} is not valid.".format(error))
+        raise ValueError(f"The chosen `'error'` option {error} is not valid.")
     approx = args.get('approx', True)
 
     # Compute realizations of ln(evidence) and the KL divergence.

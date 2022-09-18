@@ -25,6 +25,7 @@ Includes:
 
 import math
 import copy
+import warnings
 import numpy as np
 from .sampler import Sampler
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
@@ -509,6 +510,7 @@ class SingleEllipsoidSampler(SuperSampler):
         """Propose a new live point by sampling *uniformly*
         within the ellipsoid."""
 
+        threshold_warning = 10000
         if self.ncdim != self.npdim and self.nonbounded is not None:
             nonb = self.nonbounded[:self.ncdim]
         else:
@@ -522,7 +524,10 @@ class SingleEllipsoidSampler(SuperSampler):
             if unitcheck(u, nonb):
                 break  # if it is, we're done!
 
-        # TODO We should probably produce a warning if niter is too large
+        if niter > threshold_warning:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("once")
+                warnings.warn("Ellipsoid sampling is extremely inefficient")
 
         if self.npdim != self.ncdim:
             u = np.concatenate(
@@ -663,6 +668,8 @@ class MultiEllipsoidSampler(SuperSampler):
         """Propose a new live point by sampling *uniformly* within
         the union of ellipsoids."""
 
+        threshold_warning = 10000
+
         if self.ncdim != self.npdim and self.nonbounded is not None:
             nonb = self.nonbounded[:self.ncdim]
         else:
@@ -679,7 +686,10 @@ class MultiEllipsoidSampler(SuperSampler):
             # Check if the point is within the unit cube.
             if unitcheck(u, nonb):
                 break  # if successful, we're done!
-        # TODO I should warn if niter is too high
+        if niter > threshold_warning:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("once")
+                warnings.warn("Ellipsoid sampling is extremely inefficient")
         if self.ncdim != self.npdim:
             u = np.concatenate(
                 [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])

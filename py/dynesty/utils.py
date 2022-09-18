@@ -546,7 +546,7 @@ class Results:
         else:
             key_values_list = key_values
         for k, v in key_values_list:
-            assert (k not in self._keys)  # ensure no duplicates
+            assert k not in self._keys  # ensure no duplicates
             assert k in Results._ALLOWED, k
             self._keys.append(k)
             setattr(self, k, copy.copy(v))

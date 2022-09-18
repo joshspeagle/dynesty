@@ -865,6 +865,13 @@ class Sampler:
             Whether or not to save past bounding distributions used to bound
             the live points internally. Default is *True*.
 
+        checkpoint_file: string, optional
+            if not None The state of the sampler will be saved into this
+            file every checkpoint_every seconds
+
+        checkpoint_every: float, optional
+            The number of seconds between checkpoints that will save
+            the internal state of the sampler
         """
 
         # Check for deprecated options

@@ -209,7 +209,7 @@ def test_n_effective():
     assert current_n_effective > target_n_effective > previous_n_effective
 
 
-# try all combinations excepte none/unif
+# try all combinations except
 @pytest.mark.parametrize(
     "bound,sample",
     list(
@@ -244,7 +244,7 @@ def test_bounding_sample(bound, sample):
                          itertools.product(
                              ['single', 'multi', 'balls', 'cubes'], ['unif']))
 def test_bounding_bootstrap(bound, sample):
-    # check various bounding methods
+    # check various bounding methods with bootstrap
 
     rstate = get_rstate()
     g = Gaussian()
@@ -261,7 +261,7 @@ def test_bounding_bootstrap(bound, sample):
 
 
 def test_bounding_enlarge():
-    # check various bounding methods
+    # check if enlarging bound works
 
     rstate = get_rstate()
     g = Gaussian()

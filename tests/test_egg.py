@@ -23,6 +23,9 @@ def prior_transform_egg(x):
     return x * 10 * np.pi
 
 
+LOGZ_TRUTH = 235.856
+
+
 @pytest.mark.parametrize(
     "bound,sample",
     itertools.product(['multi', 'balls', 'cubes'],
@@ -39,8 +42,7 @@ def test_bounds(bound, sample):
                                     sample=sample,
                                     rstate=rstate)
     sampler.run_nested(dlogz=0.01, print_progress=printing)
-    logz_truth = 235.856
-    assert (abs(logz_truth - sampler.results.logz[-1]) <
+    assert (abs(LOGZ_TRUTH - sampler.results.logz[-1]) <
             5. * sampler.results.logzerr[-1])
 
 
@@ -57,6 +59,5 @@ def test_ellipsoids_bootstrap():
                                     bootstrap=5,
                                     rstate=rstate)
     sampler.run_nested(dlogz=0.01, print_progress=printing)
-    logz_truth = 235.856
-    assert (abs(logz_truth - sampler.results.logz[-1]) <
+    assert (abs(LOGZ_TRUTH - sampler.results.logz[-1]) <
             5. * sampler.results.logzerr[-1])

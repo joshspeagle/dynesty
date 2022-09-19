@@ -419,6 +419,9 @@ def print_fn_tqdm(pbar,
                   nbatch=None,
                   logl_min=-np.inf,
                   logl_max=np.inf):
+    """
+    This is a function that does the status printing using tqdm module
+    """
     fn_args = get_print_fn_args(results,
                                 niter,
                                 ncall,
@@ -442,6 +445,10 @@ def print_fn_fallback(results,
                       nbatch=None,
                       logl_min=-np.inf,
                       logl_max=np.inf):
+    """
+    This is a function that does the status printing using just
+    standard printing into the console
+    """
     fn_args = get_print_fn_args(results,
                                 niter,
                                 ncall,

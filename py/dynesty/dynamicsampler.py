@@ -132,15 +132,14 @@ def weight_function(results, args=None, return_weights=False):
     pfrac = args.get('pfrac', 0.8)
     if not 0. <= pfrac <= 1.:
         raise ValueError(
-            "The provided `pfrac` {0} is not between 0. and 1.".format(pfrac))
+            f"The provided `pfrac` {pfrac} is not between 0. and 1.")
     maxfrac = args.get('maxfrac', 0.8)
     if not 0. <= maxfrac <= 1.:
         raise ValueError(
-            "The provided `maxfrac` {0} is not between 0. and 1.".format(
-                maxfrac))
+            f"The provided `maxfrac` {maxfrac} is not between 0. and 1.")
     lpad = args.get('pad', 1)
     if lpad < 0:
-        raise ValueError("`lpad` {0} is less than zero.".format(lpad))
+        raise ValueError(f"`lpad` {lpad} is less than zero.")
 
     zweight, pweight = compute_weights(results)
 
@@ -189,14 +188,13 @@ def _get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
         elif sample == 'hslice':
             update_interval_frac = 25.0 * slices
         else:
-            raise ValueError("Unknown sampling method: '{0}'".format(sample))
+            raise ValueError(f"Unknown sampling method: '{sample}'")
     elif isinstance(update_interval, float):
         update_interval_frac = update_interval
     elif isinstance(update_interval, int):
         update_interval_frac = update_interval * 1. / nlive
     else:
-        raise RuntimeError(
-            str.format('Strange update_interval value {}', update_interval))
+        raise RuntimeError(f'Strange update_interval value {update_interval}')
     if bound == 'none':
         update_interval_frac = np.inf
     return update_interval_frac
@@ -280,9 +278,9 @@ def stopping_function(results,
             f"The provided `pfrac` {pfrac} is not between 0. and 1.")
     evid_thresh = args.get('evid_thresh', 0.1)
     if pfrac < 1. and evid_thresh < 0.:
-        raise ValueError("The provided `evid_thresh` {0} is not non-negative "
-                         "even though `1. - pfrac` is {1}.".format(
-                             evid_thresh, 1. - pfrac))
+        raise ValueError(
+            f"The provided `evid_thresh` {evid_thresh} is not non-negative "
+            f"even though `pfrac` is {pfrac}.")
     target_n_effective = args.get('target_n_effective', 10000)
 
     if pfrac > 0. and target_n_effective < 0.:
@@ -298,8 +296,7 @@ def stopping_function(results,
                       "excessively noisy stopping value estimates.")
     error = args.get('error', 'jitter')
     if error not in {'jitter', 'resample'}:
-        raise ValueError(
-            "The chosen `'error'` option {0} is not valid.".format(error))
+        raise ValueError(f"The chosen `'error'` option {error} is not valid.")
     approx = args.get('approx', True)
 
     if n_mc > 1:
@@ -367,7 +364,7 @@ def initialize_live_points(live_points,
         # If no live points are provided, propose them by randomly
         # sampling from the unit cube.
         n_attempts = 100
-        for attempt in range(n_attempts):
+        for _ in range(n_attempts):
             live_u = rstate.uniform(size=(nlive, npdim))
             if use_pool_ptform:
                 live_v = np.array(list(M(prior_transform, np.asarray(live_u))))
@@ -384,10 +381,10 @@ def initialize_live_points(live_points,
                     if np.sign(logl) < 0:
                         live_logl[i] = _LOWL_VAL
                     else:
-                        raise ValueError("The log-likelihood ({0}) of live "
-                                         "point {1} located at u={2} v={3} "
-                                         " is invalid.".format(
-                                             logl, i, live_u[i], live_v[i]))
+                        raise ValueError(
+                            f"The log-likelihood ({logl}) of live "
+                            f"point {i} located at u={live_u[i]} "
+                            f"v={live_v[i]} is invalid.")
 
             # Check to make sure there is at least one finite
             # log-likelihood value within the initial set of live
@@ -396,13 +393,11 @@ def initialize_live_points(live_points,
                 break
         else:
             # If we found nothing after many attempts, raise the alarm.
-            raise RuntimeError(
-                str.format(
-                    "After {0} attempts, not a single "
-                    "live "
-                    "point had a valid log-likelihood! Please "
-                    "check your prior transform and/or "
-                    "log-likelihood.", n_attempts))
+            raise RuntimeError(f"After {n_attempts} attempts, not a single "
+                               "live "
+                               "point had a valid log-likelihood! Please "
+                               "check your prior transform and/or "
+                               "log-likelihood.")
     else:
         # If live points were provided, convert the log-likelihoods and
         # then run a quick safety check.
@@ -893,96 +888,95 @@ class DynamicSampler:
                                                kwargs=self.kwargs)
             self.bound = self.sampler.bound
             self.internal_state = DynamicSamplerStatesEnum.LIVEPOINTSINIT
-        # Run the sampler internally as a generator.
-        for i in range(1):
-            for it, results in enumerate(
-                    self.sampler.sample(maxiter=maxiter,
-                                        save_samples=save_samples,
-                                        maxcall=maxcall,
-                                        dlogz=dlogz)):
-                # Grab results.
+            # Run the sampler internally as a generator.
+        for it, results in enumerate(
+                self.sampler.sample(maxiter=maxiter,
+                                    save_samples=save_samples,
+                                    maxcall=maxcall,
+                                    dlogz=dlogz)):
+            # Grab results.
 
-                # Save our base run (which we will use later).
-                add_info = dict(id=results.worst,
-                                u=results.ustar,
-                                v=results.vstar,
-                                logl=results.loglstar,
-                                logvol=results.logvol,
-                                logwt=results.logwt,
-                                logz=results.logz,
-                                logzvar=results.logzvar,
-                                h=results.h,
-                                nc=results.nc,
-                                it=results.worst_it,
-                                n=self.nlive_init,
-                                boundidx=results.boundidx,
-                                bounditer=results.bounditer,
-                                scale=self.sampler.scale)
+            # Save our base run (which we will use later).
+            add_info = dict(id=results.worst,
+                            u=results.ustar,
+                            v=results.vstar,
+                            logl=results.loglstar,
+                            logvol=results.logvol,
+                            logwt=results.logwt,
+                            logz=results.logz,
+                            logzvar=results.logzvar,
+                            h=results.h,
+                            nc=results.nc,
+                            it=results.worst_it,
+                            n=self.nlive_init,
+                            boundidx=results.boundidx,
+                            bounditer=results.bounditer,
+                            scale=self.sampler.scale)
 
-                self.base_run.append(add_info)
-                self.saved_run.append(add_info)
+            self.base_run.append(add_info)
+            self.saved_run.append(add_info)
 
-                # Increment relevant counters.
-                self.ncall += results.nc
-                self.eff = 100. * self.it / self.ncall
-                self.it += 1
-                self.internal_state = DynamicSamplerStatesEnum.INBASE
-                yield IteratorResult(worst=results.worst,
-                                     ustar=results.ustar,
-                                     vstar=results.vstar,
-                                     loglstar=results.loglstar,
-                                     logvol=results.logvol,
-                                     logwt=results.logwt,
-                                     logz=results.logz,
-                                     logzvar=results.logzvar,
-                                     h=results.h,
-                                     nc=results.nc,
-                                     worst_it=results.worst_it,
-                                     boundidx=results.boundidx,
-                                     bounditer=results.bounditer,
-                                     eff=self.eff,
-                                     delta_logz=results.delta_logz)
-            self.internal_state = DynamicSamplerStatesEnum.INBASEADDLIVE
-            for it, results in enumerate(self.sampler.add_live_points()):
-                # Grab results.
+            # Increment relevant counters.
+            self.ncall += results.nc
+            self.eff = 100. * self.it / self.ncall
+            self.it += 1
+            self.internal_state = DynamicSamplerStatesEnum.INBASE
+            yield IteratorResult(worst=results.worst,
+                                 ustar=results.ustar,
+                                 vstar=results.vstar,
+                                 loglstar=results.loglstar,
+                                 logvol=results.logvol,
+                                 logwt=results.logwt,
+                                 logz=results.logz,
+                                 logzvar=results.logzvar,
+                                 h=results.h,
+                                 nc=results.nc,
+                                 worst_it=results.worst_it,
+                                 boundidx=results.boundidx,
+                                 bounditer=results.bounditer,
+                                 eff=self.eff,
+                                 delta_logz=results.delta_logz)
+        self.internal_state = DynamicSamplerStatesEnum.INBASEADDLIVE
+        for it, results in enumerate(self.sampler.add_live_points()):
+            # Grab results.
 
-                add_info = dict(id=results.worst,
-                                u=results.ustar,
-                                v=results.vstar,
-                                logl=results.loglstar,
-                                logvol=results.logvol,
-                                logwt=results.logwt,
-                                logz=results.logz,
-                                logzvar=results.logzvar,
-                                h=results.h,
-                                nc=results.nc,
-                                it=results.worst_it,
-                                n=self.nlive_init - it,
-                                boundidx=results.boundidx,
-                                bounditer=results.bounditer,
-                                scale=self.sampler.scale)
+            add_info = dict(id=results.worst,
+                            u=results.ustar,
+                            v=results.vstar,
+                            logl=results.loglstar,
+                            logvol=results.logvol,
+                            logwt=results.logwt,
+                            logz=results.logz,
+                            logzvar=results.logzvar,
+                            h=results.h,
+                            nc=results.nc,
+                            it=results.worst_it,
+                            n=self.nlive_init - it,
+                            boundidx=results.boundidx,
+                            bounditer=results.bounditer,
+                            scale=self.sampler.scale)
 
-                self.base_run.append(add_info)
-                self.saved_run.append(add_info)
+            self.base_run.append(add_info)
+            self.saved_run.append(add_info)
 
-                # Increment relevant counters.
-                self.eff = 100. * self.it / self.ncall
-                self.it += 1
-                yield IteratorResult(worst=results.worst,
-                                     ustar=results.ustar,
-                                     vstar=results.vstar,
-                                     loglstar=results.loglstar,
-                                     logvol=results.logvol,
-                                     logwt=results.logwt,
-                                     logz=results.logz,
-                                     logzvar=results.logzvar,
-                                     h=results.h,
-                                     nc=results.nc,
-                                     worst_it=results.worst_it,
-                                     boundidx=results.boundidx,
-                                     bounditer=results.bounditer,
-                                     eff=self.eff,
-                                     delta_logz=results.delta_logz)
+            # Increment relevant counters.
+            self.eff = 100. * self.it / self.ncall
+            self.it += 1
+            yield IteratorResult(worst=results.worst,
+                                 ustar=results.ustar,
+                                 vstar=results.vstar,
+                                 loglstar=results.loglstar,
+                                 logvol=results.logvol,
+                                 logwt=results.logwt,
+                                 logz=results.logz,
+                                 logzvar=results.logzvar,
+                                 h=results.h,
+                                 nc=results.nc,
+                                 worst_it=results.worst_it,
+                                 boundidx=results.boundidx,
+                                 bounditer=results.bounditer,
+                                 eff=self.eff,
+                                 delta_logz=results.delta_logz)
         new_vals = {}
         (new_vals['logwt'], new_vals['logz'], new_vals['logzvar'],
          new_vals['h']) = compute_integrals(logl=self.saved_run['logl'],
@@ -1176,9 +1170,9 @@ class DynamicSampler:
                     raise RuntimeError(
                         'Could not find live points in the '
                         'required logl interval. Please report!\n'
-                        'Diagnostics. logl_min: %s ' % str(logl_min),
-                        'logl_bounds: %s ' % str(logl_bounds),
-                        'saved_loglmax: %s' % str(saved_logl.max()))
+                        f'Diagnostics. logl_min: {logl_min} '
+                        f'logl_bounds: {logl_bounds} '
+                        f'saved_loglmax: {saved_logl.max()}')
 
                 # Also if we don't have enough live points above the boundary
                 # we simply go down to collect our nblive points

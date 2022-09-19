@@ -250,7 +250,7 @@ class Ellipsoid:
         overlap between the ellipsoid and the unit cube."""
 
         samples = [self.sample(rstate=rstate) for i in range(ndraws)]
-        nin = sum([unitcheck(x) for x in samples])
+        nin = sum((unitcheck(x) for x in samples))
 
         return 1. * nin / ndraws
 
@@ -509,13 +509,13 @@ class MultiEllipsoid:
         samples = [
             self.sample(rstate=rstate, return_q=True) for i in range(ndraws)
         ]
-        qsum = sum([q for (x, idx, q) in samples])
+        qsum = sum((q for (x, idx, q) in samples))
         logvol = np.log(ndraws * 1. / qsum) + self.logvol_tot
 
         if return_overlap:
             # Estimate the fractional amount of overlap with the
             # unit cube using the same set of samples.
-            qin = sum([q * unitcheck(x) for (x, idx, q) in samples])
+            qin = sum((q * unitcheck(x) for (x, idx, q) in samples))
             overlap = 1. * qin / qsum
             return logvol, overlap
         else:
@@ -741,13 +741,13 @@ class RadFriends:
             self.sample(ctrs, rstate=rstate, return_q=True)
             for i in range(ndraws)
         ]
-        qsum = sum([q for (x, q) in samples])
+        qsum = sum((q for (x, q) in samples))
         logvol = np.log(1. * ndraws / qsum * len(ctrs)) + self.logvol_ball
 
         if return_overlap:
             # Estimate the fractional amount of overlap with the
             # unit cube using the same set of samples.
-            qin = sum([q * unitcheck(x) for (x, q) in samples])
+            qin = sum((q * unitcheck(x) for (x, q) in samples))
             overlap = 1. * qin / qsum
             return logvol, overlap
         else:
@@ -1008,13 +1008,13 @@ class SupFriends:
             self.sample(ctrs, rstate=rstate, return_q=True)
             for i in range(ndraws)
         ]
-        qsum = sum([q for (x, q) in samples])
+        qsum = sum((q for (x, q) in samples))
         logvol = np.log(1. * ndraws / qsum * len(ctrs)) + self.logvol_cube
 
         if return_overlap:
             # Estimate the fractional overlap with the unit cube using
             # the same set of samples.
-            qin = sum([q * unitcheck(x) for (x, q) in samples])
+            qin = sum((q * unitcheck(x) for (x, q) in samples))
             overlap = 1. * qin / qsum
             return logvol, overlap
         else:

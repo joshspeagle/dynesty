@@ -133,7 +133,7 @@ class Sampler:
         # results
         self.saved_run = RunRecord()
 
-    def save(self, *args):
+    def save(self, fname):
         raise RuntimeError('Should be overriden')
 
     def propose_point(self, *args):

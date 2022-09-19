@@ -18,6 +18,7 @@ import pickle as pickle_module
 # To allow replacing of the pickler
 import numpy as np
 from scipy.special import logsumexp
+from ._version import __version__ as DYNESTY_VERSION
 try:
     import tqdm
 except ImportError:
@@ -2134,7 +2135,6 @@ def restore_sampler(fname, pool=None):
     Static or dynamic nested sampling object
 
     """
-    from ._version import __version__ as DYNESTY_VERSION
     with open(fname, 'rb') as fp:
         res = pickle_module.load(fp)
     sampler = res['sampler']
@@ -2171,7 +2171,6 @@ def save_sampler(sampler, fname):
         Filename of the save file.
 
     """
-    from ._version import __version__ as DYNESTY_VERSION
     format_version = 1
     # this is an internal version of the format we are
     # using. Increase this if incompatible changes are being made

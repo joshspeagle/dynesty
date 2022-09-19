@@ -554,7 +554,7 @@ def sample_slice(args):
     axes = scale * axes.T  # scale based on past tuning
     expansion_warning_set = False
     # Slice sampling loop.
-    for it in range(slices):
+    for _ in range(slices):
 
         # Shuffle axis update order.
         idxs = np.arange(n)
@@ -659,7 +659,7 @@ def sample_rslice(args):
     expansion_warning_set = False
 
     # Slice sampling loop.
-    for it in range(slices):
+    for _ in range(slices):
 
         # Propose a direction on the unit n-sphere.
         drhat = rstate.standard_normal(size=n)

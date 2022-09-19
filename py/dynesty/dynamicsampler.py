@@ -1463,7 +1463,7 @@ class DynamicSampler:
         # a combined run.
         ntot = nsaved + nnew
         logvol = 0.
-        for i in range(ntot):
+        for _ in range(ntot):
             if logl_s > self.new_logl_min:
                 # If our saved samples are past the lower log-likelihood
                 # bound, both runs are now "active" and should be used.

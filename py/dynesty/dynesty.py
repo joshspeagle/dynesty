@@ -121,8 +121,8 @@ def _get_citations(nested_type, bound, sampler):
     assert nested_type in ['dynamic', 'static']
     if nested_type == 'dynamic':
         dynamic_citations = reflist_tostring(dynamic_refs)
-        dynamic_citations = f"""Dynamic Nested Sampling:\n=======================
-{dynamic_citations}"""
+        dynamic_citations = ("Dynamic Nested Sampling:\n"
+                             "=======================\n" + dynamic_citations)
     else:
         dynamic_citations = ""
 
@@ -938,7 +938,7 @@ class DynamicNestedSampler(DynamicSampler):
 
         # Bounding method.
         if bound not in _SAMPLERS:
-            raise ValueError("Unknown bounding method: '{0}'".format(bound))
+            raise ValueError(f"Unknown bounding method: {bound}")
 
         # Sampling method.
         if sample == 'auto':
@@ -956,12 +956,11 @@ class DynamicNestedSampler(DynamicSampler):
 
         # Custom sampling function.
         if sample not in _SAMPLING and not callable(sample):
-            raise ValueError("Unknown sampling method: '{0}'".format(sample))
+            raise ValueError(f"Unknown sampling method: {sample}")
 
         # Custom updating function.
         if update_func is not None and not callable(update_func):
-            raise ValueError(
-                "Unknown update function: '{0}'".format(update_func))
+            raise ValueError(f"Unknown update function: '{update_func}'")
         kwargs['update_func'] = update_func
 
         # Citation generator.
@@ -1079,7 +1078,7 @@ class _function_wrapper:
             # as it may lead to hard to diagnose weird behaviour
             return self.func(np.asarray(x).copy(), *self.args, **self.kwargs)
         except:  # noqa
-            print("Exception while calling {0} function:".format(self.name))
+            print(f"Exception while calling {self.name} function:")
             print("  params:", x)
             print("  args:", self.args)
             print("  kwargs:", self.kwargs)

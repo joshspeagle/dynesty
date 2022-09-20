@@ -9,5 +9,6 @@ classes
 from .dynesty import NestedSampler, DynamicNestedSampler
 from . import bounding
 from . import utils
+from . import pool
 
 from ._version import __version__

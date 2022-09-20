@@ -84,3 +84,12 @@ Plotting Utilities
     :undoc-members:
     :private-members:
     :show-inheritance:
+
+Parallelization helpers
+=======================
+
+.. automodule:: dynesty.pool
+    :members:
+    :undoc-members:
+    :private-members:
+    :show-inheritance:

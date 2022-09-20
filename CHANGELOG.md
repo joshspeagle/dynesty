@@ -14,6 +14,7 @@ This is a major release with as several significant improvements. One is the imp
 .restore() interface ( #386 ; by @segasai )
 - When sampling is performed using run_nested() it is now possible to perform checkpoints at regular intervals, allowing you then resume sampling if it was interrupted ( #386 ; by @segasai )
 - The nested sampler results object now allows to retrieve the equal weighted samples directly with results.equal_samples() method as well as allows you to retrieve the importance weights through .importance_weights() method ( #390 ; by @segasai)
+- A code for a multiprocessing pool that is specifically adapted for dynesty was added to dynesty.pool. It enables faster performance in the case if the likelihood function takes a long time to pickle or the data/(likelihood arguments) take long time to pickle ( #394 ; by @segasai )
 
 ### Fixed
 - Sampler.n_effective is no longer unnecessarily computed when sampling with

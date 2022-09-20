@@ -49,6 +49,31 @@ IteratorResultShort = namedtuple('IteratorResultShort', [
 ])
 
 
+class ResultObject:
+
+    def __init__(self, v, blob):
+        if blob:
+            self.val = v[0]
+            self.blob = v[1]
+        else:
+            self.val = v
+
+    def __lt__(self, v1):
+        return float(self) < float(v1)
+
+    def __gt__(self, v1):
+        return float(self) > float(v1)
+
+    def __le__(self, v1):
+        return float(self) <= float(v1)
+
+    def __ge__(self, v1):
+        return float(self) >= float(v1)
+
+    def __float__(self):
+        return self.val
+
+
 class LogLikelihood:
     """ Class that calls the likelihood function (using a pool if provided)
     Also if requested it saves the history of evaluations
@@ -59,6 +84,7 @@ class LogLikelihood:
                  ndim,
                  pool=None,
                  save=False,
+                 blob=False,
                  history_filename=None):
         """ Initialize the object.
 
@@ -82,6 +108,7 @@ class LogLikelihood:
         self.history_filename = history_filename
         self.ndim = ndim
         self.failed_save = False
+        self.blob = blob
         if save:
             self.history_init()
 
@@ -90,9 +117,15 @@ class LogLikelihood:
         The pool is used if it was provided when the object was created
         """
         if self.pool is None:
-            ret = np.array(list(map(self.loglikelihood, pars)))
+            ret = list([
+                ResultObject(_, self.blob)
+                for _ in map(self.loglikelihood, pars)
+            ])
         else:
-            ret = np.array(self.pool.map(self.loglikelihood, pars))
+            ret = [
+                ResultObject(_, self.blob)
+                for _ in self.pool.map(self.loglikelihood, pars)
+            ]
         if self.save:
             self.history_append(ret, pars)
         return ret

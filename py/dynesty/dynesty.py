@@ -1062,11 +1062,12 @@ class _function_wrapper:
 
     """
 
-    def __init__(self, func, args, kwargs, name='input'):
+    def __init__(self, func, args, kwargs, name='input', blob=False):
         self.func = func
         self.args = args
         self.kwargs = kwargs
         self.name = name
+        self.blob = blob
 
     def __call__(self, x):
         try:

@@ -367,11 +367,12 @@ def initialize_live_points(live_points,
         for _ in range(n_attempts):
             live_u = rstate.uniform(size=(nlive, npdim))
             if use_pool_ptform:
-                live_v = np.array(list(M(prior_transform, np.asarray(live_u))))
+                live_v = M(prior_transform, np.asarray(live_u))
             else:
-                live_v = np.array(
-                    list(map(prior_transform, np.asarray(live_u))))
-            live_logl = np.array(loglikelihood.map(np.asarray(live_v)))
+                live_v = map(prior_transform, np.asarray(live_u))
+            live_v = np.array(list(live_v))
+            live_logl = loglikelihood.map(np.asarray(live_v))
+            live_logl = np.array([_.val for _ in live_logl])
 
             # Convert all `-np.inf` log-likelihoods to finite large
             # numbers. Necessary to keep estimators in our sampler from

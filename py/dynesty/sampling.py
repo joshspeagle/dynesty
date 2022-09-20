@@ -414,10 +414,8 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
             nexpand += 1
         if nexpand > nexpand_threshold:
             expansion_warning = True
-            warnings.warn(
-                str.format(
-                    'The slice sample interval was expanded more '
-                    'than {0} times', nexpand_threshold))
+            warnings.warn('The slice sample interval was expanded more '
+                          f'than {nexpand_threshold} times')
 
     else:
         # "Stepping out" the left and right bounds.
@@ -468,16 +466,14 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
                 raise RuntimeError("Slice sampler has failed to find "
                                    "a valid point. Some useful "
                                    "output quantities:\n"
-                                   "u: {0}\n"
-                                   "nstep_left: {1}\n"
-                                   "nstep_right: {2}\n"
-                                   "nstep_hat: {3}\n"
-                                   "u_prop: {4}\n"
-                                   "loglstar: {5}\n"
-                                   "logl_prop: {6}\n"
-                                   "direction: {7}\n".format(
-                                       u, nstep_l, nstep_r, nstep_hat, u_prop,
-                                       loglstar, logl_prop, direction))
+                                   f"u: {u}\n"
+                                   f"nstep_left: {nstep_l}\n"
+                                   f"nstep_right: {nstep_r}\n"
+                                   f"nstep_hat: {nstep_hat}\n"
+                                   f"u_prop: {u_prop}\n"
+                                   f"loglstar: {loglstar}\n"
+                                   f"logl_prop: {logl_prop}\n"
+                                   f"direction: {direction}\n")
     v_prop = prior_transform(u_prop)
     return u_prop, v_prop, logl_prop, nc, nexpand, ncontract, expansion_warning
 

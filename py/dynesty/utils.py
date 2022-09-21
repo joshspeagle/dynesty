@@ -49,7 +49,7 @@ IteratorResultShort = namedtuple('IteratorResultShort', [
 ])
 
 
-class ResultObject:
+class LoglOutput:
 
     def __init__(self, v, blob):
         if blob:
@@ -118,12 +118,11 @@ class LogLikelihood:
         """
         if self.pool is None:
             ret = list([
-                ResultObject(_, self.blob)
-                for _ in map(self.loglikelihood, pars)
+                LoglOutput(_, self.blob) for _ in map(self.loglikelihood, pars)
             ])
         else:
             ret = [
-                ResultObject(_, self.blob)
+                LoglOutput(_, self.blob)
                 for _ in self.pool.map(self.loglikelihood, pars)
             ]
         if self.save:
@@ -134,7 +133,7 @@ class LogLikelihood:
         """
         Evaluate the likelihood f-n once
         """
-        ret = ResultObject(self.loglikelihood(x), self.blob)
+        ret = LoglOutput(self.loglikelihood(x), self.blob)
         if self.save:
             self.history_append([ret], [x])
         return ret

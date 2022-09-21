@@ -857,16 +857,17 @@ class DynamicSampler:
             # Reset saved results to avoid any possible conflicts.
             self.reset()
 
-            self.live_u, self.live_v, self.live_logl, blobs = initialize_live_points(
-                live_points,
-                self.prior_transform,
-                self.loglikelihood,
-                self.M,
-                nlive=nlive,
-                npdim=self.npdim,
-                rstate=self.rstate,
-                blob=self.blob,
-                use_pool_ptform=self.use_pool_ptform)
+            (self.live_u, self.live_v, self.live_logl,
+             blobs) = initialize_live_points(
+                 live_points,
+                 self.prior_transform,
+                 self.loglikelihood,
+                 self.M,
+                 nlive=nlive,
+                 npdim=self.npdim,
+                 rstate=self.rstate,
+                 blob=self.blob,
+                 use_pool_ptform=self.use_pool_ptform)
             if self.blob:
                 self.live_blobs = blobs
             else:
@@ -898,7 +899,8 @@ class DynamicSampler:
                                                self.pool,
                                                self.use_pool,
                                                ncdim=self.ncdim,
-                                               kwargs=self.kwargs)
+                                               kwargs=self.kwargs,
+                                               blob=self.blob)
             self.bound = self.sampler.bound
             self.internal_state = DynamicSamplerStatesEnum.LIVEPOINTSINIT
             # Run the sampler internally as a generator.
@@ -1111,6 +1113,7 @@ class DynamicSampler:
         saved_logl = np.array(self.saved_run['logl'])
         saved_logvol = np.array(self.saved_run['logvol'])
         saved_scale = np.array(self.saved_run['scale'])
+        saved_blobs = np.array(self.saved_run['blob'])
         nblive = self.nlive_init
 
         update_interval = self.__get_update_interval(update_interval,
@@ -1131,7 +1134,8 @@ class DynamicSampler:
                                                      self.pool,
                                                      self.use_pool,
                                                      ncdim=self.ncdim,
-                                                     kwargs=self.kwargs)
+                                                     kwargs=self.kwargs,
+                                                     blob=self.blob)
             self.batch_sampler = batch_sampler
             batch_sampler.save_bounds = save_bounds
             # Reset "new" results.
@@ -1167,6 +1171,10 @@ class DynamicSampler:
                 self.ncall += nlive_new
                 # Return live points in generator format.
                 for i in range(nlive_new):
+                    if self.blob:
+                        curblob = blobs[i]
+                    else:
+                        curblob = None
                     first_points.append(
                         IteratorResultShort(worst=-i - 1,
                                             ustar=live_u[i],
@@ -1174,6 +1182,7 @@ class DynamicSampler:
                                             loglstar=live_logl[i],
                                             nc=live_nc[i],
                                             worst_it=live_it[i],
+                                            blob=curblob,
                                             boundidx=0,
                                             bounditer=0,
                                             eff=self.eff))
@@ -1251,6 +1260,7 @@ class DynamicSampler:
                 live_u = saved_u[subset, :].copy()
                 live_v = saved_v[subset, :].copy()
                 live_logl = saved_logl[subset].copy()
+                live_blobs = saved_blobs[subset].copy()
                 # Hack the internal sampler by overwriting the live points
                 # and scale factor.
                 batch_sampler.nlive = cur_nblive
@@ -1258,7 +1268,7 @@ class DynamicSampler:
                 batch_sampler.live_v = live_v
                 batch_sampler.live_logl = live_logl
                 batch_sampler.scale = live_scale
-
+                batch_sampler.live_blobs = live_blobs
                 # Trigger an update of the internal bounding distribution based
                 # on the "new" set of live points.
 

@@ -321,6 +321,8 @@ def test_deterministic(ndim):
         results.append(res)
 
     for k in results[0].keys():
+        if k == 'blob':
+            continue
         val0 = results[0][k]
         val1 = results[1][k]
         if (isinstance(val0, int) or isinstance(val0, float)

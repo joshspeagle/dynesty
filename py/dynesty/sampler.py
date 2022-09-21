@@ -753,7 +753,7 @@ class Sampler:
             vstar = self.live_v[worst].copy()  # transformed position
             loglstar_new = self.live_logl[worst]  # new likelihood
             if self.blob:
-                old_blob = self.live_blobs[worst]
+                old_blob = self.live_blobs[worst].copy()
             else:
                 old_blob = None
 

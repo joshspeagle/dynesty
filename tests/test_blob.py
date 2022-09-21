@@ -66,6 +66,7 @@ def test_gaussian():
     sampler.run_nested(print_progress=printing)
     res = sampler.results
     assert res['blob'].shape == (len(res['samples']), 3)
+    assert np.all(res['blob'] == res['samples'])
 
 
 def test_gaussian_dyn():
@@ -80,3 +81,4 @@ def test_gaussian_dyn():
     sampler.run_nested(print_progress=printing, dlogz_init=1)
     res = sampler.results
     assert res['blob'].shape == (len(res['samples']), 3)
+    assert np.all(res['blob'] == res['samples'])

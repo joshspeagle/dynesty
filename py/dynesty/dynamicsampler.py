@@ -1154,7 +1154,7 @@ class DynamicSampler:
             if psel:
                 # If the lower bound encompasses all saved samples, we want
                 # to propose a new set of points from the unit cube.
-                live_u, live_v, live_logl, blobs = initialize_live_points(
+                live_u, live_v, live_logl, live_blobs = initialize_live_points(
                     None,
                     self.prior_transform,
                     self.loglikelihood,
@@ -1172,7 +1172,7 @@ class DynamicSampler:
                 # Return live points in generator format.
                 for i in range(nlive_new):
                     if self.blob:
-                        curblob = blobs[i]
+                        curblob = live_blobs[i]
                     else:
                         curblob = None
                     first_points.append(

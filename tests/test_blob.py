@@ -77,6 +77,6 @@ def test_gaussian_dyn():
                                            nlive=nlive,
                                            rstate=rstate,
                                            blob=True)
-    sampler.run_nested(print_progress=printing)
+    sampler.run_nested(print_progress=printing, dlogz_init=1)
     res = sampler.results
     assert res['blob'].shape == (len(res['samples']), 3)

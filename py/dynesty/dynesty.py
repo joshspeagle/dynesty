@@ -255,6 +255,7 @@ class NestedSampler(SuperSampler):
                 max_move=100,
                 update_func=None,
                 ncdim=None,
+                blob=False,
                 save_history=False,
                 history_filename=None):
         """
@@ -614,7 +615,8 @@ class NestedSampler(SuperSampler):
         loglike = LogLikelihood(_function_wrapper(loglikelihood,
                                                   logl_args,
                                                   logl_kwargs,
-                                                  name='loglikelihood'),
+                                                  name='loglikelihood',
+                                                  blob=blob),
                                 ndim,
                                 save=save_history,
                                 history_filename=history_filename
@@ -699,7 +701,8 @@ class DynamicNestedSampler(DynamicSampler):
                  update_func=None,
                  ncdim=None,
                  save_history=False,
-                 history_filename=None):
+                 history_filename=None,
+                 blob=False):
         """
         Initializes a sampler object for Dynamic Nested Sampling.
 
@@ -1037,7 +1040,8 @@ class DynamicNestedSampler(DynamicSampler):
                                 pool=pool_logl,
                                 history_filename=history_filename
                                 or 'dynesty_logl_history.h5',
-                                save=save_history)
+                                save=save_history,
+                                blob=blob)
 
         # Add in gradient.
         if gradient is not None:

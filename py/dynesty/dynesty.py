@@ -615,10 +615,10 @@ class NestedSampler(SuperSampler):
         loglike = LogLikelihood(_function_wrapper(loglikelihood,
                                                   logl_args,
                                                   logl_kwargs,
-                                                  name='loglikelihood',
-                                                  blob=blob),
+                                                  name='loglikelihood'),
                                 ndim,
                                 save=save_history,
+                                blob=blob,
                                 history_filename=history_filename
                                 or 'dynesty_logl_history.h5',
                                 pool=pool_logl)

@@ -334,6 +334,7 @@ def initialize_live_points(live_points,
                            nlive=None,
                            npdim=None,
                            rstate=None,
+                           blob=False,
                            use_pool_ptform=None):
     """
     Initialize the first set of live points before starting the sampling
@@ -373,6 +374,8 @@ def initialize_live_points(live_points,
             live_v = np.array(list(live_v))
             live_logl = loglikelihood.map(np.asarray(live_v))
             live_logl = np.array([_.val for _ in live_logl])
+            if blob:
+                live_blob = np.array([_.blob for _ in live_logl])
 
             # Convert all `-np.inf` log-likelihoods to finite large
             # numbers. Necessary to keep estimators in our sampler from
@@ -402,7 +405,7 @@ def initialize_live_points(live_points,
     else:
         # If live points were provided, convert the log-likelihoods and
         # then run a quick safety check.
-        live_u, live_v, live_logl = live_points
+        live_u, live_v, live_logl, blobs = live_points
 
         for i, logl in enumerate(live_logl):
             if not np.isfinite(logl):
@@ -422,7 +425,9 @@ def initialize_live_points(live_points,
             'You likely have a plateau in the likelihood. '
             'Nested sampling is *NOT* guaranteed to work in this case',
             RuntimeWarning)
-    return (live_u, live_v, live_logl)
+    if not blob:
+        live_blob = None
+    return (live_u, live_v, live_logl, live_blob)
 
 
 class DynamicSampler:
@@ -712,6 +717,7 @@ class DynamicSampler:
                        logl_max=np.inf,
                        dlogz=0.01,
                        n_effective=np.inf,
+                       blob=False,
                        live_points=None,
                        save_samples=False,
                        resume=False):
@@ -851,7 +857,7 @@ class DynamicSampler:
             # Reset saved results to avoid any possible conflicts.
             self.reset()
 
-            self.live_u, self.live_v, self.live_logl = initialize_live_points(
+            self.live_u, self.live_v, self.live_logl, blobs = initialize_live_points(
                 live_points,
                 self.prior_transform,
                 self.loglikelihood,
@@ -859,8 +865,10 @@ class DynamicSampler:
                 nlive=nlive,
                 npdim=self.npdim,
                 rstate=self.rstate,
+                blob=blob,
                 use_pool_ptform=self.use_pool_ptform)
-
+            if blob:
+                self.live_blobs = blobs
             self.nlive_init = len(self.live_u)
 
             # (Re-)bundle live points.

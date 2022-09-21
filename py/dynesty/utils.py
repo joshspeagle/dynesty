@@ -225,7 +225,8 @@ class RunRecord:
             'it',  # iteration the live (now dead) point was proposed
             'n',  # number of live points interior to dead point
             'bounditer',  # active bound at a specific iteration
-            'scale'  # scale factor at each iteration
+            'scale',  # scale factor at each iteration
+            'blob'
         ]
         if dynamic:
             keys.extend([

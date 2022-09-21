@@ -79,7 +79,7 @@ class Sampler:
         self.ncdim = ncdim
 
         # live points
-        self.live_u, self.live_v, self.live_logl = live_points
+        self.live_u, self.live_v, self.live_logl, blobs = live_points
         self.nlive = len(self.live_u)
         self.live_bound = np.zeros(self.nlive, dtype=int)
         self.live_it = np.zeros(self.nlive, dtype=int)

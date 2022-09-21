@@ -126,7 +126,7 @@ class LogLikelihood:
                 for _ in self.pool.map(self.loglikelihood, pars)
             ]
         if self.save:
-            self.history_append(ret, pars)
+            self.history_append(ret.val, pars)
         return ret
 
     def __call__(self, x):

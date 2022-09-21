@@ -1594,6 +1594,7 @@ def unravel_run(res, print_progress=True):
                      samples_id=res.samples_id[strand],
                      samples_it=res.samples_it[strand],
                      samples_u=res.samples_u[strand],
+                     blob=res.blob[strand],
                      logwt=saved_logwt,
                      logl=logl,
                      logvol=logvol,
@@ -1837,7 +1838,8 @@ def _merge_two(res1, res2, compute_aux=False):
                      v=res1.samples,
                      logl=res1.logl,
                      nc=res1.ncall,
-                     it=res1.samples_it)
+                     it=res1.samples_it,
+                     blob=res1.blob)
     nbase = len(base_info['id'])
 
     # Number of live points throughout the run.
@@ -1870,7 +1872,8 @@ def _merge_two(res1, res2, compute_aux=False):
                     v=res2.samples,
                     logl=res2.logl,
                     nc=res2.ncall,
-                    it=res2.samples_it)
+                    it=res2.samples_it,
+                    blob=res2.blob)
     nnew = len(new_info['id'])
 
     # Number of live points throughout the run.

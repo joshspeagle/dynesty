@@ -373,9 +373,9 @@ def initialize_live_points(live_points,
                 live_v = map(prior_transform, np.asarray(live_u))
             live_v = np.array(list(live_v))
             live_logl = loglikelihood.map(np.asarray(live_v))
-            live_logl = np.array([_.val for _ in live_logl])
             if blob:
                 live_blob = np.array([_.blob for _ in live_logl])
+            live_logl = np.array([_.val for _ in live_logl])
 
             # Convert all `-np.inf` log-likelihoods to finite large
             # numbers. Necessary to keep estimators in our sampler from
@@ -501,7 +501,7 @@ class DynamicSampler:
         self.prior_transform = prior_transform
         self.npdim = npdim
         self.ncdim = ncdim
-
+        self.blob = kwargs.get('blob') or False
         # bounding/sampling
         self.bounding = bound
         self.method = method
@@ -717,7 +717,6 @@ class DynamicSampler:
                        logl_max=np.inf,
                        dlogz=0.01,
                        n_effective=np.inf,
-                       blob=False,
                        live_points=None,
                        save_samples=False,
                        resume=False):
@@ -865,14 +864,18 @@ class DynamicSampler:
                 nlive=nlive,
                 npdim=self.npdim,
                 rstate=self.rstate,
-                blob=blob,
+                blob=self.blob,
                 use_pool_ptform=self.use_pool_ptform)
-            if blob:
+            if self.blob:
                 self.live_blobs = blobs
+            else:
+                self.live_blobs = None
             self.nlive_init = len(self.live_u)
 
             # (Re-)bundle live points.
-            live_points = [self.live_u, self.live_v, self.live_logl]
+            live_points = [
+                self.live_u, self.live_v, self.live_logl, self.live_blobs
+            ]
             self.live_init = [np.array(_) for _ in live_points]
             self.ncall += self.nlive_init
             self.live_bound = np.zeros(self.nlive_init, dtype=int)
@@ -1142,7 +1145,7 @@ class DynamicSampler:
             if psel:
                 # If the lower bound encompasses all saved samples, we want
                 # to propose a new set of points from the unit cube.
-                live_u, live_v, live_logl = initialize_live_points(
+                live_u, live_v, live_logl, blobs = initialize_live_points(
                     None,
                     self.prior_transform,
                     self.loglikelihood,
@@ -1150,6 +1153,7 @@ class DynamicSampler:
                     nlive=nlive_new,
                     npdim=self.npdim,
                     rstate=self.rstate,
+                    blob=self.blob,
                     use_pool_ptform=self.use_pool_ptform)
 
                 live_bound = np.zeros(nlive_new, dtype=int)

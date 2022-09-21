@@ -639,6 +639,7 @@ class NestedSampler(SuperSampler):
                                              nlive=nlive,
                                              npdim=npdim,
                                              rstate=rstate,
+                                             blob=blob,
                                              use_pool_ptform=use_pool.get(
                                                  'prior_transform', True))
 

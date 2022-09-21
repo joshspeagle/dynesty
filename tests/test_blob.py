@@ -65,4 +65,4 @@ def test_gaussian():
                                     blob=True)
     sampler.run_nested(print_progress=printing)
     res = sampler.results
-    (res['blob'])
+    assert res['blob'].shape == (len(res['samples']), 3)

@@ -657,7 +657,8 @@ class NestedSampler(SuperSampler):
                          pool,
                          use_pool,
                          kwargs,
-                         ncdim=ncdim)
+                         ncdim=ncdim,
+                         blob=blob)
 
         return sampler
 

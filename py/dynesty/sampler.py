@@ -68,18 +68,32 @@ class Sampler:
 
     """
 
-    def __init__(self, loglikelihood, prior_transform, npdim, live_points,
-                 update_interval, first_update, rstate, queue_size, pool,
-                 use_pool, ncdim):
+    def __init__(self,
+                 loglikelihood,
+                 prior_transform,
+                 npdim,
+                 live_points,
+                 update_interval,
+                 first_update,
+                 rstate,
+                 queue_size,
+                 pool,
+                 use_pool,
+                 ncdim,
+                 blob=False):
 
         # distributions
         self.loglikelihood = loglikelihood
         self.prior_transform = prior_transform
         self.npdim = npdim
         self.ncdim = ncdim
-
+        self.blob = blob
         # live points
         self.live_u, self.live_v, self.live_logl, blobs = live_points
+        if blob:
+            self.live_blobs = blobs
+        else:
+            self.live_blobs = None
         self.nlive = len(self.live_u)
         self.live_bound = np.zeros(self.nlive, dtype=int)
         self.live_it = np.zeros(self.nlive, dtype=int)
@@ -440,6 +454,10 @@ class Sampler:
             # updated in place
             ustar = self.live_u[idx].copy()
             vstar = self.live_v[idx].copy()
+            if self.blob:
+                old_blob = self.live_blobs[idx].copy()
+            else:
+                old_blob = None
             loglstar_new = self.live_logl[idx]
             boundidx = self.live_bound[idx]
             point_it = self.live_it[idx]
@@ -466,7 +484,8 @@ class Sampler:
                          boundidx=boundidx,
                          it=point_it,
                          bounditer=bounditer,
-                         scale=self.scale))
+                         scale=self.scale,
+                         blob=old_blob))
             self.eff = 100. * (self.it + i) / self.ncall  # efficiency
 
             # Return our new "dead" point and ancillary quantities.
@@ -732,6 +751,10 @@ class Sampler:
             ustar = self.live_u[worst].copy()  # unit cube position
             vstar = self.live_v[worst].copy()  # transformed position
             loglstar_new = self.live_logl[worst]  # new likelihood
+            if self.blob:
+                old_blob = self.live_blobs[worst]
+            else:
+                old_blob = None
 
             # Sample a new live point from within the likelihood constraint
             # `logl > loglstar` using the bounding distribution and sampling
@@ -740,7 +763,10 @@ class Sampler:
             ncall += nc
             self.ncall += nc
             self.since_update += nc
-
+            if self.blob:
+                new_blob = logl.blob
+            else:
+                new_blob = None
             (logwt, logz, logzvar,
              h) = progress_integration(loglstar, loglstar_new, logz, logzvar,
                                        logvol, self.dlv, h)
@@ -767,7 +793,8 @@ class Sampler:
                          nc=nc,
                          it=worst_it,
                          bounditer=bounditer,
-                         scale=self.scale))
+                         scale=self.scale,
+                         blob=old_blob))
 
             # Update the live point (previously our "worst" point).
             self.live_u[worst] = u
@@ -775,7 +802,8 @@ class Sampler:
             self.live_logl[worst] = logl
             self.live_bound[worst] = bounditer
             self.live_it[worst] = self.it
-
+            if self.blob:
+                self.live_blobs[worst] = new_blob
             # Compute our sampling efficiency.
             self.eff = 100. * self.it / self.ncall
 

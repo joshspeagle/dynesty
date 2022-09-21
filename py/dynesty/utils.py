@@ -71,7 +71,7 @@ class ResultObject:
         return float(self) >= float(v1)
 
     def __float__(self):
-        return self.val
+        return float(self.val)
 
 
 class LogLikelihood:
@@ -134,7 +134,7 @@ class LogLikelihood:
         """
         Evaluate the likelihood f-n once
         """
-        ret = self.loglikelihood(x)
+        ret = ResultObject(self.loglikelihood(x), self.blob)
         if self.save:
             self.history_append([ret], [x])
         return ret

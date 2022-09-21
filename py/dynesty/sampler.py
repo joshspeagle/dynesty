@@ -175,7 +175,8 @@ class Sampler:
             # Compute the prior transform using the default `map` function.
             self.live_v = np.array(
                 list(map(self.prior_transform, np.asarray(self.live_u))))
-        self.live_logl = self.loglikelihood.map(np.asarray(self.live_v))
+        self.live_logl = np.array(
+            [_.val for _ in self.loglikelihood.map(np.asarray(self.live_v))])
 
         self.live_bound = np.zeros(self.nlive, dtype=int)
         self.live_it = np.zeros(self.nlive, dtype=int)

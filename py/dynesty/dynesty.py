@@ -975,7 +975,7 @@ class DynamicNestedSampler(DynamicSampler):
         kwargs['nonbounded'] = nonbounded
         kwargs['periodic'] = periodic
         kwargs['reflective'] = reflective
-
+        kwargs['blob'] = blob
         # Keyword arguments controlling the first update.
         if first_update is None:
             first_update = {}

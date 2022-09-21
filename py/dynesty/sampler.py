@@ -220,7 +220,7 @@ class Sampler:
         d = {}
         for k in [
                 'nc', 'v', 'id', 'it', 'u', 'logwt', 'logl', 'logvol', 'logz',
-                'logzvar', 'h'
+                'logzvar', 'h', 'blob'
         ]:
             d[k] = np.array(self.saved_run[k])
 
@@ -230,7 +230,7 @@ class Sampler:
                 warnings.simplefilter("ignore")
                 results = [('nlive', self.nlive), ('niter', self.it - 1),
                            ('ncall', d['nc']), ('eff', self.eff),
-                           ('samples', d['v'])]
+                           ('samples', d['v']), ('blob', d['blob'])]
                 for k in ['id', 'it', 'u']:
                     results.append(('samples_' + k, d[k]))
                 for k in ['logwt', 'logl', 'logvol', 'logz']:

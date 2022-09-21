@@ -1,8 +1,5 @@
 import numpy as np
-import pytest
 from numpy import linalg
-import numpy.testing as npt
-import itertools
 from utils import get_rstate, get_printing
 
 import dynesty  # noqa
@@ -41,8 +38,9 @@ class Gaussian:
                                     (x - self.mean))) + self.lnorm
         # notice here we overwrite the input array just to test
         # that this is not a problem
+        blob = x * 1
         x[:] = -np.ones(len(x))
-        return ret, x + 1
+        return ret, blob
 
     # prior transform
     def prior_transform(self, u):
@@ -57,7 +55,6 @@ class Gaussian:
 
 
 def test_gaussian():
-    sig = 5
     rstate = get_rstate()
     g = Gaussian()
     sampler = dynesty.NestedSampler(g.loglikelihood,
@@ -67,3 +64,5 @@ def test_gaussian():
                                     rstate=rstate,
                                     blob=True)
     sampler.run_nested(print_progress=printing)
+    res = sampler.results
+    (res['blob'])

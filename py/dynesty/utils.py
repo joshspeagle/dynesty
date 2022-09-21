@@ -557,7 +557,8 @@ _RESULTS_STRUCTURE = [
      "The log-likelihood bounds used to run a batch.", 'nbatch'),
     ('batch_nlive', 'array[int]',
      "The number of live points used for  given batch", 'nbatch'),
-    ('scale', 'array[float]', "Scalar scale applied for proposals", 'niter')
+    ('scale', 'array[float]', "Scalar scale applied for proposals", 'niter'),
+    ('blob', 'array[X]', 'blobs XXXXX', 'niter')
 ]
 
 

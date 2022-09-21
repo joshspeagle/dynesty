@@ -651,8 +651,22 @@ class DynamicSampler:
         bounds are also returned."""
         d = {}
         for k in [
-                'nc', 'v', 'id', 'batch', 'it', 'u', 'n', 'logwt', 'logl',
-                'logvol', 'logz', 'logzvar', 'h', 'batch_nlive', 'batch_bounds'
+                'nc',
+                'v',
+                'id',
+                'batch',
+                'it',
+                'u',
+                'n',
+                'logwt',
+                'logl',
+                'logvol',
+                'logz',
+                'logzvar',
+                'h',
+                'batch_nlive',
+                'batch_bounds',
+                'blob',
         ]:
             d[k] = np.array(self.saved_run[k])
 

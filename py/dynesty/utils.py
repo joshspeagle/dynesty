@@ -40,12 +40,12 @@ SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 IteratorResult = namedtuple('IteratorResult', [
     'worst', 'ustar', 'vstar', 'loglstar', 'logvol', 'logwt', 'logz',
     'logzvar', 'h', 'nc', 'worst_it', 'boundidx', 'bounditer', 'eff',
-    'delta_logz'
+    'delta_logz', 'blob'
 ])
 
 IteratorResultShort = namedtuple('IteratorResultShort', [
     'worst', 'ustar', 'vstar', 'loglstar', 'nc', 'worst_it', 'boundidx',
-    'bounditer', 'eff'
+    'bounditer', 'eff', 'blob'
 ])
 
 
@@ -1448,6 +1448,7 @@ def resample_run(res, rstate=None, return_idx=False):
     new_res_dict = dict(niter=len(res.ncall[samp_idx]),
                         ncall=res.ncall[samp_idx],
                         eff=eff,
+                        blob=res.blob[samp_idx],
                         samples=res.samples[samp_idx],
                         samples_id=res.samples_id[samp_idx],
                         samples_it=res.samples_it[samp_idx],
@@ -1909,7 +1910,8 @@ def _merge_two(res1, res2, compute_aux=False):
                          nc=[],
                          it=[],
                          n=[],
-                         batch=[])
+                         batch=[],
+                         blob=[])
 
     # Check if batch info is the same and modify counters accordingly.
     if np.all(base_info['bounds'] == new_info['bounds']):
@@ -1958,7 +1960,7 @@ def _merge_two(res1, res2, compute_aux=False):
             idx_new += 1
             combined_info['batch'].append(from_run['batch'][add_idx] + boffset)
 
-        for curk in ['id', 'u', 'v', 'logl', 'nc', 'it']:
+        for curk in ['id', 'u', 'v', 'logl', 'nc', 'it', 'blob']:
             combined_info[curk].append(from_run[curk][add_idx])
 
         # Save the number of live points and expected ln(volume).
@@ -1991,7 +1993,8 @@ def _merge_two(res1, res2, compute_aux=False):
              samples=np.asarray(combined_info['v']),
              logl=np.asarray(combined_info['logl']),
              logvol=np.asarray(combined_info['logvol']),
-             batch_bounds=np.asarray(bounds))
+             batch_bounds=np.asarray(bounds),
+             blob=np.asarray(combined_info['blob']))
 
     for curk in ['id', 'it', 'n', 'u', 'batch']:
         r['samples_' + curk] = np.asarray(combined_info[curk])

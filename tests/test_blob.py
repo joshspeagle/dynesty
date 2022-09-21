@@ -66,3 +66,17 @@ def test_gaussian():
     sampler.run_nested(print_progress=printing)
     res = sampler.results
     assert res['blob'].shape == (len(res['samples']), 3)
+
+
+def test_gaussian_dyn():
+    rstate = get_rstate()
+    g = Gaussian()
+    sampler = dynesty.DynamicNestedSampler(g.loglikelihood,
+                                           g.prior_transform,
+                                           g.ndim,
+                                           nlive=nlive,
+                                           rstate=rstate,
+                                           blob=True)
+    sampler.run_nested(print_progress=printing)
+    res = sampler.results
+    assert res['blob'].shape == (len(res['samples']), 3)

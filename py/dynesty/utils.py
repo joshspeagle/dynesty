@@ -32,7 +32,8 @@ except ImportError:
 __all__ = [
     "unitcheck", "resample_equal", "mean_and_cov", "quantile", "jitter_run",
     "resample_run", "reweight_run", "unravel_run", "merge_runs", "kld_error",
-    "_merge_two", "_get_nsamps_samples_n", "get_enlarge_bootstrap"
+    "get_enlarge_bootstrap", "LoglOutput", "LogLikelihood", "RunRecord",
+    "DelayTimer"
 ]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
@@ -61,7 +62,8 @@ class LoglOutput:
         """
         Initialize the object
         
-        Parameters:
+        Parameters
+        ----------
         v: float or tuple
             if blob_flag is true v have to be a tuple of logl and blob
             if it is False v is just logl
@@ -112,7 +114,8 @@ class LoglOutput:
 
 
 class LogLikelihood:
-    """ Class that calls the likelihood function (using a pool if provided)
+    """
+    Class that calls the likelihood function (using a pool if provided)
     Also if requested it saves the history of evaluations
     """
 
@@ -125,7 +128,8 @@ class LogLikelihood:
                  blob=False):
         """ Initialize the object.
 
-        Parameters:
+        Parameters
+        ----------
         loglikelihood: function
         ndim: int
             Dimensionality
@@ -322,9 +326,12 @@ class DelayTimer:
         """
         Returns true if more than self.dt seconds has passed
         since the initialization or last call of successful is_time()
+
         Returns
         -------
-        bool
+        ret: bool
+             True if specified amout of time has passed since the
+             initialization or last successful is_time() call
         """
         curt = time.time()
         if curt - self.last_time > self.dt:

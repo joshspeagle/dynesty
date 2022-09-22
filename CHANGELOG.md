@@ -4,8 +4,8 @@ All notable changes to dynesty will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.0]
-This is a major release with as several significant improvements. One is the implementation of the check-points to save progress and allow restarting of fits and a new simple interface to obtain equally weighted samples directly from results object.
+## [2.0.0]
+This is a major release with as several significant improvements. One is the implementation of the check-points to save progress and allow restarting of fits and a new simple interface to obtain equally weighted samples directly from results object. Also likelihood functions can now return additional computed quantities (blobs) that will be saved together with samples.
 
 *IMPORTANT* This release includes some major refactoring of class structure in dynesty in to implement the check-pointing. While we haven't seen any breakage in our tests, it is possible that some of more-unusual workflows may be affected. Please submit a bug report on github if you see anything that doesn't look correct. Also, while every effort was made that checkpointing works correctly, it is possible that some corner-cases have been missed. Please report if you see any issues.
 
@@ -15,6 +15,7 @@ This is a major release with as several significant improvements. One is the imp
 - When sampling is performed using run_nested() it is now possible to perform checkpoints at regular intervals, allowing you then resume sampling if it was interrupted ( #386 ; by @segasai )
 - The nested sampler results object now allows to retrieve the equal weighted samples directly with results.equal_samples() method as well as allows you to retrieve the importance weights through .importance_weights() method ( #390 ; by @segasai)
 - A code for a multiprocessing pool that is specifically adapted for dynesty was added to dynesty.pool. It enables faster performance in the case if the likelihood function takes a long time to pickle or the data/(likelihood arguments) take long time to pickle ( #394 ; by @segasai )
+- The likelihood functions can now return auxiliary information (i.e. derived quantities) that will be preserved with the samples. This is done with the blob interface ( #395 ; by @segasai )
 
 ### Fixed
 - Sampler.n_effective is no longer unnecessarily computed when sampling with

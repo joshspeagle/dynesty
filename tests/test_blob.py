@@ -3,6 +3,7 @@ from numpy import linalg
 from utils import get_rstate, get_printing
 
 import dynesty  # noqa
+import dynesty.pool as dypool
 from dynesty import utils as dyfunc  # noqa
 """
 Run a series of basic tests to check whether anything huge is broken.
@@ -57,16 +58,36 @@ class Gaussian:
 def test_gaussian():
     rstate = get_rstate()
     g = Gaussian()
+    sampler = 'rslice'  # doing this sampler for static
+    # unifor for dynamic
     sampler = dynesty.NestedSampler(g.loglikelihood,
                                     g.prior_transform,
                                     g.ndim,
                                     nlive=nlive,
                                     rstate=rstate,
+                                    sample=sampler,
                                     blob=True)
     sampler.run_nested(print_progress=printing)
     res = sampler.results
     assert res['blob'].shape == (len(res['samples']), 3)
     assert np.all(res['blob'] == res['samples'])
+
+
+def test_gaussian_pool():
+    rstate = get_rstate()
+    g = Gaussian()
+    with dypool.Pool(2, g.loglikelihood, g.prior_transform) as pool:
+        sampler = dynesty.NestedSampler(pool.loglike,
+                                        pool.prior_transform,
+                                        g.ndim,
+                                        nlive=nlive,
+                                        rstate=rstate,
+                                        blob=True,
+                                        pool=pool)
+        sampler.run_nested(print_progress=printing)
+        res = sampler.results
+        assert res['blob'].shape == (len(res['samples']), 3)
+        assert np.all(res['blob'] == res['samples'])
 
 
 def test_gaussian_dyn():

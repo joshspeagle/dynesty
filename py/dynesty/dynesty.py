@@ -499,6 +499,12 @@ class NestedSampler(SuperSampler):
             just sample uniformly from the prior distribution.
             If this is `None` (default), this will default to npdim.
 
+        blob: bool, optional 
+            The default value is False. If it is true, then the log-likelihood
+            should return the tuple of logl and a numpy-array "blob" that will 
+            stored as part of the chain. That blob can contain auxiliary 
+            information computed inside the likelihood function.
+
         Returns
         -------
         sampler : sampler from :mod:`~dynesty.nestedsamplers`
@@ -702,9 +708,9 @@ class DynamicNestedSampler(DynamicSampler):
                  max_move=100,
                  update_func=None,
                  ncdim=None,
+                 blob=False,
                  save_history=False,
-                 history_filename=None,
-                 blob=False):
+                 history_filename=None):
         """
         Initializes a sampler object for Dynamic Nested Sampling.
 
@@ -926,6 +932,12 @@ class DynamicNestedSampler(DynamicSampler):
             just sample uniformly from the prior distribution.
             If this is `None` (default), this will default to npdim.
 
+        blob: bool, optional 
+            The default value is False. If it is true, then the log-likelihood
+            should return the tuple of logl and a numpy-array "blob" that will 
+            stored as part of the chain. That blob can contain auxiliary 
+            information computed inside the likelihood function.
+
         Returns
         -------
         sampler : a :class:`dynesty.DynamicSampler` instance
@@ -1068,12 +1080,11 @@ class _function_wrapper:
 
     """
 
-    def __init__(self, func, args, kwargs, name='input', blob=False):
+    def __init__(self, func, args, kwargs, name='input'):
         self.func = func
         self.args = args
         self.kwargs = kwargs
         self.name = name
-        self.blob = blob
 
     def __call__(self, x):
         try:

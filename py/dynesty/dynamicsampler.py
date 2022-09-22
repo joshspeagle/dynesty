@@ -357,9 +357,12 @@ def initialize_live_points(live_points,
         The flag to perform prior transform using multiprocessing pool or not
 
     Returns:
-    (live_u, live_v, live_logl): tuple
-        The tuple of arrays. The first is in unit cube coordinates, the second
-        is in the original coordinates and the last are the logl values
+    (live_u, live_v, live_logl, blobs): tuple
+        The tuple of arrays.
+        The first is in unit cube coordinates.
+        The second is in the original coordinates.
+        The third are the log-likelihood valuess.
+        The fourth are the array of blobs (or None)
     """
     if live_points is None:
         # If no live points are provided, propose them by randomly

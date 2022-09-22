@@ -50,27 +50,64 @@ IteratorResultShort = namedtuple('IteratorResultShort', [
 
 
 class LoglOutput:
+    """
+    Class that encapsulates the output of the likelihood function.
+    The reason we need this wrapper is to preserve the blob associated with
+    the likelihood function.
 
-    def __init__(self, v, blob):
-        if blob:
+    """
+
+    def __init__(self, v, blob_flag):
+        """
+        Initialize the object
+        
+        Parameters:
+        v: float or tuple
+            if blob_flag is true v have to be a tuple of logl and blob
+            if it is False v is just logl
+        blob_flag: boolean
+            flag to mark whether the v has a blob or not
+        """
+        if blob_flag:
             self.val = v[0]
             self.blob = v[1]
         else:
             self.val = v
 
     def __lt__(self, v1):
+        """
+        Comparison override, we just use .val attribute in the comparison
+        """
         return float(self) < float(v1)
 
     def __gt__(self, v1):
+        """
+        Comparison override, we just use .val attribute in the comparison
+        """
         return float(self) > float(v1)
 
     def __le__(self, v1):
+        """
+        Comparison override, we just use .val attribute in the comparison
+        """
         return float(self) <= float(v1)
 
     def __ge__(self, v1):
+        """
+        Comparison override, we just use .val attribute in the comparison
+        """
         return float(self) >= float(v1)
 
+    def __eq__(self, v1):
+        """
+        Comparison override, we just use .val attribute in the comparison
+        """
+        return float(self) == float(v1)
+
     def __float__(self):
+        """
+        Comparison override, we just use .val attribute in the comparison
+        """
         return float(self.val)
 
 
@@ -84,8 +121,8 @@ class LogLikelihood:
                  ndim,
                  pool=None,
                  save=False,
-                 blob=False,
-                 history_filename=None):
+                 history_filename=None,
+                 blob=False):
         """ Initialize the object.
 
         Parameters:
@@ -98,6 +135,9 @@ class LogLikelihood:
             if True the function evaluations will be saved in the hdf5 file
         history_filename: string
             The filename where the history will go
+        blob: boolean
+            if True we expect the logl output to be a tuple of logl value and
+            a blob, otherwise it'll be logl value only
         """
         self.loglikelihood = loglikelihood
         self.pool = pool
@@ -113,8 +153,13 @@ class LogLikelihood:
             self.history_init()
 
     def map(self, pars):
-        """ Evaluate the likelihood f-n on the list of vectors
+        """
+        Evaluate the likelihood function on the list of vectors
         The pool is used if it was provided when the object was created
+
+        Returns
+        -------
+        ret: The list of LoglOutput objects
         """
         if self.pool is None:
             ret = list([
@@ -135,7 +180,7 @@ class LogLikelihood:
         """
         ret = LoglOutput(self.loglikelihood(x), self.blob)
         if self.save:
-            self.history_append([ret], [x])
+            self.history_append([ret.val], [x])
         return ret
 
     def history_append(self, logls, pars):

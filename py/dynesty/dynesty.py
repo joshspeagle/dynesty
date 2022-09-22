@@ -289,8 +289,8 @@ class NestedSampler(SuperSampler):
             sampled posterior (more accurate evidence), but also a larger
             number of iterations required to converge. Default is `500`.
 
-        bound : {`'none'`, `'single'`, `'multi'`, `'balls'`, `'cubes'`},
-                optional
+        bound : {`'none'`, `'single'`, `'multi'`, `'balls'`, `'cubes'`}, \
+optional
             Method used to approximately bound the prior using the current
             set of live points. Conditions the sampling methods used to
             propose new live points. Choices are no bound (`'none'`), a single

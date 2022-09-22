@@ -768,7 +768,7 @@ class DynamicNestedSampler(DynamicSampler):
             provided and `'rslice'` otherwise. `'slice'`
             is provided as alternative for `'rslice'`.
             Default is `'auto'`.
-
+        
         periodic : iterable, optional
             A list of indices for parameters with periodic boundary conditions.
             These parameters *will not* have their positions constrained to be

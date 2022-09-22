@@ -270,7 +270,7 @@ class RunRecord:
             'n',  # number of live points interior to dead point
             'bounditer',  # active bound at a specific iteration
             'scale',  # scale factor at each iteration
-            'blob'
+            'blob'  # blobs output by the log-likelihood
         ]
         if dynamic:
             keys.extend([
@@ -603,7 +603,8 @@ _RESULTS_STRUCTURE = [
     ('batch_nlive', 'array[int]',
      "The number of live points used for  given batch", 'nbatch'),
     ('scale', 'array[float]', "Scalar scale applied for proposals", 'niter'),
-    ('blob', 'array[X]', 'blobs XXXXX', 'niter')
+    ('blob', 'array[]',
+     'The auxiliary blobs computed by the log-likelihood function', 'niter')
 ]
 
 

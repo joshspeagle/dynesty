@@ -465,10 +465,17 @@ class MultiEllipsoid:
 
             # Check how many ellipsoids the point lies within
             delts = (x[None, :] - self.ctrs)
-            q = (np.einsum('ai,aij,aj->a', delts, self.ams, delts) < 1).sum()
+            ell_masks = np.einsum('ai,aij,aj->a', delts, self.ams, delts)
+            q = (ell_masks < 1).sum()
 
-            assert q > 0  # Should never fail
-
+            if q == 0:
+                # Should never be the case but may
+                # happen due to numerical inaccuracies
+                q = (ell_masks <= 1).sum()
+                if q == 0:
+                    max_mask = ell_masks.max()
+                    raise RuntimeError(
+                        f'Ellipsoid check failed q=0, {max_mask}')
             if return_q:
                 # If `q` is being returned, assume the user wants to
                 # explicitly apply the `1. / q` acceptance criterion to

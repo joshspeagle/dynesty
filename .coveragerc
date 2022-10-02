@@ -2,3 +2,8 @@
 source =
        py/dynesty/
        **/site-packages/dynesty/
+
+[run]
+concurrency = multiprocessing
+parallel = true
+sigterm = true

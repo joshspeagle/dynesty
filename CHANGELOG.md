@@ -4,7 +4,7 @@ All notable changes to dynesty will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.0]
+## [2.0.0]
 This is a major release with as several significant improvements. One is the implementation of the check-points to save progress and allow restarting of fits and a new simple interface to obtain equally weighted samples directly from results object.
 
 *IMPORTANT* This release includes some major refactoring of class structure in dynesty in to implement the check-pointing. While we haven't seen any breakage in our tests, it is possible that some of more-unusual workflows may be affected. Please submit a bug report on github if you see anything that doesn't look correct. Also, while every effort was made that checkpointing works correctly, it is possible that some corner-cases have been missed. Please report if you see any issues.
@@ -27,6 +27,7 @@ This is a major release with as several significant improvements. One is the imp
 - The accumulation of statistics using to tune proposal distribution is now more robust when multi-threading/pool is used. Previously statistics from every queue_size call were used and all other were discarded. Now the statistics are accumulated from all the parallel sampling calls. That should help sampling of complex distributions. ( #385 ; by @segasai ) 
 - The .update_proposal() function that updates the states of samplers
 now has an additional keyword which allows to either just accumulate the statistics from repeated function calls or actual update of the proposal. This was needed to not loose information when queue_size>1 ( #385 ; by @segasai )
+- The ellipsoid bounding has been sped up by not using the Cholesky tranform , also a check was added/test expanded for possible numerical issues when sampling from multiple ellipsoids potentially causing assert q>0 ( #397 ; by @segasai )
 
 ## [1.2.3] - 2022-06-02
 

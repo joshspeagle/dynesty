@@ -199,3 +199,12 @@ def test_bounds():
     M = np.zeros((Ndim, Ndim))
     R = db.improve_covar_mat(M)[1]
     assert ((scipy.linalg.eigh(R)[0] > 0).all())
+
+
+@pytest.mark.parametrize("ndim", [1, 10, 100])
+def test_bounding_crazy(ndim):
+    rstate = get_rstate()
+    xs = np.random.normal(size=ndim * 10)
+    ys = rstate.normal(size=ndim)
+    zs = xs[:, None] * ys[None, :]
+    db.bounding_ellipsoids(zs)

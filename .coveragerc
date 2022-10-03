@@ -9,4 +9,4 @@ parallel = true
 sigterm = true
 omit =
      tests/*
-
+source = dynesty

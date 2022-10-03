@@ -177,7 +177,7 @@ def test_livepoints():
     live_u = rstate.uniform(size=(nlive, ndim))
     live_v = np.array([prior_transform(_) for _ in live_u])
     live_logl = np.array([loglike(_) for _ in live_v])
-    live_points = [live_u, live_v, live_logl]
+    live_points = [live_u, live_v, live_logl, None]
     sampler = dynesty.NestedSampler(loglike,
                                     prior_transform,
                                     ndim,
@@ -321,6 +321,8 @@ def test_deterministic(ndim):
         results.append(res)
 
     for k in results[0].keys():
+        if k == 'blob':
+            continue
         val0 = results[0][k]
         val1 = results[1][k]
         if (isinstance(val0, int) or isinstance(val0, float)

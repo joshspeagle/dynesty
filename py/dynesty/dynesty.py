@@ -255,6 +255,7 @@ class NestedSampler(SuperSampler):
                 max_move=100,
                 update_func=None,
                 ncdim=None,
+                blob=False,
                 save_history=False,
                 history_filename=None):
         """
@@ -288,8 +289,8 @@ class NestedSampler(SuperSampler):
             sampled posterior (more accurate evidence), but also a larger
             number of iterations required to converge. Default is `500`.
 
-        bound : {`'none'`, `'single'`, `'multi'`, `'balls'`, `'cubes'`},
-                optional
+        bound : {`'none'`, `'single'`, `'multi'`, `'balls'`, `'cubes'`}, \
+optional
             Method used to approximately bound the prior using the current
             set of live points. Conditions the sampling methods used to
             propose new live points. Choices are no bound (`'none'`), a single
@@ -498,6 +499,12 @@ class NestedSampler(SuperSampler):
             just sample uniformly from the prior distribution.
             If this is `None` (default), this will default to npdim.
 
+        blob: bool, optional 
+            The default value is False. If it is true, then the log-likelihood
+            should return the tuple of logl and a numpy-array "blob" that will 
+            stored as part of the chain. That blob can contain auxiliary 
+            information computed inside the likelihood function.
+
         Returns
         -------
         sampler : sampler from :mod:`~dynesty.nestedsamplers`
@@ -617,6 +624,7 @@ class NestedSampler(SuperSampler):
                                                   name='loglikelihood'),
                                 ndim,
                                 save=save_history,
+                                blob=blob,
                                 history_filename=history_filename
                                 or 'dynesty_logl_history.h5',
                                 pool=pool_logl)
@@ -637,6 +645,7 @@ class NestedSampler(SuperSampler):
                                              nlive=nlive,
                                              npdim=npdim,
                                              rstate=rstate,
+                                             blob=blob,
                                              use_pool_ptform=use_pool.get(
                                                  'prior_transform', True))
 
@@ -654,7 +663,8 @@ class NestedSampler(SuperSampler):
                          pool,
                          use_pool,
                          kwargs,
-                         ncdim=ncdim)
+                         ncdim=ncdim,
+                         blob=blob)
 
         return sampler
 
@@ -698,6 +708,7 @@ class DynamicNestedSampler(DynamicSampler):
                  max_move=100,
                  update_func=None,
                  ncdim=None,
+                 blob=False,
                  save_history=False,
                  history_filename=None):
         """
@@ -757,7 +768,7 @@ class DynamicNestedSampler(DynamicSampler):
             provided and `'rslice'` otherwise. `'slice'`
             is provided as alternative for `'rslice'`.
             Default is `'auto'`.
-
+        
         periodic : iterable, optional
             A list of indices for parameters with periodic boundary conditions.
             These parameters *will not* have their positions constrained to be
@@ -921,6 +932,12 @@ class DynamicNestedSampler(DynamicSampler):
             just sample uniformly from the prior distribution.
             If this is `None` (default), this will default to npdim.
 
+        blob: bool, optional 
+            The default value is False. If it is true, then the log-likelihood
+            should return the tuple of logl and a numpy-array "blob" that will 
+            stored as part of the chain. That blob can contain auxiliary 
+            information computed inside the likelihood function.
+
         Returns
         -------
         sampler : a :class:`dynesty.DynamicSampler` instance
@@ -970,7 +987,7 @@ class DynamicNestedSampler(DynamicSampler):
         kwargs['nonbounded'] = nonbounded
         kwargs['periodic'] = periodic
         kwargs['reflective'] = reflective
-
+        kwargs['blob'] = blob
         # Keyword arguments controlling the first update.
         if first_update is None:
             first_update = {}
@@ -1037,7 +1054,8 @@ class DynamicNestedSampler(DynamicSampler):
                                 pool=pool_logl,
                                 history_filename=history_filename
                                 or 'dynesty_logl_history.h5',
-                                save=save_history)
+                                save=save_history,
+                                blob=blob)
 
         # Add in gradient.
         if gradient is not None:

@@ -822,7 +822,7 @@ def sample_hslice(args):
                         logl_out = logl_r
                     # Check if we could compute gradients assuming we
                     # terminated with the current `u_out`.
-                    if np.isfinite(logl_out):
+                    if np.isfinite(float(logl_out)):
                         reverse = False
                     else:
                         reverse = True
@@ -858,7 +858,7 @@ def sample_hslice(args):
                     u_r_r[i] += 1e-10
                     if unitcheck(u_r_r, nonperiodic):
                         v_r_r = prior_transform(np.asarray(u_r_r))
-                        logl_r_r = loglikelihood(np.asarray(v_r_r))
+                        logl_r_r = loglikelihood(np.asarray(v_r_r)).val
                     else:
                         logl_r_r = -np.inf
                         reverse = True  # can't compute gradient
@@ -867,7 +867,7 @@ def sample_hslice(args):
                     u_r_l[i] -= 1e-10
                     if unitcheck(u_r_l, nonperiodic):
                         v_r_l = prior_transform(np.asarray(u_r_l))
-                        logl_r_l = loglikelihood(np.asarray(v_r_l))
+                        logl_r_l = loglikelihood(np.asarray(v_r_l)).val
                     else:
                         logl_r_l = -np.inf
                         reverse = True  # can't compute gradient
@@ -961,7 +961,7 @@ def sample_hslice(args):
                         logl_out = logl_l
                     # Check if we could compute gradients assuming we
                     # terminated with the current `u_out`.
-                    if np.isfinite(logl_out):
+                    if np.isfinite(float(logl_out)):
                         reverse = False
                     else:
                         reverse = True
@@ -997,7 +997,7 @@ def sample_hslice(args):
                     u_l_r[i] += 1e-10
                     if unitcheck(u_l_r, nonperiodic):
                         v_l_r = prior_transform(np.asarray(u_l_r))
-                        logl_l_r = loglikelihood(np.asarray(v_l_r))
+                        logl_l_r = loglikelihood(np.asarray(v_l_r)).val
                     else:
                         logl_l_r = -np.inf
                         reverse = True  # can't compute gradient
@@ -1006,7 +1006,7 @@ def sample_hslice(args):
                     u_l_l[i] -= 1e-10
                     if unitcheck(u_l_l, nonperiodic):
                         v_l_l = prior_transform(np.asarray(u_l_l))
-                        logl_l_l = loglikelihood(np.asarray(v_l_l))
+                        logl_l_l = loglikelihood(np.asarray(v_l_l)).val
                     else:
                         logl_l_l = -np.inf
                         reverse = True  # can't compute gradient

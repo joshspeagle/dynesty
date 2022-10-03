@@ -574,7 +574,30 @@ If you used the pool in the sampler and you want to use the pool after restoring
     sampler.run_nested(resume=True)
 
 The checkpointing may be helpful if you are running dynesty on HPC with a queue system that has a limit on a wall-time that your jobs can run.
-    
+
+Saving auxialiary information from log-likelihood function
+----------------------------------------------------------
+
+Occasionally it is useful to save the information computed by the likelihood function, such as various derived quantities. This information can be easily saved by dynesty together with the samples. To do that you need to use the blob option of NestedSampler and DynamicNestedSampler::
+
+    def loglike(x):
+        logl = -0.5 * np.sum(x**2)
+	blob = np.zeros(3)
+	blob[0] = x[0]
+	blob[1] = x[1]**2
+	blob[2] = logl+x[2]
+	# here the logl function return the logl and a numpy array
+	return logl, blob
+    # initialize our sampler
+    sampler = NestedSampler(loglike, ptform, ndim, nlive=100, blob=True)
+    # run the sampler with checkpointing 
+    sampler.run_nested()
+    results = sampler.results
+    aux_blob = results['blob']
+    # This variable will contain auxiliary blobs associated with samples
+
+The numpy blob can return arbitrary 1D numpy arrays. The can be record arrays as well. The only requirement is that the shape/dtype is exactly the same between the log-likelihood function calls.
+
 Running Externally
 ------------------
 

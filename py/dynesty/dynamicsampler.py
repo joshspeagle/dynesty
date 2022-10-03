@@ -334,6 +334,7 @@ def initialize_live_points(live_points,
                            nlive=None,
                            npdim=None,
                            rstate=None,
+                           blob=False,
                            use_pool_ptform=None):
     """
     Initialize the first set of live points before starting the sampling
@@ -356,9 +357,12 @@ def initialize_live_points(live_points,
         The flag to perform prior transform using multiprocessing pool or not
 
     Returns:
-    (live_u, live_v, live_logl): tuple
-        The tuple of arrays. The first is in unit cube coordinates, the second
-        is in the original coordinates and the last are the logl values
+    (live_u, live_v, live_logl, blobs): tuple
+        The tuple of arrays.
+        The first is in unit cube coordinates.
+        The second is in the original coordinates.
+        The third are the log-likelihood valuess.
+        The fourth are the array of blobs (or None)
     """
     if live_points is None:
         # If no live points are provided, propose them by randomly
@@ -367,11 +371,14 @@ def initialize_live_points(live_points,
         for _ in range(n_attempts):
             live_u = rstate.uniform(size=(nlive, npdim))
             if use_pool_ptform:
-                live_v = np.array(list(M(prior_transform, np.asarray(live_u))))
+                live_v = M(prior_transform, np.asarray(live_u))
             else:
-                live_v = np.array(
-                    list(map(prior_transform, np.asarray(live_u))))
-            live_logl = np.array(loglikelihood.map(np.asarray(live_v)))
+                live_v = map(prior_transform, np.asarray(live_u))
+            live_v = np.array(list(live_v))
+            live_logl = loglikelihood.map(np.asarray(live_v))
+            if blob:
+                live_blobs = np.array([_.blob for _ in live_logl])
+            live_logl = np.array([_.val for _ in live_logl])
 
             # Convert all `-np.inf` log-likelihoods to finite large
             # numbers. Necessary to keep estimators in our sampler from
@@ -401,7 +408,7 @@ def initialize_live_points(live_points,
     else:
         # If live points were provided, convert the log-likelihoods and
         # then run a quick safety check.
-        live_u, live_v, live_logl = live_points
+        live_u, live_v, live_logl, blobs = live_points
 
         for i, logl in enumerate(live_logl):
             if not np.isfinite(logl):
@@ -421,7 +428,9 @@ def initialize_live_points(live_points,
             'You likely have a plateau in the likelihood. '
             'Nested sampling is *NOT* guaranteed to work in this case',
             RuntimeWarning)
-    return (live_u, live_v, live_logl)
+    if not blob:
+        live_blobs = None
+    return (live_u, live_v, live_logl, live_blobs)
 
 
 class DynamicSampler:
@@ -495,7 +504,7 @@ class DynamicSampler:
         self.prior_transform = prior_transform
         self.npdim = npdim
         self.ncdim = ncdim
-
+        self.blob = kwargs.get('blob') or False
         # bounding/sampling
         self.bounding = bound
         self.method = method
@@ -646,7 +655,8 @@ class DynamicSampler:
         d = {}
         for k in [
                 'nc', 'v', 'id', 'batch', 'it', 'u', 'n', 'logwt', 'logl',
-                'logvol', 'logz', 'logzvar', 'h', 'batch_nlive', 'batch_bounds'
+                'logvol', 'logz', 'logzvar', 'h', 'batch_nlive',
+                'batch_bounds', 'blob'
         ]:
             d[k] = np.array(self.saved_run[k])
 
@@ -659,7 +669,7 @@ class DynamicSampler:
                 results.append(('samples_' + k, d[k]))
             for k in [
                     'logwt', 'logl', 'logvol', 'logz', 'batch_nlive',
-                    'batch_bounds'
+                    'batch_bounds', 'blob'
             ]:
                 results.append((k, d[k]))
             results.append(('logzerr', np.sqrt(d['logzvar'])))
@@ -850,20 +860,27 @@ class DynamicSampler:
             # Reset saved results to avoid any possible conflicts.
             self.reset()
 
-            self.live_u, self.live_v, self.live_logl = initialize_live_points(
-                live_points,
-                self.prior_transform,
-                self.loglikelihood,
-                self.M,
-                nlive=nlive,
-                npdim=self.npdim,
-                rstate=self.rstate,
-                use_pool_ptform=self.use_pool_ptform)
-
+            (self.live_u, self.live_v, self.live_logl,
+             blobs) = initialize_live_points(
+                 live_points,
+                 self.prior_transform,
+                 self.loglikelihood,
+                 self.M,
+                 nlive=nlive,
+                 npdim=self.npdim,
+                 rstate=self.rstate,
+                 blob=self.blob,
+                 use_pool_ptform=self.use_pool_ptform)
+            if self.blob:
+                self.live_blobs = blobs
+            else:
+                self.live_blobs = None
             self.nlive_init = len(self.live_u)
 
             # (Re-)bundle live points.
-            live_points = [self.live_u, self.live_v, self.live_logl]
+            live_points = [
+                self.live_u, self.live_v, self.live_logl, self.live_blobs
+            ]
             self.live_init = [np.array(_) for _ in live_points]
             self.ncall += self.nlive_init
             self.live_bound = np.zeros(self.nlive_init, dtype=int)
@@ -885,7 +902,8 @@ class DynamicSampler:
                                                self.pool,
                                                self.use_pool,
                                                ncdim=self.ncdim,
-                                               kwargs=self.kwargs)
+                                               kwargs=self.kwargs,
+                                               blob=self.blob)
             self.bound = self.sampler.bound
             self.internal_state = DynamicSamplerStatesEnum.LIVEPOINTSINIT
             # Run the sampler internally as a generator.
@@ -909,6 +927,7 @@ class DynamicSampler:
                             nc=results.nc,
                             it=results.worst_it,
                             n=self.nlive_init,
+                            blob=results.blob,
                             boundidx=results.boundidx,
                             bounditer=results.bounditer,
                             scale=self.sampler.scale)
@@ -931,6 +950,7 @@ class DynamicSampler:
                                  logzvar=results.logzvar,
                                  h=results.h,
                                  nc=results.nc,
+                                 blob=results.blob,
                                  worst_it=results.worst_it,
                                  boundidx=results.boundidx,
                                  bounditer=results.bounditer,
@@ -949,6 +969,7 @@ class DynamicSampler:
                             logz=results.logz,
                             logzvar=results.logzvar,
                             h=results.h,
+                            blob=results.blob,
                             nc=results.nc,
                             it=results.worst_it,
                             n=self.nlive_init - it,
@@ -971,6 +992,7 @@ class DynamicSampler:
                                  logz=results.logz,
                                  logzvar=results.logzvar,
                                  h=results.h,
+                                 blob=results.blob,
                                  nc=results.nc,
                                  worst_it=results.worst_it,
                                  boundidx=results.boundidx,
@@ -1094,6 +1116,7 @@ class DynamicSampler:
         saved_logl = np.array(self.saved_run['logl'])
         saved_logvol = np.array(self.saved_run['logvol'])
         saved_scale = np.array(self.saved_run['scale'])
+        saved_blobs = np.array(self.saved_run['blob'])
         nblive = self.nlive_init
 
         update_interval = self.__get_update_interval(update_interval,
@@ -1114,7 +1137,8 @@ class DynamicSampler:
                                                      self.pool,
                                                      self.use_pool,
                                                      ncdim=self.ncdim,
-                                                     kwargs=self.kwargs)
+                                                     kwargs=self.kwargs,
+                                                     blob=self.blob)
             self.batch_sampler = batch_sampler
             batch_sampler.save_bounds = save_bounds
             # Reset "new" results.
@@ -1133,7 +1157,7 @@ class DynamicSampler:
             if psel:
                 # If the lower bound encompasses all saved samples, we want
                 # to propose a new set of points from the unit cube.
-                live_u, live_v, live_logl = initialize_live_points(
+                live_u, live_v, live_logl, live_blobs = initialize_live_points(
                     None,
                     self.prior_transform,
                     self.loglikelihood,
@@ -1141,6 +1165,7 @@ class DynamicSampler:
                     nlive=nlive_new,
                     npdim=self.npdim,
                     rstate=self.rstate,
+                    blob=self.blob,
                     use_pool_ptform=self.use_pool_ptform)
 
                 live_bound = np.zeros(nlive_new, dtype=int)
@@ -1149,6 +1174,10 @@ class DynamicSampler:
                 self.ncall += nlive_new
                 # Return live points in generator format.
                 for i in range(nlive_new):
+                    if self.blob:
+                        curblob = live_blobs[i]
+                    else:
+                        curblob = None
                     first_points.append(
                         IteratorResultShort(worst=-i - 1,
                                             ustar=live_u[i],
@@ -1156,6 +1185,7 @@ class DynamicSampler:
                                             loglstar=live_logl[i],
                                             nc=live_nc[i],
                                             worst_it=live_it[i],
+                                            blob=curblob,
                                             boundidx=0,
                                             bounditer=0,
                                             eff=self.eff))
@@ -1233,6 +1263,7 @@ class DynamicSampler:
                 live_u = saved_u[subset, :].copy()
                 live_v = saved_v[subset, :].copy()
                 live_logl = saved_logl[subset].copy()
+                live_blobs = saved_blobs[subset].copy()
                 # Hack the internal sampler by overwriting the live points
                 # and scale factor.
                 batch_sampler.nlive = cur_nblive
@@ -1240,7 +1271,7 @@ class DynamicSampler:
                 batch_sampler.live_v = live_v
                 batch_sampler.live_logl = live_logl
                 batch_sampler.scale = live_scale
-
+                batch_sampler.live_blobs = live_blobs
                 # Trigger an update of the internal bounding distribution based
                 # on the "new" set of live points.
 
@@ -1259,9 +1290,18 @@ class DynamicSampler:
 
                 live_it = np.empty(nlive_new, dtype=int)
                 live_nc = np.empty(nlive_new, dtype=int)
+                if self.blob:
+                    live_blobs = []
+                else:
+                    live_blobs = None
                 for i in range(nlive_new):
-                    (live_u[i], live_v[i], live_logl[i],
-                     live_nc[i]) = batch_sampler._new_point(logl_min)
+                    newpt = batch_sampler._new_point(logl_min)
+                    (live_u[i], live_v[i], live_logl[i], live_nc[i]) = newpt
+                    if self.blob:
+                        blob = newpt[2].blob
+                        live_blobs.append(blob)
+                    else:
+                        blob = None
                     live_it[i] = self.it
                     self.ncall += live_nc[i]
                     # Return live points in generator format.
@@ -1270,6 +1310,7 @@ class DynamicSampler:
                                             ustar=live_u[i],
                                             vstar=live_v[i],
                                             loglstar=live_logl[i],
+                                            blob=blob,
                                             nc=live_nc[i],
                                             worst_it=live_it[i],
                                             boundidx=live_bound[i],
@@ -1286,6 +1327,7 @@ class DynamicSampler:
             batch_sampler.live_v = live_v
             batch_sampler.live_logl = live_logl
             batch_sampler.live_bound = live_bound
+            batch_sampler.live_blobs = live_blobs
             batch_sampler.live_it = live_it
             batch_sampler.it = self.it + 1
             # Trigger an update of the internal bounding distribution (again).
@@ -1355,6 +1397,7 @@ class DynamicSampler:
                      logl=results.loglstar,
                      nc=results.nc,
                      it=results.worst_it,
+                     blob=results.blob,
                      n=nlive_new,
                      boundidx=results.boundidx,
                      bounditer=results.bounditer,
@@ -1375,6 +1418,7 @@ class DynamicSampler:
                                       vstar=results.vstar,
                                       loglstar=results.loglstar,
                                       nc=results.nc,
+                                      blob=results.blob,
                                       worst_it=results.worst_it,
                                       boundidx=results.boundidx,
                                       bounditer=results.bounditer,
@@ -1403,6 +1447,7 @@ class DynamicSampler:
                      nc=live_nc[results.worst],
                      it=results.worst_it,
                      n=nlive_new - it,
+                     blob=results.blob,
                      boundidx=results.boundidx,
                      bounditer=results.bounditer,
                      scale=batch_sampler.scale)
@@ -1417,6 +1462,7 @@ class DynamicSampler:
                                       loglstar=results.loglstar,
                                       nc=live_nc[results.worst],
                                       worst_it=results.worst_it,
+                                      blob=results.blob,
                                       boundidx=results.boundidx,
                                       bounditer=results.bounditer,
                                       eff=self.eff)
@@ -1436,7 +1482,7 @@ class DynamicSampler:
 
         for k in [
                 'id', 'u', 'v', 'logl', 'nc', 'boundidx', 'it', 'bounditer',
-                'n', 'scale'
+                'n', 'scale', 'blob'
         ]:
             saved_d[k] = np.array(self.saved_run[k])
             new_d[k] = np.array(self.new_run[k])
@@ -1489,7 +1535,7 @@ class DynamicSampler:
 
             for k in [
                     'id', 'u', 'v', 'logl', 'nc', 'boundidx', 'it',
-                    'bounditer', 'scale'
+                    'bounditer', 'scale', 'blob'
             ]:
                 add_info[k] = add_source[k][add_idx]
             self.saved_run.append(add_info)
@@ -1994,6 +2040,7 @@ class DynamicSampler:
                                              ustar=cur_results.ustar,
                                              vstar=cur_results.vstar,
                                              loglstar=cur_results.loglstar,
+                                             blob=cur_results.blob,
                                              logvol=np.nan,
                                              logwt=np.nan,
                                              logz=logz,

@@ -32,7 +32,8 @@ except ImportError:
 __all__ = [
     "unitcheck", "resample_equal", "mean_and_cov", "quantile", "jitter_run",
     "resample_run", "reweight_run", "unravel_run", "merge_runs", "kld_error",
-    "_merge_two", "_get_nsamps_samples_n", "get_enlarge_bootstrap"
+    "get_enlarge_bootstrap", "LoglOutput", "LogLikelihood", "RunRecord",
+    "DelayTimer"
 ]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
@@ -40,17 +41,81 @@ SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 IteratorResult = namedtuple('IteratorResult', [
     'worst', 'ustar', 'vstar', 'loglstar', 'logvol', 'logwt', 'logz',
     'logzvar', 'h', 'nc', 'worst_it', 'boundidx', 'bounditer', 'eff',
-    'delta_logz'
+    'delta_logz', 'blob'
 ])
 
 IteratorResultShort = namedtuple('IteratorResultShort', [
     'worst', 'ustar', 'vstar', 'loglstar', 'nc', 'worst_it', 'boundidx',
-    'bounditer', 'eff'
+    'bounditer', 'eff', 'blob'
 ])
 
 
+class LoglOutput:
+    """
+    Class that encapsulates the output of the likelihood function.
+    The reason we need this wrapper is to preserve the blob associated with
+    the likelihood function.
+
+    """
+
+    def __init__(self, v, blob_flag):
+        """
+        Initialize the object
+        
+        Parameters
+        ----------
+        v: float or tuple
+            if blob_flag is true v have to be a tuple of logl and blob
+            if it is False v is just logl
+        blob_flag: boolean
+            flag to mark whether the v has a blob or not
+        """
+        if blob_flag:
+            self.val = v[0]
+            self.blob = v[1]
+        else:
+            self.val = v
+
+    def __lt__(self, v1):
+        """
+        Comparison override, we just use .val attribute in the comparison
+        """
+        return float(self) < float(v1)
+
+    def __gt__(self, v1):
+        """
+        Comparison override, we just use .val attribute in the comparison
+        """
+        return float(self) > float(v1)
+
+    def __le__(self, v1):
+        """
+        Comparison override, we just use .val attribute in the comparison
+        """
+        return float(self) <= float(v1)
+
+    def __ge__(self, v1):
+        """
+        Comparison override, we just use .val attribute in the comparison
+        """
+        return float(self) >= float(v1)
+
+    def __eq__(self, v1):
+        """
+        Comparison override, we just use .val attribute in the comparison
+        """
+        return float(self) == float(v1)
+
+    def __float__(self):
+        """
+        Comparison override, we just use .val attribute in the comparison
+        """
+        return float(self.val)
+
+
 class LogLikelihood:
-    """ Class that calls the likelihood function (using a pool if provided)
+    """
+    Class that calls the likelihood function (using a pool if provided)
     Also if requested it saves the history of evaluations
     """
 
@@ -59,10 +124,12 @@ class LogLikelihood:
                  ndim,
                  pool=None,
                  save=False,
-                 history_filename=None):
+                 history_filename=None,
+                 blob=False):
         """ Initialize the object.
 
-        Parameters:
+        Parameters
+        ----------
         loglikelihood: function
         ndim: int
             Dimensionality
@@ -72,6 +139,9 @@ class LogLikelihood:
             if True the function evaluations will be saved in the hdf5 file
         history_filename: string
             The filename where the history will go
+        blob: boolean
+            if True we expect the logl output to be a tuple of logl value and
+            a blob, otherwise it'll be logl value only
         """
         self.loglikelihood = loglikelihood
         self.pool = pool
@@ -82,28 +152,39 @@ class LogLikelihood:
         self.history_filename = history_filename
         self.ndim = ndim
         self.failed_save = False
+        self.blob = blob
         if save:
             self.history_init()
 
     def map(self, pars):
-        """ Evaluate the likelihood f-n on the list of vectors
+        """
+        Evaluate the likelihood function on the list of vectors
         The pool is used if it was provided when the object was created
+
+        Returns
+        -------
+        ret: The list of LoglOutput objects
         """
         if self.pool is None:
-            ret = np.array(list(map(self.loglikelihood, pars)))
+            ret = list([
+                LoglOutput(_, self.blob) for _ in map(self.loglikelihood, pars)
+            ])
         else:
-            ret = np.array(self.pool.map(self.loglikelihood, pars))
+            ret = [
+                LoglOutput(_, self.blob)
+                for _ in self.pool.map(self.loglikelihood, pars)
+            ]
         if self.save:
-            self.history_append(ret, pars)
+            self.history_append([_.val for _ in ret], pars)
         return ret
 
     def __call__(self, x):
         """
         Evaluate the likelihood f-n once
         """
-        ret = self.loglikelihood(x)
+        ret = LoglOutput(self.loglikelihood(x), self.blob)
         if self.save:
-            self.history_append([ret], [x])
+            self.history_append([ret.val], [x])
         return ret
 
     def history_append(self, logls, pars):
@@ -192,7 +273,8 @@ class RunRecord:
             'it',  # iteration the live (now dead) point was proposed
             'n',  # number of live points interior to dead point
             'bounditer',  # active bound at a specific iteration
-            'scale'  # scale factor at each iteration
+            'scale',  # scale factor at each iteration
+            'blob'  # blobs output by the log-likelihood
         ]
         if dynamic:
             keys.extend([
@@ -244,9 +326,12 @@ class DelayTimer:
         """
         Returns true if more than self.dt seconds has passed
         since the initialization or last call of successful is_time()
+
         Returns
         -------
-        bool
+        ret: bool
+             True if specified amout of time has passed since the
+             initialization or last successful is_time() call
         """
         curt = time.time()
         if curt - self.last_time > self.dt:
@@ -524,7 +609,9 @@ _RESULTS_STRUCTURE = [
      "The log-likelihood bounds used to run a batch.", 'nbatch'),
     ('batch_nlive', 'array[int]',
      "The number of live points used for  given batch", 'nbatch'),
-    ('scale', 'array[float]', "Scalar scale applied for proposals", 'niter')
+    ('scale', 'array[float]', "Scalar scale applied for proposals", 'niter'),
+    ('blob', 'array[]',
+     'The auxiliary blobs computed by the log-likelihood function', 'niter')
 ]
 
 
@@ -1414,6 +1501,7 @@ def resample_run(res, rstate=None, return_idx=False):
     new_res_dict = dict(niter=len(res.ncall[samp_idx]),
                         ncall=res.ncall[samp_idx],
                         eff=eff,
+                        blob=res.blob[samp_idx],
                         samples=res.samples[samp_idx],
                         samples_id=res.samples_id[samp_idx],
                         samples_it=res.samples_it[samp_idx],
@@ -1559,6 +1647,7 @@ def unravel_run(res, print_progress=True):
                      samples_id=res.samples_id[strand],
                      samples_it=res.samples_it[strand],
                      samples_u=res.samples_u[strand],
+                     blob=res.blob[strand],
                      logwt=saved_logwt,
                      logl=logl,
                      logvol=logvol,
@@ -1802,7 +1891,8 @@ def _merge_two(res1, res2, compute_aux=False):
                      v=res1.samples,
                      logl=res1.logl,
                      nc=res1.ncall,
-                     it=res1.samples_it)
+                     it=res1.samples_it,
+                     blob=res1.blob)
     nbase = len(base_info['id'])
 
     # Number of live points throughout the run.
@@ -1835,7 +1925,8 @@ def _merge_two(res1, res2, compute_aux=False):
                     v=res2.samples,
                     logl=res2.logl,
                     nc=res2.ncall,
-                    it=res2.samples_it)
+                    it=res2.samples_it,
+                    blob=res2.blob)
     nnew = len(new_info['id'])
 
     # Number of live points throughout the run.
@@ -1875,7 +1966,8 @@ def _merge_two(res1, res2, compute_aux=False):
                          nc=[],
                          it=[],
                          n=[],
-                         batch=[])
+                         batch=[],
+                         blob=[])
 
     # Check if batch info is the same and modify counters accordingly.
     if np.all(base_info['bounds'] == new_info['bounds']):
@@ -1924,7 +2016,7 @@ def _merge_two(res1, res2, compute_aux=False):
             idx_new += 1
             combined_info['batch'].append(from_run['batch'][add_idx] + boffset)
 
-        for curk in ['id', 'u', 'v', 'logl', 'nc', 'it']:
+        for curk in ['id', 'u', 'v', 'logl', 'nc', 'it', 'blob']:
             combined_info[curk].append(from_run[curk][add_idx])
 
         # Save the number of live points and expected ln(volume).
@@ -1957,7 +2049,8 @@ def _merge_two(res1, res2, compute_aux=False):
              samples=np.asarray(combined_info['v']),
              logl=np.asarray(combined_info['logl']),
              logvol=np.asarray(combined_info['logvol']),
-             batch_bounds=np.asarray(bounds))
+             batch_bounds=np.asarray(bounds),
+             blob=np.asarray(combined_info['blob']))
 
     for curk in ['id', 'it', 'n', 'u', 'batch']:
         r['samples_' + curk] = np.asarray(combined_info[curk])

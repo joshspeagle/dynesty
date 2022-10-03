@@ -21,6 +21,7 @@ This is a major release with as several significant improvements. One is the imp
 - Sampler.n_effective is no longer unnecessarily computed when sampling with
   an infinite limit on n_effective. ( #379 ; by @edbennett )
 - In rare occasions, dynamic nested samplng fits with maxiter set could have failed with 'list index out of range' errors. That was addressed ( #392 ; by @segasai )
+- The Monte-Carlo volume calculations by RadFriends/SupFriends/MultiEllipsoid were inaccurate
 
 ### Changed
 - Setting n_effective for Sampler.run_nested() and DynamicSampler.sample_initial(), and n_effective_init for DynamicSampler.run_nested(), are deprecated ( #379 ; by @edbennett )

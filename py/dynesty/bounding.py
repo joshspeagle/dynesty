@@ -516,14 +516,14 @@ class MultiEllipsoid:
         samples = [
             self.sample(rstate=rstate, return_q=True) for i in range(ndraws)
         ]
-        qsum = sum((q for (x, idx, q) in samples))
-        logvol = np.log(ndraws * 1. / qsum) + self.logvol_tot
+        qsum = sum((1. / q for (x, idx, q) in samples))
+        logvol = np.log(qsum / ndraws) + self.logvol_tot
 
         if return_overlap:
             # Estimate the fractional amount of overlap with the
             # unit cube using the same set of samples.
-            qin = sum((q * unitcheck(x) for (x, idx, q) in samples))
-            overlap = 1. * qin / qsum
+            qin = sum((1. / q * unitcheck(x) for (x, idx, q) in samples))
+            overlap = qin / qsum
             return logvol, overlap
         else:
             return logvol

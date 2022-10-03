@@ -645,7 +645,7 @@ class RadFriends:
 
         detsign, detln = linalg.slogdet(self.am)
         assert detsign > 0
-        self.logvol_ball = (logvol_prefactor(self.n) - 0.5 * detln)
+        self.logvol_ball = logvol_prefactor(self.n) - 0.5 * detln
         self.expand = 1.
         self.funit = 1
 
@@ -744,18 +744,19 @@ class RadFriends:
         estimated fractional overlap with the unit cube."""
 
         # Estimate volume using Monte Carlo integration.
-        samples = [
+        samples = ([
             self.sample(ctrs, rstate=rstate, return_q=True)
             for i in range(ndraws)
-        ]
-        qsum = sum((q for (x, q) in samples))
-        logvol = np.log(1. * ndraws / qsum * len(ctrs)) + self.logvol_ball
+        ])
+        qs = np.array([_[1] for _ in samples])
+        qsum = np.sum(1. / qs)
+        logvol = np.log(1. / ndraws * qsum * len(ctrs)) + self.logvol_ball
 
         if return_overlap:
             # Estimate the fractional amount of overlap with the
             # unit cube using the same set of samples.
-            qin = sum((q * unitcheck(x) for (x, q) in samples))
-            overlap = 1. * qin / qsum
+            qin = sum((1. / q * unitcheck(x) for (x, q) in samples))
+            overlap = qin / qsum
             return logvol, overlap
         else:
             return logvol
@@ -1005,7 +1006,7 @@ class SupFriends:
                            ctrs,
                            ndraws=10000,
                            rstate=None,
-                           return_overlap=False):
+                           return_overlap=True):
         """Using `ndraws` Monte Carlo draws, estimate the log volume of the
         *union* of cubes. If `return_overlap=True`, also returns the
         estimated fractional overlap with the unit cube."""
@@ -1015,14 +1016,14 @@ class SupFriends:
             self.sample(ctrs, rstate=rstate, return_q=True)
             for i in range(ndraws)
         ]
-        qsum = sum((q for (x, q) in samples))
-        logvol = np.log(1. * ndraws / qsum * len(ctrs)) + self.logvol_cube
+        qsum = sum((1. / q for (x, q) in samples))
+        logvol = np.log(1. * qsum / ndraws * len(ctrs)) + self.logvol_cube
 
         if return_overlap:
             # Estimate the fractional overlap with the unit cube using
             # the same set of samples.
-            qin = sum((q * unitcheck(x) for (x, q) in samples))
-            overlap = 1. * qin / qsum
+            qin = sum((1. / q * unitcheck(x) for (x, q) in samples))
+            overlap = qin / qsum
             return logvol, overlap
         else:
             return logvol

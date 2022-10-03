@@ -130,40 +130,45 @@ def test_overlap():
         assert np.all(within == within2)
 
 
-def test_mc_logvol():
-
-    def capvol(n, r, h):
-        # see https://en.wikipedia.org/wiki/Spherical_cap
-        Cn = np.pi**(n / 2.) / scipy.special.gamma(1 + n / 2.)
-        return (
-            Cn * r**n *
+def capvol(n, r, h):
+    # this is a volume of the n-dimensional spherical cap
+    # see https://en.wikipedia.org/wiki/Spherical_cap
+    Cn = np.pi**(n / 2.) / scipy.special.gamma(1 + n / 2.)
+    return (Cn * r**n *
             (1 / 2 - (r - h) / r * scipy.special.gamma(1 + n / 2) /
              np.sqrt(np.pi) / scipy.special.gamma(
                  (n + 1.) / 2) * scipy.special.hyp2f1(1. / 2,
                                                       (1 - n) / 2, 3. / 2,
                                                       ((r - h) / r)**2)))
 
-    def sphere_vol(n, r):
-        Cn = np.pi**(n / 2.) / scipy.special.gamma(1 + n / 2.) * r**n
-        return Cn
 
-    def two_sphere_vol(c1, c2, r1, r2):
-        D = np.sqrt(np.sum((c1 - c2)**2))
-        n = len(c1)
-        if D >= r1 + r2:
-            return sphere_vol(n, r1) + sphere_vol(n, r2)
-        # now either one is fully inside or the is overlap
-        if D + r1 <= r2 or D + r2 <= r1:
-            #fully inside
-            return max(sphere_vol(n, r1), sphere_vol(n, r2))
-        else:
-            x = 1. / 2 / D * np.sqrt(2 * r1**2 * r2**2 + 2 * D**2 * r1**2 +
-                                     2 * D**2 * r2**2 - r1**4 - r2**4 - D**4)
-            capsize1 = r1 - np.sqrt(r1**2 - x**2)
-            capsize2 = r2 - np.sqrt(r2**2 - x**2)
-            V = (sphere_vol(n, r1) + sphere_vol(n, r2) -
-                 capvol(n, r1, capsize1) - capvol(n, r2, capsize2))
-            return V
+def sphere_vol(n, r):
+    # n-d sphere volume
+    Cn = np.pi**(n / 2.) / scipy.special.gamma(1 + n / 2.) * r**n
+    return Cn
+
+
+def two_sphere_vol(c1, c2, r1, r2):
+    # Return the volume of the unions of two n-d spheres
+    D = np.sqrt(np.sum((c1 - c2)**2))
+    n = len(c1)
+    if D >= r1 + r2:
+        return sphere_vol(n, r1) + sphere_vol(n, r2)
+    # now either one is fully inside or the is overlap
+    if D + r1 <= r2 or D + r2 <= r1:
+        # fully inside
+        return max(sphere_vol(n, r1), sphere_vol(n, r2))
+    else:
+        x = 1. / 2 / D * np.sqrt(2 * r1**2 * r2**2 + 2 * D**2 * r1**2 +
+                                 2 * D**2 * r2**2 - r1**4 - r2**4 - D**4)
+        capsize1 = r1 - np.sqrt(r1**2 - x**2)
+        capsize2 = r2 - np.sqrt(r2**2 - x**2)
+        V = (sphere_vol(n, r1) + sphere_vol(n, r2) - capvol(n, r1, capsize1) -
+             capvol(n, r2, capsize2))
+        return V
+
+
+def test_mc_logvol():
 
     rstate = get_rstate()
     ndim = 10
@@ -183,6 +188,50 @@ def test_mc_logvol():
         lv = ell.monte_carlo_logvol(nsamp, rstate=rstate)[0]
         vtrue = two_sphere_vol(cen1, cen2, r1, r2)
         assert (np.abs(np.log(vtrue) - lv) < 1e-2)
+
+
+def test_mc_logvolRad():
+
+    rstate = get_rstate()
+    ndim = 10
+    cen1 = np.zeros(ndim)
+    cen2 = np.zeros(ndim)
+    r1 = 0.7
+    sig1 = np.eye(ndim) * r1**2
+    Ds = np.linspace(0, 2, 30)
+    nsamp = 10000
+    for D in Ds:
+        cen2[0] = D
+        rf = db.RadFriends(ndim, sig1)
+        lv = rf.monte_carlo_logvol(np.array([cen1, cen2]),
+                                   nsamp,
+                                   rstate=rstate)[0]
+        vtrue = two_sphere_vol(cen1, cen2, r1, r1)
+        assert (np.abs(np.log(vtrue) - lv) < 1e-2)
+
+
+def test_mc_logvolCube():
+
+    rstate = get_rstate()
+    ndim = 10
+    cen1 = np.zeros(ndim)
+    cen2 = np.zeros(ndim)
+    r1 = 0.7
+    sig1 = np.eye(ndim) * r1**2
+    Ds = np.linspace(0, 2, 30)
+    nsamp = 10000
+    for D in Ds:
+        cen2[0] = D
+        rf = db.SupFriends(ndim, sig1)
+        lv = rf.monte_carlo_logvol(np.array([cen1, cen2]),
+                                   nsamp,
+                                   rstate=rstate)[0]
+        if D > 2 * r1:
+            lvtrue = np.log(2 * r1) * ndim + np.log(2)
+        else:
+            lvtrue = np.log(2 * r1) * (ndim - 1) + np.log(D + 2 * r1)
+
+        assert (np.abs(lvtrue - lv) < 1e-2)
 
 
 def test_bounds():

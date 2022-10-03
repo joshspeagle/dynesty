@@ -466,3 +466,16 @@ def test_maxiter_batch():
             maxiter = np.min(
                 np.array(dsampler2.saved_run['it'])[
                     dsampler2.saved_run['batch'] == b1]) + nlive // 2
+
+
+def test_quantile():
+    rstate = get_rstate()
+    with pytest.raises(Exception):
+        dyutil.quantile(rstate.normal(size=10), -1)
+    with pytest.raises(Exception):
+        dyutil.quantile(rstate.normal(size=10), 1.1)
+    dyutil.quantile(rstate.normal(size=10), 0.5)
+    whts = np.ones(10)
+    dyutil.quantile(rstate.normal(size=10), 0.5, weights=whts)
+    with pytest.raises(Exception):
+        dyutil.quantile(rstate.normal(size=10), 0.5, weights=np.ones(9))

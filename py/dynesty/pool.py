@@ -137,11 +137,7 @@ class Pool:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         try:
-            self.pool.close()
-        except:  # noqa
-            pass
-        try:
-            self.pool.join()
+            self.pool.terminate()
         except:  # noqa
             pass
 
@@ -151,3 +147,9 @@ class Pool:
         Return the number of processes in the pool
         """
         return self.njobs
+
+    def close(self):
+        self.pool.close()
+
+    def join(self):
+        self.pool.join()

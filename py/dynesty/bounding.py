@@ -116,10 +116,6 @@ class Ellipsoid:
         self.n = len(ctr)  # dimension
         self.ctr = np.asarray(ctr)  # center coordinates
         self.cov = np.asarray(cov)  # covariance matrix
-        if axes is None:
-            self.axes = lalg.cholesky(cov, lower=True)  # transformation axes
-        else:
-            self.axes = axes
 
         # The eigenvalues (l) of `a` are (a^-2, b^-2, ...) where
         # (a, b, ...) are the lengths of principle axes.
@@ -135,6 +131,10 @@ class Ellipsoid:
                 "The input precision matrix defining the "
                 f"ellipsoid {self.cov} is apparently singular with "
                 f"l={l} and v={v}.")
+        if axes is None:
+            self.axes = v @ np.diag(self.axlens)
+        else:
+            self.axes = axes
         if am is None:
             self.am = v @ np.diag(1. / l) @ v.T
             # precision matrix (inverse of covariance)
@@ -184,7 +184,7 @@ class Ellipsoid:
             self.cov = v @ np.diag(l1) @ v.T
             self.am = v @ np.diag(1 / l1) @ v.T
             self.axlens *= fax
-            self.axes = lalg.cholesky(self.cov, lower=True)
+            self.axes = self.axes @ np.diag(fax)
             # I don't quite know how to scale axes, so I rerun cholesky
         self.logvol = logvol
 
@@ -465,10 +465,17 @@ class MultiEllipsoid:
 
             # Check how many ellipsoids the point lies within
             delts = (x[None, :] - self.ctrs)
-            q = (np.einsum('ai,aij,aj->a', delts, self.ams, delts) < 1).sum()
+            ell_masks = np.einsum('ai,aij,aj->a', delts, self.ams, delts)
+            q = (ell_masks < 1).sum()
 
-            assert q > 0  # Should never fail
-
+            if q == 0:
+                # Should never be the case but may
+                # happen due to numerical inaccuracies
+                q = (ell_masks <= 1).sum()
+                if q == 0:
+                    max_mask = ell_masks.max()
+                    raise RuntimeError(
+                        f'Ellipsoid check failed q=0, {max_mask}')
             if return_q:
                 # If `q` is being returned, assume the user wants to
                 # explicitly apply the `1. / q` acceptance criterion to
@@ -1230,12 +1237,7 @@ def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
                         # some eigen values are too small
                         failed = 1
                     else:
-                        # eigen values are all right
-                        # checking if cholesky works
-                        axes = lalg.cholesky(covar,
-                                             lower=True,
-                                             check_finite=False)
-                        # if we are here we are done
+                        axes = eigvec @ np.diag(eigval**.5)
                         break
             else:
                 # complete failure
@@ -1259,8 +1261,8 @@ def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
         warnings.warn("Failed to guarantee the ellipsoid axes will be "
                       "non-singular. Defaulting to a sphere.")
         covar = np.eye(ndim)  # default to identity
-        am = lalg.pinvh(covar)
-        axes = lalg.cholesky(covar, lower=True)
+        am = covar.copy()
+        axes = covar.copy()
     else:
         # invert the matrix using eigen decomposition
         am = eigvec @ np.diag(1. / eigval) @ eigvec.T

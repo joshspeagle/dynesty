@@ -43,6 +43,7 @@ LOGZ_TRUTH_EGG = 235.856
 def test_pool():
     # test pool on egg problem
     rstate = get_rstate()
+
     # i specify large queue_size here, otherwise it is too slow
     with dypool.Pool(2, loglike_egg, prior_transform_egg) as pool:
         sampler = dynesty.NestedSampler(pool.loglike,
@@ -61,6 +62,7 @@ def test_pool():
 def test_pool_x():
     # check without specifying queue_size
     rstate = get_rstate()
+
     with dypool.Pool(2, loglike_egg, prior_transform_egg) as pool:
         sampler = dynesty.NestedSampler(pool.loglike,
                                         pool.prior_transform,
@@ -78,6 +80,7 @@ def test_pool_dynamic():
     # test pool on gau problem
     # i specify large queue_size here, otherwise it is too slow
     rstate = get_rstate()
+
     with dypool.Pool(2, loglike_gau, prior_transform_gau) as pool:
         sampler = dynesty.DynamicNestedSampler(pool.loglike,
                                                pool.prior_transform,
@@ -105,6 +108,7 @@ def test_pool_args():
     # test pool on gau problem
     # i specify large queue_size here, otherwise it is too slow
     rstate = get_rstate()
+
     with dypool.Pool(2,
                      loglike_gau_args,
                      prior_transform_gau_args,
@@ -124,11 +128,16 @@ def test_pool_args():
         assert (abs(LOGZ_TRUTH_GAU - sampler.results['logz'][-1]) <
                 5. * sampler.results['logzerr'][-1])
 
+        # to ensure we get coverage
+        pool.close()
+        pool.join()
+
 
 @pytest.mark.parametrize('sample', ['slice', 'rwalk', 'rslice'])
 def test_pool_samplers(sample):
     # this is to test how the samplers are dealing with queue_size>1
     rstate = get_rstate()
+
     with mp.Pool(2) as pool:
         sampler = dynesty.NestedSampler(loglike_gau,
                                         prior_transform_gau,
@@ -154,6 +163,7 @@ def test_usepool(func):
     for k in POOL_KW:
         use_pool[k] = False
     use_pool[func] = True
+
     with mp.Pool(2) as pool:
         sampler = dynesty.DynamicNestedSampler(loglike_gau,
                                                prior_transform_gau,

@@ -10,6 +10,7 @@ Contributors:
 - [Ben Cook](https://github.com/bacook17)
 - [James Guillochon](https://github.com/guillochon)
 - [Ben Johnson](https://github.com/bd-j)
+- [Ed Bennett](https://github.com/edbennett)
 
 Feedback:
 

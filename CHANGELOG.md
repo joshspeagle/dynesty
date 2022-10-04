@@ -5,7 +5,10 @@ All notable changes to dynesty will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [2.0.0]
-This is a major release with as several significant improvements. One is the implementation of the check-points to save progress and allow restarting of fits and a new simple interface to obtain equally weighted samples directly from results object. Also likelihood functions can now return additional computed quantities (blobs) that will be saved together with samples.
+This is a major release with several significant improvements. 
+- One is the implementation of the check-points to save progress and allow restarting of fits [See here](https://dynesty.readthedocs.io/en/latest/quickstart.html#checkpointing)
+- A new simple interface to obtain equally weighted samples directly from results object. [See here](https://dynesty.readthedocs.io/en/latest/crashcourse.html)
+- Allow likelihood functions to return additional computed quantities (blobs) that will be saved together with samples. [See hre](https://dynesty.readthedocs.io/en/latest/quickstart.html#saving-auxialiary-information-from-log-likelihood-function)
 
 *IMPORTANT* This release includes some major refactoring of class structure in dynesty in to implement the check-pointing. While we haven't seen any breakage in our tests, it is possible that some of more-unusual workflows may be affected. Please submit a bug report on github if you see anything that doesn't look correct. Also, while every effort was made that checkpointing works correctly, it is possible that some corner-cases have been missed. Please report if you see any issues.
 
@@ -21,6 +24,7 @@ This is a major release with as several significant improvements. One is the imp
 - Sampler.n_effective is no longer unnecessarily computed when sampling with
   an infinite limit on n_effective. ( #379 ; by @edbennett )
 - In rare occasions, dynamic nested samplng fits with maxiter set could have failed with 'list index out of range' errors. That was addressed ( #392 ; by @segasai )
+- The Monte-Carlo volume calculations by RadFriends/SupFriends/MultiEllipsoid were inaccurate (fix # 398; #399 ; by @segasai )
 
 ### Changed
 - Setting n_effective for Sampler.run_nested() and DynamicSampler.sample_initial(), and n_effective_init for DynamicSampler.run_nested(), are deprecated ( #379 ; by @edbennett )

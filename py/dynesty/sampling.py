@@ -8,6 +8,7 @@ Functions for proposing new live points used by
 
 """
 
+from collections import namedtuple
 import warnings
 import numpy as np
 from numpy import linalg
@@ -19,6 +20,11 @@ __all__ = [
     "sample_unif", "sample_rwalk", "sample_slice", "sample_rslice",
     "sample_hslice"
 ]
+
+SamplerArgument = namedtuple('SamplerArgument', [
+    'u', 'loglstar', 'axes', 'scale', 'prior_transform', 'loglikelihood',
+    'rseed', 'kwargs'
+])
 
 
 def sample_unif(args):
@@ -76,16 +82,14 @@ def sample_unif(args):
     """
 
     # Unzipping.
-    (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
-     kwargs) = args
 
     # Evaluate.
-    v = prior_transform(np.asarray(u))
-    logl = loglikelihood(np.asarray(v))
+    v = args.prior_transform(np.asarray(args.u))
+    logl = args.loglikelihood(np.asarray(v))
     nc = 1
     blob = None
 
-    return u, v, logl, nc, blob
+    return args.u, v, logl, nc, blob
 
 
 def sample_rwalk(args):
@@ -141,11 +145,10 @@ def sample_rwalk(args):
     """
 
     # Unzipping.
-    (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
-     kwargs) = args
-    rstate = get_random_generator(rseed)
-    return generic_random_walk(u, loglstar, axes, scale, prior_transform,
-                               loglikelihood, rstate, kwargs)
+    rstate = get_random_generator(args.rseed)
+    return generic_random_walk(args.u, args.loglstar, args.axes, args.scale,
+                               args.prior_transform, args.loglikelihood,
+                               rstate, args.kwargs)
 
 
 def generic_random_walk(u, loglstar, axes, scale, prior_transform,
@@ -532,9 +535,10 @@ def sample_slice(args):
     """
 
     # Unzipping.
-    (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
-     kwargs) = args
-    rstate = get_random_generator(rseed)
+    (u, loglstar, axes, scale, prior_transform, loglikelihood,
+     kwargs) = (args.u, args.loglstar, args.axes, args.scale,
+                args.prior_transform, args.loglikelihood, args.kwargs)
+    rstate = get_random_generator(args.rseed)
     # Periodicity.
     nonperiodic = kwargs.get('nonperiodic', None)
     doubling = kwargs.get('slice_doubling', False)
@@ -638,9 +642,10 @@ def sample_rslice(args):
     """
 
     # Unzipping.
-    (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
-     kwargs) = args
-    rstate = get_random_generator(rseed)
+    (u, loglstar, axes, scale, prior_transform, loglikelihood,
+     kwargs) = (args.u, args.loglstar, args.axes, args.scale,
+                args.prior_transform, args.loglikelihood, args.kwargs)
+    rstate = get_random_generator(args.rseed)
     # Periodicity.
     nonperiodic = kwargs.get('nonperiodic', None)
     doubling = kwargs.get('slice_doubling', False)
@@ -744,9 +749,11 @@ def sample_hslice(args):
     """
 
     # Unzipping.
-    (u, loglstar, axes, scale, prior_transform, loglikelihood, rseed,
-     kwargs) = args
-    rstate = get_random_generator(rseed)
+    (u, loglstar, axes, scale, prior_transform, loglikelihood,
+     kwargs) = (args.u, args.loglstar, args.axes, args.scale,
+                args.prior_transform, args.loglikelihood, args.kwargs)
+    rstate = get_random_generator(args.rseed)
+
     # Periodicity.
     nonperiodic = kwargs.get('nonperiodic', None)
 

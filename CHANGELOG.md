@@ -33,6 +33,7 @@ This is a major release with several significant improvements.
 - The .update_proposal() function that updates the states of samplers
 now has an additional keyword which allows to either just accumulate the statistics from repeated function calls or actual update of the proposal. This was needed to not loose information when queue_size>1 ( #385 ; by @segasai )
 - The ellipsoid bounding has been sped up by not using the Cholesky tranform , also a check was added/test expanded for possible numerical issues when sampling from multiple ellipsoids potentially causing assert q>0 ( #397 ; by @segasai )
+- The individual samplers now take as input a special Namedtuple SamplerArgument rather than just a tuple ( #400 ; by @segasai ).
 
 ## [1.2.3] - 2022-06-02
 

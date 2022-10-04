@@ -91,7 +91,8 @@ def doit(model='diamond',
 
     for i in range(niter):
         seed = rng.integers(1e9)
-        args = (u, loglstar, eye2, scale, TRANS, curlogl, seed, kwargs)
+        args = ds.SamplerArgument(u, loglstar, eye2, scale, TRANS, curlogl,
+                                  seed, kwargs)
         u = func(args)[0]
         us[i] = u
     return us

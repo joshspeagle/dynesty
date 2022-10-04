@@ -13,7 +13,7 @@ import copy
 import numpy as np
 from .results import Results, print_fn
 from .bounding import UnitCube
-from .sampling import sample_unif
+from .sampling import sample_unif, SamplerArgument
 from .utils import (get_seed_sequence, get_print_func, progress_integration,
                     IteratorResult, RunRecord, get_neff_from_logwt,
                     compute_integrals, DelayTimer)
@@ -300,10 +300,6 @@ class Sampler:
     def _fill_queue(self, loglstar):
         """Sequentially add new live point proposals to the queue."""
 
-        # Add/zip arguments to submit to the queue.
-        point_queue = []
-        axes_queue = []
-
         # All the samplers should have have a starting point
         # satisfying a strict logl>loglstar criterion
         # The slice sampler will just fail if it's not the case
@@ -319,35 +315,47 @@ class Sampler:
                     'excessively around the very peak of the posterior')
         else:
             args = ()
-        while self.nqueue < self.queue_size:
-            if self._beyond_unit_bound(loglstar):
-                # Propose points using the provided sampling/bounding options.
+        if self._beyond_unit_bound(loglstar):
+            # Add/zip arguments to submit to the queue.
+            point_queue = []
+            axes_queue = []
+            # Propose points using the provided sampling/bounding options.
+            evolve_point = self.evolve_point
+            while self.nqueue < self.queue_size:
                 point, axes = self.propose_point(*args)
-                evolve_point = self.evolve_point
-            else:
-                # Propose/evaluate points directly from the unit cube.
-                point = self.rstate.uniform(size=self.npdim)
-                axes = np.identity(self.ncdim)
-                evolve_point = sample_unif
-            point_queue.append(point)
-            axes_queue.append(axes)
-            self.nqueue += 1
-        loglstars = [loglstar for i in range(self.queue_size)]
-        scales = [self.scale for i in range(self.queue_size)]
-        ptforms = [self.prior_transform for i in range(self.queue_size)]
-        logls = [self.loglikelihood for i in range(self.queue_size)]
-        kwargs = [self.kwargs for i in range(self.queue_size)]
+                point_queue.append(point)
+                axes_queue.append(axes)
+                self.nqueue += 1
+        else:
+            # Propose/evaluate points directly from the unit cube.
+            point_queue = self.rstate.uniform(size=(self.queue_size -
+                                                    self.nqueue, self.npdim))
+            axes_queue = np.identity(
+                self.ncdim)[None, :, :] + np.zeros(self.queue_size -
+                                                   self.nqueue)[:, None, None]
+            evolve_point = sample_unif
+            self.nqueue = self.queue_size
         seeds = get_seed_sequence(self.rstate, self.queue_size)
-        args = zip(point_queue, loglstars, axes_queue, scales, ptforms, logls,
-                   seeds, kwargs)
 
         if self.use_pool_evolve:
             # Use the pool to propose ("evolve") a new live point.
-            self.queue = list(self.M(evolve_point, args))
+            mapper = self.M
         else:
             # Propose ("evolve") a new live point using the default `map`
             # function.
-            self.queue = list(map(evolve_point, args))
+            mapper = map
+        args = []
+        for i in range(self.queue_size):
+            args.append(
+                SamplerArgument(u=point_queue[i],
+                                loglstar=loglstar,
+                                axes=axes_queue[i],
+                                scale=self.scale,
+                                prior_transform=self.prior_transform,
+                                loglikelihood=self.loglikelihood,
+                                rseed=seeds[i],
+                                kwargs=self.kwargs))
+        self.queue = list(mapper(evolve_point, args))
 
     def _get_point_value(self, loglstar):
         """Grab the first live point proposal in the queue."""

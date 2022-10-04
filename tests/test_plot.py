@@ -161,6 +161,11 @@ def test_gaussianx(bound):
                      it=1000,
                      prior_transform=g.prior_transform,
                      show_live=False)
+    dyplot.boundplot(results,
+                     dims=(0, 1)[:min(ndim, 2)],
+                     it=3000,
+                     prior_transform=g.prior_transform,
+                     show_live=False)
     dyplot.cornerbound(results,
                        it=3000,
                        prior_transform=g.prior_transform,

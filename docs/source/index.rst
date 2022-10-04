@@ -100,59 +100,59 @@ Changelog
 
 2.0.0 (2022-10-06)
 ------------------
-This is a major release with several significant improvements by Sergey Koposov
+This is a major release with several significant improvements contributed by Sergey Koposov
 
-* One is the implementation of the check-points to save progress and allow restarting of fits [See here](https://dynesty.readthedocs.io/en/latest/quickstart.html#checkpointing)
-* A new simple interface to obtain equally weighted samples directly from results object. [See here](https://dynesty.readthedocs.io/en/latest/crashcourse.html)
-* Allow likelihood functions to return additional computed quantities (blobs) that will be saved together with samples. [See hre](https://dynesty.readthedocs.io/en/latest/quickstart.html#saving-auxialiary-information-from-log-likelihood-function)
-* Random slice sampling now supports interval doubling scheme which may increase the performance in the case of bad posteriors.
+- The implementation of the check-points to save progress and allow restarting of fits. `See here <https://dynesty.readthedocs.io/en/latest/quickstart.html#checkpointing>`__
+- A new simple interface to obtain equally weighted samples directly from results object. `See here <https://dynesty.readthedocs.io/en/latest/crashcourse.html>`__
+- Allow likelihood functions to return additional computed quantities (blobs) that will be saved together with samples. `See here <https://dynesty.readthedocs.io/en/latest/quickstart.html#saving-auxialiary-information-from-log-likelihood-function>`__
+- Random slice sampling now supports interval doubling scheme which may increase the performance in the case of bad posteriors.
 
 *IMPORTANT* This release includes some major refactoring of class structure in dynesty in to implement the check-pointing. While we haven't seen any breakage in our tests, it is possible that some of more-unusual workflows may be affected. Please submit a bug report on github if you see anything that doesn't look correct. Also, while every effort was made that checkpointing works correctly, it is possible that some corner-cases have been missed. Please report if you see any issues.
 
 All the individual changes are listed below:
-* The nested samplers can now be saved and restored from the file using .save()
-.restore() interface ( #386 ; by @segasai )
-* When sampling is performed using run_nested() it is now possible to perform checkpoints at regular intervals, allowing you then resume sampling if it was interrupted ( #386 ; by @segasai )
-* The nested sampler results object now allows to retrieve the equal weighted samples directly with results.equal_samples() method as well as allows you to retrieve the importance weights through .importance_weights() method ( #390 ; by @segasai)
-* A code for a multiprocessing pool that is specifically adapted for dynesty was added to dynesty.pool. It enables faster performance in the case if the likelihood function takes a long time to pickle or the data/(likelihood arguments) take long time to pickle ( #394 ; by @segasai )
-* The likelihood functions can now return auxiliary information (i.e. derived quantities) that will be preserved with the samples. This is done with the blob interface ( #395 ; by @segasai )
-* Sampler.n_effective is no longer unnecessarily computed when sampling with an infinite limit on n_effective. ( #379 ; by @edbennett )
-* In rare occasions, dynamic nested samplng fits with maxiter set could have failed with 'list index out of range' errors. That was addressed ( #392 ; by @segasai )
-* The Monte-Carlo volume calculations by RadFriends/SupFriends/MultiEllipsoid were inaccurate (fix # 398; #399 ; by @segasai )
-* Setting n_effective for Sampler.run_nested() and DynamicSampler.sample_initial(), and n_effective_init for DynamicSampler.run_nested(), are deprecated ( #379 ; by @edbennett )
-* The slice sampling can now switch to doubling interval expansion algorithm from Neal(2003), if at any point of the sampling the interval was expanded more than 1000 times. It should help slice/rslice sampling of difficult posteriors ( #382 ; by @segasai )
-* The accumulation of statistics using to tune proposal distribution is now more robust when multi-threading/pool is used. Previously statistics from every queue_size call were used and all other were discarded. Now the statistics are accumulated from all the parallel sampling calls. That should help sampling of complex distributions. ( #385 ; by @segasai ) 
-* The .update_proposal() function that updates the states of samplers now has an additional keyword which allows to either just accumulate the statistics from repeated function calls or actual update of the proposal. This was needed to not loose information when queue_size>1 ( #385 ; by @segasai )
-* The ellipsoid bounding has been sped up by not using the Cholesky tranform , also a check was added/test expanded for possible numerical issues when sampling from multiple ellipsoids potentially causing assert q>0 ( #397 ; by @segasai )
-* The individual samplers now take as input a special Namedtuple SamplerArgument rather than just a tuple ( #400 ; by @segasai ).
+
+- The nested samplers can now be saved and restored from the file using .save() .restore() interface ( #386 ; by @segasai )
+- When sampling is performed using run_nested() it is now possible to perform checkpoints at regular intervals, allowing you then resume sampling if it was interrupted ( #386 ; by @segasai )
+- The nested sampler results object now allows to retrieve the equal weighted samples directly with results.equal_samples() method as well as allows you to retrieve the importance weights through .importance_weights() method ( #390 ; by @segasai)
+- A code for a multiprocessing pool that is specifically adapted for dynesty was added to dynesty.pool. It enables faster performance in the case if the likelihood function takes a long time to pickle or the data/(likelihood arguments) take long time to pickle ( #394 ; by @segasai )
+- The likelihood functions can now return auxiliary information (i.e. derived quantities) that will be preserved with the samples. This is done with the blob interface ( #395 ; by @segasai )
+- Sampler.n_effective is no longer unnecessarily computed when sampling with an infinite limit on n_effective. ( #379 ; by @edbennett )
+- In rare occasions, dynamic nested samplng fits with maxiter set could have failed with 'list index out of range' errors. That was addressed ( #392 ; by @segasai )
+- The Monte-Carlo volume calculations by RadFriends/SupFriends/MultiEllipsoid were inaccurate (fix # 398; #399 ; by @segasai )
+- Setting n_effective for Sampler.run_nested() and DynamicSampler.sample_initial(), and n_effective_init for DynamicSampler.run_nested(), are deprecated ( #379 ; by @edbennett )
+- The slice sampling can now switch to doubling interval expansion algorithm from Neal(2003), if at any point of the sampling the interval was expanded more than 1000 times. It should help slice/rslice sampling of difficult posteriors ( #382 ; by @segasai )
+- The accumulation of statistics using to tune proposal distribution is now more robust when multi-threading/pool is used. Previously statistics from every queue_size call were used and all other were discarded. Now the statistics are accumulated from all the parallel sampling calls. That should help sampling of complex distributions. ( #385 ; by @segasai ) 
+- The .update_proposal() function that updates the states of samplers now has an additional keyword which allows to either just accumulate the statistics from repeated function calls or actual update of the proposal. This was needed to not loose information when queue_size>1 ( #385 ; by @segasai )
+- The ellipsoid bounding has been sped up by not using the Cholesky tranform , also a check was added/test expanded for possible numerical issues when sampling from multiple ellipsoids potentially causing assert q>0 ( #397 ; by @segasai )
+- The individual samplers now take as input a special Namedtuple SamplerArgument rather than just a tuple ( #400 ; by @segasai ).
 
 	    
 1.2.3 (2022-06-02)
 ------------------
 Bug fix release
 
-* Add a copy() method to Results object
-* Prevent an issue when pickling/unpickling samplers
-* Small ellipsoidal sampling speedup
+- Add a copy() method to Results object
+- Prevent an issue when pickling/unpickling samplers
+- Small ellipsoidal sampling speedup
 
 1.2.2 (2022-04-12)
 ------------------
 Bug fix release
 
-* The problem with biased posteriors was fixed when using multi-ellipsoid
+- The problem with biased posteriors was fixed when using multi-ellipsoid
   bounds and rslice and rwalk samplers. Previously the chains did not satisfy
   detailed balance. (issue #364). Original discovery of the problem
   and help by Colm Talbot. In the case of complex posteriors, somewhat slower
   performance may be seen.
-* Fix the issue introduced in 1.2.1 when the prior_transform returns a tuple or
+- Fix the issue introduced in 1.2.1 when the prior_transform returns a tuple or
   or a list (rather than numpy array). Now that should be accepted.
 
 1.2.1 (2022-04-04)
 ------------------
 Small bug fix release
 
-* The arguments of prior_transform and likelihood function are now explicitely copied, so the sampling can work if those function apply changes to argument vectors ( #362 )
-* Fix the compilation of the docs, and update them a bit
+- The arguments of prior_transform and likelihood function are now explicitely copied, so the sampling can work if those function apply changes to argument vectors ( #362 )
+- Fix the compilation of the docs, and update them a bit
 
 1.2.0 (2022-03-31)
 ------------------
@@ -161,58 +161,58 @@ This version has multiple changes that should improve stability and speed. The d
 
 Most of the changes in the release have been contributed by [Sergey Koposov](https://github.com/segasai) who has joined the dynesty project.
 
-* Saving likelihood. It is now possible to save likelihood calls history during sampling into HDF5 file (this is not compatible with parallel sampling yet). The relevant options are  save_history=False, history_filename=None (#235)
-* add_batch() function now has the mode parameter that allows you to manually chose the logl range for the batch (#328)
-* More testing with code coverage of >90% + validation on test problems
-* Internal refactoring reducing code duplication (saved_run, integral calculations, different samplers etc)
-* Multiple speedups: ellipsoid bounds, bootstrap, jitter_run (#239, #256, #329)
-* Exception is raised if unknown arguments are provided for static/dynamic samplers (#295)
+- Saving likelihood. It is now possible to save likelihood calls history during sampling into HDF5 file (this is not compatible with parallel sampling yet). The relevant options are  save_history=False, history_filename=None (#235)
+- add_batch() function now has the mode parameter that allows you to manually chose the logl range for the batch (#328)
+- More testing with code coverage of >90% + validation on test problems
+- Internal refactoring reducing code duplication (saved_run, integral calculations, different samplers etc)
+- Multiple speedups: ellipsoid bounds, bootstrap, jitter_run (#239, #256, #329)
+- Exception is raised if unknown arguments are provided for static/dynamic samplers (#295)
 
-* Migrate to new numpy random generator functionality from RandomState (#280)
-* Make dynesty fully deterministic if random state is provided (#292)
+- Migrate to new numpy random generator functionality from RandomState (#280)
+- Make dynesty fully deterministic if random state is provided (#292)
 
-* Remove the pointvol parameter used in internal calculations, such as ellipsoid splits (#284)
-* Get rid of vol_dec parameter (#286)
-* Improve bounding ellipsoids algorithms, for example how we are dealing with degenerate ellipsoids (#264, #268)
-* Introduce more stable multi-ellipsoidal splitting using BIC (#286)
+- Remove the pointvol parameter used in internal calculations, such as ellipsoid splits (#284)
+- Get rid of vol_dec parameter (#286)
+- Improve bounding ellipsoids algorithms, for example how we are dealing with degenerate ellipsoids (#264, #268)
+- Introduce more stable multi-ellipsoidal splitting using BIC (#286)
 
-* Do not use KL divergence function for stopping criteria based on posterior, instead use the criterion based on the number of effective samples. The old behaviour can still be achieved by using the dynesty.utils.old_stopping_function (#332)
-* Fix bugs in dynamic sampling that can lead to sampler not finding points in the interval (#244)
-* Major refactor of rslice/slice sampling increasing its stability (#269, #271)
-* Disable ncdim when slice sampling (#271)
-* Change the defaults for slices/walks/bootstrap (vs number of dimensions) (#297)
-* Change default samplers (vs ndim, i.e. use rslice for high dimensions) (#286)
-* Remove rstagger sampler, as it was producing incorrect results/based on non-Markovian chains (#322)
-* Fix rwalk sampler. Previously the chains were not Markovian (#319, #323, #324)
-* Change step adaptation of rwalk and rslice (#260, #323)
-* Change the calculation of evidence uncertainties, remove factor the unnecessary factor two, and improve numerical stability of calculations (#306, #360)
-* Refactor the addition of batches in dynamic sampling, preventing possibly infinite loop (#326)
-* Improve stability of resample_equal (#351)
-* New Results interface with a dedicated object, rather than a wrapper around the dictionary (#330)
+- Do not use KL divergence function for stopping criteria based on posterior, instead use the criterion based on the number of effective samples. The old behaviour can still be achieved by using the dynesty.utils.old_stopping_function (#332)
+- Fix bugs in dynamic sampling that can lead to sampler not finding points in the interval (#244)
+- Major refactor of rslice/slice sampling increasing its stability (#269, #271)
+- Disable ncdim when slice sampling (#271)
+- Change the defaults for slices/walks/bootstrap (vs number of dimensions) (#297)
+- Change default samplers (vs ndim, i.e. use rslice for high dimensions) (#286)
+- Remove rstagger sampler, as it was producing incorrect results/based on non-Markovian chains (#322)
+- Fix rwalk sampler. Previously the chains were not Markovian (#319, #323, #324)
+- Change step adaptation of rwalk and rslice (#260, #323)
+- Change the calculation of evidence uncertainties, remove factor the unnecessary factor two, and improve numerical stability of calculations (#306, #360)
+- Refactor the addition of batches in dynamic sampling, preventing possibly infinite loop (#326)
+- Improve stability of resample_equal (#351)
+- New Results interface with a dedicated object, rather than a wrapper around the dictionary (#330)
  
 
 1.1 (2021-04-05)
 ------------------
-* Improved behavior and stability of the bounding distributions (with
+- Improved behavior and stability of the bounding distributions (with
   `Sergey Koposov <https://github.com/segasai>`_ and
   `Johannes Buchner <https://github.com/johannesbuchner>`_).
 
-* Added support for specifying the number of clustering dimensions (`'ncdim'`)
+- Added support for specifying the number of clustering dimensions (`'ncdim'`)
   in case these may differ from the number of prior dimensions (`'npdim'`)
   (with `Colm Talbot <https://github.com/ColmTalbot>`_).
 
-* Fixed a bug where ``dynesty`` was not properly enforcing nested sampling's
+- Fixed a bug where ``dynesty`` was not properly enforcing nested sampling's
   monotonically-increasing likelihood condition when sampling
   (with `Colm Talbot <https://github.com/ColmTalbot>`_).
 
-* Improved ability to save sampler objects to disk to backup progress (with
+- Improved ability to save sampler objects to disk to backup progress (with
   `Patrick Sheehan <https://github.com/psheehan>`_ and
   `Alex Nitz <https://github.com/ahnitz>`_).
 
-* Limited support for user-defined proposal strategies (with
+- Limited support for user-defined proposal strategies (with
   `Gregory Ashton <https://github.com/GregoryAshton>`_).
 
-* Additional small bugfixes, references, and documentation updates.
+- Additional small bugfixes, references, and documentation updates.
 
 1.0.1 (2020-01-17)
 -------------------

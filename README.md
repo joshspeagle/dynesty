@@ -33,8 +33,12 @@ of the code can be found
 
 ### Attribution
 
-If you find the package useful in your research, please cite at least 
-* The [python implementation](https://doi.org/10.5281/zenodo.3348367)
-* The [original paper](https://ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S/abstract)
+If you find the package useful in your research, please cite at least *both* of these references:
+* The python implementation [DOI](https://doi.org/10.5281/zenodo.3348367)
+* The original [paper](https://ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S/abstract)
 
 and ideally also papers describing the underlying methods (see the [documentation](https://dynesty.readthedocs.io/en/latest/references.html) for more details)
+
+### Reporting issues
+
+If you want to report issues, or have questions, please do that on [github](https://github.com/joshspeagle/dynesty/issues).

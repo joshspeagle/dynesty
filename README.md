@@ -34,7 +34,7 @@ of the code can be found
 ### Attribution
 
 If you find the package useful in your research, please cite at least *both* of these references:
-* The python implementation [DOI](https://doi.org/10.5281/zenodo.3348367)
+* The python implementation [DOI](https://doi.org/10.5281/zenodo.3348367) (the citation info is at the bottom of the page on the right)
 * The original [paper](https://ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S/abstract)
 
 and ideally also papers describing the underlying methods (see the [documentation](https://dynesty.readthedocs.io/en/latest/references.html) for more details)
@@ -45,4 +45,4 @@ If you want to report issues, or have questions, please do that on [github](http
 
 ### Contributing
 
-Patches/contributions are welcome! Please see CONTRIBUTING.md for more details.
+Patches/contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for more details.

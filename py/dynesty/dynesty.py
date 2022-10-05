@@ -115,8 +115,9 @@ def _get_citations(nested_type, bound, sampler):
 
     default_citations = reflist_tostring(default_refs)
     nested_citations = reflist_tostring(nested_refs)
-    bound_citations = reflist_tostring(bound_refs[bound])
-    sampler_citations = reflist_tostring(sampler_refs[sampler])
+    # if using a custom sampler, dynesty does not know the citations
+    bound_citations = reflist_tostring(bound_refs.get(bound, ""))
+    sampler_citations = reflist_tostring(sampler_refs.get(sampler, ""))
 
     assert nested_type in ['dynamic', 'static']
     if nested_type == 'dynamic':

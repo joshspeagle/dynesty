@@ -188,7 +188,11 @@ def _get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
         elif sample == 'hslice':
             update_interval_frac = 25.0 * slices
         else:
-            raise ValueError(f"Unknown sampling method: '{sample}'")
+            update_interval_frac = np.inf
+            warnings.warn(
+                "No update_interval set with unknown sampling method: "
+                f"'{sample}'. Defaulting to no updates."
+            )
     elif isinstance(update_interval, float):
         update_interval_frac = update_interval
     elif isinstance(update_interval, int):

@@ -42,3 +42,7 @@ and ideally also papers describing the underlying methods (see the [documentatio
 ### Reporting issues
 
 If you want to report issues, or have questions, please do that on [github](https://github.com/joshspeagle/dynesty/issues).
+
+### Contributing
+
+Patches/contributions are welcome! Please see CONTRIBUTING.md for more details.

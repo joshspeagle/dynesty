@@ -96,7 +96,7 @@ class SuperSampler(Sampler):
         if callable(method):
             _SAMPLING["user-defined"] = method
             method = "user-defined"
-        self.propose_point = self._PROPOSE[method]
+        self.propose_point = self._PROPOSE.get(method, self.propose_live)
 
         # Initialize method to "evolve" a point to a new position.
         self.sampling, self.evolve_point = method, _SAMPLING[method]
@@ -117,7 +117,7 @@ class SuperSampler(Sampler):
         # please use self.kwargs below
 
         self.custom_update = self.kwargs.get('update_func')
-        self.update_proposal = self._UPDATE[method]
+        self.update_proposal = self._UPDATE.get(method, self.update_user)
         self.enlarge, self.bootstrap = get_enlarge_bootstrap(
             method, self.kwargs.get('enlarge'), self.kwargs.get('bootstrap'))
 

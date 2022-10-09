@@ -77,7 +77,7 @@ def test_gaussian(dynamic, periodic, ndim, bound):
     # check plots
     dyplot.runplot(results)
     plt.close()
-    dyplot.runplot(results, span=[(0., 10.), 0.001, 0.2, (5., 6.)])
+    dyplot.runplot(results, span=[(0., 10.), 0.001, 0.2, (None, None)])
     plt.close()
     dyplot.runplot(results, logplot=True)
     dyplot.runplot(results,

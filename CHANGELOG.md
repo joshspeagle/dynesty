@@ -4,7 +4,13 @@ All notable changes to dynesty will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0]
+## [Unreleased]
+### Added
+### Changed
+### Fixed
+- Fix the non-working custom samplers (#401 ; by @ColmTalbot , @segasai)
+
+## [2.0.0] - 2020-10-06
 This is a major release with several significant improvements.
 - The implementation of the check-points to save progress and allow restarting of fits [See here](https://dynesty.readthedocs.io/en/latest/quickstart.html#checkpointing)
 - A new simple interface to obtain equally weighted samples directly from results object. [See here](https://dynesty.readthedocs.io/en/latest/crashcourse.html)

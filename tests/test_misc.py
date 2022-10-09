@@ -6,6 +6,9 @@ from scipy import linalg
 import dynesty.utils as dyutil
 from multiprocessing import Pool
 import itertools
+from dynesty.dynamicsampler import _SAMPLERS
+from dynesty.nestedsamplers import MultiEllipsoidSampler
+from dynesty.sampling import sample_rwalk
 from utils import get_rstate, get_printing, NullContextManager
 """
 Run a series of basic tests changing various things like
@@ -62,6 +65,42 @@ def test_maxcall():
                                            nlive=nlive,
                                            rstate=rstate)
     sampler.run_nested(dlogz_init=1, maxcall=1000, print_progress=printing)
+
+
+# register fake custom sampler
+_SAMPLERS["custom"] = MultiEllipsoidSampler
+
+
+def custom_update(blob, scale, update=True):
+    """A rough version of the update_rwalk method to test custom updates"""
+    if update:
+        accept = blob['accept']
+        reject = blob['reject']
+        facc = (1. * accept) / (accept + reject)
+        target = 0.3
+        ndim = 2
+        scale *= np.exp((facc - target) / ndim / target)
+    return scale
+
+
+# Test custom update/custom sampler
+@pytest.mark.parametrize("bound,sample",
+                         [['multi', sample_rwalk], ['custom', 'rslice']])
+def test_custom(bound, sample):
+    # stress test various boundaries
+    ndim = 2
+    rstate = get_rstate()
+    sampler = dynesty.NestedSampler(
+        loglike,
+        prior_transform,
+        ndim,
+        nlive=nlive,
+        bound=bound,
+        sample=sample,
+        rstate=rstate,
+        update_func=custom_update,
+    )
+    sampler.run_nested(dlogz=0.01, print_progress=printing)
 
 
 def test_n_effective_deprecation():
@@ -436,7 +475,8 @@ class Like2:
 
 def test_maxiter_batch():
     """
-    This tests the situation when maxiter runs out before the batch has time to start
+    This tests the situation when maxiter runs out before the batch has
+    time to start
     See #392
     """
     maxiter0 = 10000

@@ -335,7 +335,10 @@ class Sampler:
                                                    self.nqueue)[:, None, None]
             evolve_point = sample_unif
             self.nqueue = self.queue_size
-        seeds = get_seed_sequence(self.rstate, self.queue_size)
+        if self.queue_size > 1:
+            seeds = get_seed_sequence(self.rstate, self.queue_size)
+        else:
+            seeds = [self.rstate]
 
         if self.use_pool_evolve:
             # Use the pool to propose ("evolve") a new live point.

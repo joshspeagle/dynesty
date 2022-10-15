@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Changed
 ### Fixed
 - Fix the non-working custom samplers (#401 , #402 ; by @ColmTalbot , @segasai)
+- Fix the broken resume when using dynesty pool (#403; by @segasai)
 
 ## [2.0.0] - 2020-10-06
 This is a major release with several significant improvements.

@@ -143,6 +143,12 @@ class Pool:
             self.pool.terminate()
         except:  # noqa
             pass
+        try:
+            del (FunctionCache.loglike, FunctionCache.prior_transform,
+                 FunctionCache.logl_args, FunctionCache.logl_kwargs,
+                 FunctionCache.ptform_args, FunctionCache.ptform_kwargs)
+        except:  # noqa
+            pass
 
     @property
     def size(self):

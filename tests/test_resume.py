@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 from utils import get_rstate, NullContextManager
 import itertools
+import dynesty.pool
 
 
 def like(x):
@@ -28,16 +29,25 @@ def ptform(x):
     return 20 * x - 10
 
 
-def fit_main(fname, dynamic, checkpoint_every=0.01, npool=None):
+def fit_main(fname,
+             dynamic,
+             checkpoint_every=0.01,
+             npool=None,
+             dyn_pool=False):
     """
     Fit while checkpointing
     """
     ndim = 2
-    with (NullContextManager() if npool is None else mp.Pool(npool)) as pool:
+    with (NullContextManager() if npool is None else (dynesty.pool.Pool(
+            npool, like, ptform) if dyn_pool else mp.Pool(npool))) as pool:
         queue_size = npool
+        if dyn_pool:
+            curlike, curpt = pool.loglike, pool.prior_transform
+        else:
+            curlike, curpt = like, ptform
         if dynamic:
-            dns = dynesty.DynamicNestedSampler(like,
-                                               ptform,
+            dns = dynesty.DynamicNestedSampler(curlike,
+                                               curpt,
                                                ndim,
                                                nlive=NLIVE,
                                                rstate=get_rstate(),
@@ -45,8 +55,8 @@ def fit_main(fname, dynamic, checkpoint_every=0.01, npool=None):
                                                queue_size=queue_size)
             neff = NEFF
         else:
-            dns = dynesty.NestedSampler(like,
-                                        ptform,
+            dns = dynesty.NestedSampler(curlike,
+                                        curpt,
                                         ndim,
                                         nlive=NLIVE,
                                         rstate=get_rstate(),
@@ -110,13 +120,16 @@ def getlogz(fname, save_every):
     return cache.dt0, cache.dt1, cache.res0, cache.res1
 
 
-@pytest.mark.parametrize("dynamic,delay_frac,with_pool",
+@pytest.mark.parametrize("dynamic,delay_frac,with_pool,dyn_pool",
                          itertools.chain(
                              itertools.product([False, True],
-                                               [.2, .5, .75, .9], [False]),
-                             itertools.product([False, True], [.5], [True])))
+                                               [.2, .5, .75, .9], [False],
+                                               [False]),
+                             itertools.product([False, True], [.5], [True],
+                                               [False]),
+                             [[True, .5, True, True]]))
 @pytest.mark.xdist_group(name="resume_group")
-def test_resume(dynamic, delay_frac, with_pool):
+def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
     """
     Test we can interrupt and resume nested runs
     Note that I used xdist_group here in order to guarantee that if all the
@@ -141,7 +154,8 @@ def test_resume(dynamic, delay_frac, with_pool):
     curdt *= delay_frac
     try:
         fit_proc = mp.Process(target=fit_main,
-                              args=(fname, dynamic, save_every, npool))
+                              args=(fname, dynamic, save_every, npool,
+                                    dyn_pool))
         fit_proc.start()
         res = fit_proc.join(curdt)
         if res is None:
@@ -151,8 +165,9 @@ def test_resume(dynamic, delay_frac, with_pool):
                 # in the case of pooled run do not compare
                 # as I am comparing with single threaded version
                 curres = None
-            with (NullContextManager()
-                  if npool is None else mp.Pool(npool)) as pool:
+            with (NullContextManager() if npool is None else
+                  (dynesty.pool.Pool(npool, like, ptform)
+                   if dyn_pool else mp.Pool(npool))) as pool:
                 fit_resume(fname, dynamic, curres, pool=pool)
         else:
             assert res == 0

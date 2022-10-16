@@ -4,7 +4,7 @@ All notable changes to dynesty will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.1] - 2020-10-17
+## [2.0.1] - 2022-10-17
 ### Added
 ### Changed
 - Speed up sampling when a single thread is used and the logl is fast by avoiding generating generating random seed sequence (by @segasai)
@@ -13,7 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix the broken resume when using dynesty pool (#403; by @segasai)
 
 
-## [2.0.0] - 2020-10-06
+## [2.0.0] - 2022-10-06
 This is a major release with several significant improvements.
 - The implementation of the check-points to save progress and allow restarting of fits [See here](https://dynesty.readthedocs.io/en/latest/quickstart.html#checkpointing)
 - A new simple interface to obtain equally weighted samples directly from results object. [See here](https://dynesty.readthedocs.io/en/latest/crashcourse.html)

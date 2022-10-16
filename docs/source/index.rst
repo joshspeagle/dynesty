@@ -98,7 +98,7 @@ Changelog
 .. image:: ../images/logo.gif
     :align: center
 
-2.0.1 (2020-10-17)
+2.0.1 (2022-10-17)
 ------------------
 Minor bug fix release
 

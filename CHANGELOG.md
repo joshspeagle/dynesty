@@ -4,12 +4,14 @@ All notable changes to dynesty will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.1] - 2020-10-17
 ### Added
 ### Changed
+- Speed up sampling when a single thread is used and the logl is fast by avoiding generating generating random seed sequence (by @segasai)
 ### Fixed
 - Fix the non-working custom samplers (#401 , #402 ; by @ColmTalbot , @segasai)
 - Fix the broken resume when using dynesty pool (#403; by @segasai)
+
 
 ## [2.0.0] - 2020-10-06
 This is a major release with several significant improvements.

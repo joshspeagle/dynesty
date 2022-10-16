@@ -120,7 +120,7 @@ class Ellipsoid:
         # The eigenvalues (l) of `a` are (a^-2, b^-2, ...) where
         # (a, b, ...) are the lengths of principle axes.
         # The eigenvectors (v) are the normalized principle axes.
-        l, v = lalg.eigh(self.cov)
+        l, v = lalg.eigh(self.cov, check_finite=False)
         if np.all((l > 0.) & (np.isfinite(l))):
             self.axlens = np.sqrt(l)
             # Volume of ellipsoid is the volume of an n-sphere
@@ -170,7 +170,7 @@ class Ellipsoid:
             logfax = np.zeros(self.n)
             curlogf = logf  # how much we have left to inflate
             curn = self.n  # how many dimensions left
-            l, v = lalg.eigh(self.cov)
+            l, v = lalg.eigh(self.cov, check_finite=False)
 
             # here we start from largest and go to smallest
             for curi in np.argsort(l)[::-1]:
@@ -185,7 +185,6 @@ class Ellipsoid:
             self.am = v @ np.diag(1 / l1) @ v.T
             self.axlens *= fax
             self.axes = self.axes @ np.diag(fax)
-            # I don't quite know how to scale axes, so I rerun cholesky
         self.logvol = logvol
 
     def major_axis_endpoints(self):

@@ -21,3 +21,5 @@ Feedback:
 - [Ashley Villar](https://github.com/villrv)
 - [Avi Vajpeyi] (https://github.com/avivajpeyi)
 - [Catherine Zucker](https://github.com/catherinezucker)
+
+If you have contributed and your name is missing, please contact @segasai and/or @joshspeagle

@@ -815,7 +815,8 @@ def get_enlarge_bootstrap(sample, enlarge, bootstrap):
 def get_nonbounded(ndim, periodic, reflective):
     """
     Return a boolean mask for dimensions that are either
-    periodic or reflective
+    periodic or reflective. It will be true for normal dimension
+    and false for periodic/reflective
     """
     if periodic is not None and reflective is not None:
         if np.intersect1d(periodic, reflective) != 0:
@@ -825,12 +826,12 @@ def get_nonbounded(ndim, periodic, reflective):
     if periodic is not None or reflective is not None:
         nonbounded = np.ones(ndim, dtype=bool)
         if periodic is not None:
-            if np.max(periodic) > ndim:
+            if np.max(periodic) >= ndim:
                 raise ValueError(
                     'Incorrect periodic variable index (larger than ndim')
             nonbounded[periodic] = False
         if reflective is not None:
-            if np.max(reflective) > ndim:
+            if np.max(reflective) >= ndim:
                 raise ValueError(
                     'Incorrect periodic variable index (larger than ndim')
             nonbounded[reflective] = False

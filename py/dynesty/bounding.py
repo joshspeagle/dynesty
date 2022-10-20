@@ -73,7 +73,7 @@ class UnitCube:
 
         """
 
-        return rstate.uniform(size=self.n)
+        return rstate.random(size=self.n)
 
     def samples(self, nsamples, rstate=None):
         """
@@ -86,7 +86,7 @@ class UnitCube:
 
         """
 
-        return rstate.uniform(size=(nsamples, self.n))
+        return rstate.random(size=(nsamples, self.n))
 
     def update(self, points, rstate=None, bootstrap=0, pool=None):
         """Filler function."""

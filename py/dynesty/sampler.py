@@ -180,7 +180,7 @@ class Sampler:
         """Re-initialize the sampler."""
 
         # live points
-        self.live_u = self.rstate.uniform(size=(self.nlive, self.npdim))
+        self.live_u = self.rstate.random(size=(self.nlive, self.npdim))
         if self.use_pool_ptform:
             # Use the pool to compute the prior transform.
             self.live_v = np.array(
@@ -328,8 +328,8 @@ class Sampler:
                 self.nqueue += 1
         else:
             # Propose/evaluate points directly from the unit cube.
-            point_queue = self.rstate.uniform(size=(self.queue_size -
-                                                    self.nqueue, self.npdim))
+            point_queue = self.rstate.random(size=(self.queue_size -
+                                                   self.nqueue, self.npdim))
             axes_queue = np.identity(
                 self.ncdim)[None, :, :] + np.zeros(self.queue_size -
                                                    self.nqueue)[:, None, None]

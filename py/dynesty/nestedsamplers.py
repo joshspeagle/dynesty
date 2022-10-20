@@ -382,7 +382,7 @@ class UnitCubeSampler(SuperSampler):
         ax = np.identity(self.npdim)
         if self.npdim != self.ncdim:
             u = np.concatenate(
-                [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])
+                [u, self.rstate.random(size=self.npdim - self.ncdim)])
 
         return u, ax
 
@@ -537,7 +537,7 @@ class SingleEllipsoidSampler(SuperSampler):
 
         if self.npdim != self.ncdim:
             u = np.concatenate(
-                [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])
+                [u, self.rstate.random(size=self.npdim - self.ncdim)])
         return u, self.ell.axes
 
     def propose_live(self, *args):
@@ -700,7 +700,7 @@ class MultiEllipsoidSampler(SuperSampler):
                 warnings.warn("Ellipsoid sampling is extremely inefficient")
         if self.ncdim != self.npdim:
             u = np.concatenate(
-                [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])
+                [u, self.rstate.random(size=self.npdim - self.ncdim)])
         return u, self.mell.ells[idx].axes
 
     def propose_live(self, *args):
@@ -875,14 +875,14 @@ class RadFriendsSampler(SuperSampler):
             if unitcheck(u, self.nonbounded):
                 # Accept the point with probability 1/q to account for
                 # overlapping balls.
-                if q == 1 or self.rstate.uniform() < 1.0 / q:
+                if q == 1 or self.rstate.random() < 1.0 / q:
                     break  # if successful, we're done!
 
         # Define the axes of the N-sphere.
         ax = self.radfriends.axes
 
         u = np.concatenate(
-            [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])
+            [u, self.rstate.random(size=self.npdim - self.ncdim)])
         return u, ax
 
     def propose_live(self, *args):
@@ -1028,14 +1028,14 @@ class SupFriendsSampler(SuperSampler):
             if unitcheck(u, self.nonbounded):
                 # Accept the point with probability 1/q to account for
                 # overlapping cubes.
-                if q == 1 or self.rstate.uniform() < 1.0 / q:
+                if q == 1 or self.rstate.random() < 1.0 / q:
                     break  # if successful, we're done!
 
         # Define the axes of our N-cube.
         ax = self.supfriends.axes
         if self.npdim != self.ncdim:
             u = np.concatenate(
-                [u, self.rstate.uniform(0, 1, self.npdim - self.ncdim)])
+                [u, self.rstate.random(size=self.npdim - self.ncdim)])
         return u, ax
 
     def propose_live(self, *args):

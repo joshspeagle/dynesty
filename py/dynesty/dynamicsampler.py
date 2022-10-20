@@ -191,8 +191,7 @@ def _get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
             update_interval_frac = np.inf
             warnings.warn(
                 "No update_interval set with unknown sampling method: "
-                f"'{sample}'. Defaulting to no updates."
-            )
+                f"'{sample}'. Defaulting to no updates.")
     elif isinstance(update_interval, float):
         update_interval_frac = update_interval
     elif isinstance(update_interval, int):
@@ -373,7 +372,7 @@ def initialize_live_points(live_points,
         # sampling from the unit cube.
         n_attempts = 100
         for _ in range(n_attempts):
-            live_u = rstate.uniform(size=(nlive, npdim))
+            live_u = rstate.random(size=(nlive, npdim))
             if use_pool_ptform:
                 live_v = M(prior_transform, np.asarray(live_u))
             else:

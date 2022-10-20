@@ -132,11 +132,11 @@ class Ellipsoid:
                 f"ellipsoid {self.cov} is apparently singular with "
                 f"l={l} and v={v}.")
         if axes is None:
-            self.axes = v @ np.diag(self.axlens)
+            self.axes = v * self.axlens
         else:
             self.axes = axes
         if am is None:
-            self.am = v @ np.diag(1. / l) @ v.T
+            self.am = (v * (1. / l)) @ v.T
             # precision matrix (inverse of covariance)
         else:
             self.am = am
@@ -144,7 +144,7 @@ class Ellipsoid:
         # Scaled eigenvectors are the principle axes, where `paxes[:,i]` is the
         # i-th axis. Multiplying this matrix by a vector will transform a
         # point in the unit n-sphere to a point in the ellipsoid.
-        self.paxes = np.dot(v, np.diag(self.axlens))
+        self.paxes = v * self.axlens
 
         # Amount by which volume was increased after initialization (i.e.
         # cumulative factor from `scale_to_vol`).
@@ -181,10 +181,10 @@ class Ellipsoid:
                 curn -= 1
             fax = np.exp(logfax)  # linear inflation of each dimension
             l1 = l * fax**2  # eigen values are squares of axes
-            self.cov = v @ np.diag(l1) @ v.T
-            self.am = v @ np.diag(1 / l1) @ v.T
+            self.cov = (v * l1) @ v.T
+            self.am = (v * (1. / l1)) @ v.T
             self.axlens *= fax
-            self.axes = self.axes @ np.diag(fax)
+            self.axes = self.axes * fax
         self.logvol = logvol
 
     def major_axis_endpoints(self):
@@ -1237,7 +1237,7 @@ def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
                         # some eigen values are too small
                         failed = 1
                     else:
-                        axes = eigvec @ np.diag(eigval**.5)
+                        axes = eigvec * eigval**.5
                         break
             else:
                 # complete failure
@@ -1250,7 +1250,7 @@ def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
             if failed == 1:
                 eigval_fix = np.maximum(
                     eigval, eig_mult * maxval / max_condition_number)
-                covar = eigvec @ np.diag(eigval_fix) @ eigvec.T
+                covar = (eigvec * eigval_fix) @ eigvec.T
             else:
                 coeff = coeffmin * (1. / coeffmin)**(trial * 1. / (ntries - 1))
                 # this starts at coeffmin when trial=0 and ends at 1
@@ -1265,7 +1265,7 @@ def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
         axes = covar.copy()
     else:
         # invert the matrix using eigen decomposition
-        am = eigvec @ np.diag(1. / eigval) @ eigvec.T
+        am = (eigvec * (1. / eigval)) @ eigvec.T
     good_mat = trial == 0
     # if True it means no adjustments were necessary
     return good_mat, covar, am, axes

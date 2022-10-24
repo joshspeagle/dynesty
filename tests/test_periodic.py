@@ -61,3 +61,16 @@ def test_error():
                                      nlive=nlive,
                                      periodic=[22],
                                      rstate=rstate)
+
+
+def test_error2():
+    # check you cant combine periodic/reflective for one var
+    rstate = get_rstate()
+    with pytest.raises(ValueError):
+        dynesty.DynamicNestedSampler(loglike,
+                                     prior_transform,
+                                     ndim,
+                                     nlive=nlive,
+                                     periodic=[1],
+                                     reflective=[1],
+                                     rstate=rstate)

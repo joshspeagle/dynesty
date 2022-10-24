@@ -164,6 +164,7 @@ def test_gaussian():
         mean, cov = dyfunc.mean_and_cov(pos, wts)
         logz = results['logz'][-1]
         assert (np.abs(logz - g.logz_truth) < sig * results.logzerr[-1])
+    res_comb = dyfunc.merge_runs([result_list[0]])
     res_comb = dyfunc.merge_runs(result_list)
     assert (np.abs(res_comb['logz'][-1] - g.logz_truth) <
             sig * results['logzerr'][-1])

@@ -1045,7 +1045,7 @@ def resample_equal(samples, weights, rstate=None):
         else:
             j += 1
 
-    return samples[idx]
+    return rstate.shuffle(samples[idx])
 
 
 def quantile(x, q, weights=None):

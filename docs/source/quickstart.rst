@@ -58,7 +58,7 @@ and the fifth from a truncated normal distribution.
 To handle more complicated functions like these, we can use the built-in
 `functions <https://docs.scipy.org/doc/scipy/reference/stats.html>`_
 in `scipy.stats`, which include a **percent point function (ppf)** that
-is analagous to our prior transform. Using those, our above examples
+is analogous to our prior transform. Using those, our above examples
 would look like::
 
     def prior_transform(u):
@@ -100,7 +100,7 @@ a three-parameter model where the prior for the third parameter depends
 on the values for the first two. This might be the case in, e.g., a
 `hierarchical <https://en.wikipedia.org/wiki/Bayesian_hierarchical_modeling>`_
 model where the prior over `c` is a Normal distribution whose mean 
-`m` and standard deviation `s` are determined by a corressponding
+`m` and standard deviation `s` are determined by a corresponding
 "hyper-prior". We can easily set up a prior transform for this model 
 by just going through the variables in order. This would look like::
 
@@ -367,7 +367,7 @@ argument::
                   first_update={'min_ncall': 100, 'min_eff': 50.})
 
 This will now trigger an update when 100 log-likelihood function calls have
-been made and the effiency drops below 50%.
+been made and the efficiency drops below 50%.
 
 Special Boundary Conditions
 ---------------------------
@@ -467,7 +467,7 @@ python's multiprocessing pool)::
 
 Note that we provide the likelihood function and prior transforms
 when we initialize the pool. When we run dynesty we provide the
-loglikelihood and prior tranforms from the pool. This approach minimizes
+loglikelihood and prior transforms from the pool. This approach minimizes
 the overhead from picking function repeatedly.
 
 If your function has additional arguments that are large, you can also provide
@@ -575,7 +575,7 @@ If you used the pool in the sampler and you want to use the pool after restoring
 
 The checkpointing may be helpful if you are running dynesty on HPC with a queue system that has a limit on a wall-time that your jobs can run.
 
-Saving auxialiary information from log-likelihood function
+Saving auxiliary information from log-likelihood function
 ----------------------------------------------------------
 
 Occasionally it is useful to save the information computed by the likelihood function, such as various derived quantities. This information can be easily saved by dynesty together with the samples. To do that you need to use the blob option of NestedSampler and DynamicNestedSampler::
@@ -885,7 +885,7 @@ import them using::
     from dynesty import plotting as dyplot
 
 The `dyplot` alias will be used for convenient shorthand throughout the
-remainded of the documentation. While some basic usage will be demonstrated
+remainder of the documentation. While some basic usage will be demonstrated
 below, please see the :ref:`API` for additional details.
 
 One important note is that **the default credible intervals in all plotting
@@ -1102,7 +1102,7 @@ samples using the :meth:`~dynesty.utils.mean_and_cov` function::
     samples, weights = res2.samples, res2.importance_weights()
     mean, cov = dyfunc.mean_and_cov(samples, weights)
 
-Runs can also be resampled to give a mew set of points with equal
+Runs can also be resampled to give a new set of points with equal
 weights, similar to MCMC methods, using the
 :meth:`~dynesty.utils.resample_equal` function::
 

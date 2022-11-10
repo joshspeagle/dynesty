@@ -207,6 +207,8 @@ def runplot(results,
     if truth_kwargs is None:
         truth_kwargs = {}
 
+    rstate = get_random_generator()
+
     # Set defaults.
     plot_kwargs['linewidth'] = plot_kwargs.get('linewidth', 5)
     plot_kwargs['alpha'] = plot_kwargs.get('alpha', 0.7)
@@ -251,7 +253,8 @@ def runplot(results,
     ]
     if kde:
         # Derive kernel density estimate.
-        wt_kde = gaussian_kde(resample_equal(-logvol, data[2]))  # KDE
+        wt_kde = gaussian_kde(resample_equal(-logvol, data[2],
+                                             rstate=rstate))  # KDE
         logvol_new = np.linspace(logvol[0], logvol[-1], nkde)  # resample
         data[2] = wt_kde.pdf(-logvol_new)  # evaluate KDE PDF
     if span is None:
@@ -594,6 +597,7 @@ def traceplot(results,
         truth_kwargs = {}
 
     # Set defaults.
+    rstate = get_random_generator()
     connect_kwargs['alpha'] = connect_kwargs.get('alpha', 0.7)
     post_kwargs['alpha'] = post_kwargs.get('alpha', 0.6)
     trace_kwargs['s'] = trace_kwargs.get('s', 3)
@@ -605,11 +609,12 @@ def traceplot(results,
     # Extract weighted samples.
     samples = results['samples']
     logvol = results['logvol']
-    weights = np.exp(results['logwt'] - results['logz'][-1])
+    weights = results.importance_weights()
 
     if kde:
         # Derive kernel density estimate.
-        wt_kde = gaussian_kde(resample_equal(-logvol, weights))  # KDE
+        wt_kde = gaussian_kde(resample_equal(-logvol, weights,
+                                             rstate=rstate))  # KDE
         logvol_grid = np.linspace(logvol[0], logvol[-1], nkde)  # resample
         wt_grid = wt_kde.pdf(-logvol_grid)  # evaluate KDE PDF
         wts = np.interp(-logvol, -logvol_grid, wt_grid)  # interpolate
@@ -937,7 +942,7 @@ def cornerpoints(results,
     # Extract weighted samples.
     samples = results['samples']
     logvol = results['logvol']
-    weights = np.exp(results['logwt'] - results['logz'][-1])
+    weights = results.importance_weights()
 
     if kde:
         # Derive kernel density estimate.
@@ -1243,7 +1248,7 @@ def cornerplot(results,
 
     # Extract weighted samples.
     samples = results['samples']
-    weights = np.exp(results['logwt'] - results['logz'][-1])
+    weights = results.importance_weights()
 
     # Deal with 1D results. A number of extra catches are also here
     # in case users are trying to plot other results besides the `Results`

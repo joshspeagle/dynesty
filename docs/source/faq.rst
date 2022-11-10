@@ -79,7 +79,7 @@ which a new batch of live points is allocated.
 In rare cases, errors in these bounds can be signs of Bad Things that may
 have happened while sampling. This is often the case if the 
 log-likelihood values being sampled (and displayed) are also 
-are non-sensical (e.g., involve `nan` or `inf` values, etc.).
+are nonsensical (e.g., involve `nan` or `inf` values, etc.).
 In that case, it is often useful to terminate the run early 
 and examine the set of samples to see if there are any possible issues.
 
@@ -103,7 +103,7 @@ avoids some of these issues.
 In rare cases, issues with the evidence error approximation can be a sign
 that something has gone Terribly Wrong during the sampling phase. This
 is often the case if the log-likelihood values being output also
-are non-sensical (e.g., involve `nan` or `inf` values).
+are nonsensical (e.g., involve `nan` or `inf` values).
 In that case, it is often useful to terminate the run early 
 and examine the set of samples to see if there are any possible issues.
 
@@ -313,7 +313,7 @@ problem-dependent.
 In general, for ellipsoid-based bounds an absolute minimum of `ndim + 1`
 live points is "required", with `2 * ndim` being a (roughly) "safe" threshold.
 If bootstraps are used to establish bounds while sampling uniformly, however,
-many (many) more live poits should be used. 
+many (many) more live points should be used. 
 Around `50 * ndim` points are recommended *for each expected mode*.
 
 Methods that do not depend on the absolute size of the bounds (but instead rely
@@ -466,6 +466,13 @@ difficult to debug, especially on a problem I'm not familiar with,
 it's likely that I might not be able to help all that much.
 
 
-** How to decide on the number of processes in a pool and how to set queue_size**
+**How to decide on the number of processes in a pool and how to set queue_size**
 
-Assuming that you decided on the number of live-points K that you want to use and that the likelihood evaluation is not very quick, you should use as many processes as you can up to around K. The queue_size should be equal the number of processes. If you are using the the number of processes that M is smaller than K, you may want to use  :math:`M=K//2` or :math:`M=K//3` i.e integer fractions. So if you are using 1024 live-points all powers of two up to 1024 would be good choiceS for the number of processes.
+Assuming that you decided on the number of live-points K that you want to use and that the likelihood evaluation is not very quick, you should use as many processes as you can up to around K. The queue_size should be equal the number of processes. If you are using the the number of processes that M is smaller than K, you may want to use  :math:`M=K//2` or :math:`M=K//3` i.e integer fractions. So if you are using 1024 live-points all powers of two up to 1024 would be good choice for the number of processes.
+
+
+**I would like to run dynesty across multiple nodes on a cluster. How do I do that ?**
+
+The best way is to use the
+`schwimmbad <https://schwimmbad.readthedocs.io/en/latest/>`_ package
+and its `MPIPool`. You should be able to use this pool in the same way you would use the `multiprocessing.Pool`. (see `schwimmbad` docs for more info)

@@ -116,7 +116,7 @@ an initial **"baseline" run**. The basic algorithm is:
    \mathcal{L}_{\textrm{high}}^{(b)} \right)`
    where additional samples should be allocated.
 
-#. Compute a new set of samples for batch :math:`b` wthin
+#. Compute a new set of samples for batch :math:`b` within
    :math:`\left[ \mathcal{L}_{\textrm{low}}^{(b)}, 
    \mathcal{L}_{\textrm{high}}^{(b)} \right)`
    using :math:`K_b` live points.
@@ -161,7 +161,7 @@ is the posterior importance weight,
 is the (normalized) evidence weight, :math:`\hat{\mathcal{Z}}_{\textrm{upper}}
 = \hat{\mathcal{Z}} + \Delta\hat{\mathcal{Z}}` is the estimated upper limit
 on the total evidence, and :math:`K_i` is the number of live points at
-:math:`X_i`. In other words, the importantance of a given point for estimating
+:math:`X_i`. In other words, the importance of a given point for estimating
 the posterior is just proportional to the amount that a 
 given sample contributes to our estimate of the posterior at the current
 iteration, while the importance of a given point for estimating the
@@ -665,7 +665,7 @@ elsewhere. Conversely, in the evidence-oriented case we spend many fewer
 samples tracing out the typical set. Instead, the most samples are allocated
 in prior-dominated regions to help constrain the exact location :math:`\ln X_i`
 where the typical set is located. As expected, the default case 
-effectively comprimises between these two behaviors.
+effectively compromises between these two behaviors.
 
 This behavior can be made even more apparent by examining where samples are
 allocated on trace plots:

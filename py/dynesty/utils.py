@@ -725,7 +725,7 @@ Return the list of items in the results object as list of key,value pairs
 
     def samples_equal(self, rstate=None):
         """
-        Return the equally weighted samples
+        Return the equally weighted samples in random order.
         """
         if rstate is None:
             rstate = get_random_generator()
@@ -981,8 +981,9 @@ def mean_and_cov(samples, weights):
 
 def resample_equal(samples, weights, rstate=None):
     """
-    Resample a new set of points from the weighted set of inputs
-    such that they all have equal weight.
+    Resample a set of points from the weighted set of inputs
+    such that they all have equal weight. The points are also
+    randomly shuffled.
 
     Each input sample appears in the output array either
     `floor(weights[i] * nsamples)` or `ceil(weights[i] * nsamples)` times,
@@ -1002,7 +1003,7 @@ def resample_equal(samples, weights, rstate=None):
     Returns
     -------
     equal_weight_samples : `~numpy.ndarray` with shape (nsamples,)
-        New set of samples with equal weights.
+        New set of samples with equal weights in random order.
 
     Examples
     --------

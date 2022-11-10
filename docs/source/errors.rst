@@ -288,7 +288,7 @@ iteration to iteration can swap back and forth between **exponential**
 and **uniform** shrinkage.
 
 We can simulate the joint distribution of these prior volumes by identifying
-continguous sequences of strictly decreasing live points and then simulating
+contiguous sequences of strictly decreasing live points and then simulating
 random numbers using `numpy.random.exponential`.
 
 Jittering Runs

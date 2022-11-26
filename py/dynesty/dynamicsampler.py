@@ -330,15 +330,15 @@ def stopping_function(results,
         return stop <= 1.
 
 
-def initialize_live_points(live_points,
-                           prior_transform,
-                           loglikelihood,
-                           M,
-                           nlive=None,
-                           npdim=None,
-                           rstate=None,
-                           blob=False,
-                           use_pool_ptform=None):
+def _initialize_live_points(live_points,
+                            prior_transform,
+                            loglikelihood,
+                            M,
+                            nlive=None,
+                            npdim=None,
+                            rstate=None,
+                            blob=False,
+                            use_pool_ptform=None):
     """
     Initialize the first set of live points before starting the sampling
 
@@ -885,7 +885,7 @@ class DynamicSampler:
             self.reset()
 
             (self.live_u, self.live_v, self.live_logl,
-             blobs) = initialize_live_points(
+             blobs) = _initialize_live_points(
                  live_points,
                  self.prior_transform,
                  self.loglikelihood,
@@ -1181,16 +1181,17 @@ class DynamicSampler:
             if psel:
                 # If the lower bound encompasses all saved samples, we want
                 # to propose a new set of points from the unit cube.
-                live_u, live_v, live_logl, live_blobs = initialize_live_points(
-                    None,
-                    self.prior_transform,
-                    self.loglikelihood,
-                    self.M,
-                    nlive=nlive_new,
-                    npdim=self.npdim,
-                    rstate=self.rstate,
-                    blob=self.blob,
-                    use_pool_ptform=self.use_pool_ptform)
+                (live_u, live_v, live_logl,
+                 live_blobs) = _initialize_live_points(
+                     None,
+                     self.prior_transform,
+                     self.loglikelihood,
+                     self.M,
+                     nlive=nlive_new,
+                     npdim=self.npdim,
+                     rstate=self.rstate,
+                     blob=self.blob,
+                     use_pool_ptform=self.use_pool_ptform)
 
                 live_bound = np.zeros(nlive_new, dtype=int)
                 live_it = np.zeros(nlive_new, dtype=int) + self.it

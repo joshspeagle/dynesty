@@ -572,6 +572,8 @@ class DynamicSampler:
         self.nlive_init = None
         self.batch_sampler = None
 
+        self.live_blobs = None
+
     def __setstate__(self, state):
         self.__dict__ = state
         self.pool = None

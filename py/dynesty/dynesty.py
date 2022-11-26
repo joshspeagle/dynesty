@@ -500,10 +500,10 @@ optional
             just sample uniformly from the prior distribution.
             If this is `None` (default), this will default to npdim.
 
-        blob: bool, optional 
+        blob: bool, optional
             The default value is False. If it is true, then the log-likelihood
-            should return the tuple of logl and a numpy-array "blob" that will 
-            stored as part of the chain. That blob can contain auxiliary 
+            should return the tuple of logl and a numpy-array "blob" that will
+            stored as part of the chain. That blob can contain auxiliary
             information computed inside the likelihood function.
 
         Returns
@@ -769,7 +769,7 @@ class DynamicNestedSampler(DynamicSampler):
             provided and `'rslice'` otherwise. `'slice'`
             is provided as alternative for `'rslice'`.
             Default is `'auto'`.
-        
+
         periodic : iterable, optional
             A list of indices for parameters with periodic boundary conditions.
             These parameters *will not* have their positions constrained to be
@@ -933,10 +933,10 @@ class DynamicNestedSampler(DynamicSampler):
             just sample uniformly from the prior distribution.
             If this is `None` (default), this will default to npdim.
 
-        blob: bool, optional 
+        blob: bool, optional
             The default value is False. If it is true, then the log-likelihood
-            should return the tuple of logl and a numpy-array "blob" that will 
-            stored as part of the chain. That blob can contain auxiliary 
+            should return the tuple of logl and a numpy-array "blob" that will
+            stored as part of the chain. That blob can contain auxiliary
             information computed inside the likelihood function.
 
         Returns

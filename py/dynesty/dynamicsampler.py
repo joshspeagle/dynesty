@@ -1988,7 +1988,8 @@ class DynamicSampler:
             file every checkpoint_every seconds
         checkpoint_every: float, optional
             The number of seconds between checkpoints that will save
-            the internal state of the sampler
+            the internal state of the sampler. The sampler will also be
+            saved in the end of the run irrespective of checkpoint_every.
         """
 
         # Initialize values.

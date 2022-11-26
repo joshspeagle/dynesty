@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 ### Added
 ### Changed
+- When checkpointing is on the dynamic sampler will always checkpoint in the end of the run_nested() irrespective of checkpoint_time
 - Now the equally weighted samples are also randomly shuffled ( #408 )
 ### Fixed
 

@@ -342,24 +342,39 @@ def initialize_live_points(live_points,
     """
     Initialize the first set of live points before starting the sampling
 
-    Parameters:
+    Parameters
+    ----------
     live_points: tuple of arrays or None
-        This can be either none or tuple of 3 arrays (u, v, logl), i.e.
-        point location in cube coordinates, point location in original
-        coordinates, and logl values
+        This can be either none or
+        tuple of 3 arrays (u, v, logl) or
+        tuple of 4 arrays (u, v, logl, blobs), i.e.
+        points location in cube coordinates,
+        point slocation in original coordinates,
+        logl values and optionally blobs associated
+
     prior_transform: function
+
     log_likelihood: function
+
     M: function
         The function supporting parallel calls like M(func, list)
+
     nlive: int
         Number of live-points
+
     npdim: int
         Number of dimensions
+
     rstate: :class: numpy.random.RandomGenerator
+
+    blob: bool
+        If true we also keep track of blobs returned by likelihood
+
     use_pool_ptform: bool or None
         The flag to perform prior transform using multiprocessing pool or not
 
-    Returns:
+    Returns
+    -------
     (live_u, live_v, live_logl, blobs): tuple
         The tuple of arrays.
         The first is in unit cube coordinates.
@@ -411,8 +426,10 @@ def initialize_live_points(live_points,
     else:
         # If live points were provided, convert the log-likelihoods and
         # then run a quick safety check.
-        live_u, live_v, live_logl, blobs = live_points
-
+        live_u, live_v, live_logl = live_points[:3]
+        if blob:
+            live_blobs = live_points[3]
+        live_logl = np.asarray(live_logl)
         for i, logl in enumerate(live_logl):
             if not np.isfinite(logl):
                 if np.sign(logl) < 0:
@@ -422,7 +439,7 @@ def initialize_live_points(live_points,
                                      "point {1} located at u={2} v={3} "
                                      " is invalid.".format(
                                          logl, i, live_u[i], live_v[i]))
-        if all(live_logl == _LOWL_VAL):
+        if np.all(live_logl == _LOWL_VAL):
             raise ValueError("Not a single provided live point has a "
                              "valid log-likelihood!")
     if (np.ptp(live_logl) == 0):
@@ -780,7 +797,9 @@ class DynamicSampler:
         n_effective: int, optional
             This option is deprecated and will be removed in a future release.
 
-        live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
+        live_points: list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
+            and optionally list of blobs associated with these likelihood calls
+            (if blob=True in the sampler)
             A set of live points used to initialize the nested sampling run.
             Contains `live_u`, the coordinates on the unit cube, `live_v`, the
             transformed variables, and `live_logl`, the associated
@@ -1733,7 +1752,9 @@ class DynamicSampler:
             A function that prints out the current state of the sampler.
             If not provided, the default :meth:`results.print_fn` is used.
 
-        live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
+        live_points: list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
+            and optionally list of blobs associated with these likelihood calls
+            (if blob=True in the sampler)
             A set of live points used to initialize the nested sampling run.
             Contains `live_u`, the coordinates on the unit cube, `live_v`, the
             transformed variables, and `live_logl`, the associated
@@ -1741,7 +1762,8 @@ class DynamicSampler:
             set of live points will be drawn from the unit `npdim`-cube.
             **WARNING: It is crucial that the initial set of live points have
             been sampled from the prior. Failure to provide a set of valid
-            live points will result in biased results.**
+            live points will lead to incorrect results.**
+
         resume: bool, optional
             If resume is set to true, we will try to resume a previously
             interrupted run

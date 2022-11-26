@@ -89,9 +89,9 @@ class Sampler:
         self.ncdim = ncdim
         self.blob = blob
         # live points
-        self.live_u, self.live_v, self.live_logl, blobs = live_points
+        self.live_u, self.live_v, self.live_logl = live_points[:3]
         if blob:
-            self.live_blobs = blobs
+            self.live_blobs = live_points[3]
         else:
             self.live_blobs = None
         self.nlive = len(self.live_u)

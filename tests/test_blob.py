@@ -39,6 +39,18 @@ class Gaussian:
                                     (x - self.mean))) + self.lnorm
         # notice here we overwrite the input array just to test
         # that this is not a problem
+        x[:] = -np.ones(len(x))
+        return ret
+
+    # 3-D correlated multivariate normal log-likelihood
+    def loglikelihood_with_blob(self, x):
+        """Multivariate normal log-likelihood."""
+
+        ret = -0.5 * np.dot(
+            (x - self.mean), np.dot(self.cov_inv,
+                                    (x - self.mean))) + self.lnorm
+        # notice here we overwrite the input array just to test
+        # that this is not a problem
         blob = x * 1
         x[:] = -np.ones(len(x))
         return ret, blob
@@ -60,7 +72,7 @@ def test_gaussian():
     g = Gaussian()
     sampler = 'rslice'  # doing this sampler for static
     # unifor for dynamic
-    sampler = dynesty.NestedSampler(g.loglikelihood,
+    sampler = dynesty.NestedSampler(g.loglikelihood_with_blob,
                                     g.prior_transform,
                                     g.ndim,
                                     nlive=nlive,
@@ -73,10 +85,36 @@ def test_gaussian():
     assert np.all(res['blob'] == res['samples'])
 
 
+def test_gaussian_livepts():
+    # test we can provide starting points while using blobs
+    rstate = get_rstate()
+    g = Gaussian()
+    sampler = 'rslice'  # doing this sampler for static
+    # unifor for dynamic
+    us = rstate.uniform(size=(nlive, g.ndim))
+    # note multiplication by 1 because our functions overwrite inputs
+    vs = [g.prior_transform(1 * u) for u in us]
+    lbs = [g.loglikelihood_with_blob(1 * v) for v in vs]
+    logls = [_[0] for _ in lbs]
+    blobs = [_[1] for _ in lbs]
+    sampler = dynesty.NestedSampler(g.loglikelihood_with_blob,
+                                    g.prior_transform,
+                                    g.ndim,
+                                    nlive=nlive,
+                                    rstate=rstate,
+                                    sample=sampler,
+                                    blob=True,
+                                    live_points=[us, vs, logls, blobs])
+    sampler.run_nested(print_progress=printing)
+    res = sampler.results
+    assert res['blob'].shape == (len(res['samples']), 3)
+    assert np.all(res['blob'] == res['samples'])
+
+
 def test_gaussian_pool():
     rstate = get_rstate()
     g = Gaussian()
-    with dypool.Pool(2, g.loglikelihood, g.prior_transform) as pool:
+    with dypool.Pool(2, g.loglikelihood_with_blob, g.prior_transform) as pool:
         sampler = dynesty.NestedSampler(pool.loglike,
                                         pool.prior_transform,
                                         g.ndim,
@@ -93,7 +131,7 @@ def test_gaussian_pool():
 def test_gaussian_dyn():
     rstate = get_rstate()
     g = Gaussian()
-    sampler = dynesty.DynamicNestedSampler(g.loglikelihood,
+    sampler = dynesty.DynamicNestedSampler(g.loglikelihood_with_blob,
                                            g.prior_transform,
                                            g.ndim,
                                            nlive=nlive,

@@ -216,7 +216,7 @@ def test_livepoints():
     live_u = rstate.uniform(size=(nlive, ndim))
     live_v = np.array([prior_transform(_) for _ in live_u])
     live_logl = np.array([loglike(_) for _ in live_v])
-    live_points = [live_u, live_v, live_logl, None]
+    live_points = [live_u, live_v, live_logl]
     sampler = dynesty.NestedSampler(loglike,
                                     prior_transform,
                                     ndim,

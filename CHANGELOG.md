@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - When checkpointing is on the dynamic sampler will always checkpoint in the end of the run_nested() irrespective of checkpoint_time
 - Now the equally weighted samples are also randomly shuffled ( #408 )
 ### Fixed
+- The live_points option was somewhat broken when blob option was introduced requiring a tuple of 4 elements irrespective of whether your likelihood returns blobs or not. Now if you use blob=True and want to provide live_points you need to provide 4 elements (u,v,logl,blobs). If you use blob=False you will need to provide just 3 elements as before (u,v,logl)
 
 ## [2.0.1] - 2022-10-17
 ### Added

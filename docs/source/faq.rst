@@ -475,4 +475,23 @@ Assuming that you decided on the number of live-points K that you want to use an
 
 The best way is to use the
 `schwimmbad <https://schwimmbad.readthedocs.io/en/latest/>`_ package
-and its `MPIPool`. You should be able to use this pool in the same way you would use the `multiprocessing.Pool`. (see `schwimmbad` docs for more info)
+and its `MPIPool`. You should be able to use this pool in the same way you would use the `multiprocessing.Pool`. (see `schwimmbad` docs for more info). Here is a small example::
+  
+  from schwimmbad import MPIPool
+  import numpy as np, sys, dynesty
+
+  def ptform(x):
+    return 10 * x - 5
+
+  def func(x):
+    return -0.5 * np.sum(x**2)
+
+  if __name__ == '__main__':
+    pool = MPIPool()
+    if not pool.is_master():
+        pool.wait()
+        sys.exit(0)
+    dns = dynesty.DynamicNestedSampler(
+        func, ptform, 10, pool=pool)
+    dns.run_nested()
+

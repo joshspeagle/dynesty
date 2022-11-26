@@ -1892,6 +1892,10 @@ class DynamicSampler:
                 else:
                     # We didn't run a single batch but now we're done!
                     break
+            if checkpoint_file is not None:
+                # In the very end I save the checkpoint no matter
+                # the timing
+                self.save(checkpoint_file)
         finally:
             if pbar is not None:
                 pbar.close()

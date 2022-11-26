@@ -685,6 +685,9 @@ class Sampler:
             delta_logz = np.logaddexp(0,
                                       np.max(self.live_logl) + logvol - logz)
 
+        plateau_mode = False
+        plateau_counter = 0
+        nplateau = 0
         stop_iterations = False
         # The main nested sampling loop.
         for it in range(sys.maxsize):
@@ -726,8 +729,8 @@ class Sampler:
                         stop_iterations = True
             if self.live_logl.ptp() == 0:
                 warnings.warn(
-                    'We have reached the plateau in the likelihood we are stopping sampling'
-                )
+                    'We have reached the plateau in the likelihood we are'
+                    ' stopping sampling')
                 stop_iterations = True
 
             if stop_iterations:
@@ -742,9 +745,6 @@ class Sampler:
                     self.saved_run.append(add_info)
                 break
 
-            # Expected ln(volume) shrinkage.
-            logvol -= self.dlv
-
             # After `update_interval` interations have passed *and* we meet
             # the criteria for moving beyond sampling from the unit cube,
             # update the bound using the current set of live points.
@@ -757,10 +757,22 @@ class Sampler:
                 self.nbound += 1
                 self.since_update = 0
 
-            # Locate the "live" point with the lowest `logl`.
             worst = np.argmin(self.live_logl)  # index
+            # Locate the "live" point with the lowest `logl`.
             worst_it = self.live_it[worst]  # when point was proposed
             boundidx = self.live_bound[worst]  # associated bound index
+
+            if not plateau_mode:
+                nplateau = (self.live_logl == self.live_logl[worst]).sum()
+                if nplateau > 1:
+                    plateau_mode = True
+                    plateau_counter = nplateau
+                    plateau_dlogvol = np.log(1. / (self.nlive + 1)) + logvol
+            # Expected ln(volume) shrinkage.
+            if not plateau_mode:
+                logvol -= self.dlv
+            else:
+                logvol = logvol + np.log1p(-np.exp(plateau_dlogvol - logvol))
 
             # Set our new worst likelihood constraint.
             # Notice we are doing copies here because live_u and live_v
@@ -827,6 +839,10 @@ class Sampler:
             # Increment total number of iterations.
             self.it += 1
 
+            if plateau_mode:
+                plateau_counter -= 1
+                if plateau_counter == 0:
+                    plateau_mode = False
             # Return dead point and ancillary quantities.
             yield IteratorResult(worst=worst,
                                  ustar=ustar,

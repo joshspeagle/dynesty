@@ -134,13 +134,13 @@ All the individual changes are listed below:
 - A code for a multiprocessing pool that is specifically adapted for dynesty was added to dynesty.pool. It enables faster performance in the case if the likelihood function takes a long time to pickle or the data/(likelihood arguments) take long time to pickle ( #394 ; by @segasai )
 - The likelihood functions can now return auxiliary information (i.e. derived quantities) that will be preserved with the samples. This is done with the blob interface ( #395 ; by @segasai )
 - Sampler.n_effective is no longer unnecessarily computed when sampling with an infinite limit on n_effective. ( #379 ; by @edbennett )
-- In rare occasions, dynamic nested samplng fits with maxiter set could have failed with 'list index out of range' errors. That was addressed ( #392 ; by @segasai )
+- In rare occasions, dynamic nested sampling fits with maxiter set could have failed with 'list index out of range' errors. That was addressed ( #392 ; by @segasai )
 - The Monte-Carlo volume calculations by RadFriends/SupFriends/MultiEllipsoid were inaccurate (fix # 398; #399 ; by @segasai )
 - Setting n_effective for Sampler.run_nested() and DynamicSampler.sample_initial(), and n_effective_init for DynamicSampler.run_nested(), are deprecated ( #379 ; by @edbennett )
 - The slice sampling can now switch to doubling interval expansion algorithm from Neal(2003), if at any point of the sampling the interval was expanded more than 1000 times. It should help slice/rslice sampling of difficult posteriors ( #382 ; by @segasai )
 - The accumulation of statistics using to tune proposal distribution is now more robust when multi-threading/pool is used. Previously statistics from every queue_size call were used and all other were discarded. Now the statistics are accumulated from all the parallel sampling calls. That should help sampling of complex distributions. ( #385 ; by @segasai ) 
 - The .update_proposal() function that updates the states of samplers now has an additional keyword which allows to either just accumulate the statistics from repeated function calls or actual update of the proposal. This was needed to not loose information when queue_size>1 ( #385 ; by @segasai )
-- The ellipsoid bounding has been sped up by not using the Cholesky tranform , also a check was added/test expanded for possible numerical issues when sampling from multiple ellipsoids potentially causing assert q>0 ( #397 ; by @segasai )
+- The ellipsoid bounding has been sped up by not using the Cholesky transform , also a check was added/test expanded for possible numerical issues when sampling from multiple ellipsoids potentially causing assert q>0 ( #397 ; by @segasai )
 - The individual samplers now take as input a special Namedtuple SamplerArgument rather than just a tuple ( #400 ; by @segasai ).
 
 	    
@@ -150,7 +150,7 @@ Bug fix release
 
 - Add a copy() method to Results object
 - Prevent an issue when pickling/unpickling samplers
-- Small ellipsoidal sampling speedup
+- Small ellipsoidal sampling speed-up
 
 1.2.2 (2022-04-12)
 ------------------
@@ -168,7 +168,7 @@ Bug fix release
 ------------------
 Small bug fix release
 
-- The arguments of prior_transform and likelihood function are now explicitely copied, so the sampling can work if those function apply changes to argument vectors ( #362 )
+- The arguments of prior_transform and likelihood function are now explicitly copied, so the sampling can work if those function apply changes to argument vectors ( #362 )
 - Fix the compilation of the docs, and update them a bit
 
 1.2.0 (2022-03-31)
@@ -182,7 +182,7 @@ Most of the changes in the release have been contributed by [Sergey Koposov](htt
 - add_batch() function now has the mode parameter that allows you to manually chose the logl range for the batch (#328)
 - More testing with code coverage of >90% + validation on test problems
 - Internal refactoring reducing code duplication (saved_run, integral calculations, different samplers etc)
-- Multiple speedups: ellipsoid bounds, bootstrap, jitter_run (#239, #256, #329)
+- Multiple speed-ups: ellipsoid bounds, bootstrap, jitter_run (#239, #256, #329)
 - Exception is raised if unknown arguments are provided for static/dynamic samplers (#295)
 
 - Migrate to new numpy random generator functionality from RandomState (#280)
@@ -315,7 +315,7 @@ Most of the changes in the release have been contributed by [Sergey Koposov](htt
 
 * Modified `'rwalk'` behavior to better deal with edge cases.
 
-* Changed defaults so performance should now be more stable (albiet slower) 
+* Changed defaults so performance should now be more stable (albeit slower) 
   for the average user.
 
 * Improved the stability of bounding ellipsoids.

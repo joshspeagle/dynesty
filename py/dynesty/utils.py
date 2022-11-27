@@ -61,7 +61,7 @@ class LoglOutput:
     def __init__(self, v, blob_flag):
         """
         Initialize the object
-        
+
         Parameters
         ----------
         v: float or tuple
@@ -1991,7 +1991,6 @@ def _merge_two(res1, res2, compute_aux=False):
     ntot = nbase + nnew
     llmin_b = np.min(base_info['bounds'][base_info['batch']])
     llmin_n = np.min(new_info['bounds'][new_info['batch']])
-    logvol = 0.
     for i in range(ntot):
         if logl_b > llmin_n and logl_n > llmin_b:
             # If our samples from the both runs are past the each others'
@@ -2023,10 +2022,7 @@ def _merge_two(res1, res2, compute_aux=False):
         for curk in ['id', 'u', 'v', 'logl', 'nc', 'it', 'blob']:
             combined_info[curk].append(from_run[curk][add_idx])
 
-        # Save the number of live points and expected ln(volume).
-        logvol -= math.log((nlive + 1.) / nlive)
         combined_info['n'].append(nlive)
-        combined_info['logvol'].append(logvol)
 
         # Attempt to step along our samples. If we're out of samples,
         # set values to defaults.
@@ -2043,6 +2039,34 @@ def _merge_two(res1, res2, compute_aux=False):
             logl_n = np.inf
             nlive_n = 0
 
+    plateau_mode = False
+    plateau_counter = 0
+    nplateau = 0
+    plateau_dlogvol = 0
+    logvol = 0.
+    logl_array = np.array(combined_info['logl'])
+    nlive_array = np.array(combined_info['n'])
+    for i, nlive in enumerate(nlive_array):
+        # Save the number of live points and expected ln(volume).
+        curl = logl_array[i]
+        if not plateau_mode:
+            plateau_mask = (logl_array[i:] == curl)
+            nplateau = plateau_mask.sum()
+            if nplateau > 1:
+                # the number of live points should not change throughout
+                # the plateau
+                assert nlive_array[plateau_mask].ptp() == 0
+                plateau_counter = nplateau
+                plateau_dlogvol = logvol + np.log(1. / (nlive + 1))
+        if not plateau_mode:
+            logvol -= math.log((nlive + 1.) / nlive)
+        else:
+            logvol = logvol + np.log1p(-np.exp(plateau_dlogvol - logvol))
+        combined_info['logvol'].append(logvol)
+        if plateau_mode:
+            plateau_counter -= 1
+            if plateau_counter == 0:
+                plateau_mode = False
     # Compute sampling efficiency.
     eff = 100. * ntot / sum(combined_info['nc'])
 

@@ -1177,7 +1177,7 @@ class DynamicSampler:
 
             # Check whether the lower bound encompasses all previous saved
             # samples.
-            psel = np.all(logl_min <= saved_logl)
+            psel = np.all(logl_min < saved_logl)
             if psel:
                 # If the lower bound encompasses all saved samples, we want
                 # to propose a new set of points from the unit cube.
@@ -1533,7 +1533,6 @@ class DynamicSampler:
         # Iteratively walk through both set of samples to simulate
         # a combined run.
         ntot = nsaved + nnew
-        logvol = 0.
         for _ in range(ntot):
             if logl_s > self.new_logl_min:
                 # If our saved samples are past the lower log-likelihood
@@ -1564,12 +1563,7 @@ class DynamicSampler:
             ]:
                 add_info[k] = add_source[k][add_idx]
             self.saved_run.append(add_info)
-
-            # Save the number of live points and expected ln(volume).
-            logvol -= math.log((nlive + 1.) / nlive)
-
             self.saved_run['n'].append(nlive)
-            self.saved_run['logvol'].append(logvol)
 
             # Attempt to step along our samples. If we're out of samples,
             # set values to defaults.
@@ -1585,6 +1579,39 @@ class DynamicSampler:
             except IndexError:
                 logl_n = np.inf
                 nlive_n = 0
+
+        plateau_mode = False
+        plateau_counter = 0
+        plateau_logdvol = 0
+        logvol = 0.
+        logl_array = np.array(self.saved_run['logl'])
+        nlive_array = np.array(self.saved_run['n'])
+        for i, (curl, nlive) in enumerate(zip(logl_array, nlive_array)):
+            # Save the number of live points and expected ln(volume).
+            if (not plateau_mode and i != len(nlive_array) - 1
+                    and logl_array[i] == logl_array[i + 1]):
+                plateau_mask = (logl_array[i:] == curl)
+                nplateau = plateau_mask.sum()
+                if nplateau > 1:
+                    # the number of live points should not change throughout
+                    # the plateau
+                    # assert nlive_array[i:][plateau_mask].ptp() == 0
+                    # WARNING I assume that the number of live points is
+                    # constant throughout the plateau
+                    # that seems to fail sometimes so I had to comment the
+                    # assert out
+                    plateau_counter = nplateau
+                    plateau_logdvol = logvol + np.log(1. / (nlive + 1))
+                    plateau_mode = True
+            if not plateau_mode:
+                logvol -= math.log((nlive + 1.) / nlive)
+            else:
+                logvol = logvol + np.log1p(-np.exp(plateau_logdvol - logvol))
+            self.saved_run['logvol'].append(logvol)
+            if plateau_mode:
+                plateau_counter -= 1
+                if plateau_counter == 0:
+                    plateau_mode = False
         # ensure that we correctly merged
         assert self.saved_run['logl'][0] == min(new_d['logl'][0],
                                                 saved_d['logl'][0])

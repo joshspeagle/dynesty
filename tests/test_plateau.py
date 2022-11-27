@@ -36,15 +36,13 @@ def prior_transform(x):
     return (2 * x - 1) * S
 
 
-nlive = 1000
-
-
 # here are are trying to test different stages of plateau
 # probing with different dlogz's
 @pytest.mark.parametrize('sample,dlogz', [('unif', 1), ('rwalk', 1),
                                           ('rslice', 1), ('unif', .01),
                                           ('rwalk', .01), ('rslice', .01)])
 def test_static(sample, dlogz):
+    nlive = 1000
     rstate = get_rstate()
     sampler = dynesty.NestedSampler(loglike_inf,
                                     prior_transform,
@@ -54,6 +52,25 @@ def test_static(sample, dlogz):
                                     bound='none',
                                     sample=sample)
     sampler.run_nested(print_progress=printing, dlogz=dlogz)
+    res = sampler.results
+    THRESH = 3
+    assert np.abs(res.logz[-1] - LOGZ_TRUE) < THRESH * res.logzerr[-1]
+
+
+# here are are trying to test different stages of plateau
+# probing with different dlogz's
+@pytest.mark.parametrize('sample,', ['unif', 'rslice', 'rwalk'])
+def test_dynamic(sample):
+    rstate = get_rstate()
+    nlive = 100
+    sampler = dynesty.DynamicNestedSampler(loglike_inf,
+                                           prior_transform,
+                                           ndim,
+                                           nlive=nlive,
+                                           rstate=rstate,
+                                           bound='none',
+                                           sample=sample)
+    sampler.run_nested(print_progress=printing)
     res = sampler.results
     THRESH = 3
     assert np.abs(res.logz[-1] - LOGZ_TRUE) < THRESH * res.logzerr[-1]

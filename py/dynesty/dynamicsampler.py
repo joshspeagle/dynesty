@@ -156,13 +156,14 @@ def weight_function(results, args=None, return_weights=False):
     if bounds[1] > nsamps - 1:
         # overflow on the RHS, so we move the left side
         bounds = [bounds[0] - (bounds[1] - (nsamps - 1)), nsamps - 1]
-    if bounds[0] < 0:
+    if bounds[0] <= 0:
         # if we overflow on the leftside we set the edge to -inf and expand
         # the RHS
         logl_min = -np.inf
         logl_max = logl[min(bounds[1] - bounds[0], nsamps - 1)]
     else:
         logl_min, logl_max = logl[bounds[0]], logl[bounds[1]]
+
     if bounds[1] == nsamps - 1:
         logl_max = np.inf
     if return_weights:
@@ -1177,7 +1178,7 @@ class DynamicSampler:
 
             # Check whether the lower bound encompasses all previous saved
             # samples.
-            psel = np.all(logl_min < saved_logl)
+            psel = np.all(saved_logl > logl_min)
             if psel:
                 # If the lower bound encompasses all saved samples, we want
                 # to propose a new set of points from the unit cube.

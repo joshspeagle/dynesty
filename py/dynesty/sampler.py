@@ -437,12 +437,29 @@ class Sampler:
         # within the remaining volume so that the expected volume enclosed
         # by the `i`-th worst likelihood is
         # `e^(-N / nlive) * (nlive + 1 - i) / (nlive + 1)`.
-        logvols = np.log(1. - (np.arange(self.nlive) + 1.) / (self.nlive + 1.))
-
-        # Defining change in `logvol` used in `logzvar` approximation.
+        # The tricky bit here is what to do if we have a plateau that we
+        # haven't fully exhausted
+        # then we first use the old delta(V) till we are done with the plateau
+        if not self.plateau_mode:
+            logvols = np.log(1. - (np.arange(self.nlive) + 1.) /
+                             (self.nlive + 1.))
+            # Defining change in `logvol` used in `logzvar` approximation.
+        else:
+            # we first just use old delta(v)'s associated with each point
+            # in the plateau
+            logvols = np.log1p(-((1 + np.arange(self.plateau_counter)) *
+                                 np.exp(self.plateau_logdvol - logvol)))
+            # after we're done with it we just assign 1/(nrest+1) fraction of
+            # the remaining volume to each leftover point
+            nrest = self.nlive - self.plateau_counter
+            logvols = np.concatenate([
+                logvols,
+                logvols[-1] + np.log1p(-(1 + np.arange(nrest)) / (nrest + 1))
+            ])
+        # IMPORTANT in those caclulations I keep logvol separate
+        # and add it later to ensure the first dlv=0
         dlvs = -np.diff(logvols, prepend=0)
         logvols += logvol
-
         # Sorting remaining live points.
         lsort_idx = np.argsort(self.live_logl)
         loglmax = max(self.live_logl)
@@ -771,12 +788,16 @@ class Sampler:
                 if nplateau > 1:
                     plateau_mode = True
                     plateau_counter = nplateau
-                    plateau_dlogvol = np.log(1. / (self.nlive + 1)) + logvol
-            # Expected ln(volume) shrinkage.
+                    plateau_logdvol = np.log(1. / (self.nlive + 1)) + logvol
+                    # this is log (delta vol)
+
             if not plateau_mode:
-                logvol -= self.dlv
+                # Expected ln(volume) shrinkage.
+                cur_dlv = self.dlv
             else:
-                logvol = logvol + np.log1p(-np.exp(plateau_dlogvol - logvol))
+                cur_dlv = -np.log1p(-np.exp(plateau_logdvol - logvol))
+            assert cur_dlv > 0
+            logvol -= cur_dlv
 
             # Set our new worst likelihood constraint.
             # Notice we are doing copies here because live_u and live_v
@@ -802,7 +823,7 @@ class Sampler:
                 new_blob = None
             (logwt, logz, logzvar,
              h) = progress_integration(loglstar, loglstar_new, logz, logzvar,
-                                       logvol, self.dlv, h)
+                                       logvol, cur_dlv, h)
             loglstar = loglstar_new
 
             # Compute bound index at the current iteration.
@@ -864,6 +885,9 @@ class Sampler:
                                  bounditer=bounditer,
                                  eff=self.eff,
                                  delta_logz=delta_logz)
+            self.plateau_mode = plateau_mode
+            self.plateau_counter = plateau_counter
+            self.plateau_logdvol = plateau_logdvol
 
     def run_nested(self,
                    maxiter=None,

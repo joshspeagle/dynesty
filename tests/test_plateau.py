@@ -4,8 +4,6 @@ import scipy.special
 from utils import get_rstate, get_printing
 import pytest
 
-nlive = 1000
-
 S = 3
 R = 1
 
@@ -38,8 +36,15 @@ def prior_transform(x):
     return (2 * x - 1) * S
 
 
-@pytest.mark.parametrize('sample', ['unif', 'rwalk', 'rslice'])
-def test_static(sample):
+nlive = 1000
+
+
+# here are are trying to test different stages of plateau
+# probing with different dlogz's
+@pytest.mark.parametrize('sample,dlogz', [('unif', 1), ('rwalk', 1),
+                                          ('rslice', 1), ('unif', .01),
+                                          ('rwalk', .01), ('rslice', .01)])
+def test_static(sample, dlogz):
     rstate = get_rstate()
     sampler = dynesty.NestedSampler(loglike_inf,
                                     prior_transform,
@@ -48,7 +53,7 @@ def test_static(sample):
                                     rstate=rstate,
                                     bound='none',
                                     sample=sample)
-    sampler.run_nested(print_progress=printing)
+    sampler.run_nested(print_progress=printing, dlogz=dlogz)
     res = sampler.results
-    THRESH = 5
+    THRESH = 3
     assert np.abs(res.logz[-1] - LOGZ_TRUE) < THRESH * res.logzerr[-1]

@@ -1,5 +1,6 @@
 import numpy as np
 import dynesty
+import dynesty.utils as dyutil
 import scipy.special
 from utils import get_rstate, get_printing
 import pytest
@@ -72,5 +73,26 @@ def test_dynamic(sample):
                                            sample=sample)
     sampler.run_nested(print_progress=printing)
     res = sampler.results
+    THRESH = 3
+    assert np.abs(res.logz[-1] - LOGZ_TRUE) < THRESH * res.logzerr[-1]
+
+
+# here are are trying to test different stages of plateau
+# probing with different dlogz's
+def test_merge():
+    nlive = 100
+    rstate = get_rstate()
+    res_list = []
+    for i in range(3):
+        sampler = dynesty.NestedSampler(loglike_inf,
+                                        prior_transform,
+                                        ndim,
+                                        nlive=nlive,
+                                        rstate=rstate,
+                                        bound='none',
+                                        sample='unif')
+        sampler.run_nested(print_progress=printing)
+        res_list.append(sampler.results)
+    res = dyutil.merge_runs(res_list)
     THRESH = 3
     assert np.abs(res.logz[-1] - LOGZ_TRUE) < THRESH * res.logzerr[-1]

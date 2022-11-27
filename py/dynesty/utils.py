@@ -2045,16 +2045,17 @@ def _merge_two(res1, res2, compute_aux=False):
     logvol = 0.
     logl_array = np.array(combined_info['logl'])
     nlive_array = np.array(combined_info['n'])
-    for i, nlive in enumerate(nlive_array):
+    for i, (curl, nlive) in enumerate(zip(logl_array, nlive_array)):
         # Save the number of live points and expected ln(volume).
-        curl = logl_array[i]
         if not plateau_mode:
             plateau_mask = (logl_array[i:] == curl)
             nplateau = plateau_mask.sum()
             if nplateau > 1:
                 # the number of live points should not change throughout
                 # the plateau
-                assert nlive_array[plateau_mask].ptp() == 0
+                # assert nlive_array[i:][plateau_mask].ptp() == 0
+                # TODO currently I disabled this check
+
                 plateau_counter = nplateau
                 plateau_logdvol = logvol + np.log(1. / (nlive + 1))
                 plateau_mode = True

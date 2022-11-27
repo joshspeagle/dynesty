@@ -98,6 +98,14 @@ Changelog
 .. image:: ../images/logo.gif
     :align: center
 
+2.0.2 (2022-11-27)
+------------------
+Minor bug fix release
+
+- When checkpointing is on the dynamic sampler will always checkpoint in the end of the run_nested() irrespective of checkpoint_time ( by @segasai )
+- Equally weighted samples are now randomly shuffled ( #408 ; by @segasai )
+- The live_points option was somewhat broken when blob option was introduced requiring a tuple of 4 elements irrespective of whether your likelihood returns blobs or not. Now if you use blob=True and want to provide live_points you need to provide 4 elements (u,v,logl,blobs). If you use blob=False you will need to provide just 3 elements as before (u,v,logl) ( by @segasai) 
+
 2.0.1 (2022-10-17)
 ------------------
 Minor bug fix release
@@ -106,7 +114,7 @@ Minor bug fix release
 - Fix the non-working custom samplers (#401 , #402 ; by @ColmTalbot , @segasai)
 - Fix the broken resume when using dynesty pool (#403; by @segasai)
 
-	    
+
 2.0.0 (2022-10-06)
 ------------------
 This is a major release with several significant improvements contributed by Sergey Koposov

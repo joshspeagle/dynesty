@@ -717,6 +717,10 @@ class Sampler:
             # samples has been achieved.
             if (n_effective is not None) and not np.isposinf(n_effective):
                 current_n_effective = self.n_effective
+                # TODO This needs to be refactored
+                # here we are adding final live points then checking
+                # if n_effective is large enough then removing them again
+                # this is slow and not a good logic
                 if current_n_effective > n_effective:
                     if add_live:
                         self.add_final_live(print_progress=False)

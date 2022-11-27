@@ -444,7 +444,7 @@ initializing points) using the `use_pool` argument::
                             pool=pool, queue_size=16,
                             use_pool={'prior_transform': False})
 
-See :ref:`Pool Questions` on the :ref:`FAQ` page for additional troubleshooting
+See :ref:`Pool/Parallelization Questions` on the :ref:`FAQ` page for additional troubleshooting
 tips.
 
 Note that, as discussed in :ref:`Combining Runs`, it is actually possible to

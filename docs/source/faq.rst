@@ -446,7 +446,7 @@ to confidently determine that you aren't missing any
 hidden prior volume.
 
 Pool/Parallelization Questions
---------------
+------------------------------
 
 **My provided** `pool` **is crashing. What do I do?**
 

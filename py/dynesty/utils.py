@@ -2041,8 +2041,7 @@ def _merge_two(res1, res2, compute_aux=False):
 
     plateau_mode = False
     plateau_counter = 0
-    nplateau = 0
-    plateau_dlogvol = 0
+    plateau_logdvol = 0
     logvol = 0.
     logl_array = np.array(combined_info['logl'])
     nlive_array = np.array(combined_info['n'])
@@ -2057,11 +2056,12 @@ def _merge_two(res1, res2, compute_aux=False):
                 # the plateau
                 assert nlive_array[plateau_mask].ptp() == 0
                 plateau_counter = nplateau
-                plateau_dlogvol = logvol + np.log(1. / (nlive + 1))
+                plateau_logdvol = logvol + np.log(1. / (nlive + 1))
+                plateau_mode = True
         if not plateau_mode:
             logvol -= math.log((nlive + 1.) / nlive)
         else:
-            logvol = logvol + np.log1p(-np.exp(plateau_dlogvol - logvol))
+            logvol = logvol + np.log1p(-np.exp(plateau_logdvol - logvol))
         combined_info['logvol'].append(logvol)
         if plateau_mode:
             plateau_counter -= 1

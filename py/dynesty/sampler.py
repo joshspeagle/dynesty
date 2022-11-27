@@ -144,6 +144,10 @@ class Sampler:
         self.cite = ''  # Default empty
         self.save_samples = True
         self.save_bounds = True
+
+        self.plateau_mode = False
+        self.plateau_counter = None
+        self.plateau_logdvol = None
         # results
         self.saved_run = RunRecord()
 
@@ -208,6 +212,10 @@ class Sampler:
         self.bound = [UnitCube(self.ncdim)]
         self.nbound = 1
         self.added_live = False
+
+        self.plateau_mode = False
+        self.plateau_counter = None
+        self.plateau_logdvol = None
 
         # results
         self.saved_run = RunRecord()
@@ -702,8 +710,6 @@ class Sampler:
             delta_logz = np.logaddexp(0,
                                       np.max(self.live_logl) + logvol - logz)
 
-        plateau_mode = False
-        plateau_counter = 0
         nplateau = 0
         stop_iterations = False
         # The main nested sampling loop.
@@ -783,19 +789,20 @@ class Sampler:
             worst_it = self.live_it[worst]  # when point was proposed
             boundidx = self.live_bound[worst]  # associated bound index
 
-            if not plateau_mode:
+            if not self.plateau_mode:
                 nplateau = (self.live_logl == self.live_logl[worst]).sum()
                 if nplateau > 1:
-                    plateau_mode = True
-                    plateau_counter = nplateau
-                    plateau_logdvol = np.log(1. / (self.nlive + 1)) + logvol
+                    self.plateau_mode = True
+                    self.plateau_counter = nplateau
+                    self.plateau_logdvol = np.log(1. /
+                                                  (self.nlive + 1)) + logvol
                     # this is log (delta vol)
 
-            if not plateau_mode:
+            if not self.plateau_mode:
                 # Expected ln(volume) shrinkage.
                 cur_dlv = self.dlv
             else:
-                cur_dlv = -np.log1p(-np.exp(plateau_logdvol - logvol))
+                cur_dlv = -np.log1p(-np.exp(self.plateau_logdvol - logvol))
             assert cur_dlv > 0
             logvol -= cur_dlv
 
@@ -864,10 +871,10 @@ class Sampler:
             # Increment total number of iterations.
             self.it += 1
 
-            if plateau_mode:
-                plateau_counter -= 1
-                if plateau_counter == 0:
-                    plateau_mode = False
+            if self.plateau_mode:
+                self.plateau_counter -= 1
+                if self.plateau_counter == 0:
+                    self.plateau_mode = False
             # Return dead point and ancillary quantities.
             yield IteratorResult(worst=worst,
                                  ustar=ustar,
@@ -885,9 +892,6 @@ class Sampler:
                                  bounditer=bounditer,
                                  eff=self.eff,
                                  delta_logz=delta_logz)
-            self.plateau_mode = plateau_mode
-            self.plateau_counter = plateau_counter
-            self.plateau_logdvol = plateau_logdvol
 
     def run_nested(self,
                    maxiter=None,

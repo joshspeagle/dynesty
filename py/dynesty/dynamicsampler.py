@@ -1354,7 +1354,6 @@ class DynamicSampler:
             batch_sampler.live_bound = live_bound
             batch_sampler.live_blobs = live_blobs
             batch_sampler.live_it = live_it
-            batch_sampler.it = self.it + 1
             # Trigger an update of the internal bounding distribution (again).
             if not psel:
                 bound = batch_sampler.update()

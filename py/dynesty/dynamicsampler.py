@@ -1062,6 +1062,14 @@ class DynamicSampler:
         resume: bool
             If true we are resuming from a previous run
 
+        update_interval: integer
+            How often to update bounds
+
+        logl_bounds: tuple
+            Tuple of bounds in loglikelihood for the batch
+
+        save_bounds: bool
+            If true bounds will be preserved
 
         Returns tuple of
         batch_sampler: Sampler

@@ -507,9 +507,46 @@ def test_maxiter_batch():
             b1 = np.where(~np.isfinite(dres2.batch_bounds[:, 0]))[0][1]
             maxiter = np.min(
                 np.array(dsampler2.saved_run['it'])[
-                    dsampler2.saved_run['batch'] == b1]) - nlive // 2
-            # TODO this is needs to be checked, I had to change the maxiter
-            # here to subtract nlive//2
+                    dsampler2.saved_run['batch'] == b1]) + nlive // 2
+
+
+def test_verify_batch():
+    """
+    These are some of the checks of dynamic runs
+    to validate the results
+    TODO I need to add more checks
+    """
+
+    L = Like2()
+    nlive = 50
+    dnss = []
+    for i in range(2):
+        if i == 0:
+            maxbatch = 0
+        else:
+            maxbatch = 1
+
+        rstate = get_rstate()
+        dsampler = dynesty.DynamicNestedSampler(L.loglikelihood,
+                                                L.prior_transform,
+                                                nlive=nlive,
+                                                ndim=L.ndim,
+                                                bound='single',
+                                                sample='unif',
+                                                rstate=rstate)
+
+        dsampler.run_nested(maxbatch=maxbatch)
+        dnss.append(dsampler)
+
+    d0, d1 = dnss
+    assert d1.results['samples_batch'].max() == 1
+    # check we record batches correctly
+
+    assert d1.results['samples_it'][d1.results['samples_batch'] ==
+                                    1].min() > d0.results['samples_it'].max()
+    # checke that the iterations are set correctly
+    assert d1.ncall > d0.ncall
+    assert len(d1.results.batch_bounds) > len(d0.results.batch_bounds)
 
 
 @pytest.mark.parametrize('dynamic', [False, True])
@@ -541,7 +578,6 @@ def test_ncall(dynamic):
                                      rstate=rstate)
         samp.run_nested()
 
-    res = samp.results
     assert samp.ncall == L.ncall
 
 

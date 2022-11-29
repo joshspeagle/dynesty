@@ -40,6 +40,14 @@ LOGZ_TRUTH_GAU = 0
 LOGZ_TRUTH_EGG = 235.856
 
 
+def terminator(pool):
+    # Because of https://github.com/nedbat/coveragepy/issues/1310
+    # I have to close join and can't fully rely on contexts that
+    # do send SIGTERMS
+    pool.close()
+    pool.join()
+
+
 def test_pool():
     # test pool on egg problem
     rstate = get_rstate()
@@ -57,6 +65,7 @@ def test_pool():
 
         assert (abs(LOGZ_TRUTH_EGG - sampler.results['logz'][-1]) <
                 5. * sampler.results['logzerr'][-1])
+        terminator(pool)
 
 
 def test_pool_x():
@@ -74,6 +83,7 @@ def test_pool_x():
 
         assert (abs(LOGZ_TRUTH_EGG - sampler.results['logz'][-1]) <
                 5. * sampler.results['logzerr'][-1])
+        terminator(pool)
 
 
 def test_pool_dynamic():
@@ -93,6 +103,7 @@ def test_pool_dynamic():
 
         assert (abs(LOGZ_TRUTH_GAU - sampler.results['logz'][-1]) <
                 5. * sampler.results['logzerr'][-1])
+        terminator(pool)
 
 
 def loglike_gau_args(x, y, z=None):
@@ -129,8 +140,7 @@ def test_pool_args():
                 5. * sampler.results['logzerr'][-1])
 
         # to ensure we get coverage
-        pool.close()
-        pool.join()
+        terminator(pool)
 
 
 @pytest.mark.parametrize('sample', ['slice', 'rwalk', 'rslice'])
@@ -150,6 +160,7 @@ def test_pool_samplers(sample):
         sampler.run_nested(print_progress=printing)
         assert (abs(LOGZ_TRUTH_GAU - sampler.results['logz'][-1]) <
                 5. * sampler.results['logzerr'][-1])
+        terminator(pool)
 
 
 POOL_KW = ['prior_transform', 'loglikelihood', 'propose_point', 'update_bound']
@@ -174,3 +185,4 @@ def test_usepool(func):
                                                pool=pool,
                                                queue_size=100)
         sampler.run_nested(maxiter=10000, print_progress=printing)
+        terminator(pool)

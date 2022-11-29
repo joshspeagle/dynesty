@@ -1471,12 +1471,13 @@ class DynamicSampler:
             # Reset "new" results.
             self.new_run = RunRecord(dynamic=True)
             self.ncall += ncall
-
-        # The tricky thing here is that we have here two sets of iterations.
-        # We have iterations of the batch_sampler and a parent
-        # sampler and we need to make sure we translate one to another
-
-        it0 = self.it  # TODO check what to do for resume
+            batch_sampler.it0 = self.it
+            it0 = self.it
+            # The tricky thing here is that we have here two sets of iterations.
+            # We have iterations of the batch_sampler and a parent
+            # sampler and we need to make sure we translate one to another
+        else:
+            it0 = batch_sampler.it0
 
         for i in range(len(first_points)):
             yield first_points.pop(0)

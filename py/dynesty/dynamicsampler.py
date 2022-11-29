@@ -575,9 +575,10 @@ class DynamicSampler:
 
         self.saved_run = RunRecord(dynamic=True)
         self.base_run = RunRecord(dynamic=True)
-        self.new_run = RunRecord(dynamic=True)
+        self.new_run = None
 
-        self.new_logl_min, self.new_logl_max = -np.inf, np.inf  # logl bounds
+        self.new_logl_min, self.new_logl_max = -np.inf, np.inf
+        # logl bounds of latest "new" run
 
         # these are set-up during sampling
         self.live_u = None
@@ -667,7 +668,7 @@ class DynamicSampler:
 
         self.saved_run = RunRecord(dynamic=True)
         self.base_run = RunRecord(dynamic=True)
-        self.new_run = RunRecord(dynamic=True)
+        self.new_run = None
         self.new_logl_min, self.new_logl_max = -np.inf, np.inf
 
     @property
@@ -1061,12 +1062,32 @@ class DynamicSampler:
         resume: bool 
             If true we are resuming from a previous run
         
+
+        Returns tuple of 
+        batch_sampler: Sampler
+        first_points: list of IteratorResultShort
+        ncalls: integer
+        niter: integer
+        logl_min: float
+        logl_max: float
         """
 
+        # Things to consider in this method
+        # Because we are not yielding samples from this method directly, we
+        # are not expecting that the .save() will save a state
+        # before or in the middle of running this method
+
+        # This methods updates the following global attributes
+        # .batch_sampler
+        # .new_logl_min/max
+        # .ncall (currently) is that correct ?
+        # .bound (currently ) is that correct ?
+
+        # Counters of calls and iterations throughout.
         ncalls = 0
         niter = 0
-        nblive = self.nlive_init
-        ncalls = 0
+        nblive = self.nlive_init  # this is number of base livepoints
+
         if not resume:
             # Grab results from saved run.
             saved_u = np.array(self.saved_run['u'])
@@ -1095,17 +1116,14 @@ class DynamicSampler:
                                                      ncdim=self.ncdim,
                                                      kwargs=self.kwargs,
                                                      blob=self.blob)
-            self.batch_sampler = batch_sampler
             batch_sampler.save_bounds = save_bounds
-            # Reset "new" results.
-            self.new_run = RunRecord(dynamic=True)
 
             # Initialize ln(likelihood) bounds.
             if logl_bounds is None:
                 logl_min, logl_max = -np.inf, max(saved_logl[:-nblive])
             else:
                 logl_min, logl_max = logl_bounds
-            self.new_logl_min, self.new_logl_max = logl_min, logl_max
+            # IMPORTANT we update these in the process
 
             # Check whether the lower bound encompasses all previous saved
             # samples.
@@ -1128,7 +1146,10 @@ class DynamicSampler:
                 live_bound = np.zeros(nlive_new, dtype=int)
                 live_it = np.zeros(nlive_new, dtype=int) + self.it
                 live_nc = np.ones(nlive_new, dtype=int)
+
+                # TODO should this be here  ? or is this double counting
                 self.ncall += nlive_new
+
                 # Return live points in generator format.
                 for i in range(nlive_new):
                     if self.blob:
@@ -1177,7 +1198,6 @@ class DynamicSampler:
                     # otherwise some of our live points do not satisfy it
 
                     logl_min = saved_logl[subset0[0]]
-                    self.new_logl_min = logl_min
 
                 live_scale = saved_scale[subset0[0]]
                 # set the scale based on the lowest point
@@ -1261,7 +1281,10 @@ class DynamicSampler:
                     else:
                         blob = None
                     live_it[i] = self.it
+
+                    # should this be here ?
                     self.ncall += live_nc[i]
+
                     # Return live points in generator format.
                     first_points.append(
                         IteratorResultShort(worst=-i - 1,
@@ -1298,16 +1321,15 @@ class DynamicSampler:
                 batch_sampler.logl_first_update = logl_min
 
             # Copy over bound reference.
+            # TODO Is this correct ?
             self.bound = batch_sampler.bound
 
             # Update internal ln(prior volume)-based quantities
-            if self.new_logl_min == -np.inf:
+            if logl_min == -np.inf:
                 vol_idx = 0
             else:
                 vol_idx = np.argmin(
-                    np.abs(
-                        np.asarray(self.saved_run['logl']) -
-                        self.new_logl_min)) + 1
+                    np.abs(np.asarray(self.saved_run['logl']) - logl_min)) + 1
 
             # truncate information in the saver of the internal sampler
             for k in batch_sampler.saved_run.keys():
@@ -1323,6 +1345,8 @@ class DynamicSampler:
             batch_sampler.first_points = first_points
             # We save these points in the object to ensure we can
             # resume from an interrupted run
+            self.new_logl_min, self.new_logl_max = logl_min, logl_max
+            self.batch_sampler = batch_sampler
         else:
             batch_sampler = self.batch_sampler
             logl_min, logl_max = self.new_logl_min, self.new_logl_max
@@ -1429,6 +1453,10 @@ class DynamicSampler:
                                                    resume=resume,
                                                    logl_bounds=logl_bounds,
                                                    save_bounds=save_bounds)
+        if not resume:
+            # Reset "new" results.
+            self.new_run = RunRecord(dynamic=True)
+
         for i in range(len(first_points)):
             yield first_points.pop(0)
         maxcall_left = maxcall - ncalls

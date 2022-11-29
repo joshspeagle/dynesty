@@ -463,8 +463,10 @@ class Like2:
         self.Cinv2 = linalg.inv(self.C2)
         self.lnorm2 = -0.5 * (np.log(2 * np.pi) * self.ndim +
                               np.log(linalg.det(self.C2)))
+        self.ncall = 0
 
     def loglikelihood(self, x):
+        self.ncall += 1
         """Multivariate normal log-likelihood."""
         return -0.5 * np.dot(x, np.dot(self.Cinv2, x)) + self.lnorm2
 
@@ -506,8 +508,41 @@ def test_maxiter_batch():
             maxiter = np.min(
                 np.array(dsampler2.saved_run['it'])[
                     dsampler2.saved_run['batch'] == b1]) - nlive // 2
-            # TODO this is needs to be checked, I had to change the maxiter here
-            # to subtract nlive//2
+            # TODO this is needs to be checked, I had to change the maxiter
+            # here to subtract nlive//2
+
+
+@pytest.mark.parametrize('dynamic', [False, True])
+def test_ncall(dynamic):
+    """
+    This is the test that the ncall is matching the actual number of f-n
+    evaluations
+    """
+
+    L = Like2()
+    nlive = 50
+    rstate = get_rstate()
+    if dynamic:
+        samp = dynesty.DynamicNestedSampler(L.loglikelihood,
+                                            L.prior_transform,
+                                            nlive=nlive,
+                                            ndim=L.ndim,
+                                            bound='single',
+                                            sample='unif',
+                                            rstate=rstate)
+        samp.run_nested(maxbatch=1)
+    else:
+        samp = dynesty.NestedSampler(L.loglikelihood,
+                                     L.prior_transform,
+                                     nlive=nlive,
+                                     ndim=L.ndim,
+                                     bound='single',
+                                     sample='unif',
+                                     rstate=rstate)
+        samp.run_nested()
+
+    res = samp.results
+    assert samp.ncall == L.ncall
 
 
 def test_quantile():

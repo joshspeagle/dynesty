@@ -482,21 +482,25 @@ class Sampler:
             # Save results.
             if self.save_samples:
                 self.saved_run.append(
-                    dict(id=idx,
-                         u=ustar,
-                         v=vstar,
-                         logl=loglstar,
-                         logvol=logvol,
-                         logwt=logwt,
-                         logz=logz,
-                         logzvar=logzvar,
-                         h=h,
-                         nc=1,
-                         boundidx=boundidx,
-                         it=point_it,
-                         bounditer=bounditer,
-                         scale=self.scale,
-                         blob=old_blob))
+                    dict(
+                        id=idx,
+                        u=ustar,
+                        v=vstar,
+                        logl=loglstar,
+                        logvol=logvol,
+                        logwt=logwt,
+                        logz=logz,
+                        logzvar=logzvar,
+                        h=h,
+                        nc=1,  # this is technically a lie
+                        # as we didn't call the likelihood even once
+                        # however because we lose track of ncs if we start from points
+                        # that are not sampled from unit cube it can lead to sum(nc)!=ncall
+                        boundidx=boundidx,
+                        it=point_it,
+                        bounditer=bounditer,
+                        scale=self.scale,
+                        blob=old_blob))
             self.eff = 100. * (self.it + i) / self.ncall  # efficiency
 
             # Return our new "dead" point and ancillary quantities.

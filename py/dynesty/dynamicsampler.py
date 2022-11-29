@@ -1066,7 +1066,7 @@ class DynamicSampler:
         Returns tuple of 
         batch_sampler: Sampler
         first_points: list of IteratorResultShort
-        ncalls: integer
+        ncall: integer
         niter: integer
         logl_min: float
         logl_max: float
@@ -1080,11 +1080,10 @@ class DynamicSampler:
         # This methods updates the following global attributes
         # .batch_sampler
         # .new_logl_min/max
-        # .ncall (currently) is that correct ?
         # .bound (currently ) is that correct ?
 
         # Counters of calls and iterations throughout.
-        ncalls = 0
+        ncall = 0
         niter = 0
 
         if not resume:
@@ -1146,11 +1145,10 @@ class DynamicSampler:
                      use_pool_ptform=self.use_pool_ptform)
 
                 live_bound = np.zeros(nlive_new, dtype=int)
-                live_it = np.zeros(nlive_new, dtype=int) + self.it
+                live_it = np.zeros(nlive_new, dtype=int)
                 live_nc = np.ones(nlive_new, dtype=int)
 
-                # TODO should this be here  ? or is this double counting
-                self.ncall += nlive_new
+                ncall += nlive_new
 
                 # Return live points in generator format.
                 for i in range(nlive_new):
@@ -1166,7 +1164,7 @@ class DynamicSampler:
                                             vstar=live_v[i],
                                             loglstar=live_logl[i],
                                             nc=1,
-                                            worst_it=live_it[i],
+                                            worst_it=live_it[i] + self.it,
                                             blob=curblob,
                                             boundidx=0,
                                             bounditer=0,
@@ -1267,8 +1265,8 @@ class DynamicSampler:
                 live_v = np.empty((nlive_new, saved_v.shape[1]))
                 live_logl = np.empty(nlive_new)
                 live_bound = np.zeros(nlive_new, dtype=int)
+                live_it = np.zeros(nlive_new, dtype=int)
 
-                live_it = np.empty(nlive_new, dtype=int)
                 live_nc = np.empty(nlive_new, dtype=int)
                 if self.blob:
                     live_blobs = []
@@ -1285,10 +1283,8 @@ class DynamicSampler:
                         live_blobs.append(blob)
                     else:
                         blob = None
-                    live_it[i] = self.it
 
-                    # should this be here ?
-                    self.ncall += live_nc[i]
+                    ncall += live_nc[i]
 
                     # Return live points in generator format.
                     first_points.append(
@@ -1298,7 +1294,7 @@ class DynamicSampler:
                                             loglstar=live_logl[i],
                                             blob=blob,
                                             nc=live_nc[i],
-                                            worst_it=live_it[i],
+                                            worst_it=live_it[i] + self.it,
                                             boundidx=live_bound[i],
                                             bounditer=live_bound[i],
                                             eff=self.eff))
@@ -1356,7 +1352,7 @@ class DynamicSampler:
             batch_sampler = self.batch_sampler
             logl_min, logl_max = self.new_logl_min, self.new_logl_max
             first_points = batch_sampler.first_points
-        return batch_sampler, first_points, ncalls, niter, logl_min, logl_max
+        return batch_sampler, first_points, ncall, niter, logl_min, logl_max
 
     def sample_batch(self,
                      dlogz=0.01,
@@ -1452,7 +1448,7 @@ class DynamicSampler:
         if nlive_new <= 2 * self.ncdim:
             warnings.warn("Beware: `nlive_batch <= 2 * ndim`!")
 
-        (batch_sampler, first_points, ncalls, niter, logl_min,
+        (batch_sampler, first_points, ncall, niter, logl_min,
          logl_max) = self._configure_batch_sampler(nlive_new,
                                                    update_interval,
                                                    resume=resume,
@@ -1461,12 +1457,18 @@ class DynamicSampler:
         if not resume:
             # Reset "new" results.
             self.new_run = RunRecord(dynamic=True)
+            self.ncall += ncall
 
+        # The tricky thing here is that we have here two sets of iterations.
+        # We have iterations of the batch_sampler and a parent
+        # sampler and we need to make sure we translate one to another
+        it0 = self.it  # TODO check what to do for resume
         for i in range(len(first_points)):
+            self.it += 1
             yield first_points.pop(0)
-        maxcall_left = maxcall - ncalls
-        maxiter_left = maxiter - niter
 
+        maxcall_left = maxcall - ncall
+        maxiter_left = maxiter - niter
         iterated_batch = False
         # To identify if the loop below was executed or not
         for it, results in enumerate(
@@ -1483,14 +1485,13 @@ class DynamicSampler:
                      v=results.vstar,
                      logl=results.loglstar,
                      nc=results.nc,
-                     it=results.worst_it,
+                     it=results.worst_it + it0,
                      blob=results.blob,
                      n=nlive_new,
                      boundidx=results.boundidx,
                      bounditer=results.bounditer,
                      scale=batch_sampler.scale)
             self.new_run.append(D)
-
             # Increment relevant counters.
             self.ncall += results.nc
             self.eff = 100. * self.it / self.ncall
@@ -1506,7 +1507,7 @@ class DynamicSampler:
                                       loglstar=results.loglstar,
                                       nc=results.nc,
                                       blob=results.blob,
-                                      worst_it=results.worst_it,
+                                      worst_it=results.worst_it + it0,
                                       boundidx=results.boundidx,
                                       bounditer=results.bounditer,
                                       eff=self.eff)
@@ -1532,7 +1533,7 @@ class DynamicSampler:
                      v=results.vstar,
                      logl=results.loglstar,
                      nc=results.nc,
-                     it=results.worst_it,
+                     it=results.worst_it + it0,
                      n=nlive_new - it,
                      blob=results.blob,
                      boundidx=results.boundidx,
@@ -1548,7 +1549,7 @@ class DynamicSampler:
                                       vstar=results.vstar,
                                       loglstar=results.loglstar,
                                       nc=results.nc,
-                                      worst_it=results.worst_it,
+                                      worst_it=results.worst_it + it0,
                                       blob=results.blob,
                                       boundidx=results.boundidx,
                                       bounditer=results.bounditer,

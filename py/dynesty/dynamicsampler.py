@@ -1040,113 +1040,45 @@ class DynamicSampler:
             (-np.inf, np.inf))  # initial bounds
         self.internal_state = DynamicSamplerStatesEnum.BASE_DONE
 
-    def sample_batch(self,
-                     dlogz=0.01,
-                     nlive_new=None,
-                     update_interval=None,
-                     logl_bounds=None,
-                     maxiter=None,
-                     maxcall=None,
-                     save_bounds=True,
-                     resume=False):
+    def _configure_batch_sampler(self,
+                                 nlive_new,
+                                 update_interval,
+                                 resume=False,
+                                 logl_bounds=None,
+                                 save_bounds=None):
         """
-        Generate an additional series of nested samples that will be combined
-        with the previous set of dead points. Works by hacking the internal
-        `sampler` object.
-        Instantiates a generator that will be called by the user.
+        This is a utility method that construct a new internal 
+        sampler that will sample one batch. 
+        Since the setting up requires us coming up with a set of 
+        of starting live points we also prepare the first list points
+        that will be yielded by the "master" sampler.
 
         Parameters
         ----------
-        nlive_new : int
-            Number of new live points to be added. Default is `500`.
+        nlive_new: integer
+            The number of live-points in the new sampler
 
-        update_interval : int or float, optional
-            If an integer is passed, only update the bounding distribution
-            every `update_interval`-th likelihood call. If a float is passed,
-            update the bound after every `round(update_interval * nlive)`-th
-            likelihood call. Larger update intervals can be more efficient
-            when the likelihood function is quick to evaluate. If no value is
-            provided, defaults to the value passed during initialization.
-
-        logl_bounds : tuple of size (2,), optional
-            The ln(likelihood) bounds used to bracket the run. If `None`,
-            the default bounds span the entire range covered by the
-            original run.
-
-        maxiter : int, optional
-            Maximum number of iterations. Iteration may stop earlier if the
-            termination condition is reached. Default is `sys.maxsize`
-            (no limit).
-
-        maxcall : int, optional
-            Maximum number of likelihood evaluations. Iteration may stop
-            earlier if termination condition is reached. Default is
-            `sys.maxsize` (no limit).
-
-        save_bounds : bool, optional
-            Whether or not to save past distributions used to bound
-            the live points internally. Default is `True`.
-
-        dlogz : float, optional
-            The stopping point in terms of remaining delta(logz)
-
-        Returns
-        -------
-        worst : int
-            Index of the live point with the worst likelihood. This is our
-            new dead point sample. **Negative values indicate the index
-            of a new live point generated when initializing a new batch.**
-
-        ustar : `~numpy.ndarray` with shape (npdim,)
-            Position of the sample.
-
-        vstar : `~numpy.ndarray` with shape (ndim,)
-            Transformed position of the sample.
-
-        loglstar : float
-            Ln(likelihood) of the sample.
-
-        nc : int
-            Number of likelihood calls performed before the new
-            live point was accepted.
-
-        worst_it : int
-            Iteration when the live (now dead) point was originally proposed.
-
-        boundidx : int
-            Index of the bound the dead point was originally drawn from.
-
-        bounditer : int
-            Index of the bound being used at the current iteration.
-
-        eff : float
-            The cumulative sampling efficiency (in percent).
-
+        resume: bool 
+            If true we are resuming from a previous run
+        
         """
 
-        # Initialize default values.
-        maxcall = maxcall or sys.maxsize
-        maxiter = maxiter or sys.maxsize
-
-        maxiter_left = maxiter  # how many iterations we have left
-        nlive_new = nlive_new or self.nlive0
-
-        if nlive_new <= 2 * self.ncdim:
-            warnings.warn("Beware: `nlive_batch <= 2 * ndim`!")
-
-        # Grab results from saved run.
-        saved_u = np.array(self.saved_run['u'])
-        saved_v = np.array(self.saved_run['v'])
-        saved_logl = np.array(self.saved_run['logl'])
-        saved_logvol = np.array(self.saved_run['logvol'])
-        saved_scale = np.array(self.saved_run['scale'])
-        saved_blobs = np.array(self.saved_run['blob'])
+        ncalls = 0
+        niter = 0
         nblive = self.nlive_init
-
-        update_interval = self.__get_update_interval(update_interval,
-                                                     nlive_new)
+        ncalls = 0
         if not resume:
+            # Grab results from saved run.
+            saved_u = np.array(self.saved_run['u'])
+            saved_v = np.array(self.saved_run['v'])
+            saved_logl = np.array(self.saved_run['logl'])
+            saved_logvol = np.array(self.saved_run['logvol'])
+            saved_scale = np.array(self.saved_run['scale'])
+            saved_blobs = np.array(self.saved_run['blob'])
             first_points = []
+            update_interval = self.__get_update_interval(
+                update_interval, nlive_new)
+
             # This will be a list of first points yielded from
             # this batch before we start proper sampling
             batch_sampler = _SAMPLERS[self.bounding](self.loglikelihood,
@@ -1306,8 +1238,6 @@ class DynamicSampler:
                 batch_sampler.nbound += 1
                 batch_sampler.since_update = 0
                 batch_sampler.logl_first_update = logl_min
-                # Sample a new batch of `nlive_new` live points using the
-                # internal sampler given the `logl_min` constraint.
                 live_u = np.empty((nlive_new, self.npdim))
                 live_v = np.empty((nlive_new, saved_v.shape[1]))
                 live_logl = np.empty(nlive_new)
@@ -1319,6 +1249,9 @@ class DynamicSampler:
                     live_blobs = []
                 else:
                     live_blobs = None
+
+                # Sample a new batch of `nlive_new` live points using the
+                # internal sampler given the `logl_min` constraint.
                 for i in range(nlive_new):
                     newpt = batch_sampler._new_point(logl_min)
                     (live_u[i], live_v[i], live_logl[i], live_nc[i]) = newpt
@@ -1341,7 +1274,7 @@ class DynamicSampler:
                                             boundidx=live_bound[i],
                                             bounditer=live_bound[i],
                                             eff=self.eff))
-            maxiter_left -= nlive_new
+            niter += nlive_new
             # Overwrite the previous set of live points in our internal sampler
             # with the new batch of points we just generated.
             batch_sampler.nlive = nlive_new
@@ -1354,7 +1287,8 @@ class DynamicSampler:
             batch_sampler.live_bound = live_bound
             batch_sampler.live_blobs = live_blobs
             batch_sampler.live_it = live_it
-            # Trigger an update of the internal bounding distribution (again).
+
+            # Trigger an update of the internal bounding distribution
             if not psel:
                 bound = batch_sampler.update()
                 if save_bounds:
@@ -1386,26 +1320,122 @@ class DynamicSampler:
             # garbage anyways.
             batch_sampler.added_live = False
 
-            # Run the sampler internally as a generator until we hit
-            # the lower likelihood threshold. Afterwards, we add in our
-            # remaining live points *as if* we had terminated the run.
-            # This allows us to
-            # sample past the original bounds "for free".
             batch_sampler.first_points = first_points
             # We save these points in the object to ensure we can
             # resume from an interrupted run
         else:
             batch_sampler = self.batch_sampler
             logl_min, logl_max = self.new_logl_min, self.new_logl_max
-            live_nc = np.zeros(nlive_new, dtype=int)
             first_points = batch_sampler.first_points
-            # TODO FIX whether live_nc should be restored
+        return batch_sampler, first_points, ncalls, niter, logl_min, logl_max
+
+    def sample_batch(self,
+                     dlogz=0.01,
+                     nlive_new=None,
+                     update_interval=None,
+                     logl_bounds=None,
+                     maxiter=None,
+                     maxcall=None,
+                     save_bounds=True,
+                     resume=False):
+        """
+        Generate an additional series of nested samples that will be combined
+        with the previous set of dead points. Works by hacking the internal
+        `sampler` object.
+        Instantiates a generator that will be called by the user.
+
+        Parameters
+        ----------
+        nlive_new : int
+            Number of new live points to be added. Default is `500`.
+
+        update_interval : int or float, optional
+            If an integer is passed, only update the bounding distribution
+            every `update_interval`-th likelihood call. If a float is passed,
+            update the bound after every `round(update_interval * nlive)`-th
+            likelihood call. Larger update intervals can be more efficient
+            when the likelihood function is quick to evaluate. If no value is
+            provided, defaults to the value passed during initialization.
+
+        logl_bounds : tuple of size (2,), optional
+            The ln(likelihood) bounds used to bracket the run. If `None`,
+            the default bounds span the entire range covered by the
+            original run.
+
+        maxiter : int, optional
+            Maximum number of iterations. Iteration may stop earlier if the
+            termination condition is reached. Default is `sys.maxsize`
+            (no limit).
+
+        maxcall : int, optional
+            Maximum number of likelihood evaluations. Iteration may stop
+            earlier if termination condition is reached. Default is
+            `sys.maxsize` (no limit).
+
+        save_bounds : bool, optional
+            Whether or not to save past distributions used to bound
+            the live points internally. Default is `True`.
+
+        dlogz : float, optional
+            The stopping point in terms of remaining delta(logz)
+
+        Returns
+        -------
+        worst : int
+            Index of the live point with the worst likelihood. This is our
+            new dead point sample. **Negative values indicate the index
+            of a new live point generated when initializing a new batch.**
+
+        ustar : `~numpy.ndarray` with shape (npdim,)
+            Position of the sample.
+
+        vstar : `~numpy.ndarray` with shape (ndim,)
+            Transformed position of the sample.
+
+        loglstar : float
+            Ln(likelihood) of the sample.
+
+        nc : int
+            Number of likelihood calls performed before the new
+            live point was accepted.
+
+        worst_it : int
+            Iteration when the live (now dead) point was originally proposed.
+
+        boundidx : int
+            Index of the bound the dead point was originally drawn from.
+
+        bounditer : int
+            Index of the bound being used at the current iteration.
+
+        eff : float
+            The cumulative sampling efficiency (in percent).
+
+        """
+
+        # Initialize default values.
+        maxcall = maxcall or sys.maxsize
+        maxiter = maxiter or sys.maxsize
+
+        maxiter_left = maxiter  # how many iterations we have left
+        nlive_new = nlive_new or self.nlive0
+
+        if nlive_new <= 2 * self.ncdim:
+            warnings.warn("Beware: `nlive_batch <= 2 * ndim`!")
+
+        (batch_sampler, first_points, ncalls, niter, logl_min,
+         logl_max) = self._configure_batch_sampler(nlive_new,
+                                                   update_interval,
+                                                   resume=resume,
+                                                   logl_bounds=logl_bounds,
+                                                   save_bounds=save_bounds)
         for i in range(len(first_points)):
             yield first_points.pop(0)
+        maxcall_left = maxcall - ncalls
+        maxiter_left = maxiter - niter
 
         iterated_batch = False
         # To identify if the loop below was executed or not
-        maxcall_left = maxcall - np.sum(live_nc)
         for it, results in enumerate(
                 batch_sampler.sample(dlogz=dlogz,
                                      logl_max=logl_max,
@@ -1468,7 +1498,7 @@ class DynamicSampler:
                      u=results.ustar,
                      v=results.vstar,
                      logl=results.loglstar,
-                     nc=live_nc[results.worst],
+                     nc=results.nc,
                      it=results.worst_it,
                      n=nlive_new - it,
                      blob=results.blob,
@@ -1484,7 +1514,7 @@ class DynamicSampler:
                                       ustar=results.ustar,
                                       vstar=results.vstar,
                                       loglstar=results.loglstar,
-                                      nc=live_nc[results.worst],
+                                      nc=results.nc,
                                       worst_it=results.worst_it,
                                       blob=results.blob,
                                       boundidx=results.boundidx,

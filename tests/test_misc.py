@@ -510,6 +510,66 @@ def test_maxiter_batch():
                     dsampler2.saved_run['batch'] == b1]) + nlive // 2
 
 
+def test_performance_batch():
+    """
+    This tests the situation when maxiter runs out before the batch has
+    time to start
+    See #415
+    """
+
+    L = Like2()
+    nlive = 50
+    rstate = get_rstate()
+    dsampler2 = dynesty.DynamicNestedSampler(L.loglikelihood,
+                                             L.prior_transform,
+                                             nlive=nlive,
+                                             ndim=L.ndim,
+                                             bound='single',
+                                             sample='unif',
+                                             rstate=rstate)
+
+    dsampler2.run_nested(maxbatch=0)
+    dts = []
+    for i in range(20):
+        t1 = dsampler2.ncall
+        dsampler2.add_batch(nlive=nlive, mode='full')
+        t2 = dsampler2.ncall
+        dts.append(t2 - t1)
+    assert (max(dts) / min(dts) < 2)
+
+
+def test_nlivemismatch_batch():
+    """
+    I'm testing the case where the batch has more points than the base run
+    and the case where there are way more live points in the batch comparing
+    to the number of base live-points above the logl boundary
+    """
+
+    L = Like2()
+    nlive1 = 50
+    nlive2 = 1000
+    for i in range(2):
+        rstate = get_rstate()
+        dsampler2 = dynesty.DynamicNestedSampler(L.loglikelihood,
+                                                 L.prior_transform,
+                                                 nlive=nlive1,
+                                                 ndim=L.ndim,
+                                                 bound='single',
+                                                 sample='unif',
+                                                 rstate=rstate)
+
+        dsampler2.run_nested(maxbatch=0)
+        if i == 0:
+            dsampler2.add_batch(nlive=nlive2, mode='full')
+        elif i == 1:
+            dsampler2.add_batch(nlive=nlive2,
+                                mode='manual',
+                                logl_bounds=[
+                                    dsampler2.results.logl[-5],
+                                    dsampler2.results.logl[-1]
+                                ])
+
+
 def test_verify_batch():
     """
     These are some of the checks of dynamic runs

@@ -1131,7 +1131,13 @@ class DynamicSampler:
                 # the reason we set logl_max to not the highest logl
                 # is because the last few points are always added in the end
                 # without sampling through add_live_points()
-                logl_min, logl_max = -np.inf, saved_logl[-nlive_new]
+                logl_max_pos = np.nonzero(
+                    saved_logvol < (saved_logvol[-1] - np.log(nlive_new)))[0]
+                if len(logl_max_pos) > 0:
+                    logl_max_pos = logl_max_pos[-1]
+                else:
+                    logl_max_pos = -1
+                logl_min, logl_max = -np.inf, saved_logl[logl_max_pos]
             else:
                 logl_min, logl_max = logl_bounds
             # IMPORTANT we update these in the process

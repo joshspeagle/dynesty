@@ -1086,7 +1086,6 @@ class DynamicSampler:
         # Counters of calls and iterations throughout.
         ncalls = 0
         niter = 0
-        nblive = self.nlive_init  # this is number of base livepoints
 
         if not resume:
             # Grab results from saved run.
@@ -1120,7 +1119,10 @@ class DynamicSampler:
 
             # Initialize ln(likelihood) bounds.
             if logl_bounds is None:
-                logl_min, logl_max = -np.inf, max(saved_logl[:-nblive])
+                # the reason we set logl_max to not the highest logl
+                # is because the last few points are always added in the end
+                # without sampling through add_live_points()
+                logl_min, logl_max = -np.inf, saved_logl[-nlive_new]
             else:
                 logl_min, logl_max = logl_bounds
             # IMPORTANT we update these in the process
@@ -1156,12 +1158,14 @@ class DynamicSampler:
                         curblob = live_blobs[i]
                     else:
                         curblob = None
+                    # TODO is the self.eff the right efficiency to use here
+                    # check worst_it
                     first_points.append(
                         IteratorResultShort(worst=-i - 1,
                                             ustar=live_u[i],
                                             vstar=live_v[i],
                                             loglstar=live_logl[i],
-                                            nc=live_nc[i],
+                                            nc=1,
                                             worst_it=live_it[i],
                                             blob=curblob,
                                             boundidx=0,
@@ -1183,16 +1187,16 @@ class DynamicSampler:
                         f'saved_loglmax: {saved_logl.max()}')
 
                 # Also if we don't have enough live points above the boundary
-                # we simply go down to collect our nblive points
-                if len(subset0) < nblive:
-                    if subset0[-1] < nblive:
-                        # It means we don't even have nblive points
+                # we simply go down to collect our nlive_new points
+                if len(subset0) < nlive_new:
+                    if subset0[-1] < nlive_new:
+                        # It means we don't even have nlive_new points
                         # in our base runs so we just take everything
                         subset0 = np.arange(len(saved_logl))
                     else:
                         # otherwise we just move the boundary down
-                        # to collect our nblive points
-                        subset0 = np.arange(subset0[-1] - nblive + 1,
+                        # to collect our nlive_new points
+                        subset0 = np.arange(subset0[-1] - nlive_new + 1,
                                             subset0[-1] + 1)
                     # IMPORTANT We have to update the lower bound for sampling
                     # otherwise some of our live points do not satisfy it
@@ -1215,24 +1219,24 @@ class DynamicSampler:
                 # we are now randomly sampling with weights
                 # notice that since we are sampling without
                 # replacement we aren't guaranteed to be able
-                # to get nblive points
-                # so we get min(nblive,subset.sum())
+                # to get nlive_new points
+                # so we get min(nlive_new,subset.sum())
                 # in that case the sample technically won't be
                 # uniform
                 n_pos_weight = (cur_uniwt > 0).sum()
 
                 subset = self.rstate.choice(subset0,
-                                            size=min(nblive, n_pos_weight),
+                                            size=min(nlive_new, n_pos_weight),
                                             p=cur_uniwt,
                                             replace=False)
                 # subset will now have indices of selected points from
                 # saved_* arrays
-                cur_nblive = len(subset)
-                if cur_nblive == 1:
+                cur_nlive = len(subset)
+                if cur_nlive == 1:
                     raise RuntimeError('Only one live point is selected\n' +
                                        'Please report the error on github!' +
-                                       f'Diagnostics nblive: {nblive} ' +
-                                       f'cur_nblive: {cur_nblive}' +
+                                       f'Diagnostics nlive_new: {nlive_new} ' +
+                                       f'cur_nlive: {cur_nlive}' +
                                        f'n_pos_weight: {n_pos_weight}' +
                                        f'cur_wt: {cur_uniwt}')
                 # We are doing copies here, because live_* stuff is
@@ -1241,9 +1245,10 @@ class DynamicSampler:
                 live_v = saved_v[subset, :].copy()
                 live_logl = saved_logl[subset].copy()
                 live_blobs = saved_blobs[subset].copy()
+
                 # Hack the internal sampler by overwriting the live points
                 # and scale factor.
-                batch_sampler.nlive = cur_nblive
+                batch_sampler.nlive = cur_nlive
                 batch_sampler.live_u = live_u
                 batch_sampler.live_v = live_v
                 batch_sampler.live_logl = live_logl

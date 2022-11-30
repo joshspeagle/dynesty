@@ -1052,7 +1052,8 @@ class DynamicSampler:
         sampler that will sample one batch.
         Since the setting up requires us coming up with a set of
         of starting live points we also prepare the first list points
-        that will be yielded by the "master" sampler.
+        that will be yielded by the "master" sampler (but those are
+        yielded just for printing)
 
         Parameters
         ----------
@@ -1062,8 +1063,13 @@ class DynamicSampler:
         resume: bool
             If true we are resuming from a previous run
 
-        update_interval: integer
-            How often to update bounds
+        update_interval : int or float, optional
+            If an integer is passed, only update the bounding distribution
+            every `update_interval`-th likelihood call. If a float is passed,
+            update the bound after every `round(update_interval * nlive)`-th
+            likelihood call. Larger update intervals can be more efficient
+            when the likelihood function is quick to evaluate. If no value is
+            provided, defaults to the value passed during initialization.
 
         logl_bounds: tuple
             Tuple of bounds in loglikelihood for the batch
@@ -1131,12 +1137,14 @@ class DynamicSampler:
                 # the reason we set logl_max to not the highest logl
                 # is because the last few points are always added in the end
                 # without sampling through add_live_points()
+                # so here I pick up the first point where the volume is
+                # Vmin*nlive where Vmin is the smallest volume previously seen.
                 logl_max_pos = np.nonzero(
-                    saved_logvol < (saved_logvol[-1] - np.log(nlive_new)))[0]
+                    saved_logvol < (saved_logvol[-1] + np.log(nlive_new)))[0]
                 if len(logl_max_pos) > 0:
                     logl_max_pos = logl_max_pos[-1]
                 else:
-                    logl_max_pos = -1
+                    logl_max_pos = len(saved_logl) - 1
                 logl_min, logl_max = -np.inf, saved_logl[logl_max_pos]
             else:
                 logl_min, logl_max = logl_bounds
@@ -1198,7 +1206,7 @@ class DynamicSampler:
                 # Also if we don't have enough live points above the boundary
                 # we simply go down to collect our nlive_new points
                 if len(subset0) < nlive_new:
-                    if subset0[-1] < nlive_new:
+                    if len(saved_logl) < nlive_new:
                         # It means we don't even have nlive_new points
                         # in our base runs so we just take everything
                         subset0 = np.arange(len(saved_logl))
@@ -1210,7 +1218,11 @@ class DynamicSampler:
                     # IMPORTANT We have to update the lower bound for sampling
                     # otherwise some of our live points do not satisfy it
 
-                    logl_min = saved_logl[subset0[0]]
+                    # we want our points to be strictly above the logl_min
+                    if subset0[0] > 0:
+                        logl_min = saved_logl[subset0[0] - 1]
+                    else:
+                        logl_min = -np.inf
 
                 live_scale = saved_scale[subset0[0]]
                 # set the scale based on the lowest point
@@ -1298,6 +1310,7 @@ class DynamicSampler:
                     ncall += live_nc[i]
 
                     # Return live points in generator format.
+                    # these won't be saved but just used for printing
                     first_points.append(
                         IteratorResultShort(
                             worst=-i - 1,
@@ -1337,23 +1350,18 @@ class DynamicSampler:
             # TODO Is this correct ?
             self.bound = batch_sampler.bound
 
-            # Update internal ln(prior volume)-based quantities
+            # Figure out where the new run would would join the previous run
             if logl_min == -np.inf:
                 vol_idx = 0
             else:
-                vol_idx = np.argmin(
-                    np.abs(np.asarray(self.saved_run['logl']) - logl_min)) + 1
+                vol_idx = np.argmin(np.abs(saved_logl - logl_min)) + 1
 
             # truncate information in the saver of the internal sampler
+            # to make it look like we are just continuing
             for k in batch_sampler.saved_run.keys():
                 batch_sampler.saved_run[k] = self.saved_run[k][:vol_idx]
 
             batch_sampler.dlv = math.log((nlive_new + 1.) / nlive_new)
-
-            # Tell the sampler *not* to try and remove the previous addition of
-            # live points. All the hacks above make the internal results
-            # garbage anyways.
-            batch_sampler.added_live = False
 
             batch_sampler.first_points = first_points
             # We save these points in the object to ensure we can
@@ -1461,11 +1469,12 @@ class DynamicSampler:
             warnings.warn("Beware: `nlive_batch <= 2 * ndim`!")
 
         (batch_sampler, first_points, ncall, niter, logl_min,
-         logl_max) = self._configure_batch_sampler(nlive_new,
-                                                   update_interval,
-                                                   resume=resume,
-                                                   logl_bounds=logl_bounds,
-                                                   save_bounds=save_bounds)
+         logl_max) = self._configure_batch_sampler(
+             nlive_new,
+             update_interval=update_interval,
+             resume=resume,
+             logl_bounds=logl_bounds,
+             save_bounds=save_bounds)
 
         if not resume:
             # Reset "new" results.
@@ -1473,7 +1482,8 @@ class DynamicSampler:
             self.ncall += ncall
             batch_sampler.it0 = self.it
             it0 = self.it
-            # The tricky thing here is that we have here two sets of iterations.
+            # The tricky thing here is that we have here two sets of
+            # iterations.
             # We have iterations of the batch_sampler and a parent
             # sampler and we need to make sure we translate one to another
         else:

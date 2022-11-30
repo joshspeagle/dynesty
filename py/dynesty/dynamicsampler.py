@@ -1080,11 +1080,17 @@ class DynamicSampler:
 
         Returns tuple of
         batch_sampler: Sampler
-        first_points: list of IteratorResultShort
+            The sampler that will actually execute the batch.
+            It will also have a first_points attribute with the list
+            of IteratorResultShorts
         ncall: integer
+            Number of likelihood calls throughout
         niter: integer
+            Number of iterations
         logl_min: float
+            actually used logl_min as we may modify logl_bound
         logl_max: float
+            actually used logl_max
         """
 
         # Things to consider in this method
@@ -1372,8 +1378,7 @@ class DynamicSampler:
         else:
             batch_sampler = self.batch_sampler
             logl_min, logl_max = self.new_logl_min, self.new_logl_max
-            first_points = batch_sampler.first_points
-        return batch_sampler, first_points, ncall, niter, logl_min, logl_max
+        return batch_sampler, ncall, niter, logl_min, logl_max
 
     def sample_batch(self,
                      dlogz=0.01,
@@ -1469,7 +1474,7 @@ class DynamicSampler:
         if nlive_new <= 2 * self.ncdim:
             warnings.warn("Beware: `nlive_batch <= 2 * ndim`!")
 
-        (batch_sampler, first_points, ncall, niter, logl_min,
+        (batch_sampler, ncall, niter, logl_min,
          logl_max) = self._configure_batch_sampler(
              nlive_new,
              update_interval=update_interval,
@@ -1490,13 +1495,14 @@ class DynamicSampler:
         else:
             it0 = batch_sampler.it0
 
-        for i in range(len(first_points)):
-            yield first_points.pop(0)
+        for i in range(len(batch_sampler.first_points)):
+            yield batch_sampler.first_points.pop(0)
             # these yields are just for printing
             # we are not actually storing those in new_run
             # because we're not sampling yet, we've just
             # set up nlive_new points above our logl_min boundary
-
+            # The reason why I'm popping the items is to ensure if we
+            # are interrupted and then resume we don't start again
         maxcall_left = maxcall - ncall
         maxiter_left = maxiter - niter
         iterated_batch = False

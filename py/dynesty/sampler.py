@@ -951,6 +951,7 @@ class Sampler:
                                 save_bounds=save_bounds,
                                 save_samples=True,
                                 n_effective=n_effective,
+                                resume=resume,
                                 add_live=add_live)):
                 ncall += results.nc
 

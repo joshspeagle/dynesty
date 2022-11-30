@@ -936,6 +936,7 @@ class DynamicSampler:
                 self.sampler.sample(maxiter=maxiter,
                                     save_samples=save_samples,
                                     maxcall=maxcall,
+                                    logl_max=logl_max,
                                     dlogz=dlogz)):
             # Grab results.
 

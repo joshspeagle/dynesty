@@ -1354,13 +1354,14 @@ class DynamicSampler:
             self.saved_run[curk] = new_vals[curk].tolist()
             self.base_run[curk] = new_vals[curk].tolist()
 
-        self.base = True  # baseline run complete
         self.saved_run['batch'] = np.zeros(len(self.saved_run['id']),
                                            dtype=int)  # batch
 
         self.saved_run['batch_nlive'].append(self.nlive_init)  # initial nlive
         self.saved_run['batch_bounds'].append(
             (-np.inf, np.inf))  # initial bounds
+
+        self.base = True  # baseline run complete
         self.internal_state = DynamicSamplerStatesEnum.BASE_DONE
 
     def sample_batch(self,
@@ -2161,7 +2162,8 @@ class DynamicSampler:
                                                      resume=resume):
                     if resume:
                         # only one resume iteration, after that
-                        # we switch to normal
+                        # we switch to normal, although currently
+                        # resume is not used anywhere after
                         resume = False
                     if cur_results.worst >= 0:
                         ncall += cur_results.nc
@@ -2197,6 +2199,9 @@ class DynamicSampler:
                     if (checkpoint_file is not None and self.internal_state !=
                             DynamicSamplerStatesEnum.INBATCHADDLIVE
                             and timer.is_time()):
+                        # we do not save the state if we are finishing the
+                        # batch run and we are just adding live-points in
+                        # the end
                         self.save(checkpoint_file)
             finally:
                 if pbar is not None:

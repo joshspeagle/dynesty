@@ -1257,7 +1257,8 @@ class DynamicSampler:
                                     save_samples=save_samples,
                                     maxcall=maxcall,
                                     logl_max=logl_max,
-                                    dlogz=dlogz)):
+                                    dlogz=dlogz,
+                                    resume=resume)):
             # Grab results.
 
             # Save our base run (which we will use later).
@@ -1696,7 +1697,7 @@ class DynamicSampler:
         self.saved_run['h'].extend(new_h.tolist())
 
         # Reset results.
-        self.new_run = RunRecord(dynamic=True)
+        self.new_run = None
         self.new_logl_min, self.new_logl_max = -np.inf, np.inf
 
         # Increment batch counter.

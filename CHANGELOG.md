@@ -9,6 +9,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Changed
 ### Fixed
 
+## [2.0.3] - 2022-12-2
+A release with major performance bug fix for the dynamical sampler
+### Added
+### Changed
+### Fixed
+- A major performance regression has been discovered that lead to dynamic nested sampling batches becoming slower and slower. The regression was introduced in 1.2 and can easily lead to a factor of several slower performance if a large number of batches is used. (#415 ; discovery and fix by @segasai)
+- Some small fixes related to resuming of runs
+
 ## [2.0.2] - 2022-11-27
 ### Added
 ### Changed

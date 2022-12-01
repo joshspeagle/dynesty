@@ -98,6 +98,14 @@ Changelog
 .. image:: ../images/logo.gif
     :align: center
 
+2.0.3  (2022-12-2)
+--------------------
+A release with major performance bug fix for the dynamical sampler.
+
+- A major performance regression has been discovered that lead to dynamic nested sampling batches becoming slower and slower. The regression was introduced in 1.2 and can easily lead to a factor of several slower performance if a large number of batches is used. (#415 ; discovery and fix by @segasai)
+- Some small fixes related to resuming of runs
+
+	    
 2.0.2 (2022-11-27)
 ------------------
 Minor bug fix release

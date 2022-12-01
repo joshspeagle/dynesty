@@ -463,8 +463,10 @@ class Like2:
         self.Cinv2 = linalg.inv(self.C2)
         self.lnorm2 = -0.5 * (np.log(2 * np.pi) * self.ndim +
                               np.log(linalg.det(self.C2)))
+        self.ncall = 0
 
     def loglikelihood(self, x):
+        self.ncall += 1
         """Multivariate normal log-likelihood."""
         return -0.5 * np.dot(x, np.dot(self.Cinv2, x)) + self.lnorm2
 
@@ -506,6 +508,137 @@ def test_maxiter_batch():
             maxiter = np.min(
                 np.array(dsampler2.saved_run['it'])[
                     dsampler2.saved_run['batch'] == b1]) + nlive // 2
+
+
+def test_performance_batch():
+    """
+    This tests the situation when maxiter runs out before the batch has
+    time to start
+    See #415
+    """
+
+    L = Like2()
+    nlive = 50
+    rstate = get_rstate()
+    dsampler2 = dynesty.DynamicNestedSampler(L.loglikelihood,
+                                             L.prior_transform,
+                                             nlive=nlive,
+                                             ndim=L.ndim,
+                                             bound='single',
+                                             sample='unif',
+                                             rstate=rstate)
+
+    dsampler2.run_nested(maxbatch=0)
+    dts = []
+    for i in range(20):
+        t1 = dsampler2.ncall
+        dsampler2.add_batch(nlive=nlive, mode='full')
+        t2 = dsampler2.ncall
+        dts.append(t2 - t1)
+    assert (max(dts) / min(dts) < 2)
+
+
+def test_nlivemismatch_batch():
+    """
+    I'm testing the case where the batch has more points than the base run
+    and the case where there are way more live points in the batch comparing
+    to the number of base live-points above the logl boundary
+    """
+
+    L = Like2()
+    nlive1 = 50
+    nlive2 = 1000
+    for i in range(2):
+        rstate = get_rstate()
+        dsampler2 = dynesty.DynamicNestedSampler(L.loglikelihood,
+                                                 L.prior_transform,
+                                                 nlive=nlive1,
+                                                 ndim=L.ndim,
+                                                 bound='single',
+                                                 sample='unif',
+                                                 rstate=rstate)
+
+        dsampler2.run_nested(maxbatch=0)
+        if i == 0:
+            dsampler2.add_batch(nlive=nlive2, mode='full')
+        elif i == 1:
+            dsampler2.add_batch(nlive=nlive2,
+                                mode='manual',
+                                logl_bounds=[
+                                    dsampler2.results.logl[-5],
+                                    dsampler2.results.logl[-1]
+                                ])
+
+
+def test_verify_batch():
+    """
+    These are some of the checks of dynamic runs
+    to validate the results
+    TODO I need to add more checks
+    """
+
+    L = Like2()
+    nlive = 50
+    dnss = []
+    for i in range(2):
+        if i == 0:
+            maxbatch = 0
+        else:
+            maxbatch = 1
+
+        rstate = get_rstate()
+        dsampler = dynesty.DynamicNestedSampler(L.loglikelihood,
+                                                L.prior_transform,
+                                                nlive=nlive,
+                                                ndim=L.ndim,
+                                                bound='single',
+                                                sample='unif',
+                                                rstate=rstate)
+
+        dsampler.run_nested(maxbatch=maxbatch)
+        dnss.append(dsampler)
+
+    d0, d1 = dnss
+    assert d1.results['samples_batch'].max() == 1
+    # check we record batches correctly
+
+    assert d1.results['samples_it'][d1.results['samples_batch'] ==
+                                    1].min() > d0.results['samples_it'].max()
+    # checke that the iterations are set correctly
+    assert d1.ncall > d0.ncall
+    assert len(d1.results.batch_bounds) > len(d0.results.batch_bounds)
+
+
+@pytest.mark.parametrize('dynamic', [False, True])
+def test_ncall(dynamic):
+    """
+    This is the test that the ncall is matching the actual number of f-n
+    evaluations
+    """
+
+    L = Like2()
+    nlive = 50
+    rstate = get_rstate()
+    if dynamic:
+        samp = dynesty.DynamicNestedSampler(L.loglikelihood,
+                                            L.prior_transform,
+                                            nlive=nlive,
+                                            ndim=L.ndim,
+                                            bound='single',
+                                            sample='unif',
+                                            rstate=rstate)
+        samp.run_nested(maxbatch=1)
+    else:
+        samp = dynesty.NestedSampler(L.loglikelihood,
+                                     L.prior_transform,
+                                     nlive=nlive,
+                                     ndim=L.ndim,
+                                     bound='single',
+                                     sample='unif',
+                                     rstate=rstate)
+        samp.run_nested()
+
+    assert samp.ncall == L.ncall
 
 
 def test_quantile():

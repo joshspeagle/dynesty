@@ -9,7 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Changed
 ### Fixed
 
-## [2.0.3] - 2022-X-Y
+## [2.0.3] - 2022-12-2
 A release with major performance bug fix for the dynamical sampler
 ### Added
 ### Changed

@@ -936,6 +936,12 @@ class Sampler:
                 dlogz = 1e-3 * (self.nlive - 1.) + 0.01
             else:
                 dlogz = 0.01
+        if resume and self.added_live:
+            warnings.warn('You are resuming a finished static run. '
+                          'This will not do anything')
+            # TODO I should create a separate STATE Enum
+            # here like to rely on that rather than added_live
+            return
 
         # Run the main nested sampling loop.
         pbar, print_func = get_print_func(print_func, print_progress)

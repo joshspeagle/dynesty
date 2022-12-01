@@ -26,8 +26,6 @@ def bootstrap_tol(results, rstate):
     covs = []
 
     for i in range(niter):
-        # curpos = dyfunc.resample_equal(pos, wts)
-        # xid = np.random.randint(len(curpos), size=len(curpos))
         sub = rstate.uniform(size=n) < wts / wts.max()
         ind0 = np.nonzero(sub)[0]
         ind1 = rstate.choice(ind0, size=len(ind0), replace=True)

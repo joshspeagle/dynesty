@@ -495,8 +495,20 @@ and its `MPIPool`. You should be able to use this pool in the same way you would
         func, ptform, 10, pool=pool)
     dns.run_nested()
 
-**When running on a cluster I run into a time limit before dynesty finishes. What do I do?**
+**When running on a cluster I run into a time limit before dynesty finishes. What should I do?**
 
 You should use the checkpointing ability of dynesty to save the state
 of the sampler during sampling process. Then you should be able to restart
 the sampling even if it was previously killed by the scheduler.
+
+
+**When trying to use checkpointing I'm receiving errors because my function cannot be pickled**
+
+If you receive the error like "Can't pickle local object", this is an error that means that python is not able to save the sampler due to the limitations of the python's pickler. The alternative is to use another pickling module like `dill`.
+You can easily replace the pickling module by executing this::
+  
+  import dill
+  import dynesty.utils
+  dynesty.utils.pickle_module = dill
+
+before the checkpointing/saving code and that will force dynesty to use dill.

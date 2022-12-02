@@ -46,7 +46,7 @@ IteratorResult = namedtuple('IteratorResult', [
 
 IteratorResultShort = namedtuple('IteratorResultShort', [
     'worst', 'ustar', 'vstar', 'loglstar', 'nc', 'worst_it', 'boundidx',
-    'bounditer', 'eff', 'blob'
+    'bounditer', 'eff'
 ])
 
 

@@ -444,7 +444,7 @@ initializing points) using the `use_pool` argument::
                             pool=pool, queue_size=16,
                             use_pool={'prior_transform': False})
 
-See :ref:`Pool Questions` on the :ref:`FAQ` page for additional troubleshooting
+See :ref:`Pool/Parallelization Questions` on the :ref:`FAQ` page for additional troubleshooting
 tips.
 
 Note that, as discussed in :ref:`Combining Runs`, it is actually possible to
@@ -574,6 +574,7 @@ If you used the pool in the sampler and you want to use the pool after restoring
     sampler.run_nested(resume=True)
 
 The checkpointing may be helpful if you are running dynesty on HPC with a queue system that has a limit on a wall-time that your jobs can run.
+There is a however an important reminder that should *NOT* use checkpointing for persistence. I.e. if you want to save the results of the sampling, you should save samples, weights or the results object, rather than the whole nested sampling object (as checkpointing does). The reason for this is that the checkpoint files are not guaranteed to be compatible between dynesty versions (even minor ones).
 
 Saving auxiliary information from log-likelihood function
 ----------------------------------------------------------

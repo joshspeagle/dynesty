@@ -507,21 +507,25 @@ class Sampler:
             # Save results.
             if self.save_samples:
                 self.saved_run.append(
-                    dict(id=idx,
-                         u=ustar,
-                         v=vstar,
-                         logl=loglstar,
-                         logvol=logvol,
-                         logwt=logwt,
-                         logz=logz,
-                         logzvar=logzvar,
-                         h=h,
-                         nc=1,
-                         boundidx=boundidx,
-                         it=point_it,
-                         bounditer=bounditer,
-                         scale=self.scale,
-                         blob=old_blob))
+                    dict(
+                        id=idx,
+                        u=ustar,
+                        v=vstar,
+                        logl=loglstar,
+                        logvol=logvol,
+                        logwt=logwt,
+                        logz=logz,
+                        logzvar=logzvar,
+                        h=h,
+                        nc=1,  # this is technically a lie
+                        # as we didn't call the likelihood even once
+                        # however because we lose track of ncs if we start from points
+                        # that are not sampled from unit cube it can lead to sum(nc)!=ncall
+                        boundidx=boundidx,
+                        it=point_it,
+                        bounditer=bounditer,
+                        scale=self.scale,
+                        blob=old_blob))
             self.eff = 100. * (self.it + i) / self.ncall  # efficiency
 
             # Return our new "dead" point and ancillary quantities.
@@ -985,6 +989,12 @@ class Sampler:
                 dlogz = 1e-3 * (self.nlive - 1.) + 0.01
             else:
                 dlogz = 0.01
+        if resume and self.added_live:
+            warnings.warn('You are resuming a finished static run. '
+                          'This will not do anything')
+            # TODO I should create a separate STATE Enum
+            # here like to rely on that rather than added_live
+            return
 
         # Run the main nested sampling loop.
         pbar, print_func = get_print_func(print_func, print_progress)
@@ -1000,6 +1010,7 @@ class Sampler:
                                 save_bounds=save_bounds,
                                 save_samples=True,
                                 n_effective=n_effective,
+                                resume=resume,
                                 add_live=add_live)):
                 ncall += results.nc
 

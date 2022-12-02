@@ -19,7 +19,7 @@ Feedback:
 - [Hannah Diamond-Lowe](https://github.com/hdiamondlowe)
 - [Joel Leja](https://github.com/jrleja)
 - [Ashley Villar](https://github.com/villrv)
-- [Avi Vajpeyi] (https://github.com/avivajpeyi)
+- [Avi Vajpeyi](https://github.com/avivajpeyi)
 - [Catherine Zucker](https://github.com/catherinezucker)
 
 If you have contributed and your name is missing, please contact @segasai and/or @joshspeagle

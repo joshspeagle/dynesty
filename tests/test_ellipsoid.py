@@ -253,7 +253,29 @@ def test_bounds():
 @pytest.mark.parametrize("ndim", [1, 10, 100])
 def test_bounding_crazy(ndim):
     rstate = get_rstate()
-    xs = np.random.normal(size=ndim * 10)
+    xs = rstate.normal(size=ndim * 10)
     ys = rstate.normal(size=ndim)
     zs = xs[:, None] * ys[None, :]
     db.bounding_ellipsoids(zs)
+
+
+def test_number_clusters():
+    # check we can recover close to a correct and large number of clusters
+    ndim = 4
+    nxcens = 6
+    ncens = nxcens**ndim
+    sig = 0.01
+    THRESHOLD = 0.1  # check we get the right number of clusters
+    # within 10%
+
+    npt = ncens * 10 * ndim
+    rstate = get_rstate()
+    # create stuff on the grid
+    cens = np.array(list(itertools.product(*([np.arange(nxcens)] * ndim))))
+
+    xs = sig * rstate.normal(size=(npt, ndim)) + cens[np.arange(npt) %
+                                                      len(cens), :]
+
+    E = db.bounding_ellipsoids(xs)
+
+    assert np.abs(len(E.ells) * 1. / ncens - 1) < THRESHOLD

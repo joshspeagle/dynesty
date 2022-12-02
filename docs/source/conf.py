@@ -28,10 +28,10 @@ sys.path.insert(0, os.path.abspath('../../py'))
 needs_sphinx = '1.4'
 
 intersphinx_mapping = {
-    'python': ('http://docs.python.org/', None),
-    'numpy': ('http://docs.scipy.org/doc/numpy/', None),
-    'scipy': ('http://docs.scipy.org/doc/scipy/reference/', None),
-    'matplotlib': ('https://matplotlib.org/', None)
+    'python': ('https://docs.python.org/3/', None),
+    'numpy': (' https://numpy.org/doc/stable/', None),
+    'scipy': ('https://docs.scipy.org/doc/scipy/', None),
+    'matplotlib': ('https://matplotlib.org/stable/', None)
 }
 
 # Add any Sphinx extension module names here, as strings. They can be

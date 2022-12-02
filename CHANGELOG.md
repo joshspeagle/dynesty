@@ -7,8 +7,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 ### Added
 ### Changed
+### Fixed
+
+## [2.0.3] - 2022-12-2
+A release with major performance bug fix for the dynamical sampler
+### Added
+### Changed
+### Fixed
+- A major performance regression has been discovered that lead to dynamic nested sampling batches becoming slower and slower. The regression was introduced in 1.2 and can easily lead to a factor of several slower performance if a large number of batches is used. (#415 ; discovery and fix by @segasai)
+- Some small fixes related to resuming of runs
+
+## [2.0.2] - 2022-11-27
+### Added
+### Changed
 - When checkpointing is on the dynamic sampler will always checkpoint in the end of the run_nested() irrespective of checkpoint_time
-- Now the equally weighted samples are also randomly shuffled ( #408 )
+- Equally weighted samples are now randomly shuffled ( #408 )
 ### Fixed
 - The live_points option was somewhat broken when blob option was introduced requiring a tuple of 4 elements irrespective of whether your likelihood returns blobs or not. Now if you use blob=True and want to provide live_points you need to provide 4 elements (u,v,logl,blobs). If you use blob=False you will need to provide just 3 elements as before (u,v,logl)
 
@@ -40,7 +53,7 @@ This is a major release with several significant improvements.
 ### Fixed
 - Sampler.n_effective is no longer unnecessarily computed when sampling with
   an infinite limit on n_effective. ( #379 ; by @edbennett )
-- In rare occasions, dynamic nested samplng fits with maxiter set could have failed with 'list index out of range' errors. That was addressed ( #392 ; by @segasai )
+- In rare occasions, dynamic nested sampling fits with maxiter set could have failed with 'list index out of range' errors. That was addressed ( #392 ; by @segasai )
 - The Monte-Carlo volume calculations by RadFriends/SupFriends/MultiEllipsoid were inaccurate (fix # 398; #399 ; by @segasai )
 
 ### Changed
@@ -49,7 +62,7 @@ This is a major release with several significant improvements.
 - The accumulation of statistics using to tune proposal distribution is now more robust when multi-threading/pool is used. Previously statistics from every queue_size call were used and all other were discarded. Now the statistics are accumulated from all the parallel sampling calls. That should help sampling of complex distributions. ( #385 ; by @segasai ) 
 - The .update_proposal() function that updates the states of samplers
 now has an additional keyword which allows to either just accumulate the statistics from repeated function calls or actual update of the proposal. This was needed to not loose information when queue_size>1 ( #385 ; by @segasai )
-- The ellipsoid bounding has been sped up by not using the Cholesky tranform , also a check was added/test expanded for possible numerical issues when sampling from multiple ellipsoids potentially causing assert q>0 ( #397 ; by @segasai )
+- The ellipsoid bounding has been sped up by not using the Cholesky transform , also a check was added/test expanded for possible numerical issues when sampling from multiple ellipsoids potentially causing assert q>0 ( #397 ; by @segasai )
 - The individual samplers now take as input a special Namedtuple SamplerArgument rather than just a tuple ( #400 ; by @segasai ).
 
 ## [1.2.3] - 2022-06-02
@@ -61,7 +74,7 @@ now has an additional keyword which allows to either just accumulate the statist
 ### Fixed
 - Fix the bug where previously you couldn't repeatedly pickle and unpickle
   a sampler
-- Small speedup of ellipsoidal sampling
+- Small speed-up of ellipsoidal sampling
 
 ## [1.2.2] - 2022-04-12
 
@@ -84,7 +97,7 @@ now has an additional keyword which allows to either just accumulate the statist
 
 ### Fixed
 
-- The arguments of prior_transform and likelihood function are now explicitely copied, so the sampling can work if those function apply changes to argument vectors ( #362 )
+- The arguments of prior_transform and likelihood function are now explicitly copied, so the sampling can work if those function apply changes to argument vectors ( #362 )
 - Fix the compilation of the docs, and update them a bit
 
 ## [1.2.0] - 2022-03-31
@@ -102,7 +115,7 @@ Most of the changes in the release have been contributed by [Sergey Koposov](htt
 
 - More testing with code coverage of >90% + validation on test problems
 - Internal refactoring reducing code duplication (saved_run, integral calculations, different samplers etc)
-- Multiple speedups: ellipsoid bounds, bootstrap, jitter_run (#239, #256, #329)
+- Multiple speed-ups: ellipsoid bounds, bootstrap, jitter_run (#239, #256, #329)
 - Exception is raised if unknown arguments are provided for static/dynamic samplers (#295)
 
 - Migrate to new numpy random generator functionality from RandomState (#280)
@@ -232,7 +245,7 @@ Most of the changes in the release have been contributed by [Sergey Koposov](htt
 
 - Modified `'rwalk'` behavior to better deal with edge cases.
 
-- Changed defaults so performance should now be more stable (albiet slower)
+- Changed defaults so performance should now be more stable (albeit slower)
   for the average user.
 
 - Improved the stability of bounding ellipsoids.

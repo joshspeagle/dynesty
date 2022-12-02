@@ -445,8 +445,8 @@ take a (some might find "excessively") large number of live points
 to confidently determine that you aren't missing any 
 hidden prior volume.
 
-Pool Questions
---------------
+Pool/Parallelization Questions
+------------------------------
 
 **My provided** `pool` **is crashing. What do I do?**
 
@@ -495,3 +495,8 @@ and its `MPIPool`. You should be able to use this pool in the same way you would
         func, ptform, 10, pool=pool)
     dns.run_nested()
 
+**When running on a cluster I run into a time limit before dynesty finishes. What do I do?**
+
+You should use the checkpointing ability of dynesty to save the state
+of the sampler during sampling process. Then you should be able to restart
+the sampling even if it was previously killed by the scheduler.

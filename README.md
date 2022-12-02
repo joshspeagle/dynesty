@@ -46,4 +46,4 @@ If you want to report issues, or have questions, please do that on [github](http
 
 ### Contributing
 
-Patches/contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for more details.
+Patches/contributions are welcome! Please see [CONTRIBUTING.md](https://github.com/joshspeagle/dynesty/blob/master/CONTRIBUTING.md) for more details.

@@ -96,3 +96,67 @@ def test_merge():
     res = dyutil.merge_runs(res_list)
     THRESH = 3
     assert np.abs(res.logz[-1] - LOGZ_TRUE) < THRESH * res.logzerr[-1]
+
+
+class WeddingCake:
+    # Wedding cake function from Fowlie 2020
+    def __init__(self, ndim, sig=.2, alpha=.7):
+        self.ndim = ndim
+        self.sig = sig
+        self.alpha = alpha
+
+    def __call__(self, x):
+        D = len(x)
+        r = np.max(np.abs(x - 0.5))
+        i = (D * np.log(2 * r) / np.log(self.alpha)).astype(int)
+        logp = -(self.alpha**(2 * i / D)) / (8 * self.sig**2)
+        return logp
+
+    @property
+    def logz_true(self):
+        logz = scipy.special.logsumexp(
+            -self.alpha**(2 * np.arange(100) / self.ndim) / (8 * self.sig**2) +
+            np.arange(100) * np.log(self.alpha) + np.log((1 - self.alpha)))
+        return logz
+
+    def prior_transform(self, x):
+        return x
+
+
+# here are are trying to test different stages of plateau
+# probing with different dlogz's
+@pytest.mark.parametrize('sample', ['unif', 'rwalk', 'rslice'])
+def test_cake_static(sample):
+    nlive = 1000
+    rstate = get_rstate()
+    ndim = 5
+    cake = WeddingCake(ndim)
+    sampler = dynesty.NestedSampler(cake,
+                                    cake.prior_transform,
+                                    ndim,
+                                    nlive=nlive,
+                                    rstate=rstate,
+                                    sample=sample)
+    sampler.run_nested(print_progress=printing)
+    res = sampler.results
+    THRESH = 3
+    print(res.logz[-1], cake.logz_true)
+    assert np.abs(res.logz[-1] - cake.logz_true) < THRESH * res.logzerr[-1]
+
+
+@pytest.mark.parametrize('sample,', ['unif', 'rslice', 'rwalk'])
+def test_cake_dynamic(sample):
+    rstate = get_rstate()
+    nlive = 100
+    ndim = 5
+    cake = WeddingCake(ndim)
+    sampler = dynesty.DynamicNestedSampler(cake,
+                                           cake.prior_transform,
+                                           ndim,
+                                           nlive=nlive,
+                                           rstate=rstate,
+                                           sample=sample)
+    sampler.run_nested(print_progress=printing)
+    res = sampler.results
+    THRESH = 3
+    assert np.abs(res.logz[-1] - cake.logz_true) < THRESH * res.logzerr[-1]

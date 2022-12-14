@@ -5,36 +5,39 @@ import scipy.special
 from utils import get_rstate, get_printing
 import pytest
 
-S = 3
-R = 1
-
-ndim = 2
-A0 = 1
-A1 = 10
-
 printing = get_printing()
 
 
-# likelihood that has value A1 inside a sphere with the radius R
-# and outside it has velue A0
-def loglike_inf(x):
-    r = np.sqrt(np.sum(x**2))
-    if r < R:
-        ret = np.log(A1)  # - 1e-6 * r
-    else:
-        ret = np.log(A0)  # - 1e-6 * r
-    # print(ret, r)
-    return ret
+class Plateau:
+    # likelihood that has value A1 inside a sphere with the radius R
+    # and outside it has velue A0
+    def __init__(self, ndim):
+        self.ndim = ndim
+        self.S = 3
+        self.R = 1
+        self.A0 = 1
+        self.A1 = 10
 
+    def __call__(self, x):
+        r = np.sqrt(np.sum(x**2))
+        if r < self.R:
+            ret = np.log(self.A1)  # - 1e-6 * r
+        else:
+            ret = np.log(self.A0)  # - 1e-6 * r
+        # print(ret, r)
+        return ret
 
-# true value of the integral
-LOGZ_TRUE = np.log(A0 + np.pi**(ndim / 2.) /
-                   scipy.special.gamma(ndim / 2. + 1) * R**ndim * (A1 - A0) /
-                   ((2 * S)**ndim))
+    @property
+    def logz_true(self):
+        # true value of the integral
+        logz = np.log(self.A0 + np.pi**(self.ndim / 2.) /
+                      scipy.special.gamma(self.ndim / 2. + 1) *
+                      self.R**self.ndim * (self.A1 - self.A0) /
+                      ((2 * self.S)**self.ndim))
+        return logz
 
-
-def prior_transform(x):
-    return (2 * x - 1) * S
+    def prior_transform(self, x):
+        return (2 * x - 1) * self.S
 
 
 # here are are trying to test different stages of plateau
@@ -45,9 +48,11 @@ def prior_transform(x):
 def test_static(sample, dlogz):
     nlive = 1000
     rstate = get_rstate()
-    sampler = dynesty.NestedSampler(loglike_inf,
-                                    prior_transform,
-                                    ndim,
+    ndim = 2
+    plateau = Plateau(ndim)
+    sampler = dynesty.NestedSampler(plateau,
+                                    plateau.prior_transform,
+                                    plateau.ndim,
                                     nlive=nlive,
                                     rstate=rstate,
                                     bound='none',
@@ -55,7 +60,7 @@ def test_static(sample, dlogz):
     sampler.run_nested(print_progress=printing, dlogz=dlogz)
     res = sampler.results
     THRESH = 3
-    assert np.abs(res.logz[-1] - LOGZ_TRUE) < THRESH * res.logzerr[-1]
+    assert np.abs(res.logz[-1] - plateau.logz_true) < THRESH * res.logzerr[-1]
 
 
 # here are are trying to test different stages of plateau
@@ -64,9 +69,11 @@ def test_static(sample, dlogz):
 def test_dynamic(sample):
     rstate = get_rstate()
     nlive = 100
-    sampler = dynesty.DynamicNestedSampler(loglike_inf,
-                                           prior_transform,
-                                           ndim,
+    ndim = 2
+    plateau = Plateau(ndim)
+    sampler = dynesty.DynamicNestedSampler(plateau,
+                                           plateau.prior_transform,
+                                           plateau.ndim,
                                            nlive=nlive,
                                            rstate=rstate,
                                            bound='none',
@@ -74,7 +81,7 @@ def test_dynamic(sample):
     sampler.run_nested(print_progress=printing)
     res = sampler.results
     THRESH = 3
-    assert np.abs(res.logz[-1] - LOGZ_TRUE) < THRESH * res.logzerr[-1]
+    assert np.abs(res.logz[-1] - plateau.logz_true) < THRESH * res.logzerr[-1]
 
 
 # here are are trying to test different stages of plateau
@@ -83,10 +90,12 @@ def test_merge():
     nlive = 100
     rstate = get_rstate()
     res_list = []
+    ndim = 2
+    plateau = Plateau(ndim)
     for i in range(3):
-        sampler = dynesty.NestedSampler(loglike_inf,
-                                        prior_transform,
-                                        ndim,
+        sampler = dynesty.NestedSampler(plateau,
+                                        plateau.prior_transform,
+                                        plateau.ndim,
                                         nlive=nlive,
                                         rstate=rstate,
                                         bound='none',
@@ -95,7 +104,7 @@ def test_merge():
         res_list.append(sampler.results)
     res = dyutil.merge_runs(res_list)
     THRESH = 3
-    assert np.abs(res.logz[-1] - LOGZ_TRUE) < THRESH * res.logzerr[-1]
+    assert np.abs(res.logz[-1] - plateau.logz_true) < THRESH * res.logzerr[-1]
 
 
 class WeddingCake:
@@ -160,3 +169,48 @@ def test_cake_dynamic(sample):
     res = sampler.results
     THRESH = 3
     assert np.abs(res.logz[-1] - cake.logz_true) < THRESH * res.logzerr[-1]
+
+
+class EdgesInf:
+    # I'm putting a gaussian and truncating its wings to -inf
+
+    def __init__(self, ndim=2, volfrac=0.001, r0=5):
+        self.size = r0 / volfrac**(1. / ndim)
+        self.r0 = r0
+        assert (self.size > r0)
+        self.ndim = ndim
+
+    def __call__(self, x):
+        r2 = np.sum(x**2)
+        r = np.sqrt(r2)
+
+        if r > self.r0:
+            ret = -np.inf
+        else:
+            ret = -0.5 * r2
+        lnorm = -self.ndim / 2. * np.log(2 * np.pi) + self.ndim * np.log(
+            2 * self.size)
+        # first factor is gaussian norm, second is from the prior
+        # to integrate to 1
+        return ret + lnorm
+
+    def prior_transform(self, x):
+        return (2 * x - 1) * self.size
+
+
+# TODO THIS TEMPORARILY DISABLED
+# BEFORE THE INITIAL SAMPLING of -inf is fixed
+def xtest_edge():
+    rstate = get_rstate()
+    ndim = 2
+    ei = EdgesInf(ndim)
+    nlive = 100
+    sampler = dynesty.NestedSampler(ei,
+                                    ei.prior_transform,
+                                    ei.ndim,
+                                    nlive=nlive,
+                                    rstate=rstate)
+    sampler.run_nested(print_progress=True)
+    res = sampler.results
+    THRESH = 3
+    assert np.abs(res.logz[-1]) < THRESH * res.logzerr[-1]

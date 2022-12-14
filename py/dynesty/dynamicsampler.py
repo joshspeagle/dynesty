@@ -447,7 +447,7 @@ def _initialize_live_points(live_points,
         warnings.warn(
             'All the initial likelihood values are the same. '
             'You likely have a plateau in the likelihood. '
-            'Nested sampling is *NOT* guaranteed to work in this case',
+            'Nested sampling may not be the best sampler in this case.',
             RuntimeWarning)
     if not blob:
         live_blobs = None

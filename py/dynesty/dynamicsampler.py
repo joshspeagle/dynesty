@@ -383,11 +383,13 @@ def _initialize_live_points(live_points,
         The third are the log-likelihood valuess.
         The fourth are the array of blobs (or None)
     """
+    logvol_init = 0
+    ncalls = 0
     if live_points is None:
         # If no live points are provided, propose them by randomly
         # sampling from the unit cube.
         n_attempts = 100
-        for _ in range(n_attempts):
+        for iattempt in range(n_attempts):
             live_u = rstate.random(size=(nlive, npdim))
             if use_pool_ptform:
                 live_v = M(prior_transform, np.asarray(live_u))
@@ -398,7 +400,7 @@ def _initialize_live_points(live_points,
             if blob:
                 live_blobs = np.array([_.blob for _ in live_logl])
             live_logl = np.array([_.val for _ in live_logl])
-
+            ncalls += nlive
             # Convert all `-np.inf` log-likelihoods to finite large
             # numbers. Necessary to keep estimators in our sampler from
             # breaking.
@@ -417,6 +419,7 @@ def _initialize_live_points(live_points,
             # points.
             if np.any(live_logl != _LOWL_VAL):
                 break
+            logvol_init = -np.log((1 + iattempt) * nlive)
         else:
             # If we found nothing after many attempts, raise the alarm.
             raise RuntimeError(f"After {n_attempts} attempts, not a single "
@@ -451,7 +454,7 @@ def _initialize_live_points(live_points,
             RuntimeWarning)
     if not blob:
         live_blobs = None
-    return (live_u, live_v, live_logl, live_blobs)
+    return (live_u, live_v, live_logl, live_blobs), logvol_init, ncalls
 
 
 def _configure_batch_sampler(main_sampler,
@@ -567,23 +570,25 @@ def _configure_batch_sampler(main_sampler,
     if psel:
         # If the lower bound encompasses all saved samples, we want
         # to propose a new set of points from the unit cube.
-        (live_u, live_v, live_logl, live_blobs) = _initialize_live_points(
-            None,
-            main_sampler.prior_transform,
-            main_sampler.loglikelihood,
-            main_sampler.M,
-            nlive=nlive_new,
-            npdim=main_sampler.npdim,
-            rstate=main_sampler.rstate,
-            blob=main_sampler.blob,
-            use_pool_ptform=main_sampler.use_pool_ptform)
-
+        (live_u, live_v, live_logl,
+         live_blobs), logvol0, init_ncalls = _initialize_live_points(
+             None,
+             main_sampler.prior_transform,
+             main_sampler.loglikelihood,
+             main_sampler.M,
+             nlive=nlive_new,
+             npdim=main_sampler.npdim,
+             rstate=main_sampler.rstate,
+             blob=main_sampler.blob,
+             use_pool_ptform=main_sampler.use_pool_ptform)
+        del logvol0
+        # I don't use logvol0 because it's accounted by the parent sampler
         live_bound = np.zeros(nlive_new, dtype=int)
         live_it = np.zeros(nlive_new, dtype=int)
         live_nc = np.ones(nlive_new, dtype=int)
         # we should have evaluated the function once per point
 
-        ncall += nlive_new
+        ncall += init_ncalls
         # Return live points in generator format.
         for i in range(nlive_new):
             # TODO is the self.eff the right efficiency to use here
@@ -1207,7 +1212,7 @@ class DynamicSampler:
             self.reset()
 
             (self.live_u, self.live_v, self.live_logl,
-             blobs) = _initialize_live_points(
+             blobs), logvol_init, init_ncalls = _initialize_live_points(
                  live_points,
                  self.prior_transform,
                  self.loglikelihood,
@@ -1228,7 +1233,7 @@ class DynamicSampler:
                 self.live_u, self.live_v, self.live_logl, self.live_blobs
             ]
             self.live_init = [np.array(_) for _ in live_points]
-            self.ncall += self.nlive_init
+            self.ncall += init_ncalls
             self.live_bound = np.zeros(self.nlive_init, dtype=int)
             self.live_it = np.zeros(self.nlive_init, dtype=int)
 
@@ -1249,7 +1254,8 @@ class DynamicSampler:
                                                self.use_pool,
                                                ncdim=self.ncdim,
                                                kwargs=self.kwargs,
-                                               blob=self.blob)
+                                               blob=self.blob,
+                                               logvol_init=logvol_init)
             self.bound = self.sampler.bound
             self.internal_state = DynamicSamplerStatesEnum.LIVEPOINTSINIT
             # Run the sampler internally as a generator.

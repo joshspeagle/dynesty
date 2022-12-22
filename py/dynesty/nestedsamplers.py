@@ -69,7 +69,8 @@ class SuperSampler(Sampler):
                  use_pool,
                  kwargs=None,
                  ncdim=0,
-                 blob=False):
+                 blob=False,
+                 logvol_init=0):
         # Initialize sampler.
         super().__init__(loglikelihood,
                          prior_transform,
@@ -82,7 +83,8 @@ class SuperSampler(Sampler):
                          pool,
                          use_pool,
                          ncdim=ncdim,
-                         blob=blob)
+                         blob=blob,
+                         logvol_init=logvol_init)
         # Initialize method to propose a new starting point.
         self._PROPOSE = {
             'unif': self.propose_unif,
@@ -348,7 +350,8 @@ class UnitCubeSampler(SuperSampler):
                  use_pool,
                  kwargs=None,
                  ncdim=0,
-                 blob=False):
+                 blob=False,
+                 logvol_init=0):
 
         # Initialize sampler.
         super().__init__(loglikelihood,
@@ -364,6 +367,7 @@ class UnitCubeSampler(SuperSampler):
                          use_pool,
                          ncdim=ncdim,
                          blob=blob,
+                         logvol_init=logvol_init,
                          kwargs=kwargs or {})
 
         self.unitcube = UnitCube(self.ncdim)
@@ -471,6 +475,7 @@ class SingleEllipsoidSampler(SuperSampler):
                  use_pool,
                  kwargs=None,
                  blob=False,
+                 logvol_init=0,
                  ncdim=0):
 
         # Initialize sampler.
@@ -487,6 +492,7 @@ class SingleEllipsoidSampler(SuperSampler):
                          use_pool,
                          ncdim=ncdim,
                          blob=blob,
+                         logvol_init=logvol_init,
                          kwargs=kwargs or {})
 
         self.ell = Ellipsoid(np.zeros(self.ncdim), np.identity(self.ncdim))
@@ -631,6 +637,7 @@ class MultiEllipsoidSampler(SuperSampler):
                  use_pool,
                  kwargs=None,
                  blob=False,
+                 logvol_init=0,
                  ncdim=0):
         # Initialize sampler.
         super().__init__(loglikelihood,
@@ -646,6 +653,7 @@ class MultiEllipsoidSampler(SuperSampler):
                          use_pool,
                          ncdim=ncdim,
                          blob=blob,
+                         logvol_init=logvol_init,
                          kwargs=kwargs or {})
 
         self.mell = MultiEllipsoid(ctrs=[np.zeros(self.ncdim)],
@@ -819,6 +827,7 @@ class RadFriendsSampler(SuperSampler):
                  use_pool,
                  kwargs=None,
                  blob=False,
+                 logvol_init=0,
                  ncdim=0):
 
         # Initialize sampler.
@@ -834,6 +843,7 @@ class RadFriendsSampler(SuperSampler):
                          pool,
                          use_pool,
                          ncdim=ncdim,
+                         logvol_init=logvol_init,
                          blob=blob,
                          kwargs=kwargs or {})
 
@@ -971,6 +981,7 @@ class SupFriendsSampler(SuperSampler):
                  use_pool,
                  kwargs=None,
                  blob=False,
+                 logvol_init=0,
                  ncdim=0):
 
         # Initialize sampler.
@@ -987,6 +998,7 @@ class SupFriendsSampler(SuperSampler):
                          use_pool,
                          ncdim=ncdim,
                          blob=blob,
+                         logvol_init=logvol_init,
                          kwargs=kwargs or {})
 
         self.supfriends = SupFriends(self.ncdim)

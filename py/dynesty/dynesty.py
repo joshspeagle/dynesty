@@ -662,16 +662,16 @@ class NestedSampler(SuperSampler):
             kwargs['grad'] = grad
             kwargs['compute_jac'] = compute_jac
 
-        live_points = _initialize_live_points(live_points,
-                                              ptform,
-                                              loglike,
-                                              M,
-                                              nlive=nlive,
-                                              npdim=npdim,
-                                              rstate=rstate,
-                                              blob=blob,
-                                              use_pool_ptform=use_pool.get(
-                                                  'prior_transform', True))
+        live_points, logvol_init, init_ncalls = _initialize_live_points(
+            live_points,
+            ptform,
+            loglike,
+            M,
+            nlive=nlive,
+            npdim=npdim,
+            rstate=rstate,
+            blob=blob,
+            use_pool_ptform=use_pool.get('prior_transform', True))
 
         # Initialize our nested sampler.
         sampler = super().__new__(_SAMPLERS[bound])
@@ -688,8 +688,9 @@ class NestedSampler(SuperSampler):
                          use_pool,
                          kwargs,
                          ncdim=ncdim,
-                         blob=blob)
-
+                         blob=blob,
+                         logvol_init=logvol_init)
+        sampler.ncalls = init_ncalls
         return sampler
 
 

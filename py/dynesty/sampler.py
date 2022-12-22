@@ -80,6 +80,7 @@ class Sampler:
                  pool,
                  use_pool,
                  ncdim,
+                 logvol_init=0,
                  blob=False):
 
         # distributions
@@ -144,6 +145,8 @@ class Sampler:
         self.cite = ''  # Default empty
         self.save_samples = True
         self.save_bounds = True
+
+        self.logvol_init = logvol_init
 
         self.plateau_mode = False
         self.plateau_counter = None
@@ -688,7 +691,7 @@ class Sampler:
             h = 0.  # information, initially *0.*
             logz = -1.e300  # ln(evidence), initially *0.*
             logzvar = 0.  # var[ln(evidence)], initially *0.*
-            logvol = 0.  # initially contains the whole prior (volume=1.)
+            logvol = self.logvol_init  # initially contains the whole prior (volume=1.)
             loglstar = -1.e300  # initial ln(likelihood)
             delta_logz = 1.e300  # ln(ratio) of total/current evidence
 

@@ -459,7 +459,7 @@ def _initialize_live_points(live_points,
         else:
             # If we found nothing after many attempts, raise the alarm.
             raise RuntimeError(f"After {n_attempts} attempts, we cound not "
-                               f"find at least {npdim} points"
+                               f"find at least {min_npoints} points"
                                "that have a valid log-likelihood! Please "
                                "check your prior transform and/or "
                                "log-likelihood.")

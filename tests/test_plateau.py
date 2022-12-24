@@ -173,7 +173,7 @@ def test_cake_dynamic(sample):
 class EdgesInf:
     # I'm putting a gaussian and truncating its wings to -inf
 
-    def __init__(self, ndim=2, volfrac=0.0001, r0=5):
+    def __init__(self, ndim=2, volfrac=0.001, r0=5):
         self.size = r0 / volfrac**(1. / ndim)
         self.r0 = r0
         assert (self.size > r0)

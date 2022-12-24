@@ -49,6 +49,8 @@ IteratorResultShort = namedtuple('IteratorResultShort', [
     'bounditer', 'eff'
 ])
 
+_LOWL_VAL = -1e300
+
 
 class LoglOutput:
     """

@@ -149,7 +149,6 @@ def test_cake_static(sample):
     sampler.run_nested(print_progress=printing)
     res = sampler.results
     THRESH = 3
-    print(res.logz[-1], cake.logz_true)
     assert np.abs(res.logz[-1] - cake.logz_true) < THRESH * res.logzerr[-1]
 
 
@@ -200,7 +199,7 @@ class EdgesInf:
 
 # TODO THIS TEMPORARILY DISABLED
 # BEFORE THE INITIAL SAMPLING of -inf is fixed
-def xtest_edge():
+def test_edge():
     rstate = get_rstate()
     ndim = 2
     ei = EdgesInf(ndim)

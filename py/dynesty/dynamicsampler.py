@@ -25,7 +25,7 @@ from .results import Results
 from .utils import (get_seed_sequence, get_print_func, _kld_error,
                     compute_integrals, IteratorResult, IteratorResultShort,
                     get_enlarge_bootstrap, RunRecord, get_neff_from_logwt,
-                    DelayTimer, save_sampler, restore_sampler)
+                    DelayTimer, save_sampler, restore_sampler, _LOWL_VAL)
 
 __all__ = [
     "DynamicSampler",
@@ -40,8 +40,6 @@ _SAMPLERS = {
     'balls': RadFriendsSampler,
     'cubes': SupFriendsSampler
 }
-
-_LOWL_VAL = -1e300
 
 
 class DynamicSamplerStatesEnum(Enum):
@@ -388,43 +386,81 @@ def _initialize_live_points(live_points,
     if live_points is None:
         # If no live points are provided, propose them by randomly
         # sampling from the unit cube.
-        n_attempts = 100
-        for iattempt in range(n_attempts):
-            live_u = rstate.random(size=(nlive, npdim))
+        n_attempts = 1000
+        min_npoints = max(npdim, 10)
+        # the minimum number points we want with finite logl
+        # we want want at least npdim, because we wanto be able to constraint
+        # the ellipsoid
+        # and we do not accept below 10 pts, because the volume error
+        # will be large
+        live_u = np.zeros((nlive, npdim))
+        live_v = np.zeros((nlive, npdim))
+        live_logl = np.zeros(nlive)
+        ngoods = 0
+        live_blobs = []
+        for iattempt in range(1, n_attempts + 1):
+            cur_live_u = rstate.random(size=(nlive, npdim))
             if use_pool_ptform:
-                live_v = M(prior_transform, np.asarray(live_u))
+                cur_live_v = M(prior_transform, np.asarray(cur_live_u))
             else:
-                live_v = map(prior_transform, np.asarray(live_u))
-            live_v = np.array(list(live_v))
-            live_logl = loglikelihood.map(np.asarray(live_v))
+                cur_live_v = map(prior_transform, np.asarray(cur_live_u))
+            cur_live_v = np.array(list(cur_live_v))
+            cur_live_logl = loglikelihood.map(np.asarray(cur_live_v))
             if blob:
-                live_blobs = np.array([_.blob for _ in live_logl])
-            live_logl = np.array([_.val for _ in live_logl])
+                cur_live_blobs = np.array([_.blob for _ in cur_live_logl])
+            cur_live_logl = np.array([_.val for _ in cur_live_logl])
             ncalls += nlive
             # Convert all `-np.inf` log-likelihoods to finite large
             # numbers. Necessary to keep estimators in our sampler from
             # breaking.
-            for i, logl in enumerate(live_logl):
-                if not np.isfinite(logl):
-                    if np.sign(logl) < 0:
-                        live_logl[i] = _LOWL_VAL
-                    else:
-                        raise ValueError(
-                            f"The log-likelihood ({logl}) of live "
-                            f"point {i} located at u={live_u[i]} "
-                            f"v={live_v[i]} is invalid.")
+            finite = np.isfinite(cur_live_logl)
+            not_finite = ~finite
+            neg_infinite = np.isneginf(cur_live_logl)
+            if np.any(not_finite & (~neg_infinite)):
+                raise ValueError("The log-likelihood of live "
+                                 "point is invalid.")
+            cur_live_logl[not_finite] = _LOWL_VAL
 
-            # Check to make sure there is at least one finite
+            cur_ngood = finite.sum()
+            if cur_ngood > 0:
+                nextra = min(nlive - ngoods, cur_ngood)
+                cur_ind = np.nonzero(finite)[0][:nextra]
+                live_logl[ngoods:ngoods + nextra] = cur_live_logl[cur_ind]
+                live_u[ngoods:ngoods + nextra] = cur_live_u[cur_ind]
+                live_v[ngoods:ngoods + nextra] = cur_live_v[cur_ind]
+                if blob:
+                    live_blobs.extend(cur_live_blobs[cur_ind])
+                ngoods += nextra
+            # Check to make sure there are enough finite
             # log-likelihood value within the initial set of live
             # points.
-            if np.any(live_logl != _LOWL_VAL):
+            if ngoods > min_npoints:
+                # we need to fill the rest with points with
+                # not finite logl
+                nextra = nlive - ngoods
+                if nextra > 0:
+                    cur_ind = np.nonzero(not_finite)[0][:nextra]
+                    live_logl[ngoods:ngoods + nextra] = cur_live_logl[cur_ind]
+                    live_u[ngoods:ngoods + nextra] = cur_live_u[cur_ind]
+                    live_v[ngoods:ngoods + nextra] = cur_live_v[cur_ind]
+                    if blob:
+                        live_blobs.extend(cur_live_blobs[cur_ind])
+                logvol_init = -np.log(iattempt)
+                # The logic is the following:
+                # if we have n live points and we sampled N attempts
+                # and we have k points above LOWL_VAL
+                # then the volume associated with pts above LOWL_VAL
+                # can be estimated as k/(Nn)
+                # the rest of the points have 1/Nn volume per pt
+                # Since we quit with k points above LOWL_VAL and
+                # (n-k)  LOWL points
+                # The volume is k/(Nn) + (n-k)/(Nn) = 1/N
                 break
-            logvol_init = -np.log((1 + iattempt) * nlive)
         else:
             # If we found nothing after many attempts, raise the alarm.
-            raise RuntimeError(f"After {n_attempts} attempts, not a single "
-                               "live "
-                               "point had a valid log-likelihood! Please "
+            raise RuntimeError(f"After {n_attempts} attempts, we cound not "
+                               f"find at least {npdim} points"
+                               "that have a valid log-likelihood! Please "
                                "check your prior transform and/or "
                                "log-likelihood.")
     else:

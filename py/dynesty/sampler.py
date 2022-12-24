@@ -16,7 +16,7 @@ from .bounding import UnitCube
 from .sampling import sample_unif, SamplerArgument
 from .utils import (get_seed_sequence, get_print_func, progress_integration,
                     IteratorResult, RunRecord, get_neff_from_logwt,
-                    compute_integrals, DelayTimer)
+                    compute_integrals, DelayTimer, _LOWL_VAL)
 
 __all__ = ["Sampler"]
 
@@ -380,7 +380,6 @@ class Sampler:
 
         # Grab the earliest entry.
         u, v, logl, nc, blob = self.queue.pop(0)
-
         self.used += 1  # add to the total number of used points
         self.nqueue -= 1
 
@@ -416,7 +415,14 @@ class Sampler:
             # made *and* we satisfy the criteria for moving beyond sampling
             # from the unit cube, update the bound.
             if ucheck and bcheck:
-                bound = self.update()
+                if loglstar == _LOWL_VAL:
+                    # in the case we just started and we have some
+                    # LOWL_VAL points we don't want to use them for the
+                    # boundary
+                    subset = self.live_logl > loglstar
+                else:
+                    subset = slice(None)
+                bound = self.update(subset=subset)
                 if self.save_bounds:
                     self.bound.append(bound)
                 self.nbound += 1

@@ -617,8 +617,6 @@ def _configure_batch_sampler(main_sampler,
              rstate=main_sampler.rstate,
              blob=main_sampler.blob,
              use_pool_ptform=main_sampler.use_pool_ptform)
-        del logvol0
-        # I don't use logvol0 because it's accounted by the parent sampler
         live_bound = np.zeros(nlive_new, dtype=int)
         live_it = np.zeros(nlive_new, dtype=int)
         live_nc = np.ones(nlive_new, dtype=int)
@@ -795,6 +793,8 @@ def _configure_batch_sampler(main_sampler,
         batch_sampler.nbound += 1
         batch_sampler.since_update = 0
         batch_sampler.logl_first_update = logl_min
+    else:
+        batch_sampler.logvol_init = logvol0
 
     # Figure out where the new run would would join the previous run
     if logl_min == -np.inf:
@@ -1648,7 +1648,7 @@ class DynamicSampler:
 
         for k in [
                 'id', 'u', 'v', 'logl', 'nc', 'boundidx', 'it', 'bounditer',
-                'n', 'scale', 'blob'
+                'n', 'scale', 'blob', 'logvol'
         ]:
             saved_d[k] = np.array(self.saved_run[k])
             new_d[k] = np.array(self.new_run[k])
@@ -1724,9 +1724,10 @@ class DynamicSampler:
         plateau_mode = False
         plateau_counter = 0
         plateau_logdvol = 0
-        logvol = 0.
+        logvol = self.sampler.logvol_init
         logl_array = np.array(self.saved_run['logl'])
         nlive_array = np.array(self.saved_run['n'])
+
         for i, (curl, nlive) in enumerate(zip(logl_array, nlive_array)):
             # Save the number of live points and expected ln(volume).
             if (not plateau_mode and i != len(nlive_array) - 1

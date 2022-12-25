@@ -197,19 +197,18 @@ class EdgesInf:
         return (2 * x - 1) * self.size
 
 
-# TODO THIS TEMPORARILY DISABLED
-# BEFORE THE INITIAL SAMPLING of -inf is fixed
-def test_edge():
+@pytest.mark.parametrize('dynamic,', [False, True])
+def test_edge(dynamic):
     rstate = get_rstate()
     ndim = 2
     ei = EdgesInf(ndim)
     nlive = 100
-    sampler = dynesty.NestedSampler(ei,
-                                    ei.prior_transform,
-                                    ei.ndim,
-                                    nlive=nlive,
-                                    rstate=rstate)
-    sampler.run_nested(print_progress=True)
+    if dynamic:
+        CL = dynesty.DynamicNestedSampler
+    else:
+        CL = dynesty.NestedSampler
+    sampler = CL(ei, ei.prior_transform, ei.ndim, nlive=nlive, rstate=rstate)
+    sampler.run_nested(print_progress=printing)
     res = sampler.results
-    THRESH = 3
+    THRESH = 4
     assert np.abs(res.logz[-1]) < THRESH * res.logzerr[-1]

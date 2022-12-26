@@ -1779,14 +1779,13 @@ def check_result_static(res):
     standard_run = False
 
     # Check if we have a constant number of live points.
-    nlive_test = np.ones(niter, dtype=int) * nlive
-    if np.all(samples_n == nlive_test):
+    if samples_n.size == niter and np.all(samples_n == nlive):
         standard_run = True
 
     # Check if we have a constant number of live points where we have
     # recycled the final set of live points.
     nlive_test = np.minimum(np.arange(niter, 0, -1), nlive)
-    if np.all(samples_n == nlive_test):
+    if samples_n.size == niter and np.all(samples_n == nlive_test):
         standard_run = True
     # If the number of live points is consistent with a standard nested
     # sampling run, slightly modify the format to keep with previous usage.
@@ -1794,8 +1793,6 @@ def check_result_static(res):
         resdict = res.asdict()
         resdict['nlive'] = nlive
         resdict['niter'] = niter - nlive
-        # XXX TODO Is it correct to subtract nlive here ?
-        # That will make things inconsistent
         res = Results(resdict)
     return res
 

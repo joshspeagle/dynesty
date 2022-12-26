@@ -374,12 +374,16 @@ def _initialize_live_points(live_points,
 
     Returns
     -------
-    (live_u, live_v, live_logl, blobs): tuple
-        The tuple of arrays.
-        The first is in unit cube coordinates.
-        The second is in the original coordinates.
-        The third are the log-likelihood valuess.
-        The fourth are the array of blobs (or None)
+    (live_u, live_v, live_logl, blobs), logvol_init, ncalls : tuple
+        The first tuple consist of:
+        live_u Unit cube coordinates of points
+        live_v Original coordinates.
+        live_logl log-likelihood values of points
+        blobs - Array of blobs associated with logl calls (or None)
+        The other arguments are
+        logvol_init Log(volume) associated with returned points.
+               It will be zero, if all the log(l) values were finite
+        ncalls Integer number of function calls
     """
     logvol_init = 0
     ncalls = 0

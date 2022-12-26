@@ -9,31 +9,42 @@ printing = get_printing()
 
 
 class Plateau:
-    # likelihood that has value A1 inside a sphere with the radius R
-    # and outside it has velue A0
-    def __init__(self, ndim):
+    # likelihood that has value As inside a concentric
+    # spheres/spherical with the radii Rs
+    # the value outside the last sphere is given in As[-1]
+    # everything is defined in the box -S<x<S
+    def __init__(self, ndim, Rs=[1], As=[10, 1], S=3):
         self.ndim = ndim
-        self.S = 3
-        self.R = 1
-        self.A0 = 1
-        self.A1 = 10
+        self.S = S
+        self.Rs = np.concatenate(([0], np.array(Rs)))
+        self.logAs = np.log(np.array(As))
+        assert (len(self.Rs) == len(self.logAs))
+        assert np.all(np.diff(Rs) > 0)
+        assert Rs[-1] < S
 
     def __call__(self, x):
         r = np.sqrt(np.sum(x**2))
-        if r < self.R:
-            ret = np.log(self.A1)  # - 1e-6 * r
-        else:
-            ret = np.log(self.A0)  # - 1e-6 * r
-        # print(ret, r)
+        xid = np.searchsorted(self.Rs, r, 'right')
+        ret = self.logAs[xid - 1]
         return ret
 
     @property
     def logz_true(self):
         # true value of the integral
-        logz = np.log(self.A0 + np.pi**(self.ndim / 2.) /
-                      scipy.special.gamma(self.ndim / 2. + 1) *
-                      self.R**self.ndim * (self.A1 - self.A0) /
-                      ((2 * self.S)**self.ndim))
+        n = self.ndim
+        logmult = n / 2. * np.log(np.pi) - scipy.special.gammaln(n / 2. + 1)
+        logvols = np.zeros(len(self.Rs))
+
+        # volumes = pi^(n/2)/gamma(n/2+1) * (R_{k+1}^n - R_{k}^n)
+        logvols[:-1] = logmult + n * np.log(
+            self.Rs[1:]) + np.log1p(-(self.Rs[:-1] / self.Rs[1:])**n)
+        # the last vol is (2s)^n - pi^(n/2)/gamma(n/2+1) * R[-1]^n
+        logvols[-1] = n * np.log(
+            2 * self.S) + np.log1p(-np.exp(logmult + n * np.log(self.Rs[-1] /
+                                                                (2 * self.S))))
+        logprior = -n * np.log(2 * self.S)
+        logz = scipy.special.logsumexp(self.logAs + logvols) + logprior
+
         return logz
 
     def prior_transform(self, x):

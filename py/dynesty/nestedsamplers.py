@@ -33,7 +33,7 @@ from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
 from .sampling import (sample_unif, sample_rwalk, sample_slice, sample_rslice,
                        sample_hslice)
 from .utils import (unitcheck, get_enlarge_bootstrap, save_sampler,
-                    restore_sampler)
+                    restore_sampler, _LOWL_VAL)
 
 __all__ = [
     "UnitCubeSampler", "SingleEllipsoidSampler", "MultiEllipsoidSampler",
@@ -69,7 +69,8 @@ class SuperSampler(Sampler):
                  use_pool,
                  kwargs=None,
                  ncdim=0,
-                 blob=False):
+                 blob=False,
+                 logvol_init=0):
         # Initialize sampler.
         super().__init__(loglikelihood,
                          prior_transform,
@@ -82,7 +83,8 @@ class SuperSampler(Sampler):
                          pool,
                          use_pool,
                          ncdim=ncdim,
-                         blob=blob)
+                         blob=blob,
+                         logvol_init=logvol_init)
         # Initialize method to propose a new starting point.
         self._PROPOSE = {
             'unif': self.propose_unif,
@@ -348,7 +350,8 @@ class UnitCubeSampler(SuperSampler):
                  use_pool,
                  kwargs=None,
                  ncdim=0,
-                 blob=False):
+                 blob=False,
+                 logvol_init=0):
 
         # Initialize sampler.
         super().__init__(loglikelihood,
@@ -364,12 +367,13 @@ class UnitCubeSampler(SuperSampler):
                          use_pool,
                          ncdim=ncdim,
                          blob=blob,
+                         logvol_init=logvol_init,
                          kwargs=kwargs or {})
 
         self.unitcube = UnitCube(self.ncdim)
         self.bounding = 'none'
 
-    def update(self):
+    def update(self, subset=slice(None)):
         """Update the unit cube bound."""
 
         return copy.deepcopy(self.unitcube)
@@ -471,6 +475,7 @@ class SingleEllipsoidSampler(SuperSampler):
                  use_pool,
                  kwargs=None,
                  blob=False,
+                 logvol_init=0,
                  ncdim=0):
 
         # Initialize sampler.
@@ -487,12 +492,13 @@ class SingleEllipsoidSampler(SuperSampler):
                          use_pool,
                          ncdim=ncdim,
                          blob=blob,
+                         logvol_init=logvol_init,
                          kwargs=kwargs or {})
 
         self.ell = Ellipsoid(np.zeros(self.ncdim), np.identity(self.ncdim))
         self.bounding = 'single'
 
-    def update(self):
+    def update(self, subset=slice(None)):
         """Update the bounding ellipsoid using the current set of
         live points."""
 
@@ -503,7 +509,7 @@ class SingleEllipsoidSampler(SuperSampler):
             pool = None
 
         # Update the ellipsoid.
-        self.ell.update(self.live_u[:, :self.ncdim],
+        self.ell.update(self.live_u[subset, :self.ncdim],
                         rstate=self.rstate,
                         bootstrap=self.bootstrap,
                         pool=pool)
@@ -631,6 +637,7 @@ class MultiEllipsoidSampler(SuperSampler):
                  use_pool,
                  kwargs=None,
                  blob=False,
+                 logvol_init=0,
                  ncdim=0):
         # Initialize sampler.
         super().__init__(loglikelihood,
@@ -646,13 +653,14 @@ class MultiEllipsoidSampler(SuperSampler):
                          use_pool,
                          ncdim=ncdim,
                          blob=blob,
+                         logvol_init=logvol_init,
                          kwargs=kwargs or {})
 
         self.mell = MultiEllipsoid(ctrs=[np.zeros(self.ncdim)],
                                    covs=[np.identity(self.ncdim)])
         self.bounding = 'multi'
 
-    def update(self):
+    def update(self, subset=slice(None)):
         """Update the bounding ellipsoids using the current set of
         live points."""
 
@@ -663,7 +671,7 @@ class MultiEllipsoidSampler(SuperSampler):
             pool = None
 
         # Update the bounding ellipsoids.
-        self.mell.update(self.live_u[:, :self.ncdim],
+        self.mell.update(self.live_u[subset, :self.ncdim],
                          rstate=self.rstate,
                          bootstrap=self.bootstrap,
                          pool=pool)
@@ -819,6 +827,7 @@ class RadFriendsSampler(SuperSampler):
                  use_pool,
                  kwargs=None,
                  blob=False,
+                 logvol_init=0,
                  ncdim=0):
 
         # Initialize sampler.
@@ -834,13 +843,14 @@ class RadFriendsSampler(SuperSampler):
                          pool,
                          use_pool,
                          ncdim=ncdim,
+                         logvol_init=logvol_init,
                          blob=blob,
                          kwargs=kwargs or {})
 
         self.radfriends = RadFriends(self.ncdim)
         self.bounding = 'balls'
 
-    def update(self):
+    def update(self, subset=slice(None)):
         """Update the N-sphere radii using the current set of live points."""
 
         # Check if we should use the provided pool for updating.
@@ -850,7 +860,7 @@ class RadFriendsSampler(SuperSampler):
             pool = None
 
         # Update the N-spheres.
-        self.radfriends.update(self.live_u[:, :self.ncdim],
+        self.radfriends.update(self.live_u[subset, :self.ncdim],
                                rstate=self.rstate,
                                bootstrap=self.bootstrap,
                                pool=pool)
@@ -971,6 +981,7 @@ class SupFriendsSampler(SuperSampler):
                  use_pool,
                  kwargs=None,
                  blob=False,
+                 logvol_init=0,
                  ncdim=0):
 
         # Initialize sampler.
@@ -987,12 +998,13 @@ class SupFriendsSampler(SuperSampler):
                          use_pool,
                          ncdim=ncdim,
                          blob=blob,
+                         logvol_init=logvol_init,
                          kwargs=kwargs or {})
 
         self.supfriends = SupFriends(self.ncdim)
         self.bounding = 'cubes'
 
-    def update(self):
+    def update(self, subset=slice(None)):
         """Update the N-cube side-lengths using the current set of
         live points."""
 
@@ -1003,7 +1015,7 @@ class SupFriendsSampler(SuperSampler):
             pool = None
 
         # Update the N-cubes.
-        self.supfriends.update(self.live_u[:, :self.ncdim],
+        self.supfriends.update(self.live_u[subset, :self.ncdim],
                                rstate=self.rstate,
                                bootstrap=self.bootstrap,
                                pool=pool)

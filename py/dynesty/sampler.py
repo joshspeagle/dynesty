@@ -16,7 +16,7 @@ from .bounding import UnitCube
 from .sampling import sample_unif, SamplerArgument
 from .utils import (get_seed_sequence, get_print_func, progress_integration,
                     IteratorResult, RunRecord, get_neff_from_logwt,
-                    compute_integrals, DelayTimer)
+                    compute_integrals, DelayTimer, _LOWL_VAL)
 
 __all__ = ["Sampler"]
 
@@ -80,6 +80,7 @@ class Sampler:
                  pool,
                  use_pool,
                  ncdim,
+                 logvol_init=0,
                  blob=False):
 
         # distributions
@@ -144,6 +145,12 @@ class Sampler:
         self.cite = ''  # Default empty
         self.save_samples = True
         self.save_bounds = True
+
+        self.logvol_init = logvol_init
+
+        self.plateau_mode = False
+        self.plateau_counter = None
+        self.plateau_logdvol = None
         # results
         self.saved_run = RunRecord()
 
@@ -208,6 +215,10 @@ class Sampler:
         self.bound = [UnitCube(self.ncdim)]
         self.nbound = 1
         self.added_live = False
+
+        self.plateau_mode = False
+        self.plateau_counter = None
+        self.plateau_logdvol = None
 
         # results
         self.saved_run = RunRecord()
@@ -369,7 +380,6 @@ class Sampler:
 
         # Grab the earliest entry.
         u, v, logl, nc, blob = self.queue.pop(0)
-
         self.used += 1  # add to the total number of used points
         self.nqueue -= 1
 
@@ -405,7 +415,14 @@ class Sampler:
             # made *and* we satisfy the criteria for moving beyond sampling
             # from the unit cube, update the bound.
             if ucheck and bcheck:
-                bound = self.update()
+                if loglstar == _LOWL_VAL:
+                    # in the case we just started and we have some
+                    # LOWL_VAL points we don't want to use them for the
+                    # boundary
+                    subset = self.live_logl > loglstar
+                else:
+                    subset = slice(None)
+                bound = self.update(subset=subset)
                 if self.save_bounds:
                     self.bound.append(bound)
                 self.nbound += 1
@@ -437,12 +454,29 @@ class Sampler:
         # within the remaining volume so that the expected volume enclosed
         # by the `i`-th worst likelihood is
         # `e^(-N / nlive) * (nlive + 1 - i) / (nlive + 1)`.
-        logvols = np.log(1. - (np.arange(self.nlive) + 1.) / (self.nlive + 1.))
-
-        # Defining change in `logvol` used in `logzvar` approximation.
+        # The tricky bit here is what to do if we have a plateau that we
+        # haven't fully exhausted
+        # then we first use the old delta(V) till we are done with the plateau
+        if not self.plateau_mode:
+            logvols = np.log(1. - (np.arange(self.nlive) + 1.) /
+                             (self.nlive + 1.))
+            # Defining change in `logvol` used in `logzvar` approximation.
+        else:
+            # we first just use old delta(v)'s associated with each point
+            # in the plateau
+            logvols = np.log1p(-((1 + np.arange(self.plateau_counter)) *
+                                 np.exp(self.plateau_logdvol - logvol)))
+            # after we're done with it we just assign 1/(nrest+1) fraction of
+            # the remaining volume to each leftover point
+            nrest = self.nlive - self.plateau_counter
+            logvols = np.concatenate([
+                logvols,
+                logvols[-1] + np.log1p(-(1 + np.arange(nrest)) / (nrest + 1))
+            ])
+        # IMPORTANT in those caclulations I keep logvol separate
+        # and add it later to ensure the first dlv=0
         dlvs = -np.diff(logvols, prepend=0)
         logvols += logvol
-
         # Sorting remaining live points.
         lsort_idx = np.argsort(self.live_logl)
         loglmax = max(self.live_logl)
@@ -663,7 +697,7 @@ class Sampler:
             h = 0.  # information, initially *0.*
             logz = -1.e300  # ln(evidence), initially *0.*
             logzvar = 0.  # var[ln(evidence)], initially *0.*
-            logvol = 0.  # initially contains the whole prior (volume=1.)
+            logvol = self.logvol_init  # initially contains the whole prior (volume=1.)
             loglstar = -1.e300  # initial ln(likelihood)
             delta_logz = 1.e300  # ln(ratio) of total/current evidence
 
@@ -689,6 +723,7 @@ class Sampler:
             delta_logz = np.logaddexp(0,
                                       np.max(self.live_logl) + logvol - logz)
 
+        nplateau = 0
         stop_iterations = False
         # The main nested sampling loop.
         for it in range(sys.maxsize):
@@ -718,6 +753,10 @@ class Sampler:
             # samples has been achieved.
             if (n_effective is not None) and not np.isposinf(n_effective):
                 current_n_effective = self.n_effective
+                # TODO This needs to be refactored
+                # here we are adding final live points then checking
+                # if n_effective is large enough then removing them again
+                # this is slow and not a good logic
                 if current_n_effective > n_effective:
                     if add_live:
                         self.add_final_live(print_progress=False)
@@ -728,6 +767,11 @@ class Sampler:
                         self.added_live = False
                     if current_n_effective > n_effective:
                         stop_iterations = True
+            if self.live_logl.ptp() == 0:
+                warnings.warn(
+                    'We have reached the plateau in the likelihood we are'
+                    ' stopping sampling')
+                stop_iterations = True
 
             if stop_iterations:
                 if not self.save_samples:
@@ -741,9 +785,6 @@ class Sampler:
                     self.saved_run.append(add_info)
                 break
 
-            # Expected ln(volume) shrinkage.
-            logvol -= self.dlv
-
             # After `update_interval` interations have passed *and* we meet
             # the criteria for moving beyond sampling from the unit cube,
             # update the bound using the current set of live points.
@@ -756,10 +797,27 @@ class Sampler:
                 self.nbound += 1
                 self.since_update = 0
 
-            # Locate the "live" point with the lowest `logl`.
             worst = np.argmin(self.live_logl)  # index
+            # Locate the "live" point with the lowest `logl`.
             worst_it = self.live_it[worst]  # when point was proposed
             boundidx = self.live_bound[worst]  # associated bound index
+
+            if not self.plateau_mode:
+                nplateau = (self.live_logl == self.live_logl[worst]).sum()
+                if nplateau > 1:
+                    self.plateau_mode = True
+                    self.plateau_counter = nplateau
+                    self.plateau_logdvol = np.log(1. /
+                                                  (self.nlive + 1)) + logvol
+                    # this is log (delta vol)
+
+            if not self.plateau_mode:
+                # Expected ln(volume) shrinkage.
+                cur_dlv = self.dlv
+            else:
+                cur_dlv = -np.log1p(-np.exp(self.plateau_logdvol - logvol))
+            assert cur_dlv > 0
+            logvol -= cur_dlv
 
             # Set our new worst likelihood constraint.
             # Notice we are doing copies here because live_u and live_v
@@ -785,7 +843,7 @@ class Sampler:
                 new_blob = None
             (logwt, logz, logzvar,
              h) = progress_integration(loglstar, loglstar_new, logz, logzvar,
-                                       logvol, self.dlv, h)
+                                       logvol, cur_dlv, h)
             loglstar = loglstar_new
 
             # Compute bound index at the current iteration.
@@ -826,6 +884,10 @@ class Sampler:
             # Increment total number of iterations.
             self.it += 1
 
+            if self.plateau_mode:
+                self.plateau_counter -= 1
+                if self.plateau_counter == 0:
+                    self.plateau_mode = False
             # Return dead point and ancillary quantities.
             yield IteratorResult(worst=worst,
                                  ustar=ustar,

@@ -54,7 +54,7 @@ class UnitCube:
 
     def __init__(self, ndim):
         self.n = ndim  # dimension
-        self.vol = 1.  # volume
+        self.logvol = 0.  # volume
         self.funit = 1.  # overlap with the unit cube
 
     def contains(self, x):

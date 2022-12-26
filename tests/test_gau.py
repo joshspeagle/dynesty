@@ -43,7 +43,7 @@ def check_results(results,
                   mean_tol,
                   cov_tol,
                   logz_tol,
-                  sig=5):
+                  sig=4):
     """ Check if means and covariances match match expectations
     within the tolerances
 
@@ -112,7 +112,7 @@ class Gaussian:
         return -np.dot(self.cov_inv, x - self.mean) * 2 * self.prior_win
 
 
-def check_results_gau(results, g, rstate, sig=5, logz_tol=None):
+def check_results_gau(results, g, rstate, sig=4, logz_tol=None):
     if logz_tol is None:
         logz_tol = sig * results['logzerr'][-1]
     mean_tol, cov_tol = bootstrap_tol(results, rstate)
@@ -131,7 +131,7 @@ def check_results_gau(results, g, rstate, sig=5, logz_tol=None):
 
 
 def test_gaussian():
-    sig = 5
+    sig = 4
     rstate = get_rstate()
     g = Gaussian()
     sampler = dynesty.NestedSampler(g.loglikelihood,

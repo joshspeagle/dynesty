@@ -1732,20 +1732,17 @@ class DynamicSampler:
         logl_array = np.array(self.saved_run['logl'])
         nlive_array = np.array(self.saved_run['n'])
 
-        for i, (curl, nlive) in enumerate(zip(logl_array, nlive_array)):
+        for i, (cur_logl, nlive) in enumerate(zip(logl_array, nlive_array)):
             # Save the number of live points and expected ln(volume).
             if (not plateau_mode and i != len(nlive_array) - 1
                     and logl_array[i] == logl_array[i + 1]):
-                plateau_mask = (logl_array[i:] == curl)
+                plateau_mask = (logl_array[i:] == cur_logl)
                 nplateau = plateau_mask.sum()
                 if nplateau > 1:
                     # the number of live points should not change throughout
-                    # the plateau
-                    # assert nlive_array[i:][plateau_mask].ptp() == 0
-                    # WARNING I assume that the number of live points is
-                    # constant throughout the plateau
-                    # that seems to fail sometimes so I had to comment the
-                    # assert out
+                    # the plateau unless we are also merging it with the run
+                    # where the plateau is explored through final points,
+                    # i.e. when the number of live-points decreases.
                     plateau_counter = nplateau
                     plateau_logdvol = logvol + np.log(1. / (nlive + 1))
                     plateau_mode = True

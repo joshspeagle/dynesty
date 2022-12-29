@@ -33,7 +33,7 @@ from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
 from .sampling import (sample_unif, sample_rwalk, sample_slice, sample_rslice,
                        sample_hslice)
 from .utils import (unitcheck, get_enlarge_bootstrap, save_sampler,
-                    restore_sampler, _LOWL_VAL)
+                    restore_sampler)
 
 __all__ = [
     "UnitCubeSampler", "SingleEllipsoidSampler", "MultiEllipsoidSampler",

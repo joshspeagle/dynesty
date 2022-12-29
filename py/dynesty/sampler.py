@@ -528,8 +528,9 @@ class Sampler:
                         h=h,
                         nc=1,  # this is technically a lie
                         # as we didn't call the likelihood even once
-                        # however because we lose track of ncs if we start from points
-                        # that are not sampled from unit cube it can lead to sum(nc)!=ncall
+                        # however because we lose track of ncs if we start
+                        # from points that are not sampled from unit cube
+                        # it can lead to sum(nc)!=ncall
                         boundidx=boundidx,
                         it=point_it,
                         bounditer=bounditer,
@@ -697,7 +698,8 @@ class Sampler:
             h = 0.  # information, initially *0.*
             logz = -1.e300  # ln(evidence), initially *0.*
             logzvar = 0.  # var[ln(evidence)], initially *0.*
-            logvol = self.logvol_init  # initially contains the whole prior (volume=1.)
+            logvol = self.logvol_init
+            # initially contains the whole prior (volume=1.)
             loglstar = -1.e300  # initial ln(likelihood)
             delta_logz = 1.e300  # ln(ratio) of total/current evidence
 

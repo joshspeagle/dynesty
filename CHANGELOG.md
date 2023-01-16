@@ -9,7 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Changed
 ### Fixed
 
-## [2.1.0] - 2022-12-XX
+## [2.1.0] - 2023-01-XX
 ### Added
 - Dynesty is now able to correctly sample posteriors that have plateaus (i.e. areas of constant likelihood)
 ### Changed

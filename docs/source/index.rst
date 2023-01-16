@@ -98,6 +98,11 @@ Changelog
 .. image:: ../images/logo.gif
     :align: center
 
+2.1.0  (2023-01-XX)
+--------------------
+A release with a major change of sampler as it now is able to sample likelihood functions with plateaus.
+
+
 2.0.3  (2022-12-2)
 --------------------
 A release with major performance bug fix for the dynamical sampler.

@@ -98,9 +98,10 @@ Changelog
 .. image:: ../images/logo.gif
     :align: center
 
-2.1.0  (2023-01-XX)
+2.1.0  (2023-02-03)
 --------------------
-A release with a major change of sampler as it now is able to sample likelihood functions with plateaus.
+
+A release with a major change of the sampler as it is now able to sample likelihood functions with plateaus, (i.e. likelihood  that has the same value across a some non-zero volume).
 
 
 2.0.3  (2022-12-2)

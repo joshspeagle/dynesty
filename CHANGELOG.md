@@ -9,14 +9,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Changed
 ### Fixed
 
-## [2.1.0] - 2023-01-XX
+## [2.1.0] - 2023-02-03
 ### Added
 - Dynesty is now able to correctly sample posteriors that have plateaus (i.e. areas of constant likelihood)
 ### Changed
 ### Fixed
 - Previously when sampling posteriors that have areas with log(L)=minus infinity the computed evidence values were biased by roughly the fraction of the prior volume that has infinite log(L).
 
-## [2.0.3] - 2022-12-2
+## [2.0.3] - 2022-12-02
 A release with major performance bug fix for the dynamical sampler
 ### Added
 ### Changed

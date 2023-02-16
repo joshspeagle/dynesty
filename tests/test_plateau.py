@@ -223,3 +223,63 @@ def test_edge(dynamic):
     res = sampler.results
     THRESH = 4
     assert np.abs(res.logz[-1]) < THRESH * res.logzerr[-1]
+
+
+# probe the uniform distribution
+@pytest.mark.parametrize('dyn', [False, True])
+def test_uniform(dyn):
+    rstate = get_rstate()
+    nlive = 100
+    ndim = 2
+
+    def like(x):
+        return 0.
+
+    def prior(x):
+        return x
+
+    if dyn:
+        CL = dynesty.DynamicNestedSampler
+    else:
+        CL = dynesty.NestedSampler
+    sampler = CL(
+        like,
+        prior,
+        ndim,
+        nlive=nlive,
+        rstate=rstate,
+    )
+    sampler.run_nested(print_progress=printing)
+    res = sampler.results
+    THRESH = 3
+    assert np.abs(res.logz[-1] - 0) < THRESH * res.logzerr[-1]
+
+
+# test uniform distribution with very low
+# likelihood
+@pytest.mark.parametrize('dyn', [False, True])
+def test_uniform1(dyn):
+    rstate = get_rstate()
+    nlive = 100
+    ndim = 2
+
+    def like(x):
+        return -1e100
+
+    def prior(x):
+        return x
+
+    if dyn:
+        CL = dynesty.DynamicNestedSampler
+    else:
+        CL = dynesty.NestedSampler
+    sampler = CL(
+        like,
+        prior,
+        ndim,
+        nlive=nlive,
+        rstate=rstate,
+    )
+    sampler.run_nested(print_progress=printing)
+    res = sampler.results
+    THRESH = 3

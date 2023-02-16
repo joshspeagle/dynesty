@@ -65,15 +65,25 @@ def compute_weights(results):
     logwt = results.logwt
     samples_n = results.samples_n
 
-    # TODO the logic here needs to be verified
-    logz_remain = logl[-1] + logvol[-1]  # remainder
-    logz_tot = np.logaddexp(logz[-1], logz_remain)  # estimated upper bound
-    lzones = np.ones_like(logz)
-    logzin = logsumexp([lzones * logz_tot, logz], axis=0,
-                       b=[lzones, -lzones])  # ln(remaining evidence)
-    logzweight = logzin - np.log(samples_n)  # ln(evidence weight)
-    logzweight -= logsumexp(logzweight)  # normalize
-    zweight = np.exp(logzweight)  # convert to linear scale
+    if logz.ptp() == 0:
+        # this pathological case can happen if all logl are very small
+        # and all logz are very small and the same
+        # then the calculation below failse
+        warnings.warn('''The calculation of weights is seeing same 
+logz values associated with all the samples. It may mean somethings is 
+wrong with your likelihood.''')
+        zweight = np.ones(len(logl)) / len(logl)
+    else:
+        # TODO the logic here needs to be verified
+        logz_remain = logl[-1] + logvol[-1]  # remainder
+        logz_tot = np.logaddexp(logz[-1], logz_remain)  # estimated upper bound
+        lzones = np.ones_like(logz)
+        logzin = logsumexp([lzones * logz_tot, logz],
+                           axis=0,
+                           b=[lzones, -lzones])  # ln(remaining evidence)
+        logzweight = logzin - np.log(samples_n)  # ln(evidence weight)
+        logzweight -= logsumexp(logzweight)  # normalize
+        zweight = np.exp(logzweight)  # convert to linear scale
 
     # Derive posterior weights.
     pweight = np.exp(logwt - logz[-1])  # importance weight

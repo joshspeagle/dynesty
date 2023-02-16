@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 ### Changed
 ### Fixed
+- Fix some pathological cases when uniform distribution is sampled with
+ a very low logl
 
 ## [2.1.0] - 2023-02-03
 ### Added

@@ -443,12 +443,22 @@ class Sampler:
                              "been added to the list of samples!")
         else:
             self.added_live = True
+        if len(self.saved_run['logz']) > 0:
+            logz = self.saved_run['logz'][-1]
+            logzvar = self.saved_run['logzvar'][-1]
+            h = self.saved_run['h'][-1]
+            loglstar = self.saved_run['logl'][-1]
+            logvol = self.saved_run['logvol'][-1]
+        else:
+            # this is special case if we didn't do any running
+            # just sampled uniformly and bailed out
+            h = 0.  # information, initially *0.*
+            logz = -1.e300  # ln(evidence), initially *0.*
+            logzvar = 0.  # var[ln(evidence)], initially *0.*
+            logvol = self.logvol_init
+            # initially contains the whole prior (volume=1.)
+            loglstar = -1.e300  # initial ln(likelihood)
 
-        logz = self.saved_run['logz'][-1]
-        logzvar = self.saved_run['logzvar'][-1]
-        h = self.saved_run['h'][-1]
-        loglstar = self.saved_run['logl'][-1]
-        logvol = self.saved_run['logvol'][-1]
         # After N samples have been taken out, the remaining volume is
         # `e^(-N / nlive)`. The remaining points are distributed uniformly
         # within the remaining volume so that the expected volume enclosed

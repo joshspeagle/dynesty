@@ -18,6 +18,7 @@ import pickle as pickle_module
 # To allow replacing of the pickler
 import numpy as np
 from scipy.special import logsumexp
+from scipy.stats import randint, ks_1samp
 from ._version import __version__ as DYNESTY_VERSION
 try:
     import tqdm
@@ -33,7 +34,7 @@ __all__ = [
     "unitcheck", "resample_equal", "mean_and_cov", "quantile", "jitter_run",
     "resample_run", "reweight_run", "unravel_run", "merge_runs", "kld_error",
     "get_enlarge_bootstrap", "LoglOutput", "LogLikelihood", "RunRecord",
-    "DelayTimer"
+    "insertion_index_test", "DelayTimer"
 ]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
@@ -276,6 +277,10 @@ class RunRecord:
             'n',  # number of live points interior to dead point
             'bounditer',  # active bound at a specific iteration
             'scale',  # scale factor at each iteration
+            'distance_insertion_index',
+            # number of points less distant from the starting point than the last inserted point
+            'likelihood_insertion_index',
+            # number of points with lower likelihood than the last inserted point
             'blob'  # blobs output by the log-likelihood
         ]
         if dynamic:
@@ -613,7 +618,13 @@ _RESULTS_STRUCTURE = [
      "The number of live points used for  given batch", 'nbatch'),
     ('scale', 'array[float]', "Scalar scale applied for proposals", 'niter'),
     ('blob', 'array[]',
-     'The auxiliary blobs computed by the log-likelihood function', 'niter')
+     'The auxiliary blobs computed by the log-likelihood function', 'niter'),
+    ('distance_insertion_index', 'array[int]',
+     "The number of live points closer to the start point than "
+     "the new point", 'niter'),
+    ('likelihood_insertion_index', 'array[int]',
+     "The number of live points with likelihood less than "
+     "the new point", 'niter'),
 ]
 
 
@@ -2313,3 +2324,60 @@ def save_sampler(sampler, fname):
         except:  # noqa
             pass
         raise
+
+
+def insertion_index_test(result, kind="likelihood", ax=None):
+    """
+    Compute the p-value comparing the distribution of insertion indices with
+    the discrete uniform distribution as described in arxiv:2006.03371.
+    Parameters
+    ----------
+    result: dynesty.utils.Results
+        The result of a NS analysis
+    kind: str
+        The name of the quantity for which to test the insertion indices.
+        The allowed values are:
+        - likelihood
+        - distance
+    ax: matplotlib.Axis
+        If passed, the insertion indices will be histogramed on the axis.
+    Returns
+    -------
+    pval: float, array-like
+        The p value(s) comparing the insertion indices to the discrete uniform
+        distribution
+        If analyzing a dynamic NS run, one p value is returned for each
+        distinct number of live points, typically two.
+    """
+
+    def compute_pvalue(_vals, _nlive):
+        dist = randint(1, _nlive + 1)
+        return ks_1samp(_vals, dist.cdf).pvalue
+
+    key = f"{kind}_insertion_index"
+    vals = np.array(result[key])
+    select = vals >= 0
+
+    if sum(select) == 0:
+        return np.nan
+
+    vals = vals[select]
+    if "batch_nlive" in result:
+        pvals = list()
+        nlives = np.array(result["batch_nlive"])[result["samples_batch"]]
+        nlives = nlives[select]
+        for nlive in np.unique(result["batch_nlive"]):
+            vals_ = vals[nlives == nlive]
+            pval = compute_pvalue(vals_, nlive)
+            pvals.append(pval)
+            label = f"{kind.title()}: $p_{{\\rm value }}={pval:.2f}, n_{{\\rm live}}={nlive}$"
+            if ax is not None:
+                ax.hist(vals_ / nlive, bins=30, density=True, histtype="step", label=label)
+        return pvals
+    else:
+        nlive = result["nlive"]
+        pval = compute_pvalue(vals, result["nlive"])
+        label = f"{kind.title()}: $p_{{\\rm value }}={pval:.2f}, n_{{\\rm live}}={nlive}$"
+        if ax is not None:
+            ax.hist(vals / nlive, bins=30, density=True, histtype="step", label=label)
+        return pval

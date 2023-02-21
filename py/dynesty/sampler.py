@@ -104,6 +104,8 @@ class Sampler:
 
         # set to none just for qa
         self.scale = None
+        self.distance_insertion_index = -1
+        self.likelihood_insertion_index = -1
         self.method = None
         self.kwargs = {}
 
@@ -261,7 +263,8 @@ class Sampler:
                                         dtype=int)))
             results.append(('samples_bound',
                             np.array(self.saved_run['boundidx'], dtype=int)))
-            results.append(('scale', np.array(self.saved_run['scale'])))
+        for key in ['scale', 'distance_insertion_index', 'likelihood_insertion_index']:
+            results.append((key, np.array(self.saved_run.D[key])))
 
         return Results(results)
 
@@ -395,6 +398,28 @@ class Sampler:
                                 rseed=seeds[i],
                                 kwargs=self.kwargs))
         self.queue = list(mapper(evolve_point, args))
+        new_queue = list()
+        for start, (u, v, logl, nc, blob) in zip(point_queue, self.queue):
+            if blob is not None:
+                blob["distance_insertion"] = self._distance_insertion_index(start, u)
+                blob["likelihood_insertion"] = self._likelihood_insertion_index(logl)
+            new_queue.append((u, v, logl, nc, blob))
+        self.queue = new_queue
+
+    def _distance_insertion_index(self, start, point):
+        """
+        Compute the distance insertion index as defined in XXX
+        """
+        norms = np.std(self.live_u, axis=0)
+        distance = np.linalg.norm((point - start) / norms)
+        all_distances = np.array([np.linalg.norm((start - u) / norms) for u in self.live_u])
+        return sum(all_distances < distance)
+
+    def _likelihood_insertion_index(self, logl):
+        """
+        Compute the likelihood insertion index as defined in arxiv:2006.03371
+        """
+        return sum(np.array(self.live_logl) < logl)
 
     def _get_point_value(self, loglstar):
         """Grab the first live point proposal in the queue."""
@@ -421,6 +446,9 @@ class Sampler:
             u, v, logl, nc, blob = self._get_point_value(loglstar)
             ncall += nc
             ncall_accum += nc
+            if blob is not None:
+                self.distance_insertion_index = blob.get("distance_insertion", 0)
+                self.likelihood_insertion_index = blob.get("likelihood_insertion", 0)
 
             if blob is not None and not self.unit_cube_sampling:
                 # If our queue is empty, update any tuning parameters
@@ -558,7 +586,10 @@ class Sampler:
                         it=point_it,
                         bounditer=bounditer,
                         scale=self.scale,
-                        blob=old_blob))
+                        blob=old_blob,
+                        distance_insertion_index=-1,
+                        likelihood_insertion_index=-1,
+                        ))
             self.eff = 100. * (self.it + i) / self.ncall  # efficiency
 
             # Return our new "dead" point and ancillary quantities.
@@ -589,7 +620,7 @@ class Sampler:
                 for k in [
                         'id', 'u', 'v', 'logl', 'logvol', 'logwt', 'logz',
                         'logzvar', 'h', 'nc', 'boundidx', 'it', 'bounditer',
-                        'scale', 'blob'
+                        'scale', 'blob', 'distance_insertion_index', 'likelihood_insertion_index',
                 ]:
                     del self.saved_run[k][-self.nlive:]
         else:
@@ -879,7 +910,10 @@ class Sampler:
                          it=worst_it,
                          bounditer=bounditer,
                          scale=self.scale,
-                         blob=old_blob))
+                         blob=old_blob,
+                         distance_insertion_index=self.distance_insertion_index,
+                         likelihood_insertion_index=self.likelihood_insertion_index,
+                         ))
 
             # Update the live point (previously our "worst" point).
             self.live_u[worst] = u

@@ -18,6 +18,7 @@ from scipy.stats import gaussian_kde
 from .utils import resample_equal, unitcheck
 from .utils import quantile as _quantile
 from .utils import get_random_generator, get_nonbounded
+from .utils import insertion_index_test
 from . import bounding
 
 str_type = str
@@ -26,7 +27,7 @@ int_type = int
 
 __all__ = [
     "runplot", "traceplot", "cornerpoints", "cornerplot", "boundplot",
-    "cornerbound", "_hist2d"
+    "cornerbound", "_hist2d", "insertionplot",
 ]
 
 
@@ -2391,3 +2392,32 @@ def _hist2d(x,
 
     ax.set_xlim(span[0])
     ax.set_ylim(span[1])
+
+def insertionplot(results, figsize=(8, 5)):
+    """
+    Plot the fractional insertion indices for likelihood and distance.
+
+    A trace is added for each unique number of live points.
+    The p-value comparing with the expected distribution is shown in the
+    legend.
+
+    Parameters
+    ----------
+    results : :class:`~dynesty.results.Results` instance
+        A :class:`~dynesty.results.Results` instance from a nested
+        sampling run.
+
+    Returns
+    -------
+    insertionplot : (`~matplotlib.figure.Figure`, `~matplotlib.axes.Axis`)
+        Output insertion index plot.
+    """
+    fig = pl.figure(figsize=figsize)
+    ax = pl.gca()
+    for kind in ["likelihood", "distance"]:
+        insertion_index_test(result=results, kind=kind, ax=ax)
+    ax.set_ylabel("Insertion index")
+    ax.set_xlim(0, 1)
+    ax.legend(loc="best")
+    ax.set_xlabel("Index / $n_{\\rm live}$")
+    return fig, ax

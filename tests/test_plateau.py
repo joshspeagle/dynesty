@@ -225,6 +225,20 @@ def test_edge(dynamic):
     assert np.abs(res.logz[-1]) < THRESH * res.logzerr[-1]
 
 
+def test_exc_small():
+    rstate = get_rstate()
+    ndim = 2
+    ei = EdgesInf(ndim, 1e-6)
+    nlive = 10
+    with pytest.raises(RuntimeError):
+        sampler = dynesty.NestedSampler(ei,
+                                        ei.prior_transform,
+                                        ei.ndim,
+                                        nlive=nlive,
+                                        rstate=rstate)
+        sampler.run_nested(print_progress=printing)
+
+
 # probe the uniform distribution
 @pytest.mark.parametrize('dyn', [False, True])
 def test_uniform(dyn):

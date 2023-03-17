@@ -427,12 +427,19 @@ class Sampler:
                 # If it's not empty we are just accumulating the
                 # the history of evaluations
                 self.update_proposal(blob, update=self.nqueue <= 0)
+
+            # the reason I'm not using self.ncall is that it's updated at
+            # higher level
+            # also on purpose this is placed in nqueue==0
+            # because we only want update if we are planning to generate
+            # new points
+            if self.nqueue == 0:
+                self.update_bound_if_needed(loglstar, ncall=ncall)
+
             # If we satisfy the log-likelihood constraint, we're done!
             if logl > loglstar:
                 break
 
-            # the reason I'm not using self.ncall is that it's updated at higher level
-            self.update_bound_if_needed(loglstar, ncall=ncall)
         return u, v, logl, ncall_accum
 
     def add_live_points(self):

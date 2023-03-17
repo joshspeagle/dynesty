@@ -618,6 +618,7 @@ def _configure_batch_sampler(main_sampler,
         kwargs=main_sampler.kwargs,
         blob=main_sampler.blob)
     batch_sampler.save_bounds = save_bounds
+    batch_sampler.logl_first_update = main_sampler.sampler.logl_first_update
 
     # Initialize ln(likelihood) bounds.
     if logl_bounds is None:
@@ -674,6 +675,9 @@ def _configure_batch_sampler(main_sampler,
                                     boundidx=0,
                                     bounditer=0,
                                     eff=main_sampler.eff))
+        batch_sampler.update_bound_if_needed(logl_min)
+        # Trigger an update of the internal bounding distribution based
+        # on the "new" set of live points.
     else:
         # If the lower bound doesn't encompass all base samples,
         # we need to create a uniform sample from the prior subject
@@ -760,15 +764,11 @@ def _configure_batch_sampler(main_sampler,
         batch_sampler.live_logl = live_logl
         batch_sampler.scale = live_scale
         batch_sampler.live_blobs = live_blobs
+
+        batch_sampler.update_bound_if_needed(logl_min)
         # Trigger an update of the internal bounding distribution based
         # on the "new" set of live points.
 
-        bound = batch_sampler.update()
-        if save_bounds:
-            batch_sampler.bound.append(copy.deepcopy(bound))
-        batch_sampler.nbound += 1
-        batch_sampler.since_update = 0
-        batch_sampler.logl_first_update = logl_min
         live_u = np.empty((nlive_new, main_sampler.npdim))
         live_v = np.empty((nlive_new, saved_v.shape[1]))
         live_logl = np.empty(nlive_new)
@@ -822,15 +822,7 @@ def _configure_batch_sampler(main_sampler,
     batch_sampler.live_blobs = live_blobs
     batch_sampler.live_it = live_it
 
-    # Trigger an update of the internal bounding distribution
-    if not psel:
-        bound = batch_sampler.update()
-        if save_bounds:
-            batch_sampler.bound.append(copy.deepcopy(bound))
-        batch_sampler.nbound += 1
-        batch_sampler.since_update = 0
-        batch_sampler.logl_first_update = logl_min
-    else:
+    if psel:
         batch_sampler.logvol_init = logvol0
 
     # Figure out where the new run would would join the previous run

@@ -147,6 +147,7 @@ class Sampler:
         self.bound = [UnitCube(self.ncdim)]  # bounding distributions
         self.nbound = 1  # total number of unique bounding distributions
         self.ncall_at_last_update = 0
+
         self.logvol_init = logvol_init
 
         self.plateau_mode = False
@@ -290,17 +291,30 @@ class Sampler:
 
         return self.cite
 
-    def update_bound_if_needed(self, ncall, loglstar):
+    def update_bound_if_needed(self, loglstar, ncall=None, force=False):
         """
         Here we update the bound depending on the situation
+        
         """
+
+        if ncall is None:
+            ncall = self.ncall
         call_check_first = (ncall >= self.first_bound_update_ncall)
         call_check = (ncall >=
                       self.bound_update_interval + self.ncall_at_last_update)
         efficiency_check = (self.eff < self.first_bound_update_eff)
-        if (self.unit_cube_sampling and efficiency_check
-                and call_check_first) or (not self.unit_cube_sampling
-                                          and call_check):
+        # there are three cases when we update the bound
+        # * if we are still using uniform cube sampling and both efficiency is lower than
+        # the threshold and the number of calls is larger than the threshold
+        # * if we are sampling from uniform cube and loglstar is larger than the
+        # previously saved logl_first_update
+        # * if we are not uniformly cube sampling and the ncall is larger than the ncall
+        # of the previous update by the update_interval
+        # * we are forced
+        if ((self.unit_cube_sampling and efficiency_check and call_check_first)
+                or (not self.unit_cube_sampling and call_check) or
+            (self.unit_cube_sampling and self.logl_first_update is not None
+             and loglstar > self.logl_first_update)) or force:
             if loglstar == _LOWL_VAL:
                 # in the case we just started and we have some
                 # LOWL_VAL points we don't want to use them for the
@@ -417,7 +431,8 @@ class Sampler:
             if logl > loglstar:
                 break
 
-            self.update_bound_if_needed(ncall, loglstar)
+            # the reason I'm not using self.ncall is that it's updated at higher level
+            self.update_bound_if_needed(loglstar, ncall=ncall)
         return u, v, logl, ncall_accum
 
     def add_live_points(self):

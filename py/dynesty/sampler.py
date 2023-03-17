@@ -294,12 +294,13 @@ class Sampler:
         """
         Here we update the bound depending on the situation
         """
-        call_check = (ncall >= max(
-            self.bound_update_interval + self.ncall_at_last_update,
-            self.first_bound_update_ncall))
+        call_check_first = (ncall >= self.first_bound_update_ncall)
+        call_check = (ncall >=
+                      self.bound_update_interval + self.ncall_at_last_update)
         efficiency_check = (self.eff < self.first_bound_update_eff)
-        if call_check and ((not self.unit_cube_sampling) or
-                           (self.unit_cube_sampling and efficiency_check)):
+        if (self.unit_cube_sampling and efficiency_check
+                and call_check_first) or (not self.unit_cube_sampling
+                                          and call_check):
             if loglstar == _LOWL_VAL:
                 # in the case we just started and we have some
                 # LOWL_VAL points we don't want to use them for the

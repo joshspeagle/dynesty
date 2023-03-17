@@ -763,7 +763,7 @@ class DynamicNestedSampler(DynamicSampler):
             raise ValueError('ncdim unsupported for slice sampling')
 
         update_interval_ratio = _get_update_interval_ratio(
-            update_interval, sample, bound, ndim, 1, slices, walks)
+            update_interval, sample, bound, ndim, nlive, slices, walks)
 
         kwargs = {}
 

@@ -216,6 +216,12 @@ def _parse_pool_queue(pool, queue_size):
     return M, queue_size
 
 
+def _check_first_update(first_update):
+    for k in first_update.keys():
+        if k not in ['min_ncall', 'min_eff']:
+            raise ValueError('Unrecognized keywords in first_update')
+
+
 def _assemble_sampler_docstring(dynamic):
     """
     Assemble the docstring for the NestedSampler and DynamicNestedSampler
@@ -583,6 +589,8 @@ class NestedSampler(SuperSampler):
         # Keyword arguments controlling the first update.
         if first_update is None:
             first_update = {}
+        else:
+            _check_first_update(first_update)
 
         # Random state.
         if rstate is None:
@@ -787,6 +795,8 @@ class DynamicNestedSampler(DynamicSampler):
         # Keyword arguments controlling the first update.
         if first_update is None:
             first_update = {}
+        else:
+            _check_first_update(first_update)
 
         # Random state.
         if rstate is None:

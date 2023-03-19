@@ -227,6 +227,35 @@ def test_livepoints():
     dyutil.unravel_run(sampler.results)
 
 
+def test_first_update():
+    # Test that first_update works
+    ndim = 10
+    rstate = get_rstate()
+    bigres = {}
+    nlive = 50
+    for i in range(3):
+        if i == 0:
+            first_update = None
+        elif i == 1:
+            first_update = dict(min_eff=40)
+        elif i == 2:
+            first_update = dict(min_ncall=40)
+        sampler = dynesty.NestedSampler(loglike,
+                                        prior_transform,
+                                        ndim,
+                                        nlive=nlive,
+                                        first_update=first_update,
+                                        rstate=rstate)
+        sampler.run_nested(print_progress=printing)
+        res = sampler.results
+        print(res.bound)
+        bigres[i] = len(res.bound)
+    assert (bigres[1] > bigres[0])
+    assert (bigres[2] > bigres[0])
+
+    sampler.run_nested(print_progress=printing)
+
+
 def test_exc():
     # Test of exceptions that the exception is reraised
     ndim = 2
@@ -369,26 +398,34 @@ def test_deterministic(ndim):
             assert np.allclose(val0, val1)
 
 
-def test_update_interval():
-    # test that we cab set update_interval
-    # ideally i'd need to see if it makes a difference...
+@pytest.mark.parametrize('dyn', [False, True])
+def test_update_interval(dyn):
+    # test that we can set update_interval
     ndim = 2
     rstate = get_rstate()
+    bigres = {}
+    if dyn:
+        CL = dynesty.DynamicNestedSampler
+    else:
+        CL = dynesty.NestedSampler
+    for i in range(3):
+        if i == 0:
+            update_interval = None
+        elif i == 1:
+            update_interval = int(.5 * nlive)
+        elif i == 2:
+            update_interval = .5
+        sampler = dynesty.NestedSampler(loglike,
+                                        prior_transform,
+                                        ndim,
+                                        nlive=nlive,
+                                        rstate=rstate,
+                                        update_interval=update_interval)
+        sampler.run_nested(print_progress=printing)
 
-    sampler = dynesty.NestedSampler(loglike,
-                                    prior_transform,
-                                    ndim,
-                                    nlive=nlive,
-                                    rstate=rstate,
-                                    update_interval=10)
-    sampler.run_nested(print_progress=printing)
-    sampler = dynesty.NestedSampler(loglike,
-                                    prior_transform,
-                                    ndim,
-                                    nlive=nlive,
-                                    rstate=rstate,
-                                    update_interval=0.5)
-    sampler.run_nested(print_progress=printing)
+        bigres[i] = len(sampler.results.bound)
+    assert (bigres[1] > bigres[0])
+    assert (bigres[1] == bigres[2])
 
 
 def prior_transform_large_logl(u):

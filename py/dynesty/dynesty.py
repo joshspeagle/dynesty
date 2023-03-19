@@ -106,9 +106,9 @@ def _get_citations(nested_type, bound, sampler):
         """
         if isinstance(x, str):
             return x
-        elif isinstance(x, tuple):
+        if isinstance(x, tuple):
             return x[0] + ': ' + x[1]
-        elif isinstance(x, list):
+        if isinstance(x, list):
             return '\n'.join([_[0] + ': ' + _[1] for _ in x])
         else:
             return str(x)

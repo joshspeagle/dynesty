@@ -168,7 +168,7 @@ class Sampler:
     def update_proposal(self, *args, **kwargs):
         raise RuntimeError('Should be overriden')
 
-    def update(self, *args):
+    def update(self, subset=None):
         raise RuntimeError('Should be overriden')
 
     def __setstate__(self, state):
@@ -294,7 +294,8 @@ class Sampler:
     def update_bound_if_needed(self, loglstar, ncall=None, force=False):
         """
         Here we update the bound depending on the situation
-        
+        The arguments are the loglstar and number of calls
+        if force is true we update the bound no matter what
         """
 
         if ncall is None:
@@ -304,12 +305,13 @@ class Sampler:
                       self.bound_update_interval + self.ncall_at_last_update)
         efficiency_check = (self.eff < self.first_bound_update_eff)
         # there are three cases when we update the bound
-        # * if we are still using uniform cube sampling and both efficiency is lower than
-        # the threshold and the number of calls is larger than the threshold
-        # * if we are sampling from uniform cube and loglstar is larger than the
-        # previously saved logl_first_update
-        # * if we are not uniformly cube sampling and the ncall is larger than the ncall
-        # of the previous update by the update_interval
+        # * if we are still using uniform cube sampling and both efficiency is
+        # lower than the threshold and the number of calls is larger than the
+        # threshold
+        # * if we are sampling from uniform cube and loglstar is larger than
+        # the previously saved logl_first_update
+        # * if we are not uniformly cube sampling and the ncall is larger
+        # than the ncall of the previous update by the update_interval
         # * we are forced
         if ((self.unit_cube_sampling and efficiency_check and call_check_first)
                 or (not self.unit_cube_sampling and call_check) or

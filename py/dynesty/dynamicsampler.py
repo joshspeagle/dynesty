@@ -69,8 +69,8 @@ def compute_weights(results):
         # this pathological case can happen if all logl are very small
         # and all logz are very small and the same
         # then the calculation below failse
-        warnings.warn('''The calculation of weights is seeing same 
-logz values associated with all the samples. It may mean somethings is 
+        warnings.warn('''The calculation of weights is seeing same
+logz values associated with all the samples. It may mean somethings is
 wrong with your likelihood.''')
         zweight = np.ones(len(logl)) / len(logl)
     else:
@@ -176,8 +176,8 @@ def weight_function(results, args=None, return_weights=False):
         logl_max = np.inf
     if return_weights:
         return (logl_min, logl_max), (pweight, zweight, weight)
-    else:
-        return (logl_min, logl_max)
+
+    return (logl_min, logl_max)
 
 
 def _get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
@@ -519,7 +519,7 @@ def _initialize_live_points(live_points,
         if np.all(live_logl == _LOWL_VAL):
             raise ValueError("Not a single provided live point has a "
                              "valid log-likelihood!")
-    if (np.ptp(live_logl) == 0):
+    if np.ptp(live_logl) == 0:
         warnings.warn(
             'All the initial likelihood values are the same. '
             'You likely have a plateau in the likelihood. '
@@ -1565,7 +1565,7 @@ class DynamicSampler:
             # I have decided that maxcall/maxiter_left will not be preserved
             # if interrupted and resumed
 
-        for i in range(len(batch_sampler.first_points)):
+        for _ in range(len(batch_sampler.first_points)):
             yield batch_sampler.first_points.pop(0)
             # these yields are just for printing
             # we are not actually storing those in new_run

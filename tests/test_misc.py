@@ -652,3 +652,52 @@ def test_quantile():
     dyutil.quantile(rstate.normal(size=10), 0.5, weights=whts)
     with pytest.raises(Exception):
         dyutil.quantile(rstate.normal(size=10), 0.5, weights=np.ones(9))
+
+
+class Like3:
+
+    def __init__(self):
+        self.ndim = 2
+        s1 = 1e-3
+        self.C1 = np.diag([s1**2, 1])
+        self.C2 = np.diag([1, s1**2])
+        self.cen1 = np.r_[-5, 0]
+        self.cen2 = np.r_[0, 5]
+
+        self.Cinv1 = linalg.inv(self.C1)
+        self.Cinv2 = linalg.inv(self.C2)
+        self.lnorm1 = -0.5 * (np.log(2 * np.pi) * self.ndim +
+                              np.log(linalg.det(self.C1)))
+        self.lnorm2 = -0.5 * (np.log(2 * np.pi) * self.ndim +
+                              np.log(linalg.det(self.C2)))
+
+    def loglikelihood(self, x):
+        """Multivariate normal log-likelihood."""
+        return np.logaddexp(
+            -0.5 * np.dot(x - self.cen1, np.dot(self.Cinv1, x - self.cen1)) +
+            self.lnorm1,
+            -0.5 * np.dot(x - self.cen2, np.dot(self.Cinv2, x - self.cen2)) +
+            self.lnorm2)
+
+    # prior transform
+    def prior_transform(self, u):
+        return 10. * (2. * u - 1.)
+
+
+def test_doubling_slice():
+    """
+    This is to test that the slice sampling can indeed switch to
+    doubling mode
+    """
+
+    L = Like3()
+    nlive = 50
+    rstate = get_rstate()
+    samp = dynesty.NestedSampler(L.loglikelihood,
+                                 L.prior_transform,
+                                 nlive=nlive,
+                                 ndim=L.ndim,
+                                 bound='multi',
+                                 sample='rslice',
+                                 rstate=rstate)
+    samp.run_nested()

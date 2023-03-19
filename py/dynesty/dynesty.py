@@ -217,6 +217,10 @@ def _parse_pool_queue(pool, queue_size):
 
 
 def _check_first_update(first_update):
+    """
+    Verify that the first_update dictionary is valid
+    Specifically that it doesn't have unrecognized keywords
+    """
     for k in first_update.keys():
         if k not in ['min_ncall', 'min_eff']:
             raise ValueError('Unrecognized keywords in first_update')

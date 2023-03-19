@@ -734,12 +734,7 @@ class MultiEllipsoidSampler(SuperSampler):
         # Automatically trigger an update if we're not in any ellipsoid.
         if not self.mell.contains(u_fit):
             # Update the bounding ellipsoids.
-            bound = self.update()
-            if self.save_bounds:
-                self.bound.append(bound)
-            self.nbound += 1
-            self.since_update = 0
-
+            self.update_bound_if_needed(-np.inf, force=True)
             # Check for ellipsoid overlap (again).
             if not self.mell.contains(u_fit):
                 raise RuntimeError('Update of the ellipsoid failed')

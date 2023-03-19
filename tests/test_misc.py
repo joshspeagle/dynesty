@@ -730,7 +730,7 @@ def test_doubling_slice():
     """
 
     L = Like3()
-    nlive = 50
+    nlive = 100
     rstate = get_rstate()
     samp = dynesty.NestedSampler(L.loglikelihood,
                                  L.prior_transform,

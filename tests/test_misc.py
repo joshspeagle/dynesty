@@ -415,12 +415,12 @@ def test_update_interval(dyn):
             update_interval = int(.5 * nlive)
         elif i == 2:
             update_interval = .5
-        sampler = dynesty.NestedSampler(loglike,
-                                        prior_transform,
-                                        ndim,
-                                        nlive=nlive,
-                                        rstate=rstate,
-                                        update_interval=update_interval)
+        sampler = CL(loglike,
+                     prior_transform,
+                     ndim,
+                     nlive=nlive,
+                     rstate=rstate,
+                     update_interval=update_interval)
         sampler.run_nested(print_progress=printing)
 
         bigres[i] = len(sampler.results.bound)
@@ -535,7 +535,9 @@ def test_maxiter_batch():
                                                  sample='unif',
                                                  rstate=rstate)
 
-        dsampler2.run_nested(maxiter=maxiter, use_stop=False)
+        dsampler2.run_nested(maxiter=maxiter,
+                             use_stop=False,
+                             print_progress=printing)
         dres2 = dsampler2.results
         if i == 0:
             # I am finding the the first iteration with the batch
@@ -565,7 +567,7 @@ def test_performance_batch():
                                              sample='unif',
                                              rstate=rstate)
 
-    dsampler2.run_nested(maxbatch=0)
+    dsampler2.run_nested(maxbatch=0, print_progress=printing)
     dts = []
     for i in range(20):
         t1 = dsampler2.ncall
@@ -595,7 +597,7 @@ def test_nlivemismatch_batch():
                                                  sample='unif',
                                                  rstate=rstate)
 
-        dsampler2.run_nested(maxbatch=0)
+        dsampler2.run_nested(maxbatch=0, print_progress=printing)
         if i == 0:
             dsampler2.add_batch(nlive=nlive2, mode='full')
         elif i == 1:
@@ -632,7 +634,7 @@ def test_verify_batch():
                                                 sample='unif',
                                                 rstate=rstate)
 
-        dsampler.run_nested(maxbatch=maxbatch)
+        dsampler.run_nested(maxbatch=maxbatch, print_progress=printing)
         dnss.append(dsampler)
 
     d0, d1 = dnss
@@ -664,7 +666,7 @@ def test_ncall(dynamic):
                                             bound='single',
                                             sample='unif',
                                             rstate=rstate)
-        samp.run_nested(maxbatch=1)
+        samp.run_nested(maxbatch=1, print_progress=printing)
     else:
         samp = dynesty.NestedSampler(L.loglikelihood,
                                      L.prior_transform,
@@ -673,7 +675,7 @@ def test_ncall(dynamic):
                                      bound='single',
                                      sample='unif',
                                      rstate=rstate)
-        samp.run_nested()
+        samp.run_nested(print_progress=printing)
 
     assert samp.ncall == L.ncall
 
@@ -737,4 +739,4 @@ def test_doubling_slice():
                                  bound='multi',
                                  sample='rslice',
                                  rstate=rstate)
-    samp.run_nested()
+    samp.run_nested(print_progress=printing)

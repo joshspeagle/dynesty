@@ -495,7 +495,11 @@ class SingleEllipsoidSampler(SuperSampler):
                          logvol_init=logvol_init,
                          kwargs=kwargs or {})
 
-        self.ell = Ellipsoid(np.zeros(self.ncdim), np.identity(self.ncdim))
+        self.ell = Ellipsoid(
+            np.zeros(self.ncdim) + .5,
+            np.identity(self.ncdim) * self.ncdim / 4)
+        # this is ellipsoid in the center of the cube that contains
+        # the whole cube
         self.bounding = 'single'
 
     def update(self, subset=slice(None)):
@@ -656,8 +660,11 @@ class MultiEllipsoidSampler(SuperSampler):
                          logvol_init=logvol_init,
                          kwargs=kwargs or {})
 
-        self.mell = MultiEllipsoid(ctrs=[np.zeros(self.ncdim)],
-                                   covs=[np.identity(self.ncdim)])
+        self.mell = MultiEllipsoid(
+            ctrs=[np.zeros(self.ncdim) + .5],
+            covs=[np.identity(self.ncdim) * self.ncdim / 4])
+        # this is ellipsoid in the center of the cube that contains
+        # the whole cube
         self.bounding = 'multi'
 
     def update(self, subset=slice(None)):
@@ -727,12 +734,7 @@ class MultiEllipsoidSampler(SuperSampler):
         # Automatically trigger an update if we're not in any ellipsoid.
         if not self.mell.contains(u_fit):
             # Update the bounding ellipsoids.
-            bound = self.update()
-            if self.save_bounds:
-                self.bound.append(bound)
-            self.nbound += 1
-            self.since_update = 0
-
+            self.update_bound_if_needed(-np.inf, force=True)
             # Check for ellipsoid overlap (again).
             if not self.mell.contains(u_fit):
                 raise RuntimeError('Update of the ellipsoid failed')

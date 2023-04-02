@@ -227,6 +227,35 @@ def test_livepoints():
     dyutil.unravel_run(sampler.results)
 
 
+def test_first_update():
+    # Test that first_update works
+    ndim = 10
+    rstate = get_rstate()
+    bigres = {}
+    nlive = 50
+    for i in range(3):
+        if i == 0:
+            first_update = None
+        elif i == 1:
+            first_update = dict(min_eff=40)
+        elif i == 2:
+            first_update = dict(min_ncall=40)
+        sampler = dynesty.NestedSampler(loglike,
+                                        prior_transform,
+                                        ndim,
+                                        nlive=nlive,
+                                        first_update=first_update,
+                                        rstate=rstate)
+        sampler.run_nested(print_progress=printing)
+        res = sampler.results
+        print(res.bound)
+        bigres[i] = len(res.bound)
+    assert (bigres[1] > bigres[0])
+    assert (bigres[2] > bigres[0])
+
+    sampler.run_nested(print_progress=printing)
+
+
 def test_exc():
     # Test of exceptions that the exception is reraised
     ndim = 2
@@ -369,26 +398,34 @@ def test_deterministic(ndim):
             assert np.allclose(val0, val1)
 
 
-def test_update_interval():
-    # test that we cab set update_interval
-    # ideally i'd need to see if it makes a difference...
+@pytest.mark.parametrize('dyn', [False, True])
+def test_update_interval(dyn):
+    # test that we can set update_interval
     ndim = 2
     rstate = get_rstate()
+    bigres = {}
+    if dyn:
+        CL = dynesty.DynamicNestedSampler
+    else:
+        CL = dynesty.NestedSampler
+    for i in range(3):
+        if i == 0:
+            update_interval = None
+        elif i == 1:
+            update_interval = int(.5 * nlive)
+        elif i == 2:
+            update_interval = .5
+        sampler = CL(loglike,
+                     prior_transform,
+                     ndim,
+                     nlive=nlive,
+                     rstate=rstate,
+                     update_interval=update_interval)
+        sampler.run_nested(print_progress=printing)
 
-    sampler = dynesty.NestedSampler(loglike,
-                                    prior_transform,
-                                    ndim,
-                                    nlive=nlive,
-                                    rstate=rstate,
-                                    update_interval=10)
-    sampler.run_nested(print_progress=printing)
-    sampler = dynesty.NestedSampler(loglike,
-                                    prior_transform,
-                                    ndim,
-                                    nlive=nlive,
-                                    rstate=rstate,
-                                    update_interval=0.5)
-    sampler.run_nested(print_progress=printing)
+        bigres[i] = len(sampler.results.bound)
+    assert (bigres[1] > bigres[0])
+    assert (bigres[1] == bigres[2])
 
 
 def prior_transform_large_logl(u):
@@ -498,7 +535,9 @@ def test_maxiter_batch():
                                                  sample='unif',
                                                  rstate=rstate)
 
-        dsampler2.run_nested(maxiter=maxiter, use_stop=False)
+        dsampler2.run_nested(maxiter=maxiter,
+                             use_stop=False,
+                             print_progress=printing)
         dres2 = dsampler2.results
         if i == 0:
             # I am finding the the first iteration with the batch
@@ -528,7 +567,7 @@ def test_performance_batch():
                                              sample='unif',
                                              rstate=rstate)
 
-    dsampler2.run_nested(maxbatch=0)
+    dsampler2.run_nested(maxbatch=0, print_progress=printing)
     dts = []
     for i in range(20):
         t1 = dsampler2.ncall
@@ -558,7 +597,7 @@ def test_nlivemismatch_batch():
                                                  sample='unif',
                                                  rstate=rstate)
 
-        dsampler2.run_nested(maxbatch=0)
+        dsampler2.run_nested(maxbatch=0, print_progress=printing)
         if i == 0:
             dsampler2.add_batch(nlive=nlive2, mode='full')
         elif i == 1:
@@ -595,7 +634,7 @@ def test_verify_batch():
                                                 sample='unif',
                                                 rstate=rstate)
 
-        dsampler.run_nested(maxbatch=maxbatch)
+        dsampler.run_nested(maxbatch=maxbatch, print_progress=printing)
         dnss.append(dsampler)
 
     d0, d1 = dnss
@@ -627,7 +666,7 @@ def test_ncall(dynamic):
                                             bound='single',
                                             sample='unif',
                                             rstate=rstate)
-        samp.run_nested(maxbatch=1)
+        samp.run_nested(maxbatch=1, print_progress=printing)
     else:
         samp = dynesty.NestedSampler(L.loglikelihood,
                                      L.prior_transform,
@@ -636,7 +675,7 @@ def test_ncall(dynamic):
                                      bound='single',
                                      sample='unif',
                                      rstate=rstate)
-        samp.run_nested()
+        samp.run_nested(print_progress=printing)
 
     assert samp.ncall == L.ncall
 
@@ -652,3 +691,52 @@ def test_quantile():
     dyutil.quantile(rstate.normal(size=10), 0.5, weights=whts)
     with pytest.raises(Exception):
         dyutil.quantile(rstate.normal(size=10), 0.5, weights=np.ones(9))
+
+
+class Like3:
+
+    def __init__(self):
+        self.ndim = 2
+        s1 = 1e-3
+        self.C1 = np.diag([s1**2, 1])
+        self.C2 = np.diag([1, s1**2])
+        self.cen1 = np.r_[-5, 0]
+        self.cen2 = np.r_[0, 5]
+
+        self.Cinv1 = linalg.inv(self.C1)
+        self.Cinv2 = linalg.inv(self.C2)
+        self.lnorm1 = -0.5 * (np.log(2 * np.pi) * self.ndim +
+                              np.log(linalg.det(self.C1)))
+        self.lnorm2 = -0.5 * (np.log(2 * np.pi) * self.ndim +
+                              np.log(linalg.det(self.C2)))
+
+    def loglikelihood(self, x):
+        """Multivariate normal log-likelihood."""
+        return np.logaddexp(
+            -0.5 * np.dot(x - self.cen1, np.dot(self.Cinv1, x - self.cen1)) +
+            self.lnorm1,
+            -0.5 * np.dot(x - self.cen2, np.dot(self.Cinv2, x - self.cen2)) +
+            self.lnorm2)
+
+    # prior transform
+    def prior_transform(self, u):
+        return 10. * (2. * u - 1.)
+
+
+def test_doubling_slice():
+    """
+    This is to test that the slice sampling can indeed switch to
+    doubling mode
+    """
+
+    L = Like3()
+    nlive = 100
+    rstate = get_rstate()
+    samp = dynesty.NestedSampler(L.loglikelihood,
+                                 L.prior_transform,
+                                 nlive=nlive,
+                                 ndim=L.ndim,
+                                 bound='multi',
+                                 sample='rslice',
+                                 rstate=rstate)
+    samp.run_nested(print_progress=printing)

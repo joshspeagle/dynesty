@@ -69,8 +69,8 @@ def compute_weights(results):
         # this pathological case can happen if all logl are very small
         # and all logz are very small and the same
         # then the calculation below failse
-        warnings.warn('''The calculation of weights is seeing same 
-logz values associated with all the samples. It may mean somethings is 
+        warnings.warn('''The calculation of weights is seeing same
+logz values associated with all the samples. It may mean somethings is
 wrong with your likelihood.''')
         zweight = np.ones(len(logl)) / len(logl)
     else:
@@ -176,8 +176,8 @@ def weight_function(results, args=None, return_weights=False):
         logl_max = np.inf
     if return_weights:
         return (logl_min, logl_max), (pweight, zweight, weight)
-    else:
-        return (logl_min, logl_max)
+
+    return (logl_min, logl_max)
 
 
 def _get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
@@ -519,7 +519,7 @@ def _initialize_live_points(live_points,
         if np.all(live_logl == _LOWL_VAL):
             raise ValueError("Not a single provided live point has a "
                              "valid log-likelihood!")
-    if (np.ptp(live_logl) == 0):
+    if np.ptp(live_logl) == 0:
         warnings.warn(
             'All the initial likelihood values are the same. '
             'You likely have a plateau in the likelihood. '
@@ -618,6 +618,7 @@ def _configure_batch_sampler(main_sampler,
         kwargs=main_sampler.kwargs,
         blob=main_sampler.blob)
     batch_sampler.save_bounds = save_bounds
+    batch_sampler.logl_first_update = main_sampler.sampler.logl_first_update
 
     # Initialize ln(likelihood) bounds.
     if logl_bounds is None:
@@ -674,6 +675,9 @@ def _configure_batch_sampler(main_sampler,
                                     boundidx=0,
                                     bounditer=0,
                                     eff=main_sampler.eff))
+        batch_sampler.update_bound_if_needed(logl_min)
+        # Trigger an update of the internal bounding distribution based
+        # on the "new" set of live points.
     else:
         # If the lower bound doesn't encompass all base samples,
         # we need to create a uniform sample from the prior subject
@@ -760,15 +764,11 @@ def _configure_batch_sampler(main_sampler,
         batch_sampler.live_logl = live_logl
         batch_sampler.scale = live_scale
         batch_sampler.live_blobs = live_blobs
+
+        batch_sampler.update_bound_if_needed(logl_min)
         # Trigger an update of the internal bounding distribution based
         # on the "new" set of live points.
 
-        bound = batch_sampler.update()
-        if save_bounds:
-            batch_sampler.bound.append(copy.deepcopy(bound))
-        batch_sampler.nbound += 1
-        batch_sampler.since_update = 0
-        batch_sampler.logl_first_update = logl_min
         live_u = np.empty((nlive_new, main_sampler.npdim))
         live_v = np.empty((nlive_new, saved_v.shape[1]))
         live_logl = np.empty(nlive_new)
@@ -822,15 +822,7 @@ def _configure_batch_sampler(main_sampler,
     batch_sampler.live_blobs = live_blobs
     batch_sampler.live_it = live_it
 
-    # Trigger an update of the internal bounding distribution
-    if not psel:
-        bound = batch_sampler.update()
-        if save_bounds:
-            batch_sampler.bound.append(copy.deepcopy(bound))
-        batch_sampler.nbound += 1
-        batch_sampler.since_update = 0
-        batch_sampler.logl_first_update = logl_min
-    else:
+    if psel:
         batch_sampler.logvol_init = logvol0
 
     # Figure out where the new run would would join the previous run
@@ -1573,7 +1565,7 @@ class DynamicSampler:
             # I have decided that maxcall/maxiter_left will not be preserved
             # if interrupted and resumed
 
-        for i in range(len(batch_sampler.first_points)):
+        for _ in range(len(batch_sampler.first_points)):
             yield batch_sampler.first_points.pop(0)
             # these yields are just for printing
             # we are not actually storing those in new_run

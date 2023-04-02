@@ -7,10 +7,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 ### Added
 ### Changed
-- Change the way initialization of live-points happens. Now if after 1000 iterations we managed to get at least a single point, the code will continue sampling after putting a warning. Previously the error was raised.
+- Change the way initialization of live-points happens. Now if after 1000 iterations we managed to get at least a single point, the code will continue sampling after putting a warning. Previously the error was raised. (by @segasai )
+- Refactor the bound update code which will lead to more consistent boundary updates (by @segasai )
+- If incorrect keys to first_update are provided an exception will be raised
 ### Fixed
 - Fix some pathological cases when uniform distribution is sampled with a very low logl.
 - Fix a problem when a very small nlive is used leading to the error (#424 , reported by @frgsimpson)
+- Fix the incorrect update_interval calculation leading to too unfrequent updates of bounds when using dynamic sampler (report by @ajw278, analysis and fix by @segasai)
+
 
 ## [2.1.0] - 2023-02-03
 ### Added

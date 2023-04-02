@@ -106,9 +106,9 @@ def _get_citations(nested_type, bound, sampler):
         """
         if isinstance(x, str):
             return x
-        elif isinstance(x, tuple):
+        if isinstance(x, tuple):
             return x[0] + ': ' + x[1]
-        elif isinstance(x, list):
+        if isinstance(x, list):
             return '\n'.join([_[0] + ': ' + _[1] for _ in x])
         else:
             return str(x)
@@ -214,6 +214,16 @@ def _parse_pool_queue(pool, queue_size):
         raise ValueError("`queue_size > 1` but no `pool` provided.")
 
     return M, queue_size
+
+
+def _check_first_update(first_update):
+    """
+    Verify that the first_update dictionary is valid
+    Specifically that it doesn't have unrecognized keywords
+    """
+    for k in first_update.keys():
+        if k not in ['min_ncall', 'min_eff']:
+            raise ValueError('Unrecognized keywords in first_update')
 
 
 def _assemble_sampler_docstring(dynamic):
@@ -583,6 +593,8 @@ class NestedSampler(SuperSampler):
         # Keyword arguments controlling the first update.
         if first_update is None:
             first_update = {}
+        else:
+            _check_first_update(first_update)
 
         # Random state.
         if rstate is None:
@@ -763,7 +775,7 @@ class DynamicNestedSampler(DynamicSampler):
             raise ValueError('ncdim unsupported for slice sampling')
 
         update_interval_ratio = _get_update_interval_ratio(
-            update_interval, sample, bound, ndim, 1, slices, walks)
+            update_interval, sample, bound, ndim, nlive, slices, walks)
 
         kwargs = {}
 
@@ -787,6 +799,8 @@ class DynamicNestedSampler(DynamicSampler):
         # Keyword arguments controlling the first update.
         if first_update is None:
             first_update = {}
+        else:
+            _check_first_update(first_update)
 
         # Random state.
         if rstate is None:

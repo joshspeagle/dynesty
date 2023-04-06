@@ -7,8 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 ### Added
 ### Changed
+
+## [2.1.1] - 2023-04-07
+### Added
+### Changed
 - Change the way initialization of live-points happens. Now if after 1000 iterations we managed to get at least a single point, the code will continue sampling after putting a warning. Previously the error was raised. (by @segasai )
-- Refactor the bound update code which will lead to more consistent boundary updates (by @segasai )
+- Refactor the bound update code which will lead to more consistent boundary updates (#428 by @segasai )
 - If incorrect keys to first_update are provided an exception will be raised
 ### Fixed
 - Fix some pathological cases when uniform distribution is sampled with a very low logl.

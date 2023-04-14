@@ -52,6 +52,7 @@ class DynamicSamplerStatesEnum(Enum):
     BATCH_DONE = 6  # after at least one batch
     INBASEADDLIVE = 7  # during addition of livepoints in the
     INBATCHADDLIVE = 8  # during addition of livepoints in the
+    RUN_DONE = 9  # The run has ended
     # end of the base run
 
 
@@ -2026,6 +2027,11 @@ class DynamicSampler:
         maxcall_init = min(maxcall_init, maxcall)  # set max calls
         maxiter_init = min(maxiter_init, maxiter)  # set max iterations
 
+        if resume and self.internal_state == DynamicSamplerStatesEnum.RUN_DONE:
+            warnings.warn(
+                """You tried to resume the run that has ended successfully.
+This is not supported. No sampling was performed""", RuntimeWarning)
+            return
         # Baseline run.
         pbar, print_func = get_print_func(print_func, print_progress)
         timer = DelayTimer(checkpoint_every)
@@ -2114,6 +2120,7 @@ class DynamicSampler:
                 else:
                     # We didn't run a single batch but now we're done!
                     break
+            self.internal_state = DynamicSamplerStatesEnum.RUN_DONE
             if checkpoint_file is not None:
                 # In the very end I save the checkpoint no matter
                 # the timing
@@ -2295,6 +2302,8 @@ class DynamicSampler:
                                    logl_max=logl_max)
                     if (checkpoint_file is not None and self.internal_state !=
                             DynamicSamplerStatesEnum.INBATCHADDLIVE
+                            and self.internal_state !=
+                            DynamicSamplerStatesEnum.BATCH_DONE
                             and timer.is_time()):
                         # we do not save the state if we are finishing the
                         # batch run and we are just adding live-points in

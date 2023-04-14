@@ -8,6 +8,7 @@ import pytest
 from utils import get_rstate, NullContextManager
 import itertools
 import dynesty.pool
+import inspect
 
 
 def like(x):
@@ -15,13 +16,13 @@ def like(x):
 
 
 NLIVE = 300
-NEFF = 5000
+NEFF0 = 5000
 
 
-def get_fname():
+def get_fname(pref='test_'):
     pid = os.getpid()
     t = time.time()
-    fname = 'test_%d_%f.pkl' % (pid, t)
+    fname = 'test_%s_%d_%f.pkl' % (pref, pid, t)
     return fname
 
 
@@ -33,7 +34,8 @@ def fit_main(fname,
              dynamic,
              checkpoint_every=0.01,
              npool=None,
-             dyn_pool=False):
+             dyn_pool=False,
+             neff=NEFF0):
     """
     Fit while checkpointing
     """
@@ -53,7 +55,6 @@ def fit_main(fname,
                                                rstate=get_rstate(),
                                                pool=pool,
                                                queue_size=queue_size)
-            neff = NEFF
         else:
             dns = dynesty.NestedSampler(curlike,
                                         curpt,
@@ -69,14 +70,13 @@ def fit_main(fname,
     return dns
 
 
-def fit_resume(fname, dynamic, prev_logz, pool=None):
+def fit_resume(fname, dynamic, prev_logz, pool=None, neff=NEFF0):
     """
     Resume and finish the fit as well as compare the logz to 
     previously computed logz
     """
     if dynamic:
         dns = dynesty.DynamicNestedSampler.restore(fname, pool=pool)
-        neff = NEFF
     else:
         dns = dynesty.NestedSampler.restore(fname, pool=pool)
         neff = None
@@ -136,7 +136,7 @@ def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
     tests are run in parallel, this one is executed in one thread because
     I want to only use one getlogz() call.
     """
-    fname = get_fname()
+    fname = get_fname(inspect.currentframe().f_code.co_name)
     save_every = 1
     dt_static, dt_dynamic, res_static, res_dynamic = getlogz(fname, save_every)
     if with_pool:
@@ -185,14 +185,24 @@ def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
 @pytest.mark.parametrize("dynamic", [False, True])
 def test_save(dynamic):
     """
-    Here I test that I can actually save the 
+    Here I test that I can actually save the
     files (in  the previous test the saving is done in a separate thread)
     """
     try:
-        fname = get_fname()
+        fname = get_fname(inspect.currentframe().f_code.co_name)
         fit_main(fname, dynamic, 1)
     finally:
         try:
             os.unlink(fname)
         except:  # noqa
             pass
+
+
+def test_resume_finished():
+    """
+    Here i exercise the warning when I tried to resume a fully finished
+    dynamic run
+    """
+    fname = get_fname(inspect.currentframe().f_code.co_name)
+    fit_main(fname, True, .1, neff=1000)
+    fit_resume(fname, True, None, neff=1000)

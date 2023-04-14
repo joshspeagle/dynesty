@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix some pathological cases when uniform distribution is sampled with a very low logl.
 - Fix a problem when a very small nlive is used leading to the error (#424 , reported by @frgsimpson)
 - Fix the incorrect update_interval calculation leading to too unfrequent updates of bounds when using dynamic sampler (report by @ajw278, analysis and fix by @segasai)
+- If you try to resume a previously finished dynamic run, the warning will be raised and the sampler will exit (previously an error could have occured in this case)
 
 
 ## [2.1.0] - 2023-02-03

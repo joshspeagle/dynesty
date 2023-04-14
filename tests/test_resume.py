@@ -204,5 +204,11 @@ def test_resume_finished():
     dynamic run
     """
     fname = get_fname(inspect.currentframe().f_code.co_name)
-    fit_main(fname, True, .1, neff=1000)
-    fit_resume(fname, True, None, neff=1000)
+    try:
+        fit_main(fname, True, .1, neff=1000)
+        fit_resume(fname, True, None, neff=1000)
+    finally:
+        try:
+            os.unlink(fname)
+        except:  # noqa
+            pass

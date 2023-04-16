@@ -98,6 +98,18 @@ Changelog
 .. image:: ../images/logo.gif
     :align: center
 
+2.1.1  (2023-04-16)
+--------------------
+Mostly bug fix release
+
+- Change the way initialization of live-points happens. Now if after 1000 iterations we managed to get at least a single point, the code will continue sampling after putting a warning. Previously the error was raised. (by @segasai )
+- Refactor the bound update code which will lead to more consistent boundary updates (#428 by @segasai )
+- Fix some pathological cases when uniform distribution is sampled with a very low log likelihood values
+- Fix a problem when a very small nlive is used leading to the error (#424 , reported by @frgsimpson)
+- Fix the incorrect update_interval calculation leading to too unfrequent updates of bounds when using dynamic sampler (report by @ajw278, analysis and fix by @segasai)
+- If you try to resume a previously finished dynamic run, the warning will be raised and the sampler will exit (previously an error could have occured in this case)
+
+
 2.1.0  (2023-02-03)
 --------------------
 
@@ -111,14 +123,14 @@ A release with major performance bug fix for the dynamical sampler.
 - A major performance regression has been discovered that lead to dynamic nested sampling batches becoming slower and slower. The regression was introduced in 1.2 and can easily lead to a factor of several slower performance if a large number of batches is used. (#415 ; discovery and fix by @segasai)
 - Some small fixes related to resuming of runs
 
-	    
+
 2.0.2 (2022-11-27)
 ------------------
 Minor bug fix release
 
 - When checkpointing is on the dynamic sampler will always checkpoint in the end of the run_nested() irrespective of checkpoint_time ( by @segasai )
 - Equally weighted samples are now randomly shuffled ( #408 ; by @segasai )
-- The live_points option was somewhat broken when blob option was introduced requiring a tuple of 4 elements irrespective of whether your likelihood returns blobs or not. Now if you use blob=True and want to provide live_points you need to provide 4 elements (u,v,logl,blobs). If you use blob=False you will need to provide just 3 elements as before (u,v,logl) ( by @segasai) 
+- The live_points option was somewhat broken when blob option was introduced requiring a tuple of 4 elements irrespective of whether your likelihood returns blobs or not. Now if you use blob=True and want to provide live_points you need to provide 4 elements (u,v,logl,blobs). If you use blob=False you will need to provide just 3 elements as before (u,v,logl) ( by @segasai)
 
 2.0.1 (2022-10-17)
 ------------------

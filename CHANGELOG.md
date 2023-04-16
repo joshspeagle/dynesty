@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 ### Changed
 
-## [2.1.1] - 2023-04-07
+## [2.1.1] - 2023-04-16
 ### Added
 ### Changed
 - Change the way initialization of live-points happens. Now if after 1000 iterations we managed to get at least a single point, the code will continue sampling after putting a warning. Previously the error was raised. (by @segasai )

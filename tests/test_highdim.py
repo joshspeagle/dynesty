@@ -103,7 +103,7 @@ def do_gaussians(sample='rslice',
                  ndim_max=30,
                  nlive=5000):
     """
-    Run many tests 
+    Run many tests
     """
     with mp.Pool(nthreads) as pool:
         res = []
@@ -131,6 +131,9 @@ def do_gaussians(sample='rslice',
                              itertools.product([10, 30],
                                                ['rslice', 'rwalk', 'unif'])))
 def test_run(ndim, sample):
+    """
+    Run the Gaussian likelihood test
+    """
     rstate = get_rstate()
     co = Config(rstate, ndim)
     nlive = 5000
@@ -141,4 +144,3 @@ def test_run(ndim, sample):
                       rstate=rstate,
                       nlive=nlive)
     assert (np.abs(co.logz_truth_gau - res[1]) < 5 * res[2])
-    return res[3]

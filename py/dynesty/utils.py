@@ -2274,13 +2274,20 @@ def restore_sampler(fname, pool=None):
             f'does not match the current dynesty version'
             '({DYNESTY_VERSION}). That is *NOT* guaranteed to work')
     if pool is not None:
+        mapper = pool.map
+    else:
+        mapper = map
+    if hasattr(sampler, 'sampler'):
+        # This is the case of th dynamic sampler
+        # this is better be written as isinstanceof()
+        # but I couldn't do it due to circular imports
+        # TODO
+        sampler.sampler.M = mapper
+        sampler.sampler.pool = pool
+    else:
         sampler.M = pool.map
         sampler.pool = pool
-        sampler.loglikelihood.pool = pool
-    else:
-        sampler.loglikelihood.pool = None
-        sampler.pool = None
-        sampler.M = map
+    sampler.loglikelihood.pool = pool
     return sampler
 
 

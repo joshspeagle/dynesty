@@ -2285,7 +2285,7 @@ def restore_sampler(fname, pool=None):
         sampler.sampler.M = mapper
         sampler.sampler.pool = pool
     else:
-        sampler.M = pool.map
+        sampler.M = mapper
         sampler.pool = pool
     sampler.loglikelihood.pool = pool
     return sampler

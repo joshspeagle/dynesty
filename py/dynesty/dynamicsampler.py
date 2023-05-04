@@ -1663,6 +1663,7 @@ class DynamicSampler:
                                       bounditer=results.bounditer,
                                       eff=self.eff)
         del self.batch_sampler
+        self.batch_sampler = None
 
     def combine_runs(self):
         """ Merge the most recent run into the previous (combined) run by

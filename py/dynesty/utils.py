@@ -2284,9 +2284,11 @@ def restore_sampler(fname, pool=None):
         # TODO
         sampler.sampler.M = mapper
         sampler.sampler.pool = pool
+        sampler.pool = pool
         if sampler.batch_sampler is not None:
             sampler.batch_sampler.M = mapper
             sampler.batch_sampler.pool = pool
+            sampler.batch_sampler.loglikelihood.pool = pool
     else:
         sampler.M = mapper
         sampler.pool = pool

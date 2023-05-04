@@ -312,16 +312,16 @@ class DelayTimer:
     """ Utility class that allows us to detect a certain
     time has passed"""
 
-    def __init__(self, dt):
+    def __init__(self, delay):
         """ Initialise the time with delay of dt seconds
 
         Parameters
         ----------
 
-        dt: float
+        delay: float
             The number of seconds in the timer
         """
-        self.dt = dt
+        self.delay = delay
         self.last_time = time.time()
 
     def is_time(self):
@@ -336,7 +336,7 @@ class DelayTimer:
              initialization or last successful is_time() call
         """
         curt = time.time()
-        if curt - self.last_time > self.dt:
+        if curt - self.last_time > self.delay:
             self.last_time = curt
             return True
         return False

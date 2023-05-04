@@ -981,7 +981,9 @@ class DynamicSampler:
         self.live_init = None
         self.nlive_init = None
         self.batch_sampler = None
-
+        self.checkpoint_timer = None
+        # the reason why we need a global object is to
+        # preserve the timer betweeen batch calls
         self.live_blobs = None
 
     def __setstate__(self, state):
@@ -2035,7 +2037,7 @@ This is not supported. No sampling was performed""", RuntimeWarning)
             return
         # Baseline run.
         pbar, print_func = get_print_func(print_func, print_progress)
-        timer = DelayTimer(checkpoint_every)
+        self.checkpoint_timer = DelayTimer(checkpoint_every)
         try:
             if not self.base:
                 for results in self.sample_initial(
@@ -2054,7 +2056,7 @@ This is not supported. No sampling was performed""", RuntimeWarning)
                     niter += 1
                     if (checkpoint_file is not None and self.internal_state !=
                             DynamicSamplerStatesEnum.INBASEADDLIVE
-                            and timer.is_time()):
+                            and self.checkpoint_timer.is_time()):
                         self.save(checkpoint_file)
                     # Print progress.
                     if print_progress:
@@ -2089,19 +2091,17 @@ This is not supported. No sampling was performed""", RuntimeWarning)
                 if mcall > 0 and miter > 0 and not stop:
                     # Compute our sampling bounds using the provided
                     # weight function.
-                    passback = self.add_batch(
-                        nlive=nlive_batch,
-                        wt_function=wt_function,
-                        wt_kwargs=wt_kwargs,
-                        maxiter=miter,
-                        maxcall=mcall,
-                        save_bounds=save_bounds,
-                        print_progress=print_progress,
-                        print_func=print_func,
-                        stop_val=stop_val,
-                        resume=resume,
-                        checkpoint_file=checkpoint_file,
-                        checkpoint_every=checkpoint_every)
+                    passback = self.add_batch(nlive=nlive_batch,
+                                              wt_function=wt_function,
+                                              wt_kwargs=wt_kwargs,
+                                              maxiter=miter,
+                                              maxcall=mcall,
+                                              save_bounds=save_bounds,
+                                              print_progress=print_progress,
+                                              print_func=print_func,
+                                              stop_val=stop_val,
+                                              resume=resume,
+                                              checkpoint_file=checkpoint_file)
                     if resume:
                         # The assumption here is after the first resume
                         # iteration we will proceed as normal
@@ -2146,7 +2146,7 @@ This is not supported. No sampling was performed""", RuntimeWarning)
                   stop_val=None,
                   resume=False,
                   checkpoint_file=None,
-                  checkpoint_every=60):
+                  checkpoint_every=None):
         """
         Allocate an additional batch of (nested) samples based on
         the combined set of previous samples using the specified
@@ -2218,8 +2218,8 @@ This is not supported. No sampling was performed""", RuntimeWarning)
             file every checkpoint_every seconds
         checkpoint_every: float, optional
             The number of seconds between checkpoints that will save
-            the internal state of the sampler. The sampler will also be
-            saved in the end of the run irrespective of checkpoint_every.
+            the internal state of the sampler. If this is None, we
+            we will use the timer created in run_nested()
         """
 
         # Initialize values.
@@ -2251,8 +2251,15 @@ This is not supported. No sampling was performed""", RuntimeWarning)
         # add our new batch of live points.
         ncall, niter, n = self.ncall, self.it - 1, self.batch
         if checkpoint_file is not None:
-            timer = DelayTimer(checkpoint_every)
-
+            # if checkpoint_every is provided we are assuming we are
+            # running externally otherwise we are being run from run_nested
+            # and in that case we use a global timer
+            # We have to care about this because if our batches take
+            # shorter than checkpoint_every we still would like to save
+            if checkpoint_every is not None:
+                timer = DelayTimer(checkpoint_every)
+            else:
+                timer = self.checkpoint_timer
         if maxcall > 0 and maxiter > 0:
             pbar, print_func = get_print_func(print_func, print_progress)
             try:

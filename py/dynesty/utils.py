@@ -2282,15 +2282,20 @@ def restore_sampler(fname, pool=None):
         # this is better be written as isinstanceof()
         # but I couldn't do it due to circular imports
         # TODO
-        sampler.sampler.M = mapper
-        sampler.sampler.pool = pool
+
+        # Here we are dealing with the special case of dynamic sampler
+        # where it has internal samplers that also need their pool configured
+        # this is the initial sampler
+        samplers = [sampler, sampler.sampler]
         if sampler.batch_sampler is not None:
-            sampler.batch_sampler.M = mapper
-            sampler.batch_sampler.pool = pool
+            samplers.append(sampler.batch_sampler)
     else:
-        sampler.M = mapper
-        sampler.pool = pool
-    sampler.loglikelihood.pool = pool
+        samplers = [sampler]
+
+    for cursamp in samplers:
+        cursamp.M = mapper
+        cursamp.pool = pool
+        cursamp.loglikelihood.pool = pool
     return sampler
 
 

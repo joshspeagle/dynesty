@@ -402,13 +402,13 @@ def test_deterministic(ndim):
 def test_update_interval(dyn):
     # test that we can set update_interval
     ndim = 2
-    rstate = get_rstate()
     bigres = {}
     if dyn:
         CL = dynesty.DynamicNestedSampler
     else:
         CL = dynesty.NestedSampler
     for i in range(3):
+        rstate = get_rstate()
         if i == 0:
             update_interval = None
         elif i == 1:

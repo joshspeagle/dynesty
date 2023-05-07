@@ -5,11 +5,13 @@ import multiprocessing as mp
 import dynesty
 import numpy as np
 import pytest
-from utils import get_rstate, NullContextManager
+from utils import get_rstate, NullContextManager, get_printing
 import itertools
 import dynesty.pool
 import inspect
 import os
+
+printing = get_printing()
 
 
 def like(x):
@@ -20,8 +22,8 @@ def like(x):
     return -.5 * np.sum(x**2), blob
 
 
-NLIVE = 300
-NEFF0 = 5000
+NLIVE = 100
+NEFF0 = 1000
 
 
 def get_fname(pref='test_'):
@@ -72,6 +74,7 @@ def fit_main(fname,
                                         blob=True)
             neff = None
         dns.run_nested(checkpoint_file=fname,
+                       print_progress=printing,
                        checkpoint_every=checkpoint_every,
                        n_effective=neff)
     return dns
@@ -88,7 +91,7 @@ def fit_resume(fname, dynamic, prev_logz, pool=None, neff=NEFF0):
         dns = dynesty.NestedSampler.restore(fname, pool=pool)
         neff = None
     print('resuming', file=sys.stderr)
-    dns.run_nested(resume=True, n_effective=neff)
+    dns.run_nested(resume=True, n_effective=neff, print_progress=printing)
     # verify that the logz value is *identical*
     if prev_logz is not None:
         assert dns.results['logz'][-1] == prev_logz
@@ -184,7 +187,9 @@ def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
                     nexpected = 4
                 else:
                     nexpected = 2
-                assert (len(np.unique(blob)) == nexpected)
+                assert (len(np.unique(blob)) in [1, nexpected])
+                # I allow 1 in order to allow cases where the
+                # sampling is done before interruption
         else:
             assert res == 0
     finally:

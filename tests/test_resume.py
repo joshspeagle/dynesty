@@ -49,7 +49,7 @@ def fit_main(fname,
     ndim = 2
     with (NullContextManager() if npool is None else (dynesty.pool.Pool(
             npool, like, ptform) if dyn_pool else mp.Pool(npool))) as pool:
-        queue_size = npool
+        queue_size = 100 if npool is not None else None
         if dyn_pool:
             curlike, curpt = pool.loglike, pool.prior_transform
         else:

@@ -99,36 +99,37 @@ def fit_resume(fname, dynamic, prev_logz, pool=None, neff=NEFF0):
 
 
 class cache:
-    dt0 = None
-    dt1 = None
-    res0 = None
-    res1 = None
+    dt = None
+    logz = None
 
 
 def getlogz(fname, save_every):
     """ Compute the execution time of static/dynamic runs as well
     logz value """
 
-    if cache.dt0 is None:
-        t0 = time.time()
+    if cache.dt is None:
+        cache.dt = {}
+        cache.logz = {}
         print('caching', file=sys.stderr)
-        result0 = fit_main(fname, False, save_every).results['logz'][-1]
-        try:
-            os.unlink(fname)
-        except:  # noqa
-            pass
-        t1 = time.time()
-        print('static done', file=sys.stderr)
-        result1 = fit_main(fname, True, save_every).results['logz'][-1]
-        try:
-            os.unlink(fname)
-        except:  # noqa
-            pass
+        for dynamic, with_pool in itertools.product([False, True],
+                                                    [False, True]):
+            t0 = time.time()
+            if with_pool:
+                npool = 2
+            else:
+                npool = None
+            curlogz = fit_main(fname, dynamic, save_every,
+                               npool=npool).results['logz'][-1]
+            try:
+                os.unlink(fname)
+            except:  # noqa
+                pass
+            t1 = time.time()
+            cache.logz[dynamic, with_pool] = curlogz
+            cache.dt[dynamic, with_pool] = t1 - t0
+            print(f'done {dynamic} {with_pool}', file=sys.stderr)
         print('done caching', file=sys.stderr)
-        t2 = time.time()
-        (cache.dt0, cache.dt1, cache.res0, cache.res1) = (t1 - t0, t2 - t1,
-                                                          result0, result1)
-    return cache.dt0, cache.dt1, cache.res0, cache.res1
+    return cache.dt, cache.logz
 
 
 @pytest.mark.parametrize("dynamic,delay_frac,with_pool,dyn_pool",
@@ -150,17 +151,12 @@ def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
     fname = get_fname(inspect.currentframe().f_code.co_name)
 
     save_every = 1
-    dt_static, dt_dynamic, res_static, res_dynamic = getlogz(fname, save_every)
+    cache_dt, cache_logz = getlogz(fname, save_every)
     if with_pool:
         npool = 2
     else:
         npool = None
-    if dynamic:
-        curdt = dt_dynamic
-        curres = res_dynamic
-    else:
-        curdt = dt_static
-        curres = res_static
+    curdt, curlogz = [_[dynamic, with_pool] for _ in [cache_dt, cache_logz]]
     save_every = min(save_every, curdt / 10)
     curdt *= delay_frac
     try:
@@ -180,7 +176,7 @@ def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
             with (NullContextManager() if npool is None else
                   (dynesty.pool.Pool(npool, like, ptform)
                    if dyn_pool else mp.Pool(npool))) as pool:
-                blob = fit_resume(fname, dynamic, curres, pool=pool)
+                blob = fit_resume(fname, dynamic, curlogz, pool=pool)
                 if with_pool:
                     # the expectation is we ran in 2 pids before
                     # and 2 pids after

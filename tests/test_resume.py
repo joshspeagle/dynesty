@@ -1,22 +1,29 @@
+import inspect
+import itertools
 import os
-import time
 import sys
+import time
+import warnings
 import multiprocessing as mp
 import dynesty
 import numpy as np
 import pytest
-from utils import get_rstate, NullContextManager
-import itertools
+from utils import get_rstate, NullContextManager, get_printing
 import dynesty.pool
-import inspect
+
+printing = get_printing()
 
 
 def like(x):
-    return -.5 * np.sum(x**2)
+    blob = np.zeros(1, dtype=int)
+    # I'm returning the blob to be able to
+    # check that the function was executed in different threads
+    blob[0] = os.getpid()
+    return -.5 * np.sum(x**2), blob
 
 
-NLIVE = 300
-NEFF0 = 5000
+NLIVE = 100
+NEFF0 = 1000
 
 
 def get_fname(pref='test_'):
@@ -42,7 +49,7 @@ def fit_main(fname,
     ndim = 2
     with (NullContextManager() if npool is None else (dynesty.pool.Pool(
             npool, like, ptform) if dyn_pool else mp.Pool(npool))) as pool:
-        queue_size = npool
+        queue_size = 100 if npool is not None else None
         if dyn_pool:
             curlike, curpt = pool.loglike, pool.prior_transform
         else:
@@ -54,7 +61,8 @@ def fit_main(fname,
                                                nlive=NLIVE,
                                                rstate=get_rstate(),
                                                pool=pool,
-                                               queue_size=queue_size)
+                                               queue_size=queue_size,
+                                               blob=True)
         else:
             dns = dynesty.NestedSampler(curlike,
                                         curpt,
@@ -62,9 +70,11 @@ def fit_main(fname,
                                         nlive=NLIVE,
                                         rstate=get_rstate(),
                                         pool=pool,
-                                        queue_size=queue_size)
+                                        queue_size=queue_size,
+                                        blob=True)
             neff = None
         dns.run_nested(checkpoint_file=fname,
+                       print_progress=printing,
                        checkpoint_every=checkpoint_every,
                        n_effective=neff)
     return dns
@@ -72,7 +82,7 @@ def fit_main(fname,
 
 def fit_resume(fname, dynamic, prev_logz, pool=None, neff=NEFF0):
     """
-    Resume and finish the fit as well as compare the logz to 
+    Resume and finish the fit as well as compare the logz to
     previously computed logz
     """
     if dynamic:
@@ -81,43 +91,45 @@ def fit_resume(fname, dynamic, prev_logz, pool=None, neff=NEFF0):
         dns = dynesty.NestedSampler.restore(fname, pool=pool)
         neff = None
     print('resuming', file=sys.stderr)
-    dns.run_nested(resume=True, n_effective=neff)
+    dns.run_nested(resume=True, n_effective=neff, print_progress=printing)
     # verify that the logz value is *identical*
     if prev_logz is not None:
         assert dns.results['logz'][-1] == prev_logz
+    return dns.results['blob']
 
 
 class cache:
-    dt0 = None
-    dt1 = None
-    res0 = None
-    res1 = None
+    dt = None
+    logz = None
 
 
 def getlogz(fname, save_every):
     """ Compute the execution time of static/dynamic runs as well
     logz value """
 
-    if cache.dt0 is None:
-        t0 = time.time()
+    if cache.dt is None:
+        cache.dt = {}
+        cache.logz = {}
         print('caching', file=sys.stderr)
-        result0 = fit_main(fname, False, save_every).results['logz'][-1]
-        try:
-            os.unlink(fname)
-        except:  # noqa
-            pass
-        t1 = time.time()
-        print('static done', file=sys.stderr)
-        result1 = fit_main(fname, True, save_every).results['logz'][-1]
-        try:
-            os.unlink(fname)
-        except:  # noqa
-            pass
+        for dynamic, with_pool in itertools.product([False, True],
+                                                    [False, True]):
+            t0 = time.time()
+            if with_pool:
+                npool = 2
+            else:
+                npool = None
+            curlogz = fit_main(fname, dynamic, save_every,
+                               npool=npool).results['logz'][-1]
+            try:
+                os.unlink(fname)
+            except:  # noqa
+                pass
+            t1 = time.time()
+            cache.logz[dynamic, with_pool] = curlogz
+            cache.dt[dynamic, with_pool] = t1 - t0
+            print(f'done {dynamic} {with_pool}', file=sys.stderr)
         print('done caching', file=sys.stderr)
-        t2 = time.time()
-        (cache.dt0, cache.dt1, cache.res0, cache.res1) = (t1 - t0, t2 - t1,
-                                                          result0, result1)
-    return cache.dt0, cache.dt1, cache.res0, cache.res1
+    return cache.dt, cache.logz
 
 
 @pytest.mark.parametrize("dynamic,delay_frac,with_pool,dyn_pool",
@@ -137,19 +149,14 @@ def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
     I want to only use one getlogz() call.
     """
     fname = get_fname(inspect.currentframe().f_code.co_name)
+
     save_every = 1
-    dt_static, dt_dynamic, res_static, res_dynamic = getlogz(fname, save_every)
+    cache_dt, cache_logz = getlogz(fname, save_every)
     if with_pool:
         npool = 2
     else:
         npool = None
-    if dynamic:
-        curdt = dt_dynamic
-        curres = res_dynamic
-    else:
-        curdt = dt_static
-        curres = res_static
-
+    curdt, curlogz = [_[dynamic, with_pool] for _ in [cache_dt, cache_logz]]
     save_every = min(save_every, curdt / 10)
     curdt *= delay_frac
     try:
@@ -158,6 +165,7 @@ def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
                                     dyn_pool))
         fit_proc.start()
         res = fit_proc.join(curdt)
+        # proceed to terminate after curdt seconds
         if res is None:
             print('terminating', file=sys.stderr)
             fit_proc.terminate()
@@ -165,10 +173,25 @@ def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
                 # in the case of pooled run do not compare
                 # as I am comparing with single threaded version
                 curres = None
+            if np.allclose(delay_frac, .2) and not os.path.exists(fname):
+                warnings.warn(
+                    "The checkpoint file was not created I'm skipping the test"
+                )
+                return
+
             with (NullContextManager() if npool is None else
                   (dynesty.pool.Pool(npool, like, ptform)
                    if dyn_pool else mp.Pool(npool))) as pool:
-                fit_resume(fname, dynamic, curres, pool=pool)
+                blob = fit_resume(fname, dynamic, curlogz, pool=pool)
+                if with_pool:
+                    # the expectation is we ran in 2 pids before
+                    # and 2 pids after
+                    nexpected = 4
+                else:
+                    nexpected = 2
+                assert (len(np.unique(blob)) in [1, nexpected])
+                # I allow 1 in order to allow cases where the
+                # sampling is done before interruption
         else:
             assert res == 0
     finally:

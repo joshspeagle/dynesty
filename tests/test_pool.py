@@ -63,8 +63,8 @@ def test_pool():
                                         rstate=rstate)
         sampler.run_nested(dlogz=0.1, print_progress=printing)
 
-        assert (abs(LOGZ_TRUTH_EGG - sampler.results['logz'][-1]) <
-                5. * sampler.results['logzerr'][-1])
+        assert (abs(LOGZ_TRUTH_EGG - sampler.results['logz'][-1])
+                < 5. * sampler.results['logzerr'][-1])
         terminator(pool)
 
 
@@ -78,11 +78,12 @@ def test_pool_x():
                                         ndim,
                                         nlive=50,
                                         pool=pool,
+                                        queue_size=100,
                                         rstate=rstate)
         sampler.run_nested(print_progress=printing, maxiter=100)
 
-        assert (abs(LOGZ_TRUTH_EGG - sampler.results['logz'][-1]) <
-                5. * sampler.results['logzerr'][-1])
+        assert (abs(LOGZ_TRUTH_EGG - sampler.results['logz'][-1])
+                < 5. * sampler.results['logzerr'][-1])
         terminator(pool)
 
 
@@ -101,8 +102,8 @@ def test_pool_dynamic():
                                                rstate=rstate)
         sampler.run_nested(dlogz_init=1, print_progress=printing)
 
-        assert (abs(LOGZ_TRUTH_GAU - sampler.results['logz'][-1]) <
-                5. * sampler.results['logzerr'][-1])
+        assert (abs(LOGZ_TRUTH_GAU - sampler.results['logz'][-1])
+                < 5. * sampler.results['logzerr'][-1])
         terminator(pool)
 
 
@@ -136,8 +137,8 @@ def test_pool_args():
                                                rstate=rstate)
         sampler.run_nested(maxiter=300, print_progress=printing)
 
-        assert (abs(LOGZ_TRUTH_GAU - sampler.results['logz'][-1]) <
-                5. * sampler.results['logzerr'][-1])
+        assert (abs(LOGZ_TRUTH_GAU - sampler.results['logz'][-1])
+                < 5. * sampler.results['logzerr'][-1])
 
         # to ensure we get coverage
         terminator(pool)
@@ -155,11 +156,11 @@ def test_pool_samplers(sample):
                                         nlive=nlive,
                                         sample=sample,
                                         pool=pool,
-                                        queue_size=10,
+                                        queue_size=100,
                                         rstate=rstate)
         sampler.run_nested(print_progress=printing)
-        assert (abs(LOGZ_TRUTH_GAU - sampler.results['logz'][-1]) <
-                5. * sampler.results['logzerr'][-1])
+        assert (abs(LOGZ_TRUTH_GAU - sampler.results['logz'][-1])
+                < 5. * sampler.results['logzerr'][-1])
         terminator(pool)
 
 

@@ -312,16 +312,16 @@ class DelayTimer:
     """ Utility class that allows us to detect a certain
     time has passed"""
 
-    def __init__(self, dt):
+    def __init__(self, delay):
         """ Initialise the time with delay of dt seconds
 
         Parameters
         ----------
 
-        dt: float
+        delay: float
             The number of seconds in the timer
         """
-        self.dt = dt
+        self.delay = delay
         self.last_time = time.time()
 
     def is_time(self):
@@ -336,7 +336,7 @@ class DelayTimer:
              initialization or last successful is_time() call
         """
         curt = time.time()
-        if curt - self.last_time > self.dt:
+        if curt - self.last_time > self.delay:
             self.last_time = curt
             return True
         return False
@@ -2274,13 +2274,28 @@ def restore_sampler(fname, pool=None):
             f'does not match the current dynesty version'
             '({DYNESTY_VERSION}). That is *NOT* guaranteed to work')
     if pool is not None:
-        sampler.M = pool.map
-        sampler.pool = pool
-        sampler.loglikelihood.pool = pool
+        mapper = pool.map
     else:
-        sampler.loglikelihood.pool = None
-        sampler.pool = None
-        sampler.M = map
+        mapper = map
+    if hasattr(sampler, 'sampler'):
+        # This is the case of th dynamic sampler
+        # this is better be written as isinstanceof()
+        # but I couldn't do it due to circular imports
+        # TODO
+
+        # Here we are dealing with the special case of dynamic sampler
+        # where it has internal samplers that also need their pool configured
+        # this is the initial sampler
+        samplers = [sampler, sampler.sampler]
+        if sampler.batch_sampler is not None:
+            samplers.append(sampler.batch_sampler)
+    else:
+        samplers = [sampler]
+
+    for cursamp in samplers:
+        cursamp.M = mapper
+        cursamp.pool = pool
+        cursamp.loglikelihood.pool = pool
     return sampler
 
 

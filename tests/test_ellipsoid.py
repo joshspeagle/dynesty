@@ -230,8 +230,11 @@ def test_mc_logvolCube():
             lvtrue = np.log(2 * r1) * ndim + np.log(2)
         else:
             lvtrue = np.log(2 * r1) * (ndim - 1) + np.log(D + 2 * r1)
-
-        assert (np.abs(lvtrue - lv) < 1e-2)
+        exp_frac = np.exp(lvtrue - (np.log(2 * r1) * ndim + np.log(2)))
+        nexp = exp_frac * nsamp
+        rel_error = 1. / np.sqrt(nexp)
+        threshold = 4
+        assert (np.abs(lvtrue - lv) < threshold * rel_error)
 
 
 def test_bounds():

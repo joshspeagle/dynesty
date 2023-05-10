@@ -301,8 +301,8 @@ class Sampler:
         if ncall is None:
             ncall = self.ncall
         call_check_first = (ncall >= self.first_bound_update_ncall)
-        call_check = (ncall >=
-                      self.bound_update_interval + self.ncall_at_last_update)
+        call_check = (ncall >= self.bound_update_interval +
+                      self.ncall_at_last_update)
         efficiency_check = (self.eff < self.first_bound_update_eff)
         # there are three cases when we update the bound
         # * if we are still using uniform cube sampling and both efficiency is
@@ -732,11 +732,10 @@ class Sampler:
                 self._remove_live_points()
 
             # Get final state from previous run.
-            h, logz, logzvar, logvol = [
+            h, logz, logzvar, logvol, loglstar = [
                 self.saved_run[_][-1]
-                for _ in ['h', 'logz', 'logzvar', 'logvol']
+                for _ in ['h', 'logz', 'logzvar', 'logvol', 'logl']
             ]
-            loglstar = np.min(self.live_logl)  # ln(likelihood)
             delta_logz = np.logaddexp(0,
                                       np.max(self.live_logl) + logvol - logz)
 

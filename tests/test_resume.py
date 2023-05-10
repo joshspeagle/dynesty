@@ -169,10 +169,6 @@ def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
         if res is None:
             print('terminating', file=sys.stderr)
             fit_proc.terminate()
-            if npool is not None:
-                # in the case of pooled run do not compare
-                # as I am comparing with single threaded version
-                curres = None
             if np.allclose(delay_frac, .2) and not os.path.exists(fname):
                 warnings.warn(
                     "The checkpoint file was not created I'm skipping the test"

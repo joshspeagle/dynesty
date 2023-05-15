@@ -2,3 +2,4 @@ numpy
 scipy
 matplotlib
 numpydoc
+sphinx<=6.2.1

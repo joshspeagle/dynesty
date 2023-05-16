@@ -398,6 +398,9 @@ class Sampler:
                                 rseed=seeds[i],
                                 kwargs=self.kwargs))
         self.queue = list(mapper(evolve_point, args))
+        self._add_insertion_indices_to_queue(point_queue)
+
+    def _add_insertion_indices_to_queue(self, point_queue):
         new_queue = list()
         for start, (u, v, logl, nc, blob) in zip(point_queue, self.queue):
             if blob is not None:

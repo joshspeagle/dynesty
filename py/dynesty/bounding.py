@@ -1402,34 +1402,33 @@ def _bounding_ellipsoids(points, ell):
 
     # If the total volume decreased significantly, we accept
     # the split into subsets. We then recursively split each subset.
-    # The condition for hte volume decrease is motivated by the BIC values
+    # The condition for the volume decrease is motivated by the BIC values
     # assuming that the number of parameter of the ellipsoid is X (it is
     # Ndim*(Ndim+3)/2, the number of points is N
-    # then the BIC of the bounding ellipsoid model is
-    # N * log(V0) + X * ln(N)
-    # where V0 is the volume of the ellipsoid
-    # if we have many (k) ellipsoids with total volume V1
-    # then BIC is N*log(V1) + X *k *ln(N)
-    # from that we can get the volume decrease condition
-    # V1/V0 < exp(-(k-1)*X*ln(N)/N)
+    # then the BIC of the k bounding ellipsoid model is
+    # 2 * N * log(V0) + k * X * ln(N)
+    # where V0 is the total volume of the ellipsoids
+    # then the condition for bic improvement is for k1 ellipsoids vs k0
+    # 2 * N * log(V1) + k1 * X * ln (N) <  2 * N * log(V0) + k0 * X * ln (N)
+    # log(V1) - log(V0) < (k0-k1) * X * ln(N)/2/N
     # The choice of BIC is motivated by Xmeans algo from Pelleg 2000
     # See also Feroz2008
 
     nparam = (ndim * (ndim + 3)) // 2
-    vol_dec1 = np.exp(-nparam * np.log(npoints) / npoints)
+    log_vol_dec = nparam * np.log(npoints) / npoints / 2.
 
-    if np.logaddexp(ells[0].logvol,
-                    ells[1].logvol) < np.log(vol_dec1) + ell.logvol:
+    if (np.logaddexp(ells[0].logvol, ells[1].logvol) -
+            ell.logvol) < -log_vol_dec:
         return (_bounding_ellipsoids(points_k[0], ells[0]) +
                 _bounding_ellipsoids(points_k[1], ells[1]))
 
     # here if the split didn't succeed, we still try to split
     out = (_bounding_ellipsoids(points_k[0], ells[0]) +
            _bounding_ellipsoids(points_k[1], ells[1]))
-    vol_dec2 = np.exp(-nparam * (len(out) - 1) * np.log(npoints) / npoints)
 
     # Only accept the split if the volume decreased significantly
-    if logsumexp([e.logvol for e in out]) < np.log(vol_dec2) + ell.logvol:
+    if ((logsumexp([e.logvol for e in out]) - ell.logvol)
+            < -log_vol_dec * (len(out) - 1)):
         return out
 
     # Otherwise, we are happy with the single bounding ellipsoid.

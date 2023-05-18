@@ -628,8 +628,8 @@ def _configure_batch_sampler(main_sampler,
         # without sampling through add_live_points()
         # so here I pick up the first point where the volume is
         # Vmin*nlive where Vmin is the smallest volume previously seen.
-        logl_max_pos = np.nonzero(
-            saved_logvol < (saved_logvol[-1] + np.log(nlive_new)))[0]
+        logl_max_pos = np.nonzero(saved_logvol < (saved_logvol[-1] +
+                                                  np.log(nlive_new)))[0]
         if len(logl_max_pos) > 0:
             logl_max_pos = logl_max_pos[-1]
         else:
@@ -656,6 +656,7 @@ def _configure_batch_sampler(main_sampler,
              rstate=main_sampler.rstate,
              blob=main_sampler.blob,
              use_pool_ptform=main_sampler.use_pool_ptform)
+        batch_sampler.logvol_init = logvol0
         live_bound = np.zeros(nlive_new, dtype=int)
         live_it = np.zeros(nlive_new, dtype=int)
         live_nc = np.ones(nlive_new, dtype=int)
@@ -2054,8 +2055,8 @@ This is not supported. No sampling was performed""", RuntimeWarning)
                         resume = False
                     ncall += results.nc
                     niter += 1
-                    if (checkpoint_file is not None and self.internal_state !=
-                            DynamicSamplerStatesEnum.INBASEADDLIVE
+                    if (checkpoint_file is not None and self.internal_state
+                            != DynamicSamplerStatesEnum.INBASEADDLIVE
                             and self.checkpoint_timer.is_time()):
                         self.save(checkpoint_file)
                     # Print progress.
@@ -2308,10 +2309,10 @@ This is not supported. No sampling was performed""", RuntimeWarning)
                                    stop_val=stop_val,
                                    logl_min=logl_min,
                                    logl_max=logl_max)
-                    if (checkpoint_file is not None and self.internal_state !=
-                            DynamicSamplerStatesEnum.INBATCHADDLIVE
-                            and self.internal_state !=
-                            DynamicSamplerStatesEnum.BATCH_DONE
+                    if (checkpoint_file is not None and self.internal_state
+                            != DynamicSamplerStatesEnum.INBATCHADDLIVE
+                            and self.internal_state
+                            != DynamicSamplerStatesEnum.BATCH_DONE
                             and timer.is_time()):
                         # we do not save the state if we are finishing the
                         # batch run and we are just adding live-points in

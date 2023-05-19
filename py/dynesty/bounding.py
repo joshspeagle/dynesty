@@ -1372,6 +1372,16 @@ def _bounding_ellipsoids(points, ell):
 
     npoints, ndim = points.shape
 
+    # We do not allow clusters with less than 2*ndim points,
+    # as the bounding ellipsoid
+    # will be poorly-constrained. Reject the split and simply return the
+    # original ellipsoid bounding all the points.
+    min_size = 2 * ndim
+    if npoints < min_size * 2:
+        # if we have less then min_size*2 pts, it's pointless to
+        # even run clustering
+        return [ell]
+
     # Starting cluster centers are initialized using the major-axis
     # endpoints of the original bounding ellipsoid.
     p1, p2 = ell.major_axis_endpoints()
@@ -1390,14 +1400,11 @@ def _bounding_ellipsoids(points, ell):
     # Get points in each cluster.
     points_k = [points[labels == k, :] for k in (0, 1)]
 
-    # If either cluster has less than 2*ndim points, the bounding ellipsoid
-    # will be poorly-constrained. Reject the split and simply return the
-    # original ellipsoid bounding all the points.
-    if points_k[0].shape[0] < 2 * ndim or points_k[1].shape[0] < 2 * ndim:
+    # if the smallest cluster is too small refuse
+    if min(points_k[0].shape[0], points_k[1].shape[0]) < min_size:
         return [ell]
 
-    # Bounding ellipsoid for each cluster, possibly enlarged
-    # to a minimum volume.
+    # Bounding ellipsoid for each cluster
     ells = [bounding_ellipsoid(points_j) for points_j in points_k]
 
     # If the total volume decreased significantly, we accept
@@ -1416,20 +1423,22 @@ def _bounding_ellipsoids(points, ell):
 
     nparam = (ndim * (ndim + 3)) // 2
     log_vol_dec = nparam * np.log(npoints) / npoints / 2.
+    # this is the log vol decrement for one extra ellipsoid
 
-    if (np.logaddexp(ells[0].logvol, ells[1].logvol) -
-            ell.logvol) < -log_vol_dec:
-        return (_bounding_ellipsoids(points_k[0], ells[0]) +
+    # now we try to split again
+    out_ells = (_bounding_ellipsoids(points_k[0], ells[0]) +
                 _bounding_ellipsoids(points_k[1], ells[1]))
 
-    # here if the split didn't succeed, we still try to split
-    out = (_bounding_ellipsoids(points_k[0], ells[0]) +
-           _bounding_ellipsoids(points_k[1], ells[1]))
+    # if the first volume test was successful we accept the results
+    if (np.logaddexp(ells[0].logvol, ells[1].logvol) -
+            ell.logvol) < -log_vol_dec:
+        return out_ells
 
-    # Only accept the split if the volume decreased significantly
-    if ((logsumexp([e.logvol for e in out]) - ell.logvol)
-            < -log_vol_dec * (len(out) - 1)):
-        return out
+    # if it was not we check again if the volume decreased significantly
+    # after the recursion
+    if ((logsumexp([e.logvol for e in out_ells]) - ell.logvol)
+            < -log_vol_dec * (len(out_ells) - 1)):
+        return out_ells
 
     # Otherwise, we are happy with the single bounding ellipsoid.
     return [ell]

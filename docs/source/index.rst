@@ -98,8 +98,17 @@ Changelog
 .. image:: ../images/logo.gif
     :align: center
 
+2.1.2  (2023-06-01)
+-------------------
+Bug fix release
+
+- Fix the restoration of the dynamic sampler from the checkpoint with the pool. Previously after restoring the sampler, the pool was not used. (#438 ; by @segasai)
+- Fix the issue with checkpointing from the dynamic sampler. Previously if one batch took shorter than the checkpoint_every seconds then the checkpoints were  not created (by @segasai)
+- Fix the restoration from checkpoint that could have occassiounaly lead to one skipped point from nested run (by @segasai)
+
+
 2.1.1  (2023-04-16)
---------------------
+-------------------
 Mostly bug fix release
 
 - Change the way initialization of live-points happens. Now if after 1000 iterations we managed to get at least a single point, the code will continue sampling after putting a warning. Previously the error was raised. (by @segasai )
@@ -111,13 +120,13 @@ Mostly bug fix release
 
 
 2.1.0  (2023-02-03)
---------------------
+-------------------
 
 A release with a major change of the sampler as it is now able to sample likelihood functions with plateaus, (i.e. likelihood  that has the same value across a some non-zero volume).
 
 
 2.0.3  (2022-12-2)
---------------------
+------------------
 A release with major performance bug fix for the dynamical sampler.
 
 - A major performance regression has been discovered that lead to dynamic nested sampling batches becoming slower and slower. The regression was introduced in 1.2 and can easily lead to a factor of several slower performance if a large number of batches is used. (#415 ; discovery and fix by @segasai)

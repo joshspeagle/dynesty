@@ -4,16 +4,20 @@ All notable changes to dynesty will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+[Unreleased]
 ### Added
 ### Changed
+### Fixed
+
+## [2.1.2] - 2023-06-01
+
 ### Fixed
 - Fix the restoration of the dynamic sampler from the checkpoint with the pool. Previously after restoring the sampler, the pool was not used. (#438 ; by @segasai)
 - Fix the issue with checkpointing from the dynamic sampler. Previously if one batch took shorter than the checkpoint_every seconds then the checkpoints were  not created (by @segasai)
 - Fix the restoration from checkpoint that could have occassiounaly lead to one skipped point from nested run (by @segasai)
 
 ## [2.1.1] - 2023-04-16
-### Added
+
 ### Changed
 - Change the way initialization of live-points happens. Now if after 1000 iterations we managed to get at least a single point, the code will continue sampling after putting a warning. Previously the error was raised. (by @segasai )
 - Refactor the bound update code which will lead to more consistent boundary updates (#428 by @segasai )

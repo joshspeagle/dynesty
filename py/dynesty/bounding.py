@@ -1348,7 +1348,7 @@ def bounding_ellipsoid(points):
     return ell
 
 
-def _bounding_ellipsoids(points, ell):
+def _bounding_ellipsoids(points, ell, scale=None):
     """
     Internal method used to compute a set of bounding ellipsoids when a
     bounding ellipsoid for the entire set has already been calculated.
@@ -1387,11 +1387,15 @@ def _bounding_ellipsoids(points, ell):
     p1, p2 = ell.major_axis_endpoints()
     start_ctrs = np.vstack((p1, p2))  # shape is (k, ndim) = (2, ndim)
 
+    if scale is None:
+        scale = points.std(axis=0)[None, :]
+        # scale factor across different dimensions
+        # to make things more isothropic
     # Split points into two clusters using k-means clustering with k=2.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        k2_res = kmeans2(points,
-                         k=start_ctrs,
+        k2_res = kmeans2(points / scale,
+                         k=start_ctrs / scale,
                          iter=10,
                          minit='matrix',
                          check_finite=False)
@@ -1422,12 +1426,14 @@ def _bounding_ellipsoids(points, ell):
     # See also Feroz2008
 
     nparam = (ndim * (ndim + 3)) // 2
-    log_vol_dec = nparam * np.log(npoints) / npoints / 2.
+    log_vol_dec = nparam * np.log(npoints) / npoints
     # this is the log vol decrement for one extra ellipsoid
+    # note that this is missing a factor of two to mimick previous behaviour
+    # this makes splitting less agressive
 
     # now we try to split again
-    out_ells = (_bounding_ellipsoids(points_k[0], ells[0]) +
-                _bounding_ellipsoids(points_k[1], ells[1]))
+    out_ells = (_bounding_ellipsoids(points_k[0], ells[0], scale=scale) +
+                _bounding_ellipsoids(points_k[1], ells[1], scale=scale))
 
     # if the first volume test was successful we accept the results
     if (np.logaddexp(ells[0].logvol, ells[1].logvol) -

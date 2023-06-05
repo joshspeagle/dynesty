@@ -564,7 +564,7 @@ class MultiEllipsoid:
         if npoints == 1:
             raise RuntimeError('Cannot compute the bounding ellipsoid of '
                                'a single point.')
-
+        BOOTSTRAP_WARN = 100
         # Calculate the bounding ellipsoid for the points, possibly
         # enlarged to a minimum volume.
         firstell = bounding_ellipsoid(points)
@@ -605,7 +605,16 @@ class MultiEllipsoid:
             # Conservatively set the expansion factor to be the maximum
             # factor derived from our set of bootstraps.
             expand = max(expands)
-
+            # Put a warning if a boostrap leads to 100 times larger volume
+            if expand**firstell.n > BOOTSTRAP_WARN:
+                warnings.warn(
+                    'The enlargement factor for the ellipsoidal bounds'
+                    ' determined'
+                    ' from boostrapping is very large. If you are using'
+                    ' uniform sampling that may mean that the sampling'
+                    ' will be inefficient. This may be caused by a very'
+                    ' complex posterior shape. You may consider using more'
+                    'live-ponts or different sampler (i.e. rslice or rwalk)')
             # If our ellipsoids are overly constrained, expand them.
             if expand > 1.:
                 lvs = self.logvols + ndim * np.log(expand)

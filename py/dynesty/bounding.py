@@ -614,7 +614,8 @@ class MultiEllipsoid:
                     ' uniform sampling that may mean that the sampling'
                     ' will be inefficient. This may be caused by a very'
                     ' complex posterior shape. You may consider using more'
-                    'live-ponts or different sampler (i.e. rslice or rwalk)')
+                    ' liveponts or different sampler (i.e. rslice or rwalk)'
+                    ' or alternatively disable bootstrap (bootstrap=0)')
             # If our ellipsoids are overly constrained, expand them.
             if expand > 1.:
                 lvs = self.logvols + ndim * np.log(expand)

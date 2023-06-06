@@ -566,7 +566,8 @@ class MultiEllipsoid:
         if npoints == 1:
             raise RuntimeError('Cannot compute the bounding ellipsoid of '
                                'a single point.')
-        BOOTSTRAP_WARN = 100
+        LOG10_EXPAND_VOL_WARN = 2
+        # maximum volume enhancement from bootstrap
         # Calculate the bounding ellipsoid for the points, possibly
         # enlarged to a minimum volume.
         firstell = bounding_ellipsoid(points)
@@ -608,7 +609,7 @@ class MultiEllipsoid:
             # factor derived from our set of bootstraps.
             expand = max(expands)
             # Put a warning if a boostrap leads to 100 times larger volume
-            if expand**firstell.n > BOOTSTRAP_WARN:
+            if np.log10(expand) * firstell.n > LOG10_EXPAND_VOL_WARN:
                 warnings.warn(
                     'The enlargement factor for the ellipsoidal bounds'
                     ' determined'

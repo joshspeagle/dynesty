@@ -470,13 +470,18 @@ class MultiEllipsoid:
             if q == 0:
                 # Should never be the case but may
                 # happen due to numerical inaccuracies
-                one_plus_a_bit = 1 + 1e-5
+                one_plus_a_bit = 1 + 1e-3
                 q = (ell_masks <= one_plus_a_bit).sum()
                 if q == 0:
                     min_mask = ell_masks.min()
                     raise RuntimeError(
                         f'Ellipsoid check failed q=0, {min_mask}; '
                         'please report the issue on github')
+                else:
+                    warnings.warn('Numerical inaccuracies encountered '
+                                  'with ellipsoidal '
+                                  'sampling. You may have extremely elongated'
+                                  ' posteriors')
             if return_q:
                 # If `q` is being returned, assume the user wants to
                 # explicitly apply the `1. / q` acceptance criterion to

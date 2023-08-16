@@ -2323,7 +2323,11 @@ def save_sampler(sampler, fname):
     try:
         with open(tmp_fname, 'wb') as fp:
             pickle_module.dump(D, fp)
-        os.rename(tmp_fname, fname)
+        try:
+            os.rename(tmp_fname, fname)
+        except FileExistsError:
+            # this can happen in Windows, See #450
+            shutil.move(tmp_fname, fname)
     except:  # noqa
         try:
             os.unlink(tmp_fname)

@@ -6,12 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 [Unreleased]
 ### Added
-- Warning is emitted if bootstrap expansion factor is too large
-- Warning is emitted if maxcall/maxiter stop the iterations too early
+- Warning is emitted if bootstrap expansion factor is too large ( @segasai )
+- Warning is emitted if maxcall/maxiter stop the iterations too early ( @segasai ) 
 ### Changed
-- The clustering/K-means for ellipsoid decomposition is now done in scaled space of points divided by stddev along each dimension
+- The clustering/K-means for ellipsoid decomposition is now done in scaled space of points divided by stddev along each dimension ( @segasai)
 ### Fixed
-- Fix a rare possible bug where due to numerical instability in uniform sampling a q==0 error could have occured
+- Fix a rare possible bug where due to numerical instability in uniform sampling a q==0 error could have occured ( @segasai)
+- Fix a FileExistsError when using check-points on Windows ( #450, reported by @rodleiva, fixed by @segasai )
 
 ## [2.1.2] - 2023-06-01
 

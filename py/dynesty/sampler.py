@@ -743,20 +743,23 @@ class Sampler:
         stop_iterations = False
         # The main nested sampling loop.
         for it in range(sys.maxsize):
+            delta_logz = np.logaddexp(0,
+                                      np.max(self.live_logl) + logvol - logz)
+
             # Stopping criterion 1: current number of iterations
             # exceeds `maxiter`.
-            if it > maxiter:
-                stop_iterations = True
-
             # Stopping criterion 2: current number of `loglikelihood`
             # calls exceeds `maxcall`.
-            if ncall > maxcall:
+            if it > maxiter or ncall > maxcall:
                 stop_iterations = True
+                if dlogz is not None and delta_logz > 10 * dlogz:
+                    warnings.warn('The sampling was stopped short due to'
+                                  ' maxiter/maxcall limit the delta(log(z))'
+                                  ' criterion is not achieved; posterior may'
+                                  ' be poorly sampled')
 
             # Stopping criterion 3: estimated (fractional) remaining evidence
             # lies below some threshold set by `dlogz`.
-            delta_logz = np.logaddexp(0,
-                                      np.max(self.live_logl) + logvol - logz)
             if dlogz is not None and delta_logz < dlogz:
                 stop_iterations = True
 

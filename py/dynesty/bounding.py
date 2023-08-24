@@ -470,11 +470,18 @@ class MultiEllipsoid:
             if q == 0:
                 # Should never be the case but may
                 # happen due to numerical inaccuracies
-                q = (ell_masks <= 1).sum()
+                one_plus_a_bit = 1 + 1e-3
+                q = (ell_masks <= one_plus_a_bit).sum()
                 if q == 0:
-                    max_mask = ell_masks.max()
+                    min_mask = ell_masks.min()
                     raise RuntimeError(
-                        f'Ellipsoid check failed q=0, {max_mask}')
+                        f'Ellipsoid check failed q=0, {min_mask}; '
+                        'please report the issue on github')
+                else:
+                    warnings.warn('Numerical inaccuracies encountered '
+                                  'with ellipsoidal '
+                                  'sampling. You may have extremely elongated'
+                                  ' posteriors')
             if return_q:
                 # If `q` is being returned, assume the user wants to
                 # explicitly apply the `1. / q` acceptance criterion to
@@ -564,7 +571,8 @@ class MultiEllipsoid:
         if npoints == 1:
             raise RuntimeError('Cannot compute the bounding ellipsoid of '
                                'a single point.')
-
+        LOG10_EXPAND_VOL_WARN = 2
+        # maximum volume enhancement from bootstrap
         # Calculate the bounding ellipsoid for the points, possibly
         # enlarged to a minimum volume.
         firstell = bounding_ellipsoid(points)
@@ -605,7 +613,17 @@ class MultiEllipsoid:
             # Conservatively set the expansion factor to be the maximum
             # factor derived from our set of bootstraps.
             expand = max(expands)
-
+            # Put a warning if a boostrap leads to 100 times larger volume
+            if np.log10(expand) * firstell.n > LOG10_EXPAND_VOL_WARN:
+                warnings.warn(
+                    'The enlargement factor for the ellipsoidal bounds'
+                    ' determined'
+                    ' from boostrapping is very large. If you are using'
+                    ' uniform sampling that may mean that the sampling'
+                    ' will be inefficient. This may be caused by a very'
+                    ' complex posterior shape. You may consider using more'
+                    ' liveponts or different sampler (i.e. rslice or rwalk)'
+                    ' or alternatively disable bootstrap (bootstrap=0)')
             # If our ellipsoids are overly constrained, expand them.
             if expand > 1.:
                 lvs = self.logvols + ndim * np.log(expand)
@@ -1348,7 +1366,7 @@ def bounding_ellipsoid(points):
     return ell
 
 
-def _bounding_ellipsoids(points, ell):
+def _bounding_ellipsoids(points, ell, scale=None):
     """
     Internal method used to compute a set of bounding ellipsoids when a
     bounding ellipsoid for the entire set has already been calculated.
@@ -1372,16 +1390,30 @@ def _bounding_ellipsoids(points, ell):
 
     npoints, ndim = points.shape
 
+    # We do not allow clusters with less than 2*ndim points,
+    # as the bounding ellipsoid
+    # will be poorly-constrained. Reject the split and simply return the
+    # original ellipsoid bounding all the points.
+    min_size = 2 * ndim
+    if npoints < min_size * 2:
+        # if we have less then min_size*2 pts, it's pointless to
+        # even run clustering
+        return [ell]
+
     # Starting cluster centers are initialized using the major-axis
     # endpoints of the original bounding ellipsoid.
     p1, p2 = ell.major_axis_endpoints()
     start_ctrs = np.vstack((p1, p2))  # shape is (k, ndim) = (2, ndim)
 
+    if scale is None:
+        scale = points.std(axis=0)[None, :]
+        # scale factor across different dimensions
+        # to make things more isothropic
     # Split points into two clusters using k-means clustering with k=2.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        k2_res = kmeans2(points,
-                         k=start_ctrs,
+        k2_res = kmeans2(points / scale,
+                         k=start_ctrs / scale,
                          iter=10,
                          minit='matrix',
                          check_finite=False)
@@ -1390,47 +1422,47 @@ def _bounding_ellipsoids(points, ell):
     # Get points in each cluster.
     points_k = [points[labels == k, :] for k in (0, 1)]
 
-    # If either cluster has less than 2*ndim points, the bounding ellipsoid
-    # will be poorly-constrained. Reject the split and simply return the
-    # original ellipsoid bounding all the points.
-    if points_k[0].shape[0] < 2 * ndim or points_k[1].shape[0] < 2 * ndim:
+    # if the smallest cluster is too small refuse
+    if min(points_k[0].shape[0], points_k[1].shape[0]) < min_size:
         return [ell]
 
-    # Bounding ellipsoid for each cluster, possibly enlarged
-    # to a minimum volume.
+    # Bounding ellipsoid for each cluster
     ells = [bounding_ellipsoid(points_j) for points_j in points_k]
 
     # If the total volume decreased significantly, we accept
     # the split into subsets. We then recursively split each subset.
-    # The condition for hte volume decrease is motivated by the BIC values
+    # The condition for the volume decrease is motivated by the BIC values
     # assuming that the number of parameter of the ellipsoid is X (it is
     # Ndim*(Ndim+3)/2, the number of points is N
-    # then the BIC of the bounding ellipsoid model is
-    # N * log(V0) + X * ln(N)
-    # where V0 is the volume of the ellipsoid
-    # if we have many (k) ellipsoids with total volume V1
-    # then BIC is N*log(V1) + X *k *ln(N)
-    # from that we can get the volume decrease condition
-    # V1/V0 < exp(-(k-1)*X*ln(N)/N)
+    # then the BIC of the k bounding ellipsoid model is
+    # 2 * N * log(V0) + k * X * ln(N)
+    # where V0 is the total volume of the ellipsoids
+    # then the condition for bic improvement is for k1 ellipsoids vs k0
+    # 2 * N * log(V1) + k1 * X * ln (N) <  2 * N * log(V0) + k0 * X * ln (N)
+    # log(V1) - log(V0) < (k0-k1) * X * ln(N)/2/N
     # The choice of BIC is motivated by Xmeans algo from Pelleg 2000
     # See also Feroz2008
 
     nparam = (ndim * (ndim + 3)) // 2
-    vol_dec1 = np.exp(-nparam * np.log(npoints) / npoints)
+    log_vol_dec = nparam * np.log(npoints) / npoints
+    # this is the log vol decrement for one extra ellipsoid
+    # note that this is missing a factor of two to mimick previous behaviour
+    # this makes splitting less agressive
 
-    if np.logaddexp(ells[0].logvol,
-                    ells[1].logvol) < np.log(vol_dec1) + ell.logvol:
-        return (_bounding_ellipsoids(points_k[0], ells[0]) +
-                _bounding_ellipsoids(points_k[1], ells[1]))
+    # now we try to split again
+    out_ells = (_bounding_ellipsoids(points_k[0], ells[0], scale=scale) +
+                _bounding_ellipsoids(points_k[1], ells[1], scale=scale))
 
-    # here if the split didn't succeed, we still try to split
-    out = (_bounding_ellipsoids(points_k[0], ells[0]) +
-           _bounding_ellipsoids(points_k[1], ells[1]))
-    vol_dec2 = np.exp(-nparam * (len(out) - 1) * np.log(npoints) / npoints)
+    # if the first volume test was successful we accept the results
+    if (np.logaddexp(ells[0].logvol, ells[1].logvol) -
+            ell.logvol) < -log_vol_dec:
+        return out_ells
 
-    # Only accept the split if the volume decreased significantly
-    if logsumexp([e.logvol for e in out]) < np.log(vol_dec2) + ell.logvol:
-        return out
+    # if it was not we check again if the volume decreased significantly
+    # after the recursion
+    if ((logsumexp([e.logvol for e in out_ells]) - ell.logvol)
+            < -log_vol_dec * (len(out_ells) - 1)):
+        return out_ells
 
     # Otherwise, we are happy with the single bounding ellipsoid.
     return [ell]

@@ -4,10 +4,17 @@ All notable changes to dynesty will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
 [Unreleased]
 ### Added
+### Changed
+### Fixed
+
+
+## [2.1.3] - 2023-09-22
+### Added
 - Warning is emitted if bootstrap expansion factor is too large ( @segasai )
-- Warning is emitted if maxcall/maxiter stop the iterations too early ( @segasai ) 
+- Warning is emitted if maxcall/maxiter stop the iterations too early ( @segasai )
 ### Changed
 - The clustering/K-means for ellipsoid decomposition is now done in scaled space of points divided by stddev along each dimension ( @segasai)
 ### Fixed

@@ -185,7 +185,9 @@ class EdgesInf:
     # I'm putting a gaussian and truncating its wings to -inf
 
     def __init__(self, ndim=2, volfrac=0.001, r0=5):
-        self.size = r0 / volfrac**(1. / ndim)
+        self.size = r0 * (
+            (np.pi**(ndim / 2.)) /
+            (scipy.special.gamma(ndim / 2 + 1) * volfrac))**(1. / ndim)
         self.r0 = r0
         assert (self.size > r0)
         self.ndim = ndim
@@ -198,11 +200,14 @@ class EdgesInf:
             return -np.inf
         else:
             ret = -0.5 * r2
-        lnorm = -self.ndim / 2. * np.log(2 * np.pi) + self.ndim * np.log(
-            2 * self.size)
+        N = self.ndim
+        lnorm = (N / 2.) * np.log(np.pi / 2) - N * np.log(self.size) + np.log(
+            scipy.special.gammainc(N / 2., 0.5 * self.r0**2))
+        # Assuming[(rr > 0) && (N > 1),  Integrate[Exp[-r^2/2]*r^(N - 1),
+        # {r, 0, rr}]*2* Pi^(N/2)/Gamma[N/2] /(2*S)^N]
         # first factor is gaussian norm, second is from the prior
         # to integrate to 1
-        return ret + lnorm
+        return ret - lnorm
 
     def prior_transform(self, x):
         return (2 * x - 1) * self.size
@@ -296,4 +301,4 @@ def test_uniform1(dyn):
     )
     sampler.run_nested(print_progress=printing)
     res = sampler.results
-    THRESH = 3
+    assert res is not None

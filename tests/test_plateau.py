@@ -185,7 +185,7 @@ class EdgesInf:
     # I'm putting a gaussian and truncating its wings to -inf
 
     def __init__(self, ndim=2, volfrac=0.001, r0=5):
-        self.size = r0 * (
+        self.size = 0.5 * r0 * (
             (np.pi**(ndim / 2.)) /
             (scipy.special.gamma(ndim / 2 + 1) * volfrac))**(1. / ndim)
         self.r0 = r0

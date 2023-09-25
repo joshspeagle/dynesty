@@ -403,7 +403,7 @@ def _initialize_live_points(live_points,
         # sampling from the unit cube.
         n_attempts = 1000
 
-        min_npoints = min(nlive, max(npdim + 1, 10))
+        min_npoints = min(nlive, max(npdim + 1, 100))
         # the minimum number points we want with finite logl
         # we want want at least npdim+1, because we wanto be able to constraint
         # the ellipsoid

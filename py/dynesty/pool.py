@@ -56,7 +56,7 @@ class Pool:
     ----------
     njobs: int
         The number of multiprocessing jobs/processes
-    loglikelihood: function
+    loglike: function
         ln(likelihood) function
     prior_transform: function
         Function transforming from a unit cube to the parameter
@@ -76,7 +76,7 @@ class Pool:
 
     Attributes
     ----------
-    loglikelihood: function
+    loglike: function
         ln(likelihood) function
     prior_transform: function
         Function transforming from a unit cube to the parameter
@@ -86,11 +86,11 @@ class Pool:
     --------
     To use the dynest pool you have to use it with the context manager::
 
-        with dynesty.pool.Pool(16, like, prior_transform) as pool:
-            dns = DynamicNestedSampler(pool.like, pool.prior_transform, ndim,
-                                     pool =pool)
+        with dynesty.pool.Pool(16, loglike, prior_transform) as pool:
+            dns = DynamicNestedSampler(pool.loglike, pool.prior_transform, ndim,
+                                     pool=pool)
 
-    Also note that you have to provide the .like/.prior_transform attributes
+    Also note that you have to provide the .loglike/.prior_transform attributes
     from the pool object to the Nested samper rather than your original
     functions!
     """

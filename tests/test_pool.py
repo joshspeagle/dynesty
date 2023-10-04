@@ -78,12 +78,9 @@ def test_pool_x():
                                         ndim,
                                         nlive=50,
                                         pool=pool,
-                                        queue_size=100,
                                         rstate=rstate)
         sampler.run_nested(print_progress=printing, maxiter=100)
-
-        assert (abs(LOGZ_TRUTH_EGG - sampler.results['logz'][-1])
-                < 5. * sampler.results['logzerr'][-1])
+        # not checking the results since I'm interrupting
         terminator(pool)
 
 

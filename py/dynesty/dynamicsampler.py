@@ -403,15 +403,21 @@ def _initialize_live_points(live_points,
         # sampling from the unit cube.
         n_attempts = 1000
 
-        min_npoints = min(nlive, max(npdim + 1, 10))
+        min_npoints = min(nlive, max(npdim + 1, min(nlive - 20, 100)))
         # the minimum number points we want with finite logl
-        # we want want at least npdim+1, because we wanto be able to constraint
-        # the ellipsoid
+        # we want want at least npdim+1, because we want
+        # to be able to constraint the ellipsoid
         # Note that if nlive <npdim+ 1 this doesn't really make sense
         # but we should have warned the user earlier, so they are on their own
-        # And the reason we have max(npdim+1, 10) is that we'd like to get at
-        # least 10 points as otherwise the poisson estimate of the volume will
+        # And the reason we have max(npdim+1, X ) is that we'd like to get at
+        # least X points as otherwise the poisson estimate of the volume will
         # be too large.
+        # The reason why X is min(nlive-20, 100) is that we want at least 100
+        # to have reasonable volume accuracy of ~ 10%
+        # and the reason for nlive-20 is because if nlive is 100, we don't want
+        # all points with finite logl, because this leads to issues with
+        # integrals and batch sampling in plateau edge tests
+        # The formula probably should be simplified
 
         live_u = np.zeros((nlive, npdim))
         live_v = np.zeros((nlive, npdim))

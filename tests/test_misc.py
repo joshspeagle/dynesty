@@ -405,8 +405,13 @@ def test_update_interval(dyn):
     bigres = {}
     if dyn:
         CL = dynesty.DynamicNestedSampler
+        options = {'maxbatch': 0}
+        # reason to not do any batches is
+        # because unfortunately the .bound attribute in batch sampling
+        # is only the bound of the batch
     else:
         CL = dynesty.NestedSampler
+        options = {}
     for i in range(3):
         rstate = get_rstate()
         if i == 0:
@@ -421,7 +426,7 @@ def test_update_interval(dyn):
                      nlive=nlive,
                      rstate=rstate,
                      update_interval=update_interval)
-        sampler.run_nested(print_progress=printing)
+        sampler.run_nested(print_progress=printing, **options)
 
         bigres[i] = len(sampler.results.bound)
     assert (bigres[1] > bigres[0])

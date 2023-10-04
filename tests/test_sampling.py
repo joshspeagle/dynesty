@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.integrate
 import dynesty.sampling as ds
 from utils import get_rstate
 
@@ -24,12 +25,14 @@ def pdf_test(func, curx, nbins=100, thresh=6):
     hh, loc = np.histogram(curx, range=[0, 1], bins=nbins)
     norm = (loc[1] - loc[0]) * len(curx)
     pdf = hh / norm
-
-    model_pdf = (func(loc[:-1]) + func(loc[1:])) / 2.
-    frac = 0.1
+    model_pdf = np.array([
+        scipy.integrate.quad(func, l, l + loc[1] - loc[0])[0] /
+        (loc[1] - loc[0]) for l in loc[:-1]
+    ])  # (func(loc[:-1]) + func(loc[1:])) / 2.
+    frac = 0.01 * model_pdf.max()
     epdf = (model_pdf * norm)**.5 / norm
     epdf1 = hh**.5 / norm
-    margin = np.maximum(thresh * np.maximum(epdf, epdf1), frac * model_pdf)
+    margin = np.maximum(thresh * np.maximum(epdf, epdf1), frac)
     rat = np.abs(model_pdf - pdf)
     assert (rat / margin).max() < 1
 
@@ -128,6 +131,7 @@ def test_diamond_rslice_double():
               rstate=rs,
               niter=100_000,
               doubling=True)
+    us = us[::10, :]  # thinning
     diamond_test(us)
 
 
@@ -150,4 +154,5 @@ def test_checkerboard_rslice_double():
               rstate=rs,
               niter=100_000,
               doubling=True)
+    us = us[::10, :]  # thinning
     checker_test(us)

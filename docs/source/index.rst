@@ -98,6 +98,18 @@ Changelog
 .. image:: ../images/logo.gif
     :align: center
 
+2.1.3 (2023-10-04)
+------------------
+Bug fix release
+
+- Warning is emitted if bootstrap expansion factor is too large ( @segasai )
+- Warning is emitted if maxcall/maxiter stop the iterations too early ( @segasai )
+- The clustering/K-means for ellipsoid decomposition is now done in scaled space of points divided by stddev along each dimension ( @segasai)
+- Update the initialisation of points in the case where some fraction of prior volume has log(L)=-inf this should increase the accuracy of log(Z) estimates in some cases
+- Fix a rare possible bug where due to numerical instability in uniform sampling a q==0 error could have occured ( @segasai)
+- Fix a FileExistsError when using check-points on Windows ( #450, reported by @rodleiva, fixed by @segasai )
+
+	    
 2.1.2  (2023-06-01)
 -------------------
 Bug fix release

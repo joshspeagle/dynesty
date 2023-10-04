@@ -618,11 +618,11 @@ class MultiEllipsoid:
                 warnings.warn(
                     'The enlargement factor for the ellipsoidal bounds'
                     ' determined'
-                    ' from boostrapping is very large. If you are using'
+                    ' from bootstrapping is very large. If you are using'
                     ' uniform sampling that may mean that the sampling'
                     ' will be inefficient. This may be caused by a very'
                     ' complex posterior shape. You may consider using more'
-                    ' liveponts or different sampler (i.e. rslice or rwalk)'
+                    ' livepoints or different sampler (i.e. rslice or rwalk)'
                     ' or alternatively disable bootstrap (bootstrap=0)')
             # If our ellipsoids are overly constrained, expand them.
             if expand > 1.:

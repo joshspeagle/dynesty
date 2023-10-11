@@ -209,21 +209,22 @@ def test_unravel():
     dyutil.reweight_run(sampler.results, logps / 4.)
 
 
-def test_reweight():
+@pytest.mark.parametrize('dyn,ndim', itertools.product([False, True], [2, 5]))
+def test_reweight(dyn, ndim):
     # test reweight_run
-    ndim = 5
     rstate = get_rstate()
 
     class L:
 
-        def __init__(self, s, ndim):
+        def __init__(self, s, ndim, width):
             self.s = s
             self.ndim = ndim
+            self.norm = -self.ndim * np.log(self.s) - self.ndim / 2. * np.log(
+                2 * np.pi) + self.ndim * np.log(2 * width)
 
         def __call__(self, x):
             x = np.atleast_2d(x)
-            ret = -self.ndim * np.log(self.s) - 0.5 * np.sum(
-                (x / self.s)**2, axis=1)
+            ret = self.norm - 0.5 * np.sum((x / self.s)**2, axis=1)
             return np.squeeze(ret)
 
     class T:
@@ -234,23 +235,19 @@ def test_reweight():
         def __call__(self, x):
             return (2 * x - 1) * self.s
 
-    L1 = L(0.1, ndim)
-    L05 = L(0.05, ndim)
-    T = T(10)
-    sampler = dynesty.NestedSampler(L1, T, ndim, nlive=nlive, rstate=rstate)
+    width = 10
+    L1 = L(0.1, ndim, width)
+    L05 = L(0.05, ndim, width)
+    T = T(width)
+    if dyn:
+        S = dynesty.NestedSampler
+    else:
+        S = dynesty.DynamicNestedSampler
+    sampler = S(L1, T, ndim, rstate=rstate)
     sampler.run_nested(print_progress=printing)
     res0 = sampler.results
     res1 = dyutil.reweight_run(res0, L05(sampler.results['samples']))
-    assert np.abs(res0['logz'][-1] - res1['logz'][-1]) < 0.1
-    dsampler = dynesty.DynamicNestedSampler(L05,
-                                            prior_transform,
-                                            ndim,
-                                            nlive=nlive,
-                                            rstate=rstate)
-    dsampler.run_nested(print_progress=printing)
-    dres0 = dsampler.results
-    dres1 = dyutil.reweight_run(dres0, L05(dsampler.results['samples']))
-    assert np.abs(dres0['logz'][-1] - dres1['logz'][-1]) < 0.1
+    assert np.abs(res1['logz'][-1]) < 3 * res1['logzerr'][-1]
 
 
 def test_livepoints():

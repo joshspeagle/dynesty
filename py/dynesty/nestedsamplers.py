@@ -561,10 +561,8 @@ class SingleEllipsoidSampler(SuperSampler):
         u = self.live_u[i, :]
 
         # Choose axes.
-        if self.sampling in ['rwalk', 'rslice']:
+        if self.sampling in ['rwalk', 'rslice', 'slice']:
             ax = self.ell.axes
-        elif self.sampling == 'slice':
-            ax = self.ell.paxes
         else:
             ax = np.identity(self.ncdim)
 
@@ -749,10 +747,7 @@ class MultiEllipsoidSampler(SuperSampler):
             probs = np.exp(self.mell.logvols - self.mell.logvol_tot)
             ell_idx = rand_choice(probs, self.rstate)
             # Choose axes.
-            if self.sampling == 'slice':
-                ax = self.mell.ells[ell_idx].paxes
-            else:
-                ax = self.mell.ells[ell_idx].axes
+            ax = self.mell.ells[ell_idx].axes
         else:
             ax = np.identity(self.npdim)
 

@@ -131,20 +131,20 @@ class Ellipsoid:
                 "The input precision matrix defining the "
                 f"ellipsoid {self.cov} is apparently singular with "
                 f"l={l} and v={v}.")
+
+        # Scaled eigenvectors are the principle axes, where `axes[:,i]` is the
+        # i-th axis. Multiplying this matrix by a vector will transform a
+        # point in the unit n-sphere to a point in the ellipsoid.
         if axes is None:
             self.axes = v * self.axlens
         else:
             self.axes = axes
+
         if am is None:
             self.am = (v * (1. / l)) @ v.T
             # precision matrix (inverse of covariance)
         else:
             self.am = am
-
-        # Scaled eigenvectors are the principle axes, where `paxes[:,i]` is the
-        # i-th axis. Multiplying this matrix by a vector will transform a
-        # point in the unit n-sphere to a point in the ellipsoid.
-        self.paxes = v * self.axlens
 
         # Amount by which volume was increased after initialization (i.e.
         # cumulative factor from `scale_to_vol`).
@@ -191,7 +191,7 @@ class Ellipsoid:
         """Return the endpoints of the major axis."""
 
         i = np.argmax(self.axlens)  # find the major axis
-        v = self.paxes[:, i]  # vector from center to major axis endpoint
+        v = self.axes[:, i]  # vector from center to major axis endpoint
 
         return self.ctr - v, self.ctr + v
 
@@ -295,7 +295,6 @@ class Ellipsoid:
         self.logvol = ell.logvol
         self.axlens = ell.axlens
         self.axes = ell.axes
-        self.paxes = ell.paxes
         self.expand = ell.expand
 
         # Use bootstrapping to determine the volume expansion factor.

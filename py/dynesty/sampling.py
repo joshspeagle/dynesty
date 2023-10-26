@@ -552,6 +552,7 @@ def sample_slice(args):
 
     # Modifying axes and computing lengths.
     axes = scale * axes.T  # scale based on past tuning
+    # Note we are transposing as axes[:,i] corresponds to i-th principal axis of the ellipsoid
     expansion_warning_set = False
     # Slice sampling loop.
     for _ in range(slices):

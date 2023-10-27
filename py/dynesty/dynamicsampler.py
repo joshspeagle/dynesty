@@ -345,7 +345,7 @@ def _initialize_live_points(live_points,
                             loglikelihood,
                             M,
                             nlive=None,
-                            npdim=None,
+                            ndim=None,
                             rstate=None,
                             blob=False,
                             use_pool_ptform=None):
@@ -372,7 +372,7 @@ def _initialize_live_points(live_points,
     nlive: int
         Number of live-points
 
-    npdim: int
+    ndim: int
         Number of dimensions
 
     rstate: :class: numpy.random.RandomGenerator
@@ -403,13 +403,13 @@ def _initialize_live_points(live_points,
         # sampling from the unit cube.
         n_attempts = 1000
 
-        min_npoints = min(nlive, max(npdim + 1, min(nlive - 20, 100)))
+        min_npoints = min(nlive, max(ndim + 1, min(nlive - 20, 100)))
         # the minimum number points we want with finite logl
-        # we want want at least npdim+1, because we want
+        # we want want at least ndim+1, because we want
         # to be able to constraint the ellipsoid
-        # Note that if nlive <npdim+ 1 this doesn't really make sense
+        # Note that if nlive <ndim+ 1 this doesn't really make sense
         # but we should have warned the user earlier, so they are on their own
-        # And the reason we have max(npdim+1, X ) is that we'd like to get at
+        # And the reason we have max(ndim+1, X ) is that we'd like to get at
         # least X points as otherwise the poisson estimate of the volume will
         # be too large.
         # The reason why X is min(nlive-20, 100) is that we want at least 100
@@ -419,8 +419,8 @@ def _initialize_live_points(live_points,
         # integrals and batch sampling in plateau edge tests
         # The formula probably should be simplified
 
-        live_u = np.zeros((nlive, npdim))
-        live_v = np.zeros((nlive, npdim))
+        live_u = np.zeros((nlive, ndim))
+        live_v = np.zeros((nlive, ndim))
         live_logl = np.zeros(nlive)
         ngoods = 0  # counter for how many finite logl we have found
         live_blobs = []
@@ -429,7 +429,7 @@ def _initialize_live_points(live_points,
             iattempt += 1
 
             # simulate nlive points by uniform sampling
-            cur_live_u = rstate.random(size=(nlive, npdim))
+            cur_live_u = rstate.random(size=(nlive, ndim))
             if use_pool_ptform:
                 cur_live_v = M(prior_transform, np.asarray(cur_live_u))
             else:
@@ -611,7 +611,7 @@ def _configure_batch_sampler(main_sampler,
     batch_sampler = _SAMPLERS[main_sampler.bounding](
         main_sampler.loglikelihood,
         main_sampler.prior_transform,
-        main_sampler.npdim,
+        main_sampler.ndim,
         main_sampler.live_init,  # this is not used at all
         # as we replace the starting points
         main_sampler.method,
@@ -658,7 +658,7 @@ def _configure_batch_sampler(main_sampler,
              main_sampler.loglikelihood,
              main_sampler.M,
              nlive=nlive_new,
-             npdim=main_sampler.npdim,
+             ndim=main_sampler.ndim,
              rstate=main_sampler.rstate,
              blob=main_sampler.blob,
              use_pool_ptform=main_sampler.use_pool_ptform)
@@ -776,7 +776,7 @@ def _configure_batch_sampler(main_sampler,
         # Trigger an update of the internal bounding distribution based
         # on the "new" set of live points.
 
-        live_u = np.empty((nlive_new, main_sampler.npdim))
+        live_u = np.empty((nlive_new, main_sampler.ndim))
         live_v = np.empty((nlive_new, saved_v.shape[1]))
         live_logl = np.empty(nlive_new)
         live_bound = np.zeros(nlive_new, dtype=int)
@@ -867,7 +867,7 @@ class DynamicSampler:
         Function transforming a sample from the a unit cube to the parameter
         space of interest according to the prior.
 
-    npdim : int, optional
+    ndim : int, optional
         Number of parameters accepted by `prior_transform`.
 
     bound : {`'none'`, `'single'`, `'multi'`, `'balls'`, `'cubes'`}, optional
@@ -913,14 +913,14 @@ class DynamicSampler:
         A dictionary of additional parameters (described below).
     """
 
-    def __init__(self, loglikelihood, prior_transform, npdim, bound, method,
+    def __init__(self, loglikelihood, prior_transform, ndim, bound, method,
                  update_interval_ratio, first_update, rstate, queue_size, pool,
                  use_pool, ncdim, nlive0, kwargs):
 
         # distributions
         self.loglikelihood = loglikelihood
         self.prior_transform = prior_transform
-        self.npdim = npdim
+        self.ndim = ndim
         self.ncdim = ncdim
         self.blob = kwargs.get('blob') or False
         # bounding/sampling
@@ -1205,7 +1205,7 @@ class DynamicSampler:
             Contains `live_u`, the coordinates on the unit cube, `live_v`, the
             transformed variables, and `live_logl`, the associated
             loglikelihoods. By default, if these are not provided the initial
-            set of live points will be drawn from the unit `npdim`-cube.
+            set of live points will be drawn from the unit `ndim`-cube.
             **WARNING: It is crucial that the initial set of live points have
             been sampled from the prior. Failure to provide a set of valid
             live points will lead to incorrect results.**
@@ -1216,7 +1216,7 @@ class DynamicSampler:
             Index of the live point with the worst likelihood. This is our
             new dead point sample.
 
-        ustar : `~numpy.ndarray` with shape (npdim,)
+        ustar : `~numpy.ndarray` with shape (ndim,)
             Position of the sample.
 
         vstar : `~numpy.ndarray` with shape (ndim,)
@@ -1292,7 +1292,7 @@ class DynamicSampler:
                  self.loglikelihood,
                  self.M,
                  nlive=nlive,
-                 npdim=self.npdim,
+                 ndim=self.ndim,
                  rstate=self.rstate,
                  blob=self.blob,
                  use_pool_ptform=self.use_pool_ptform)
@@ -1317,7 +1317,7 @@ class DynamicSampler:
                 first_update = self.first_update
             self.sampler = _SAMPLERS[bounding](self.loglikelihood,
                                                self.prior_transform,
-                                               self.npdim,
+                                               self.ndim,
                                                self.live_init,
                                                self.method,
                                                update_interval,
@@ -1502,7 +1502,7 @@ class DynamicSampler:
             new dead point sample. **Negative values indicate the index
             of a new live point generated when initializing a new batch.**
 
-        ustar : `~numpy.ndarray` with shape (npdim,)
+        ustar : `~numpy.ndarray` with shape (ndim,)
             Position of the sample.
 
         vstar : `~numpy.ndarray` with shape (ndim,)
@@ -1972,7 +1972,7 @@ class DynamicSampler:
             Contains `live_u`, the coordinates on the unit cube, `live_v`, the
             transformed variables, and `live_logl`, the associated
             loglikelihoods. By default, if these are not provided the initial
-            set of live points will be drawn from the unit `npdim`-cube.
+            set of live points will be drawn from the unit `ndim`-cube.
             **WARNING: It is crucial that the initial set of live points have
             been sampled from the prior. Failure to provide a set of valid
             live points will lead to incorrect results.**
@@ -2028,7 +2028,7 @@ class DynamicSampler:
                 # The reason to scale with square of number of
                 # dimensions is because the number coefficients
                 # defining covariance is roughly 0.5 * N^2
-                n_effective = max(self.npdim * self.npdim, 10000)
+                n_effective = max(self.ndim * self.ndim, 10000)
 
             stop_kwargs['target_n_effective'] = n_effective
         nlive_init = nlive_init or self.nlive0

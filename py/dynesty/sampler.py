@@ -35,7 +35,7 @@ class Sampler:
         Function transforming a sample from the a unit cube to the parameter
         space of interest according to the prior.
 
-    npdim : int, optional
+    ndim : int, optional
         Number of parameters accepted by `prior_transform`.
 
     live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
@@ -71,7 +71,7 @@ class Sampler:
     def __init__(self,
                  loglikelihood,
                  prior_transform,
-                 npdim,
+                 ndim,
                  live_points,
                  update_interval,
                  first_update,
@@ -86,7 +86,7 @@ class Sampler:
         # distributions
         self.loglikelihood = loglikelihood
         self.prior_transform = prior_transform
-        self.npdim = npdim
+        self.ndim = ndim
         self.ncdim = ncdim
         self.blob = blob
         # live points
@@ -189,7 +189,7 @@ class Sampler:
         """Re-initialize the sampler."""
 
         # live points
-        self.live_u = self.rstate.random(size=(self.nlive, self.npdim))
+        self.live_u = self.rstate.random(size=(self.nlive, self.ndim))
         if self.use_pool_ptform:
             # Use the pool to compute the prior transform.
             self.live_v = np.array(
@@ -365,7 +365,7 @@ class Sampler:
         else:
             # Propose/evaluate points directly from the unit cube.
             point_queue = self.rstate.random(size=(self.queue_size -
-                                                   self.nqueue, self.npdim))
+                                                   self.nqueue, self.ndim))
             axes_queue = np.identity(
                 self.ncdim)[None, :, :] + np.zeros(self.queue_size -
                                                    self.nqueue)[:, None, None]
@@ -661,7 +661,7 @@ class Sampler:
             Index of the live point with the worst likelihood. This is our
             new dead point sample.
 
-        ustar : `~numpy.ndarray` with shape (npdim,)
+        ustar : `~numpy.ndarray` with shape (ndim,)
             Position of the sample.
 
         vstar : `~numpy.ndarray` with shape (ndim,)

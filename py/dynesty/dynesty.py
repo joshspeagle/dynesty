@@ -329,13 +329,6 @@ optional
             efficiency in percent (`'min_eff'`). Defaults are `2 * nlive` and
             `10.`, respectively.
 
-        npdim : int, optional
-            Number of parameters accepted by `prior_transform`. This might
-            differ from `ndim` in the case where a parameter of loglikelihood
-            is dependent upon multiple independently distributed parameters,
-            some of which may
-            be nuisance parameters.
-
         rstate : `~numpy.random.Generator`, optional
             `~numpy.random.Generator` instance. If not given, the
              global random state of the `~numpy.random` module will be used.
@@ -370,7 +363,7 @@ optional
             transformed variables, and `live_logl`, the associated
             loglikelihoods.
             By default, if these are not provided the initial set of live
-            points will be drawn uniformly from the unit `npdim`-cube.
+            points will be drawn uniformly from the unit `ndim`-cube.
             **WARNING: It is crucial that the initial set of live points have
             been sampled from the prior. Failure to provide a set of valid
             live points
@@ -468,13 +461,16 @@ optional
             will be sampled using the sampling method, the remaining
             dimensions will
             just sample uniformly from the prior distribution.
-            If this is `None` (default), this will default to npdim.
+            If this is `None` (default), this will default to ndim.
 
         blob: bool, optional
             The default value is False. If it is true, then the log-likelihood
             should return the tuple of logl and a numpy-array "blob" that will
             stored as part of the chain. That blob can contain auxiliary
             information computed inside the likelihood function.
+
+        npdim : int
+            This option is deprecated and should not be used 
     """
 
     static_docstring = f"""
@@ -548,10 +544,15 @@ class NestedSampler(SuperSampler):
                 history_filename=None):
 
         # Prior dimensions.
-        if npdim is None:
-            npdim = ndim
-        if ncdim is None:
-            ncdim = npdim
+        if npdim is not None:
+            if npdim != ndim:
+                raise ValueError('''npdim functionality is not functioning 
+and is deprecated ''')
+            else:
+                warnings.warn(
+                    """the npdim keyword/functionality is deprecated as not 
+functioning and will be removed in further releases""", DeprecationWarning)
+        ncdim = ncdim or ndim
 
         # Bounding method.
         if bound not in _SAMPLERS:
@@ -563,7 +564,7 @@ class NestedSampler(SuperSampler):
 
         walks, slices = _get_walks_slices(walks, slices, sample, ndim)
 
-        if ncdim != npdim and sample in ['slice', 'hslice', 'rslice']:
+        if ncdim != ndim and sample in ['slice', 'hslice', 'rslice']:
             raise ValueError('ncdim unsupported for slice sampling')
 
         # Custom sampling function.
@@ -585,7 +586,7 @@ class NestedSampler(SuperSampler):
             warnings.warn(
                 "Beware! Having `nlive <= 2 * ndim` is extremely risky!")
 
-        nonbounded = get_nonbounded(npdim, periodic, reflective)
+        nonbounded = get_nonbounded(ndim, periodic, reflective)
         kwargs['nonbounded'] = nonbounded
         kwargs['periodic'] = periodic
         kwargs['reflective'] = reflective
@@ -680,7 +681,7 @@ class NestedSampler(SuperSampler):
             loglike,
             M,
             nlive=nlive,
-            npdim=npdim,
+            ndim=ndim,
             rstate=rstate,
             blob=blob,
             use_pool_ptform=use_pool.get('prior_transform', True))
@@ -689,7 +690,7 @@ class NestedSampler(SuperSampler):
         sampler = super().__new__(_SAMPLERS[bound])
         sampler.__init__(loglike,
                          ptform,
-                         npdim,
+                         ndim,
                          live_points,
                          sample,
                          update_interval,
@@ -754,11 +755,15 @@ class DynamicNestedSampler(DynamicSampler):
                  history_filename=None):
 
         # Prior dimensions.
-        if npdim is None:
-            npdim = ndim
-        if ncdim is None:
-            ncdim = npdim
-
+        if npdim is not None:
+            if npdim != ndim:
+                raise ValueError('''npdim functionality is not functioning 
+and is deprecated ''')
+            else:
+                warnings.warn(
+                    """the npdim keyword/functionality is deprecated as not 
+functioning and will be removed in further releases""", DeprecationWarning)
+        ncdim = ncdim or ndim
         nlive = nlive or 500
 
         # Bounding method.
@@ -771,7 +776,7 @@ class DynamicNestedSampler(DynamicSampler):
 
         walks, slices = _get_walks_slices(walks, slices, sample, ndim)
 
-        if ncdim != npdim and sample in ['slice', 'hslice', 'rslice']:
+        if ncdim != ndim and sample in ['slice', 'hslice', 'rslice']:
             raise ValueError('ncdim unsupported for slice sampling')
 
         update_interval_ratio = _get_update_interval_ratio(
@@ -791,7 +796,7 @@ class DynamicNestedSampler(DynamicSampler):
         # Citation generator.
         kwargs['cite'] = _get_citations('dynamic', bound, sample)
 
-        nonbounded = get_nonbounded(npdim, periodic, reflective)
+        nonbounded = get_nonbounded(ndim, periodic, reflective)
         kwargs['nonbounded'] = nonbounded
         kwargs['periodic'] = periodic
         kwargs['reflective'] = reflective
@@ -877,7 +882,7 @@ class DynamicNestedSampler(DynamicSampler):
             kwargs['compute_jac'] = compute_jac
 
         # Initialize our nested sampler.
-        super().__init__(loglike, ptform, npdim, bound, sample,
+        super().__init__(loglike, ptform, ndim, bound, sample,
                          update_interval_ratio, first_update, rstate,
                          queue_size, pool, use_pool, ncdim, nlive, kwargs)
 

@@ -2272,13 +2272,13 @@ def restore_sampler(fname, pool=None):
         warnings.warn(
             f'The dynesty version in the checkpoint file ({save_ver})'
             f'does not match the current dynesty version'
-            '({DYNESTY_VERSION}). That is *NOT* guaranteed to work')
+            f'({DYNESTY_VERSION}). That is *NOT* guaranteed to work')
     if pool is not None:
         mapper = pool.map
     else:
         mapper = map
     if hasattr(sampler, 'sampler'):
-        # This is the case of th dynamic sampler
+        # This is the case of the dynamic sampler
         # this is better be written as isinstanceof()
         # but I couldn't do it due to circular imports
         # TODO

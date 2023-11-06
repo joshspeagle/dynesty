@@ -7,7 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 [Unreleased]
 ### Added
+
 ### Changed
+- Get rid of npdim option that at some point may have allowed the prior transformation to return higher dimensional vector than the inputs. Note that due to this change, restoring the checkpoint from previous version of the dynesty won't be possible) (issues #456, #457) (original issue reported by @MichaelDAlbrow, fixed by @segasai )
 ### Fixed
 
 

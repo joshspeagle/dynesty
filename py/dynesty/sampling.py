@@ -35,7 +35,7 @@ def sample_unif(args):
 
     Parameters
     ----------
-    u : `~numpy.ndarray` with shape (npdim,)
+    u : `~numpy.ndarray` with shape (ndim,)
         Position of the initial sample.
 
     loglstar : float
@@ -61,7 +61,7 @@ def sample_unif(args):
 
     Returns
     -------
-    u : `~numpy.ndarray` with shape (npdim,)
+    u : `~numpy.ndarray` with shape (ndim,)
         Position of the final proposed point within the unit cube. **For
         uniform sampling this is the same as the initial input position.**
 
@@ -99,7 +99,7 @@ def sample_rwalk(args):
 
     Parameters
     ----------
-    u : `~numpy.ndarray` with shape (npdim,)
+    u : `~numpy.ndarray` with shape (ndim,)
         Position of the initial sample. **This is a copy of an existing live
         point.**
 
@@ -127,7 +127,7 @@ def sample_rwalk(args):
 
     Returns
     -------
-    u : `~numpy.ndarray` with shape (npdim,)
+    u : `~numpy.ndarray` with shape (ndim,)
         Position of the final proposed point within the unit cube.
 
     v : `~numpy.ndarray` with shape (ndim,)
@@ -157,7 +157,7 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
     Generic random walk step
     Parameters
     ----------
-    u : `~numpy.ndarray` with shape (npdim,)
+    u : `~numpy.ndarray` with shape (ndim,)
         Position of the initial sample. **This is a copy of an existing live
         point.**
 
@@ -185,7 +185,7 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
 
     Returns
     -------
-    u : `~numpy.ndarray` with shape (npdim,)
+    u : `~numpy.ndarray` with shape (ndim,)
         Position of the final proposed point within the unit cube.
 
     v : `~numpy.ndarray` with shape (ndim,)
@@ -490,7 +490,7 @@ def sample_slice(args):
 
     Parameters
     ----------
-    u : `~numpy.ndarray` with shape (npdim,)
+    u : `~numpy.ndarray` with shape (ndim,)
         Position of the initial sample. **This is a copy of an existing live
         point.**
 
@@ -517,7 +517,7 @@ def sample_slice(args):
 
     Returns
     -------
-    u : `~numpy.ndarray` with shape (npdim,)
+    u : `~numpy.ndarray` with shape (ndim,)
         Position of the final proposed point within the unit cube.
 
     v : `~numpy.ndarray` with shape (ndim,)
@@ -599,7 +599,7 @@ def sample_rslice(args):
 
     Parameters
     ----------
-    u : `~numpy.ndarray` with shape (npdim,)
+    u : `~numpy.ndarray` with shape (ndim,)
         Position of the initial sample. **This is a copy of an existing live
         point.**
 
@@ -625,7 +625,7 @@ def sample_rslice(args):
 
     Returns
     -------
-    u : `~numpy.ndarray` with shape (npdim,)
+    u : `~numpy.ndarray` with shape (ndim,)
         Position of the final proposed point within the unit cube.
 
     v : `~numpy.ndarray` with shape (ndim,)
@@ -706,7 +706,7 @@ def sample_hslice(args):
 
     Parameters
     ----------
-    u : `~numpy.ndarray` with shape (npdim,)
+    u : `~numpy.ndarray` with shape (ndim,)
         Position of the initial sample. **This is a copy of an existing live
         point.**
 
@@ -732,7 +732,7 @@ def sample_hslice(args):
 
     Returns
     -------
-    u : `~numpy.ndarray` with shape (npdim,)
+    u : `~numpy.ndarray` with shape (ndim,)
         Position of the final proposed point within the unit cube.
 
     v : `~numpy.ndarray` with shape (ndim,)

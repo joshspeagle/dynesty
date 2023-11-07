@@ -398,20 +398,25 @@ class Sampler:
                                 rseed=seeds[i],
                                 kwargs=self.kwargs))
         self.queue = list(mapper(evolve_point, args))
-        self._add_insertion_indices_to_queue(point_queue)
-
-    def _add_insertion_indices_to_queue(self, point_queue):
-        new_queue = list()
-        for start, (u, v, logl, nc, blob) in zip(point_queue, self.queue):
-            if blob is not None:
-                blob["distance_insertion"] = self._distance_insertion_index(start, u)
-                blob["likelihood_insertion"] = self._likelihood_insertion_index(logl)
-            new_queue.append((u, v, logl, nc, blob))
-        self.queue = new_queue
+        for ii, start in enumerate(point_queue):
+            blob = self.queue[ii][-1]
+            if isinstance(blob, dict) and not self.unit_cube_sampling:
+                blob["start"] = start
 
     def _distance_insertion_index(self, start, point):
-        """
-        Compute the distance insertion index as defined in XXX
+        r"""
+        Compute the distance insertion index.
+        This is entirely analogous to the likelihood insertion index except we use
+        the distance to the start point instead of the likelihood. This method is more
+        robust to multimodal posteriors and likelihood plateaus.
+        We define the distance as
+
+        .. math::
+
+            d = \sqrt{\sum_i \frac{(x_i - x_{i,0})^2}{\sigma_i^2}}
+        
+        where :math:`x_{i,0}` is the starting point and :math:`\sigma_i` is the standard
+        deviation of the live points along the ith axis.
         """
         norms = np.std(self.live_u, axis=0)
         distance = np.linalg.norm((point - start) / norms)
@@ -460,6 +465,8 @@ class Sampler:
                 # If it's not empty we are just accumulating the
                 # the history of evaluations
                 self.update_proposal(blob, update=self.nqueue <= 0)
+                self.distance_insertion_index = self._distance_insertion_index(blob["start"], u)
+            self.likelihood_insertion_index = self._likelihood_insertion_index(logl)
 
             # the reason I'm not using self.ncall is that it's updated at
             # higher level

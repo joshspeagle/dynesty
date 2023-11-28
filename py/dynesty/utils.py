@@ -2330,17 +2330,17 @@ def insertion_index_test(result, kind="likelihood", ax=None):
     """
     Compute the p-value comparing the distribution of insertion indices with
     the discrete uniform distribution as described in arxiv:2006.03371.
+
     Parameters
     ----------
     result: dynesty.utils.Results
         The result of a NS analysis
     kind: str
         The name of the quantity for which to test the insertion indices.
-        The allowed values are:
-        - likelihood
-        - distance
+        The allowed values are: likelihood, distance
     ax: matplotlib.Axis
         If passed, the insertion indices will be histogramed on the axis.
+
     Returns
     -------
     pval: float, array-like
@@ -2348,6 +2348,7 @@ def insertion_index_test(result, kind="likelihood", ax=None):
         distribution
         If analyzing a dynamic NS run, one p value is returned for each
         distinct number of live points, typically two.
+
     """
 
     def compute_pvalue(_vals, _nlive):

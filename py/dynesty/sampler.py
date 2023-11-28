@@ -400,7 +400,11 @@ class Sampler:
         self.queue = list(mapper(evolve_point, args))
         for ii, start in enumerate(point_queue):
             blob = self.queue[ii][-1]
-            if isinstance(blob, dict) and not self.unit_cube_sampling:
+            if (
+                isinstance(blob, dict)
+                and not self.unit_cube_sampling
+                and "start" not in blob
+            ):
                 blob["start"] = start
 
     def _distance_insertion_index(self, start, point):

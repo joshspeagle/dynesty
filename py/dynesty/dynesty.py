@@ -187,6 +187,12 @@ def _get_walks_slices(walks0, slices0, sample, ndim):
         walks = 20 + ndim
     slices = slices0 or slices
     walks = walks0 or walks
+    if sample in ['hslice', 'rslice', 'slice'] and walks0 is not None:
+        warnings.warn('Specifying walks option while using slice sampler'
+                      ' does not make sense')
+    elif sample in ['rwalk'] and slices0 is not None:
+        warnings.warn('Specifying slice option while using rwalk sampler'
+                      ' does not make sense')
     return walks, slices
 
 
@@ -470,7 +476,7 @@ optional
             information computed inside the likelihood function.
 
         npdim : int
-            This option is deprecated and should not be used 
+            This option is deprecated and should not be used
     """
 
     static_docstring = f"""
@@ -546,11 +552,11 @@ class NestedSampler(SuperSampler):
         # Prior dimensions.
         if npdim is not None:
             if npdim != ndim:
-                raise ValueError('''npdim functionality is not functioning 
+                raise ValueError('''npdim functionality is not functioning
 and is deprecated ''')
             else:
                 warnings.warn(
-                    """the npdim keyword/functionality is deprecated as not 
+                    """the npdim keyword/functionality is deprecated as not
 functioning and will be removed in further releases""", DeprecationWarning)
         ncdim = ncdim or ndim
 
@@ -757,11 +763,11 @@ class DynamicNestedSampler(DynamicSampler):
         # Prior dimensions.
         if npdim is not None:
             if npdim != ndim:
-                raise ValueError('''npdim functionality is not functioning 
+                raise ValueError('''npdim functionality is not functioning
 and is deprecated ''')
             else:
                 warnings.warn(
-                    """the npdim keyword/functionality is deprecated as not 
+                    """the npdim keyword/functionality is deprecated as not
 functioning and will be removed in further releases""", DeprecationWarning)
         ncdim = ncdim or ndim
         nlive = nlive or 500

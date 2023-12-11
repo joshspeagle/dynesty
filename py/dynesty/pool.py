@@ -107,6 +107,9 @@ class Pool:
 
     as this way they will not need to be pickled and unpickled every function
     call.
+    
+    Note though that if you specify logl_args, and ptform_args when  creating
+    the Pool *AND* in the sampler those will be concatenated
     """
 
     def __init__(self,

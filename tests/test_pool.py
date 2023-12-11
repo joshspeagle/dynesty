@@ -104,13 +104,13 @@ def test_pool_dynamic():
         terminator(pool)
 
 
-def loglike_gau_args(x, y, z=None):
+def loglike_gau_args(x, y, z=None, a=0, b=0):
     return (-0.5 * np.log(2 * np.pi) * ndim - np.log(gau_s) * ndim -
-            0.5 * np.sum((x - 0.5)**2) / gau_s**2) + y + z
+            0.5 * np.sum((x - 0.5)**2) / gau_s**2) + y + z + a + b
 
 
-def prior_transform_gau_args(x, y, z=None):
-    return x + y + z
+def prior_transform_gau_args(x, y, z=None, a=0, b=0):
+    return x + y + z + a + b
 
 
 def test_pool_args():
@@ -121,10 +121,10 @@ def test_pool_args():
     with dypool.Pool(2,
                      loglike_gau_args,
                      prior_transform_gau_args,
-                     logl_args=(0, ),
-                     ptform_args=(0, ),
-                     logl_kwargs=dict(z=0),
-                     ptform_kwargs=dict(z=0)) as pool:
+                     logl_args=(1, ),
+                     ptform_args=(1, ),
+                     logl_kwargs=dict(z=-1),
+                     ptform_kwargs=dict(z=-1)) as pool:
         sampler = dynesty.DynamicNestedSampler(pool.loglike,
                                                pool.prior_transform,
                                                ndim,
@@ -144,23 +144,29 @@ def test_pool_args():
 def test_pool_args2():
     # test pool on gau problem
     # i specify large queue_size here, otherwise it is too slow
-    # Here I am testing that args from pool and Nested sampler are concatenated
+
+    # Here I am testing that args from pool and Nested sampler are
+    # properly concatenated
     rstate = get_rstate()
 
     with dypool.Pool(
             2,
             loglike_gau_args,
             prior_transform_gau_args,
-            logl_args=(0, ),
-            ptform_args=(0, ),
+            logl_args=(1, ),
+            ptform_args=(1, ),
+            logl_kwargs={'a': 2},
+            ptform_kwargs={'a': 2},
     ) as pool:
         sampler = dynesty.DynamicNestedSampler(pool.loglike,
                                                pool.prior_transform,
                                                ndim,
                                                nlive=nlive,
                                                pool=pool,
-                                               logl_args=(0, ),
-                                               ptform_args=(0, ),
+                                               logl_args=(-1, ),
+                                               ptform_args=(-1, ),
+                                               logl_kwargs={'b': -2},
+                                               ptform_kwargs={'b': -2},
                                                queue_size=100,
                                                rstate=rstate)
         sampler.run_nested(maxiter=300, print_progress=printing)

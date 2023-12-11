@@ -470,7 +470,7 @@ when we initialize the pool. When we run dynesty we provide the
 loglikelihood and prior transforms from the pool. This approach minimizes
 the overhead from picking function repeatedly.
 
-If your function has additional arguments that are large, you can also provide
+If your function has additional arguments, you must also provide
 them when initializing the pool::
 
     with Pool(10, loglike, ptform, logl_args=loglike_args) as pool:

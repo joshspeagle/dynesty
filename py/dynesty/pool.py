@@ -64,7 +64,9 @@ class Pool:
         space of interest according to the prior
     logl_args: tuple(optional)
         The optional arguments to be added to the likelihood
-        function call
+        function call. Note that if you specify the additional
+        arguments here, you do not need to provide them again
+        to the sampler.
     logl_kwargs: tuple(optional)
         The optional keywords to be added to the likelihood
         function call
@@ -96,14 +98,15 @@ class Pool:
     functions!
 
     If your likelihood function takes additional arguments, it is better to
-    pass them when creating the pool, rather then to dynamic nested sampler::
+    pass them when creating the pool, rather then to nested sampler::
 
         with dynesty.pool.Pool(16, loglike, prior_transform, 
                                             logl_args=(...) ) as pool:
             dns = DynamicNestedSampler(pool.loglike, pool.prior_transform, ndim,
                                      pool=pool)
 
-    as this way they will not be pickled all the time
+    as this way they will not need to be pickled and unpickled every function
+    call.
     """
 
     def __init__(self,

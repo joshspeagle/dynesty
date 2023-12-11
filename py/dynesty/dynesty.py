@@ -607,9 +607,6 @@ functioning and will be removed in further releases""", DeprecationWarning)
         if rstate is None:
             rstate = get_random_generator()
 
-        #_check_dynesty_pool(pool, logl_args, logl_kwargs, ptform_args,
-        #                    ptform_kwargs)
-
         # Log-likelihood.
         logl_args = logl_args or []
         logl_kwargs = logl_kwargs or {}
@@ -815,9 +812,6 @@ functioning and will be removed in further releases""", DeprecationWarning)
         # Random state.
         if rstate is None:
             rstate = get_random_generator()
-
-        # _check_dynesty_pool(pool, logl_args, logl_kwargs, ptform_args,
-        #                    ptform_kwargs)
 
         # Log-likelihood.
         logl_args = logl_args or []

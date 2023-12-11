@@ -31,20 +31,21 @@ def initializer(loglike, prior_transform, logl_args, logl_kwargs, ptform_args,
     FunctionCache.ptform_kwargs = ptform_kwargs
 
 
-def loglike_cache(x):
+def loglike_cache(x, *args, **kwargs):
     """
     Likelihood function call
     """
-    return FunctionCache.loglike(x, *FunctionCache.logl_args,
-                                 **FunctionCache.logl_kwargs)
+    return FunctionCache.loglike(x, *FunctionCache.logl_args, *args,
+                                 **FunctionCache.logl_kwargs, **kwargs)
 
 
-def prior_transform_cache(x):
+def prior_transform_cache(x, *args, **kwargs):
     """
     Prior transform call
     """
-    return FunctionCache.prior_transform(x, *FunctionCache.ptform_args,
-                                         **FunctionCache.ptform_kwargs)
+    return FunctionCache.prior_transform(x, *FunctionCache.ptform_args, *args,
+                                         **FunctionCache.ptform_kwargs,
+                                         **kwargs)
 
 
 class Pool:
@@ -94,12 +95,14 @@ class Pool:
     from the pool object to the Nested samper rather than your original
     functions!
 
-    If your likelihood function takes additional arguments, they *must* be passed
-    when creating the pool, rather then to dynamic nested sampler i.e. 
+    If your likelihood function takes additional arguments, it is better to
+    pass them when creating the pool, rather then to dynamic nested sampler i.e. 
 
-        with dynesty.pool.Pool(16, loglike, prior_transform, logl_args=(...) ) as pool:
+        with dynesty.pool.Pool(16, loglike, prior_transform, 
+                                            logl_args=(...) ) as pool:
             dns = DynamicNestedSampler(pool.loglike, pool.prior_transform, ndim,
                                      pool=pool)
+    as this way they will not be pickled all the time
     """
 
     def __init__(self,

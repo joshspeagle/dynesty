@@ -141,6 +141,37 @@ def test_pool_args():
         terminator(pool)
 
 
+def test_pool_args2():
+    # test pool on gau problem
+    # i specify large queue_size here, otherwise it is too slow
+    # Here I am testing that args from pool and Nested sampler are concatenated
+    rstate = get_rstate()
+
+    with dypool.Pool(
+            2,
+            loglike_gau_args,
+            prior_transform_gau_args,
+            logl_args=(0, ),
+            ptform_args=(0, ),
+    ) as pool:
+        sampler = dynesty.DynamicNestedSampler(pool.loglike,
+                                               pool.prior_transform,
+                                               ndim,
+                                               nlive=nlive,
+                                               pool=pool,
+                                               logl_args=(0, ),
+                                               ptform_args=(0, ),
+                                               queue_size=100,
+                                               rstate=rstate)
+        sampler.run_nested(maxiter=300, print_progress=printing)
+
+        assert (abs(LOGZ_TRUTH_GAU - sampler.results['logz'][-1])
+                < 5. * sampler.results['logzerr'][-1])
+
+        # to ensure we get coverage
+        terminator(pool)
+
+
 @pytest.mark.parametrize('sample', ['slice', 'rwalk', 'rslice'])
 def test_pool_samplers(sample):
     # this is to test how the samplers are dealing with queue_size>1

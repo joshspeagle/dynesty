@@ -84,7 +84,7 @@ class Pool:
 
     Examples
     --------
-    To use the dynest pool you have to use it with the context manager::
+    To use the dynesty pool you have to use it with the context manager::
 
         with dynesty.pool.Pool(16, loglike, prior_transform) as pool:
             dns = DynamicNestedSampler(pool.loglike, pool.prior_transform, ndim,
@@ -93,6 +93,13 @@ class Pool:
     Also note that you have to provide the .loglike/.prior_transform attributes
     from the pool object to the Nested samper rather than your original
     functions!
+
+    If your likelihood function takes additional arguments, they *must* be passed
+    when creating the pool, rather then to dynamic nested sampler i.e. 
+
+        with dynesty.pool.Pool(16, loglike, prior_transform, logl_args=(...) ) as pool:
+            dns = DynamicNestedSampler(pool.loglike, pool.prior_transform, ndim,
+                                     pool=pool)
     """
 
     def __init__(self,

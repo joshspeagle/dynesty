@@ -96,12 +96,13 @@ class Pool:
     functions!
 
     If your likelihood function takes additional arguments, it is better to
-    pass them when creating the pool, rather then to dynamic nested sampler i.e. 
+    pass them when creating the pool, rather then to dynamic nested sampler::
 
         with dynesty.pool.Pool(16, loglike, prior_transform, 
                                             logl_args=(...) ) as pool:
             dns = DynamicNestedSampler(pool.loglike, pool.prior_transform, ndim,
                                      pool=pool)
+
     as this way they will not be pickled all the time
     """
 

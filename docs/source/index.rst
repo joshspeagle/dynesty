@@ -23,7 +23,7 @@ estimate Bayesian posteriors and evidences for large-dimensional
 Installation
 ============
 
-``dynesty`` is compatible wit Python 3.6+. It requires
+``dynesty`` is compatible with Python 3.6+. It requires
 ``numpy`` (for arithmetic), 
 ``scipy`` (for special functions), 
 ``matplotlib`` (for plotting), and 

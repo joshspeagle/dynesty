@@ -92,7 +92,9 @@ class Pool:
 
     Also note that you have to provide the .loglike/.prior_transform attributes
     from the pool object to the Nested samper rather than your original
-    functions!
+    functions!  Additionally, you should not provide 
+    ``logl_args``/``logl_kwargs`` or ``ptform_args``/``ptform_kwargs`` if you
+    are using the pool, it will be taken care of by the pool itself.
     """
 
     def __init__(self,

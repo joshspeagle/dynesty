@@ -608,16 +608,12 @@ functioning and will be removed in further releases""", DeprecationWarning)
             rstate = get_random_generator()
 
         # Log-likelihood.
-        if logl_args is None:
-            logl_args = []
-        if logl_kwargs is None:
-            logl_kwargs = {}
+        logl_args = logl_args or []
+        logl_kwargs = logl_kwargs or {}
 
         # Prior transform.
-        if ptform_args is None:
-            ptform_args = []
-        if ptform_kwargs is None:
-            ptform_kwargs = {}
+        ptform_args = ptform_args or []
+        ptform_kwargs = ptform_kwargs or {}
 
         # gradient
         if grad_args is None:
@@ -818,16 +814,12 @@ functioning and will be removed in further releases""", DeprecationWarning)
             rstate = get_random_generator()
 
         # Log-likelihood.
-        if logl_args is None:
-            logl_args = []
-        if logl_kwargs is None:
-            logl_kwargs = {}
+        logl_args = logl_args or []
+        logl_kwargs = logl_kwargs or {}
 
         # Prior transform.
-        if ptform_args is None:
-            ptform_args = []
-        if ptform_kwargs is None:
-            ptform_kwargs = {}
+        ptform_args = ptform_args or []
+        ptform_kwargs = ptform_kwargs or {}
 
         # gradient
         if grad_args is None:

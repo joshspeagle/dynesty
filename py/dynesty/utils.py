@@ -278,6 +278,7 @@ class RunRecord:
             'bounditer',  # active bound at a specific iteration
             'scale',  # scale factor at each iteration
             'distance_insertion_index',
+            'log_distance_ratio',
             # number of points less distant from the starting point than the last inserted point
             'likelihood_insertion_index',
             # number of points with lower likelihood than the last inserted point
@@ -622,6 +623,11 @@ _RESULTS_STRUCTURE = [
     ('distance_insertion_index', 'array[int]',
      "The number of live points closer to the start point than "
      "the new point", 'niter'),
+    ('log_distance_ratio', 'array[float]',
+     "The log of the ratio distance of the new point to the start point to "
+     "the distance of the start point to a random other live point. This is "
+     "used as a diagnostic for independence of the new sample",
+     'niter'),
     ('likelihood_insertion_index', 'array[int]',
      "The number of live points with likelihood less than "
      "the new point", 'niter'),

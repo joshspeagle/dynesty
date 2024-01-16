@@ -605,6 +605,7 @@ def _configure_batch_sampler(main_sampler,
     saved_scale = np.array(main_sampler.saved_run['scale'])
     saved_blobs = np.array(main_sampler.saved_run['blob'])
     saved_distances_indices = np.array(main_sampler.saved_run["distance_insertion_index"])
+    saved_log_distance_ratios = np.array(main_sampler.saved_run["log_distance_ratio"])
     saved_likelihood_indices = np.array(main_sampler.saved_run["likelihood_insertion_index"])
     first_points = []
 
@@ -724,6 +725,7 @@ def _configure_batch_sampler(main_sampler,
 
         live_scale = saved_scale[subset0[0]]
         live_distance_index = saved_distances_indices[subset0[0]]
+        live_log_distance_ratio = saved_log_distance_ratios[subset0[0]]
         live_likelihood_index = saved_likelihood_indices[subset0[0]]
         # set the scale based on the lowest point
 
@@ -776,6 +778,7 @@ def _configure_batch_sampler(main_sampler,
         batch_sampler.scale = live_scale
         batch_sampler.live_blobs = live_blobs
         batch_sampler.distance_insertion_index = live_distance_index
+        batch_sampler.log_distance_ratio = live_log_distance_ratio
         batch_sampler.likelihood_insertion_index = live_likelihood_index
 
         batch_sampler.update_bound_if_needed(logl_min)
@@ -1111,7 +1114,7 @@ class DynamicSampler:
                 ('bound_iter', np.array(self.saved_run['bounditer'])))
             results.append(
                 ('samples_bound', np.array(self.saved_run['boundidx'])))
-            for key in ['scale', 'distance_insertion_index', 'likelihood_insertion_index']:
+            for key in ['scale', 'distance_insertion_index', 'log_distance_ratio', 'likelihood_insertion_index']:
                 results.append((key, np.array(self.saved_run[key])))
 
         return Results(results)
@@ -1367,6 +1370,7 @@ class DynamicSampler:
                             bounditer=results.bounditer,
                             scale=self.sampler.scale,
                             distance_insertion_index=self.sampler.distance_insertion_index,
+                            log_distance_ratio=self.sampler.log_distance_ratio,
                             likelihood_insertion_index=self.sampler.likelihood_insertion_index,
                             )
 
@@ -1415,6 +1419,7 @@ class DynamicSampler:
                             bounditer=results.bounditer,
                             scale=self.sampler.scale,
                             distance_insertion_index=-1,
+                            log_distance_ratio=-1,
                             likelihood_insertion_index=-1,
                             )
 
@@ -1626,6 +1631,7 @@ class DynamicSampler:
                      bounditer=results.bounditer,
                      scale=batch_sampler.scale,
                      distance_insertion_index=batch_sampler.distance_insertion_index,
+                     log_distance_ratio=batch_sampler.log_distance_ratio,
                      likelihood_insertion_index=batch_sampler.likelihood_insertion_index,
                      )
             self.new_run.append(D)
@@ -1678,6 +1684,7 @@ class DynamicSampler:
                      bounditer=results.bounditer,
                      scale=batch_sampler.scale,
                      distance_insertion_index=-1,
+                     log_distance_ratio=-1,
                      likelihood_insertion_index=-1,
                      )
             self.new_run.append(D)
@@ -1713,7 +1720,9 @@ class DynamicSampler:
         for k in [
                 'id', 'u', 'v', 'logl', 'nc', 'boundidx', 'it', 'bounditer',
                 'n', 'scale', 'blob', 'logvol',
-                'distance_insertion_index', 'likelihood_insertion_index',
+                'distance_insertion_index',
+                'log_distance_ratio',
+                'likelihood_insertion_index',
         ]:
             saved_d[k] = np.array(self.saved_run[k])
             new_d[k] = np.array(self.new_run[k])
@@ -1766,7 +1775,9 @@ class DynamicSampler:
             for k in [
                     'id', 'u', 'v', 'logl', 'nc', 'boundidx', 'it',
                     'bounditer', 'scale', 'blob',
-                    'distance_insertion_index', 'likelihood_insertion_index',
+                    'distance_insertion_index',
+                    'log_distance_ratio',
+                    'likelihood_insertion_index',
             ]:
                 add_info[k] = add_source[k][add_idx]
             self.saved_run.append(add_info)

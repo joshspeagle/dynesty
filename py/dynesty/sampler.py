@@ -105,6 +105,7 @@ class Sampler:
         # set to none just for qa
         self.scale = None
         self.distance_insertion_index = -1
+        self.log_distance_ratio = -1
         self.likelihood_insertion_index = -1
         self.method = None
         self.kwargs = {}
@@ -263,7 +264,7 @@ class Sampler:
                                         dtype=int)))
             results.append(('samples_bound',
                             np.array(self.saved_run['boundidx'], dtype=int)))
-        for key in ['scale', 'distance_insertion_index', 'likelihood_insertion_index']:
+        for key in ['scale', 'distance_insertion_index', 'log_distance_ratio', 'likelihood_insertion_index']:
             results.append((key, np.array(self.saved_run.D[key])))
 
         return Results(results)
@@ -425,7 +426,18 @@ class Sampler:
         norms = np.std(self.live_u, axis=0)
         distance = np.linalg.norm((point - start) / norms)
         all_distances = np.array([np.linalg.norm((start - u) / norms) for u in self.live_u])
-        return sum(all_distances < distance)
+        idx = sum(all_distances < distance)
+        if distance == 0:
+            log_ratio = np.inf
+        else:
+            other = self.live_u[np.random.choice(len(self.live_u))]
+            other_distance = np.linalg.norm((other - start) / norms)
+            while other_distance == 0:
+                other = self.live_u[np.random.choice(len(self.live_u))]
+                other_distance = np.linalg.norm((other - start) / norms)
+            alt_distance = np.linalg.norm((point - other) / norms)
+            log_ratio = self.ndim * (np.log(other_distance / distance) + np.log(other_distance / alt_distance)) / 2
+        return log_ratio, idx
 
     def _likelihood_insertion_index(self, logl):
         """
@@ -469,7 +481,7 @@ class Sampler:
                 # If it's not empty we are just accumulating the
                 # the history of evaluations
                 self.update_proposal(blob, update=self.nqueue <= 0)
-                self.distance_insertion_index = self._distance_insertion_index(blob["start"], u)
+                self.log_distance_ratio, self.distance_insertion_index = self._distance_insertion_index(blob["start"], u)
             self.likelihood_insertion_index = self._likelihood_insertion_index(logl)
 
             # the reason I'm not using self.ncall is that it's updated at
@@ -602,6 +614,7 @@ class Sampler:
                         scale=self.scale,
                         blob=old_blob,
                         distance_insertion_index=-1,
+                        log_distance_ratio=-1,
                         likelihood_insertion_index=-1,
                         ))
             self.eff = 100. * (self.it + i) / self.ncall  # efficiency
@@ -634,7 +647,10 @@ class Sampler:
                 for k in [
                         'id', 'u', 'v', 'logl', 'logvol', 'logwt', 'logz',
                         'logzvar', 'h', 'nc', 'boundidx', 'it', 'bounditer',
-                        'scale', 'blob', 'distance_insertion_index', 'likelihood_insertion_index',
+                        'scale', 'blob',
+                        'distance_insertion_index',
+                        'log_distance_ratio',
+                        'likelihood_insertion_index',
                 ]:
                     del self.saved_run[k][-self.nlive:]
         else:
@@ -926,6 +942,7 @@ class Sampler:
                          scale=self.scale,
                          blob=old_blob,
                          distance_insertion_index=self.distance_insertion_index,
+                         log_distance_ratio=self.log_distance_ratio,
                          likelihood_insertion_index=self.likelihood_insertion_index,
                          ))
 

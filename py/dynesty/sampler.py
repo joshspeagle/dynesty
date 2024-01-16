@@ -14,7 +14,8 @@ import numpy as np
 from .results import Results, print_fn
 from .bounding import UnitCube
 from .sampling import sample_unif, SamplerArgument
-from .utils import (get_seed_sequence, get_print_func, progress_integration,
+from .utils import (get_random_generator, get_seed_sequence,
+                    get_print_func, progress_integration,
                     IteratorResult, RunRecord, get_neff_from_logwt,
                     compute_integrals, DelayTimer, _LOWL_VAL)
 
@@ -430,10 +431,11 @@ class Sampler:
         if distance == 0:
             log_ratio = np.inf
         else:
-            other = self.live_u[np.random.choice(len(self.live_u))]
+            rstate = get_random_generator(self.rstate)
+            other = self.live_u[rstate.choice(len(self.live_u))]
             other_distance = np.linalg.norm((other - start) / norms)
             while other_distance == 0:
-                other = self.live_u[np.random.choice(len(self.live_u))]
+                other = self.live_u[rstate.choice(len(self.live_u))]
                 other_distance = np.linalg.norm((other - start) / norms)
             alt_distance = np.linalg.norm((point - other) / norms)
             log_ratio = self.ndim * (np.log(other_distance / distance) + np.log(other_distance / alt_distance)) / 2

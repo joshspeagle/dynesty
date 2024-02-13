@@ -92,6 +92,75 @@ def sample_unif(args):
     return args.u, v, logl, nc, blob
 
 
+def sample_bound_unif(args):
+    """
+    Return a new live point proposed by random walking away from an
+    existing live point.
+
+    Parameters
+    ----------
+    u : `~numpy.ndarray` with shape (ndim,)
+        Position of the initial sample. **This is a copy of an existing live
+        point.**
+
+    loglstar : float
+        Ln(likelihood) bound.
+
+    axes : `~numpy.ndarray` with shape (ndim, ndim)
+        Axes used to propose new points. For random walks new positions are
+        proposed using the :class:`~dynesty.bounding.Ellipsoid` whose
+        shape is defined by axes.
+
+    scale : float
+        Value used to scale the provided axes.
+
+    prior_transform : function
+        Function transforming a sample from the a unit cube to the parameter
+        space of interest according to the prior.
+
+    loglikelihood : function
+        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
+        array of length `ndim`.
+
+    kwargs : dict
+        A dictionary of additional method-specific parameters.
+
+    Returns
+    -------
+    u : `~numpy.ndarray` with shape (ndim,)
+        Position of the final proposed point within the unit cube.
+
+    v : `~numpy.ndarray` with shape (ndim,)
+        Position of the final proposed point in the target parameter space.
+
+    logl : float
+        Ln(likelihood) of the final proposed point.
+
+    nc : int
+        Number of function calls used to generate the sample.
+
+    blob : dict
+        Collection of ancillary quantities used to tune :data:`scale`.
+
+    """
+
+    # Unzipping.
+    rstate = get_random_generator(args.rseed)
+    bound = args.kwargs['bound']
+    nonbounded = args.kwargs.get('nonbounded')
+    nc = 0
+    blob = None
+    while True:
+        u = bound.sample(rstate=rstate)
+        unitcheck(u, nonbounded)
+        v = args.prior_transform(np.asarray(args.u))
+        logl = args.loglikelihood(np.asarray(v))
+        nc += 1
+        if logl > args.loglstar:
+            break
+    return u, v, logl, nc, blob
+
+
 def sample_rwalk(args):
     """
     Return a new live point proposed by random walking away from an

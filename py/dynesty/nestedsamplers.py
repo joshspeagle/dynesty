@@ -31,7 +31,7 @@ from .sampler import Sampler
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
                        SupFriends, rand_choice)
 from .sampling import (sample_unif, sample_rwalk, sample_slice, sample_rslice,
-                       sample_hslice)
+                       sample_hslice, sample_bound_unif)
 from .utils import (unitcheck, get_enlarge_bootstrap, save_sampler,
                     restore_sampler)
 
@@ -41,7 +41,7 @@ __all__ = [
 ]
 
 _SAMPLING = {
-    'unif': sample_unif,
+    'unif': sample_bound_unif,
     'rwalk': sample_rwalk,
     'slice': sample_slice,
     'rslice': sample_rslice,
@@ -370,7 +370,7 @@ class UnitCubeSampler(SuperSampler):
                          logvol_init=logvol_init,
                          kwargs=kwargs or {})
 
-        self.unitcube = UnitCube(self.ncdim)
+        self.bound = UnitCube(self.ncdim)
         self.bounding = 'none'
 
     def update(self, subset=slice(None)):
@@ -495,7 +495,7 @@ class SingleEllipsoidSampler(SuperSampler):
                          logvol_init=logvol_init,
                          kwargs=kwargs or {})
 
-        self.ell = Ellipsoid(
+        self.bound = Ellipsoid(
             np.zeros(self.ncdim) + .5,
             np.identity(self.ncdim) * self.ncdim / 4)
         # this is ellipsoid in the center of the cube that contains
@@ -513,14 +513,15 @@ class SingleEllipsoidSampler(SuperSampler):
             pool = None
 
         # Update the ellipsoid.
-        self.ell.update(self.live_u[subset, :self.ncdim],
-                        rstate=self.rstate,
-                        bootstrap=self.bootstrap,
-                        pool=pool)
+        self.bound.update(self.live_u[subset, :self.ncdim],
+                          rstate=self.rstate,
+                          bootstrap=self.bootstrap,
+                          pool=pool)
         if self.enlarge != 1.:
-            self.ell.scale_to_logvol(self.ell.logvol + np.log(self.enlarge))
+            self.bound.scale_to_logvol(self.bound.logvol +
+                                       np.log(self.enlarge))
 
-        return copy.deepcopy(self.ell)
+        return copy.deepcopy(self.bound)
 
     def propose_unif(self, *args):
         """Propose a new live point by sampling *uniformly*
@@ -534,7 +535,7 @@ class SingleEllipsoidSampler(SuperSampler):
         niter = 0
         while True:
             # Sample a point from the ellipsoid.
-            u = self.ell.sample(rstate=self.rstate)
+            u = self.bound.sample(rstate=self.rstate)
             niter += 1
             # Check if `u` is within the unit cube.
             if unitcheck(u, nonb):
@@ -548,7 +549,7 @@ class SingleEllipsoidSampler(SuperSampler):
         if self.ndim != self.ncdim:
             u = np.concatenate(
                 [u, self.rstate.random(size=self.ndim - self.ncdim)])
-        return u, self.ell.axes
+        return u, self.bound.axes
 
     def propose_live(self, *args):
         """Return a live point/axes to be used by other sampling methods.
@@ -562,7 +563,7 @@ class SingleEllipsoidSampler(SuperSampler):
 
         # Choose axes.
         if self.sampling in ['rwalk', 'rslice', 'slice']:
-            ax = self.ell.axes
+            ax = self.bound.axes
         else:
             ax = np.identity(self.ncdim)
 
@@ -658,7 +659,7 @@ class MultiEllipsoidSampler(SuperSampler):
                          logvol_init=logvol_init,
                          kwargs=kwargs or {})
 
-        self.mell = MultiEllipsoid(
+        self.bound = MultiEllipsoid(
             ctrs=[np.zeros(self.ncdim) + .5],
             covs=[np.identity(self.ncdim) * self.ncdim / 4])
         # this is ellipsoid in the center of the cube that contains
@@ -676,14 +677,15 @@ class MultiEllipsoidSampler(SuperSampler):
             pool = None
 
         # Update the bounding ellipsoids.
-        self.mell.update(self.live_u[subset, :self.ncdim],
-                         rstate=self.rstate,
-                         bootstrap=self.bootstrap,
-                         pool=pool)
+        self.bound.update(self.live_u[subset, :self.ncdim],
+                          rstate=self.rstate,
+                          bootstrap=self.bootstrap,
+                          pool=pool)
         if self.enlarge != 1.:
-            self.mell.scale_to_logvol(self.mell.logvols + np.log(self.enlarge))
+            self.bound.scale_to_logvol(self.bound.logvols +
+                                       np.log(self.enlarge))
 
-        return copy.deepcopy(self.mell)
+        return copy.deepcopy(self.bound)
 
     def propose_unif(self, *args):
         """Propose a new live point by sampling *uniformly* within
@@ -702,7 +704,7 @@ class MultiEllipsoidSampler(SuperSampler):
             # Sample a point from the union of ellipsoids.
             # Returns the point `u`, ellipsoid index `idx`, and number of
             # overlapping ellipsoids `q` at position `u`.
-            u, idx = self.mell.sample(rstate=self.rstate)
+            u, idx = self.bound.sample(rstate=self.rstate)
             niter += 1
             # Check if the point is within the unit cube.
             if unitcheck(u, nonb):
@@ -714,7 +716,7 @@ class MultiEllipsoidSampler(SuperSampler):
         if self.ncdim != self.ndim:
             u = np.concatenate(
                 [u, self.rstate.random(size=self.ndim - self.ncdim)])
-        return u, self.mell.ells[idx].axes
+        return u, self.bound.ells[idx].axes
 
     def propose_live(self, *args):
         """Return a live point/axes to be used by other sampling methods.
@@ -730,11 +732,11 @@ class MultiEllipsoidSampler(SuperSampler):
         u_fit = u[:self.ncdim]
 
         # Automatically trigger an update if we're not in any ellipsoid.
-        if not self.mell.contains(u_fit):
+        if not self.bound.contains(u_fit):
             # Update the bounding ellipsoids.
             self.update_bound_if_needed(-np.inf, force=True)
             # Check for ellipsoid overlap (again).
-            if not self.mell.contains(u_fit):
+            if not self.bound.contains(u_fit):
                 raise RuntimeError('Update of the ellipsoid failed')
 
         if self.sampling in ['rwalk', 'rslice', 'slice']:
@@ -744,10 +746,10 @@ class MultiEllipsoidSampler(SuperSampler):
             # because a non-random ellipsoid can break detailed balance
             # see #364
             # here we choose ellipsoid in proportion of its volume
-            probs = np.exp(self.mell.logvols - self.mell.logvol_tot)
+            probs = np.exp(self.bound.logvols - self.bound.logvol_tot)
             ell_idx = rand_choice(probs, self.rstate)
             # Choose axes.
-            ax = self.mell.ells[ell_idx].axes
+            ax = self.bound.ells[ell_idx].axes
         else:
             ax = np.identity(self.ndim)
 
@@ -844,7 +846,7 @@ class RadFriendsSampler(SuperSampler):
                          blob=blob,
                          kwargs=kwargs or {})
 
-        self.radfriends = RadFriends(self.ncdim)
+        self.bound = RadFriends(self.ncdim)
         self.bounding = 'balls'
 
     def update(self, subset=slice(None)):
@@ -857,26 +859,24 @@ class RadFriendsSampler(SuperSampler):
             pool = None
 
         # Update the N-spheres.
-        self.radfriends.update(self.live_u[subset, :self.ncdim],
-                               rstate=self.rstate,
-                               bootstrap=self.bootstrap,
-                               pool=pool)
+        self.bound.update(self.live_u[subset, :self.ncdim],
+                          rstate=self.rstate,
+                          bootstrap=self.bootstrap,
+                          pool=pool)
         if self.enlarge != 1.:
-            self.radfriends.scale_to_logvol(self.radfriends.logvol_ball +
-                                            np.log(self.enlarge))
+            self.bound.scale_to_logvol(self.bound.logvol_ball +
+                                       np.log(self.enlarge))
 
-        return copy.deepcopy(self.radfriends)
+        return copy.deepcopy(self.bound)
 
     def propose_unif(self, *args):
         """Propose a new live point by sampling *uniformly* within
         the union of N-spheres defined by our live points."""
-
+        self.bound.ctrs = self.live_u[:, :self.ncdim]
         while True:
             # Sample a point `u` from the union of N-spheres along with the
             # number of overlapping spheres `q` at point `u`.
-            u, q = self.radfriends.sample(self.live_u[:, :self.ncdim],
-                                          rstate=self.rstate,
-                                          return_q=True)
+            u, q = self.bound.sample(rstate=self.rstate, return_q=True)
 
             # Check if our sample is within the unit cube.
             if unitcheck(u, self.nonbounded):
@@ -886,7 +886,7 @@ class RadFriendsSampler(SuperSampler):
                     break  # if successful, we're done!
 
         # Define the axes of the N-sphere.
-        ax = self.radfriends.axes
+        ax = self.bound.axes
 
         u = np.concatenate(
             [u, self.rstate.random(size=self.ndim - self.ncdim)])
@@ -903,7 +903,7 @@ class RadFriendsSampler(SuperSampler):
         else:
             i = self.rstate.integers(self.nlive)
         u = self.live_u[i, :]
-        ax = self.radfriends.axes
+        ax = self.bound.axes
 
         return u, ax
 
@@ -998,7 +998,7 @@ class SupFriendsSampler(SuperSampler):
                          logvol_init=logvol_init,
                          kwargs=kwargs or {})
 
-        self.supfriends = SupFriends(self.ncdim)
+        self.bound = SupFriends(self.ncdim)
         self.bounding = 'cubes'
 
     def update(self, subset=slice(None)):
@@ -1012,26 +1012,25 @@ class SupFriendsSampler(SuperSampler):
             pool = None
 
         # Update the N-cubes.
-        self.supfriends.update(self.live_u[subset, :self.ncdim],
-                               rstate=self.rstate,
-                               bootstrap=self.bootstrap,
-                               pool=pool)
+        self.bound.update(self.live_u[subset, :self.ncdim],
+                          rstate=self.rstate,
+                          bootstrap=self.bootstrap,
+                          pool=pool)
         if self.enlarge != 1.:
-            self.supfriends.scale_to_logvol(self.supfriends.logvol_cube +
-                                            np.log(self.enlarge))
+            self.bound.scale_to_logvol(self.bound.logvol_cube +
+                                       np.log(self.enlarge))
 
-        return copy.deepcopy(self.supfriends)
+        return copy.deepcopy(self.bound)
 
     def propose_unif(self, *args):
         """Propose a new live point by sampling *uniformly* within
         the collection of N-cubes defined by our live points."""
 
+        self.bound.ctrs = self.live_u[:, :self.ncdim]
         while True:
             # Sample a point `u` from the union of N-cubes along with the
             # number of overlapping cubes `q` at point `u`.
-            u, q = self.supfriends.sample(self.live_u[:, :self.ncdim],
-                                          rstate=self.rstate,
-                                          return_q=True)
+            u, q = self.bound.sample(rstate=self.rstate, return_q=True)
 
             # Check if our point is within the unit cube.
             if unitcheck(u, self.nonbounded):
@@ -1041,7 +1040,7 @@ class SupFriendsSampler(SuperSampler):
                     break  # if successful, we're done!
 
         # Define the axes of our N-cube.
-        ax = self.supfriends.axes
+        ax = self.bound.axes
         if self.ndim != self.ncdim:
             u = np.concatenate(
                 [u, self.rstate.random(size=self.ndim - self.ncdim)])
@@ -1057,6 +1056,6 @@ class SupFriendsSampler(SuperSampler):
         else:
             i = self.rstate.integers(self.nlive)
         u = self.live_u[i, :]
-        ax = self.supfriends.axes
+        ax = self.bound.axes
 
         return u, ax

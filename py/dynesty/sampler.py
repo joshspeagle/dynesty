@@ -144,7 +144,7 @@ class Sampler:
         self.first_bound_update_eff = first_update.get('min_eff', 10.)
         self.logl_first_update = None
         self.unit_cube_sampling = True
-        self.bound = [UnitCube(self.ncdim)]  # bounding distributions
+        self.bound_list = [UnitCube(self.ncdim)]  # bounding distributions
         self.nbound = 1  # total number of unique bounding distributions
         self.ncall_at_last_update = 0
 
@@ -213,7 +213,7 @@ class Sampler:
         # sampling
         self.it = 1
         self.ncall = self.nlive
-        self.bound = [UnitCube(self.ncdim)]
+        self.bound_list = [UnitCube(self.ncdim)]
         self.nbound = 1
         self.unit_cube_sampling = True
         self.added_live = False
@@ -255,7 +255,7 @@ class Sampler:
 
         # Add any saved bounds (and ancillary quantities) to the results.
         if self.save_bounds:
-            results.append(('bound', copy.deepcopy(self.bound)))
+            results.append(('bound', copy.deepcopy(self.bound_list)))
             results.append(
                 ('bound_iter', np.array(self.saved_run['bounditer'],
                                         dtype=int)))
@@ -326,7 +326,7 @@ class Sampler:
                 subset = slice(None)
             bound = self.update(subset=subset)
             if self.save_bounds:
-                self.bound.append(bound)
+                self.bound_list.append(bound)
             self.nbound += 1
             self.ncall_at_last_update = ncall
             if self.unit_cube_sampling:
@@ -351,6 +351,7 @@ class Sampler:
                     'excessively around the very peak of the posterior')
         else:
             args = ()
+            self.kwargs['bound'] = self.bound
         if not self.unit_cube_sampling:
             # Add/zip arguments to submit to the queue.
             point_queue = []
@@ -358,7 +359,10 @@ class Sampler:
             # Propose points using the provided sampling/bounding options.
             evolve_point = self.evolve_point
             while self.nqueue < self.queue_size:
-                point, axes = self.propose_point(*args)
+                if self.method == 'unif':
+                    point, axes = None, None
+                else:
+                    point, axes = self.propose_point(*args)
                 point_queue.append(point)
                 axes_queue.append(axes)
                 self.nqueue += 1

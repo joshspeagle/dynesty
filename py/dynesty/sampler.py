@@ -86,7 +86,7 @@ class Sampler:
                  prior_transform,
                  ndim,
                  live_points,
-                 method,
+                 sampling,
                  update_interval,
                  first_update,
                  rstate,
@@ -120,7 +120,10 @@ class Sampler:
 
         # set to none just for qa
         self.scale = None
-        self.method = None
+        if callable(sampling):
+            _SAMPLING["user-defined"] = sampling
+            sampling = "user-defined"
+
         self.kwargs = {}
 
         # parallelism
@@ -171,6 +174,7 @@ class Sampler:
         self.plateau_logdvol = None
         # results
         self.saved_run = RunRecord()
+
         # Initialize method to propose a new starting point.
         self._PROPOSE = {
             'rwalk': self.propose_live,
@@ -180,13 +184,10 @@ class Sampler:
             'user-defined': self.propose_live
         }
 
-        if callable(method):
-            _SAMPLING["user-defined"] = method
-            method = "user-defined"
-        self.propose_point = self._PROPOSE.get(method, self.propose_live)
+        self.propose_point = self._PROPOSE.get(sampling, self.propose_live)
 
         # Initialize method to "evolve" a point to a new position.
-        self.sampling, self.evolve_point = method, _SAMPLING[method]
+        self.sampling, self.evolve_point = sampling, _SAMPLING[sampling]
 
         # Initialize heuristic used to update our sampling method.
         self._UPDATE = {
@@ -204,13 +205,12 @@ class Sampler:
         # please use self.kwargs below
 
         self.custom_update = self.kwargs.get('update_func')
-        self.update_proposal = self._UPDATE.get(method, self.update_user)
+        self.update_proposal = self._UPDATE.get(sampling, self.update_user)
         self.enlarge, self.bootstrap = get_enlarge_bootstrap(
-            method, self.kwargs.get('enlarge'), self.kwargs.get('bootstrap'))
+            sampling, self.kwargs.get('enlarge'), self.kwargs.get('bootstrap'))
 
         self.cite = self.kwargs.get('cite')
 
-        self.method = method
         self.nonbounded = self.kwargs.get('nonbounded', None)
 
         # Gradient.
@@ -622,7 +622,7 @@ class Sampler:
         # The slice sampler will just fail if it's not the case
         # therefore we provide those subsets of points to choose from.
 
-        if self.method != 'unif':
+        if self.sampling != 'unif':
             args = (np.nonzero(self.live_logl > loglstar)[0], )
             if len(args[0]) == 0:
                 raise RuntimeError(
@@ -644,7 +644,7 @@ class Sampler:
             # Propose points using the provided sampling/bounding options.
             evolve_point = self.evolve_point
             while self.nqueue < self.queue_size:
-                if self.method == 'unif':
+                if self.sampling == 'unif':
                     point, axes = None, None
                 else:
                     point, axes = self.propose_point(*args)

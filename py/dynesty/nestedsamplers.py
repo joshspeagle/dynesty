@@ -142,29 +142,25 @@ class SuperSampler(Sampler):
 
         if bounding not in ['none', 'single', 'multi', 'balls', 'cubes']:
             raise Exception('oops')
+        self.bounding = bounding
         if bounding == 'none':
             self.bound = UnitCube(self.ncdim)
-            self.bounding = 'none'
         elif bounding == 'single':
             self.bound = Ellipsoid(
                 np.zeros(self.ncdim) + .5,
                 np.identity(self.ncdim) * self.ncdim / 4)
             # this is ellipsoid in the center of the cube that contains
             # the whole cube
-            self.bounding = 'single'
         elif bounding == 'multi':
             self.bound = MultiEllipsoid(
                 ctrs=[np.zeros(self.ncdim) + .5],
                 covs=[np.identity(self.ncdim) * self.ncdim / 4])
             # this is ellipsoid in the center of the cube that contains
             # the whole cube
-            self.bounding = 'multi'
         elif bounding == 'balls':
             self.bound = RadFriends(self.ncdim)
-            self.bounding = 'balls'
         elif bounding == 'cubes':
             self.bound = SupFriends(self.ncdim)
-            self.bounding = 'cubes'
 
     def update_unif(self, blob, update=True):
         """Filler function."""
@@ -341,7 +337,7 @@ class SuperSampler(Sampler):
         return u, ax
 
     def update(self, subset=slice(None)):
-        """Update the bounding ellipsoid using the current set of
+        """Update the bounds using the current set of
         live points."""
 
         # Check if we should use the provided pool for updating.

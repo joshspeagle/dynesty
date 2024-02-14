@@ -11,8 +11,7 @@ import sys
 import warnings
 import traceback
 import numpy as np
-
-from .nestedsamplers import _SAMPLING, SuperSampler
+from .sampler import Sampler, _SAMPLING
 from .dynamicsampler import (DynamicSampler, _get_update_interval_ratio,
                              _initialize_live_points)
 from .utils import (LogLikelihood, get_random_generator, get_enlarge_bootstrap,
@@ -507,7 +506,7 @@ optional
         return static_docstring
 
 
-class NestedSampler(SuperSampler):
+class NestedSampler(Sampler):
     """
     The main class performing the static nested sampling.
     It inherits all the methods of the dynesty.sampler.SuperSampler.
@@ -691,7 +690,7 @@ functioning and will be removed in further releases""", DeprecationWarning)
             use_pool_ptform=use_pool.get('prior_transform', True))
 
         # Initialize our nested sampler.
-        sampler = super().__new__(SuperSampler)
+        sampler = super().__new__(Sampler)
         sampler.__init__(loglike,
                          ptform,
                          ndim,

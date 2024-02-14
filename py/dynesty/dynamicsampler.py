@@ -965,7 +965,7 @@ class DynamicSampler:
         self.it = 1  # number of iterations
         self.batch = 0  # number of batches allocated dynamically
         self.ncall = 0  # number of function calls
-        self.bound = []  # initial states used to compute bounds
+        self.bound_list = []  # initial states used to compute bounds
         self.eff = 1.  # sampling efficiency
         self.base = False  # base run complete
         self.nlive0 = nlive0
@@ -1100,7 +1100,7 @@ class DynamicSampler:
 
         # Add any saved bounds (and ancillary quantities) to the results.
         if self.sampler.save_bounds:
-            results.append(('bound', copy.deepcopy(self.bound)))
+            results.append(('bound', copy.deepcopy(self.bound_list)))
             results.append(
                 ('bound_iter', np.array(self.saved_run['bounditer'])))
             results.append(
@@ -1330,7 +1330,7 @@ class DynamicSampler:
                                                kwargs=self.kwargs,
                                                blob=self.blob,
                                                logvol_init=logvol_init)
-            self.bound = self.sampler.bound
+            self.bound_list = self.sampler.bound_list
             self.internal_state = DynamicSamplerStatesEnum.LIVEPOINTSINIT
             # Run the sampler internally as a generator.
         for it, results in enumerate(
@@ -1557,7 +1557,7 @@ class DynamicSampler:
             # This is not actually correct, and because of that
             # the bounds from base run or added batches are lost
             # Ideally bounds need to be saved somehow not just overwritten
-            self.bound = self.batch_sampler.bound
+            self.bound_list = self.batch_sampler.bound_list
 
             self.new_logl_min, self.new_logl_max = logl_min, logl_max
             # Reset "new" results.

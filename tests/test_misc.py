@@ -289,7 +289,6 @@ def test_first_update():
                                         rstate=rstate)
         sampler.run_nested(print_progress=printing)
         res = sampler.results
-        print(res.bound)
         bigres[i] = len(res.bound)
     assert (bigres[1] > bigres[0])
     assert (bigres[2] > bigres[0])

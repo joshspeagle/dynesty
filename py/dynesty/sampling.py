@@ -148,12 +148,18 @@ def sample_bound_unif(args):
     rstate = get_random_generator(args.rseed)
     bound = args.kwargs['bound']
     nonbounded = args.kwargs.get('nonbounded')
+    n_cluster = args.kwargs.get('n_cluster')
+    ndim = args.kwargs.get('ndim')
     nc = 0
     blob = None
+    if nonbounded is not None:
+        nonbounded = nonbounded[:n_cluster]
     while True:
         u = bound.samples(1, rstate=rstate).flatten()
         if not unitcheck(u, nonbounded):
             continue
+        if n_cluster != ndim:
+            u = np.concatenate((u, rstate.uniform(size=(ndim - n_cluster))))
         v = args.prior_transform(np.asarray(u))
         logl = args.loglikelihood(np.asarray(v))
         nc += 1

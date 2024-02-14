@@ -352,6 +352,8 @@ class Sampler:
         else:
             args = ()
             self.kwargs['bound'] = self.bound
+            self.kwargs['ndim'] = self.ndim
+            self.kwargs['n_cluster'] = self.ncdim
         if self.bounding in ['balls', 'cubes']:
             self.bound.ctrs = self.live_u
         if not self.unit_cube_sampling:

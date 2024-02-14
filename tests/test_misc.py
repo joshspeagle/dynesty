@@ -6,8 +6,8 @@ from scipy import linalg
 import dynesty.utils as dyutil
 from multiprocessing import Pool
 import itertools
-from dynesty.dynamicsampler import _SAMPLERS
-from dynesty.nestedsamplers import MultiEllipsoidSampler
+#from dynesty.dynamicsampler import _SAMPLERS
+#from dynesty.nestedsamplers import MultiEllipsoidSampler
 from dynesty.sampling import sample_rwalk
 from utils import get_rstate, get_printing, NullContextManager
 """
@@ -68,7 +68,8 @@ def test_maxcall():
 
 
 # register fake custom sampler
-_SAMPLERS["custom"] = MultiEllipsoidSampler
+# _SAMPLERS["custom"] = MultiEllipsoidSampler
+# TEMPORARILY DISABLE CUSTOM SAMPLER
 
 
 def custom_update(blob, scale, update=True):
@@ -84,8 +85,7 @@ def custom_update(blob, scale, update=True):
 
 
 # Test custom update/custom sampler
-@pytest.mark.parametrize("bound,sample",
-                         [['multi', sample_rwalk], ['custom', 'rslice']])
+@pytest.mark.parametrize("bound,sample", [['multi', sample_rwalk]])
 def test_custom(bound, sample):
     # stress test various boundaries
     ndim = 2

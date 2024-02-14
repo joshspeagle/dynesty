@@ -14,11 +14,13 @@ import numpy as np
 
 from .nestedsamplers import _SAMPLING, SuperSampler
 from .dynamicsampler import (DynamicSampler, _get_update_interval_ratio,
-                             _SAMPLERS, _initialize_live_points)
+                             _initialize_live_points)
 from .utils import (LogLikelihood, get_random_generator, get_enlarge_bootstrap,
                     get_nonbounded)
 
 __all__ = ["NestedSampler", "DynamicNestedSampler", "_function_wrapper"]
+
+_SAMPLERS = ['none', 'single', 'multi', 'balls', 'cubes']
 
 
 def _get_citations(nested_type, bound, sampler):
@@ -689,7 +691,7 @@ functioning and will be removed in further releases""", DeprecationWarning)
             use_pool_ptform=use_pool.get('prior_transform', True))
 
         # Initialize our nested sampler.
-        sampler = super().__new__(_SAMPLERS[bound])
+        sampler = super().__new__(SuperSampler)
         sampler.__init__(loglike,
                          ptform,
                          ndim,
@@ -704,7 +706,8 @@ functioning and will be removed in further releases""", DeprecationWarning)
                          kwargs,
                          ncdim=ncdim,
                          blob=blob,
-                         logvol_init=logvol_init)
+                         logvol_init=logvol_init,
+                         bounding=bound)
         sampler.ncalls = init_ncalls
         return sampler
 

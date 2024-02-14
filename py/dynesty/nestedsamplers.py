@@ -25,20 +25,15 @@ Includes:
 
 import math
 import copy
-import warnings
 import numpy as np
 from .sampler import Sampler
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
                        SupFriends, rand_choice)
-from .sampling import (sample_unif, sample_rwalk, sample_slice, sample_rslice,
+from .sampling import (sample_rwalk, sample_slice, sample_rslice,
                        sample_hslice, sample_bound_unif)
-from .utils import (unitcheck, get_enlarge_bootstrap, save_sampler,
-                    restore_sampler)
+from .utils import (get_enlarge_bootstrap, save_sampler, restore_sampler)
 
-__all__ = [
-    "UnitCubeSampler", "SingleEllipsoidSampler", "MultiEllipsoidSampler",
-    "RadFriendsSampler", "SupFriendsSampler"
-]
+__all__ = ["SuperSampler"]
 
 _SAMPLING = {
     'unif': sample_bound_unif,
@@ -70,7 +65,8 @@ class SuperSampler(Sampler):
                  kwargs=None,
                  ncdim=0,
                  blob=False,
-                 logvol_init=0):
+                 logvol_init=0,
+                 bounding=None):
         # Initialize sampler.
         super().__init__(loglikelihood,
                          prior_transform,
@@ -144,8 +140,31 @@ class SuperSampler(Sampler):
         self.slice_history = {'ncontract': 0, 'nexpand': 0}
         self.hslice_history = {'nmove': 0, 'nreflect': 0, 'ncontract': 0}
 
-    def propose_live(self, *args):
-        pass
+        if bounding not in ['none', 'single', 'multi', 'balls', 'cubes']:
+            raise Exception('oops')
+        if bounding == 'none':
+            self.bound = UnitCube(self.ncdim)
+            self.bounding = 'none'
+        elif bounding == 'single':
+            self.bound = Ellipsoid(
+                np.zeros(self.ncdim) + .5,
+                np.identity(self.ncdim) * self.ncdim / 4)
+            # this is ellipsoid in the center of the cube that contains
+            # the whole cube
+            self.bounding = 'single'
+        elif bounding == 'multi':
+            self.bound = MultiEllipsoid(
+                ctrs=[np.zeros(self.ncdim) + .5],
+                covs=[np.identity(self.ncdim) * self.ncdim / 4])
+            # this is ellipsoid in the center of the cube that contains
+            # the whole cube
+            self.bounding = 'multi'
+        elif bounding == 'balls':
+            self.bound = RadFriends(self.ncdim)
+            self.bounding = 'balls'
+        elif bounding == 'cubes':
+            self.bound = SupFriends(self.ncdim)
+            self.bounding = 'cubes'
 
     def update_unif(self, blob, update=True):
         """Filler function."""
@@ -276,104 +295,6 @@ class SuperSampler(Sampler):
         """
         return restore_sampler(fname, pool=pool)
 
-
-class UnitCubeSampler(SuperSampler):
-    """
-    Samples conditioned on the unit N-cube (i.e. with no bounds).
-
-    Parameters
-    ----------
-    loglikelihood : function
-        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
-        array of length `ndim`.
-
-    prior_transform : function
-        Function transforming a sample from the a unit cube to the parameter
-        space of interest according to the prior.
-
-    ndim : int
-        Number of parameters accepted by `prior_transform`.
-
-    live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
-        Initial set of "live" points. Contains `live_u`, the coordinates
-        on the unit cube, `live_v`, the transformed variables, and
-        `live_logl`, the associated loglikelihoods.
-
-    method : {`'unif'`, `'rwalk'`,
-        `'slice'`, `'rslice'`, `'hslice'`}, optional
-        Method used to sample uniformly within the likelihood constraint,
-        conditioned on the provided bounds.
-
-    update_interval : int
-        Only update the bounding distribution every `update_interval`-th
-        likelihood call.
-
-    first_update : dict
-        A dictionary containing parameters governing when the sampler should
-        first update the bounding distribution from the unit cube to the one
-        specified by the user.
-
-    rstate : `~numpy.random.Generator`
-        `~numpy.random.Generator` instance.
-
-    queue_size: int
-        Carry out likelihood evaluations in parallel by queueing up new live
-        point proposals using (at most) this many threads/members.
-
-    pool: pool
-        Use this pool of workers to execute operations in parallel.
-
-    use_pool : dict, optional
-        A dictionary containing flags indicating where the provided `pool`
-        should be used to execute operations in parallel.
-
-    kwargs : dict, optional
-        A dictionary of additional parameters.
-
-    """
-
-    def __init__(self,
-                 loglikelihood,
-                 prior_transform,
-                 ndim,
-                 live_points,
-                 method,
-                 update_interval,
-                 first_update,
-                 rstate,
-                 queue_size,
-                 pool,
-                 use_pool,
-                 kwargs=None,
-                 ncdim=0,
-                 blob=False,
-                 logvol_init=0):
-
-        # Initialize sampler.
-        super().__init__(loglikelihood,
-                         prior_transform,
-                         ndim,
-                         live_points,
-                         method,
-                         update_interval,
-                         first_update,
-                         rstate,
-                         queue_size,
-                         pool,
-                         use_pool,
-                         ncdim=ncdim,
-                         blob=blob,
-                         logvol_init=logvol_init,
-                         kwargs=kwargs or {})
-
-        self.bound = UnitCube(self.ncdim)
-        self.bounding = 'none'
-
-    def update(self, subset=slice(None)):
-        """Update the unit cube bound."""
-
-        return copy.deepcopy(self.bound)
-
     def propose_live(self, *args):
         """Return a live point/axes to be used by other sampling methods.
            If args is not empty, it contains the subset of indices of points to
@@ -384,107 +305,40 @@ class UnitCubeSampler(SuperSampler):
         else:
             i = self.rstate.integers(self.nlive)
         u = self.live_u[i, :]
-        ax = np.identity(self.ndim)
+        if self.bounding in ['single', 'balls', 'cubes']:
+            if self.sampling in ['rwalk', 'rslice', 'slice']:
+                ax = self.bound.axes
+            else:
+                ax = np.identity(self.ncdim)
+        elif self.bound == 'multi':
+            u_fit = u[:self.ncdim]
+
+            # Automatically trigger an update if we're not in any ellipsoid.
+            if not self.bound.contains(u_fit):
+                # Update the bounding ellipsoids.
+                self.update_bound_if_needed(-np.inf, force=True)
+                # Check for ellipsoid overlap (again).
+                if not self.bound.contains(u_fit):
+                    raise RuntimeError('Update of the ellipsoid failed')
+
+            if self.sampling in ['rwalk', 'rslice', 'slice']:
+                # Pick a random ellipsoid (not necessarily the one that
+                # contains u)
+                # This a crucial step as we must choose a random ellipsoid,
+                # rather than the ellipsoid to which this point belongs.
+                # because a non-random ellipsoid can break detailed balance
+                # see #364
+                # here we choose ellipsoid in proportion of its volume
+                probs = np.exp(self.bound.logvols - self.bound.logvol_tot)
+                ell_idx = rand_choice(probs, self.rstate)
+                # Choose axes.
+                ax = self.bound.ells[ell_idx].axes
+            else:
+                ax = np.identity(self.ndim)
+        else:
+            ax = np.identity(self.ncdim)
 
         return u, ax
-
-
-class SingleEllipsoidSampler(SuperSampler):
-    """
-    Samples conditioned on a single ellipsoid used to bound the
-    set of live points.
-
-    Parameters
-    ----------
-    loglikelihood : function
-        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
-        array of length `ndim`.
-
-    prior_transform : function
-        Function transforming a sample from the a unit cube to the parameter
-        space of interest according to the prior.
-
-    ndim : int
-        Number of parameters accepted by `prior_transform`.
-
-    live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
-        Initial set of "live" points. Contains `live_u`, the coordinates
-        on the unit cube, `live_v`, the transformed variables, and
-        `live_logl`, the associated loglikelihoods.
-
-    method : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`,
-        `'hslice'`}, optional
-        Method used to sample uniformly within the likelihood constraint,
-        conditioned on the provided bounds.
-
-    update_interval : int
-        Only update the bounding distribution every `update_interval`-th
-        likelihood call.
-
-    first_update : dict
-        A dictionary containing parameters governing when the sampler should
-        first update the bounding distribution from the unit cube to the one
-        specified by the user.
-
-    rstate : `~numpy.random.Generator`
-        `~numpy.random.Generator` instance.
-
-    queue_size: int
-        Carry out likelihood evaluations in parallel by queueing up new live
-        point proposals using (at most) this many threads/members.
-
-    pool: pool
-        Use this pool of workers to execute operations in parallel.
-
-    use_pool : dict, optional
-        A dictionary containing flags indicating where the provided `pool`
-        should be used to execute operations in parallel.
-
-    kwargs : dict, optional
-        A dictionary of additional parameters.
-
-    """
-
-    def __init__(self,
-                 loglikelihood,
-                 prior_transform,
-                 ndim,
-                 live_points,
-                 method,
-                 update_interval,
-                 first_update,
-                 rstate,
-                 queue_size,
-                 pool,
-                 use_pool,
-                 kwargs=None,
-                 blob=False,
-                 logvol_init=0,
-                 ncdim=0):
-
-        # Initialize sampler.
-        super().__init__(loglikelihood,
-                         prior_transform,
-                         ndim,
-                         live_points,
-                         method,
-                         update_interval,
-                         first_update,
-                         rstate,
-                         queue_size,
-                         pool,
-                         use_pool,
-                         ncdim=ncdim,
-                         blob=blob,
-                         logvol_init=logvol_init,
-                         kwargs=kwargs or {})
-
-        self.bound = Ellipsoid(
-            np.zeros(self.ncdim) + .5,
-            np.identity(self.ncdim) * self.ncdim / 4)
-        # this is ellipsoid in the center of the cube that contains
-        # the whole cube
-        self.bounding = 'single'
 
     def update(self, subset=slice(None)):
         """Update the bounding ellipsoid using the current set of
@@ -496,444 +350,24 @@ class SingleEllipsoidSampler(SuperSampler):
         else:
             pool = None
 
-        # Update the ellipsoid.
-        self.bound.update(self.live_u[subset, :self.ncdim],
-                          rstate=self.rstate,
-                          bootstrap=self.bootstrap,
-                          pool=pool)
+        if self.bounding in ['single', 'multi', 'balls', 'cubes']:
+            # Update the ellipsoid.
+            self.bound.update(self.live_u[subset, :self.ncdim],
+                              rstate=self.rstate,
+                              bootstrap=self.bootstrap,
+                              pool=pool)
         if self.enlarge != 1.:
-            self.bound.scale_to_logvol(self.bound.logvol +
-                                       np.log(self.enlarge))
+            if self.bounding == 'single':
+                self.bound.scale_to_logvol(self.bound.logvol +
+                                           np.log(self.enlarge))
+            if self.bounding == 'multi':
+                self.bound.scale_to_logvol(self.bound.logvols +
+                                           np.log(self.enlarge))
+            elif self.bounding == 'balls':
+                self.bound.scale_to_logvol(self.bound.logvol_ball +
+                                           np.log(self.enlarge))
+            elif self.bounding == 'cubes':
+                self.bound.scale_to_logvol(self.bound.logvol_cube +
+                                           np.log(self.enlarge))
 
         return copy.deepcopy(self.bound)
-
-    def propose_live(self, *args):
-        """Return a live point/axes to be used by other sampling methods.
-           If args is not empty, it contains the subset of indices of points to
-           sample from."""
-        if len(args) > 0:
-            i = self.rstate.choice(args[0])
-        else:
-            i = self.rstate.integers(self.nlive)
-        u = self.live_u[i, :]
-
-        # Choose axes.
-        if self.sampling in ['rwalk', 'rslice', 'slice']:
-            ax = self.bound.axes
-        else:
-            ax = np.identity(self.ncdim)
-
-        return u, ax
-
-
-class MultiEllipsoidSampler(SuperSampler):
-    """
-    Samples conditioned on the union of multiple (possibly overlapping)
-    ellipsoids used to bound the set of live points.
-
-    Parameters
-    ----------
-    loglikelihood : function
-        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
-        array of length `ndim`.
-
-    prior_transform : function
-        Function transforming a sample from the a unit cube to the parameter
-        space of interest according to the prior.
-
-    ndim : int
-        Number of parameters accepted by `prior_transform`.
-
-    live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
-        Initial set of "live" points. Contains `live_u`, the coordinates
-        on the unit cube, `live_v`, the transformed variables, and
-        `live_logl`, the associated loglikelihoods.
-
-    method : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`,
-        `'hslice'`}, optional
-        Method used to sample uniformly within the likelihood constraint,
-        conditioned on the provided bounds.
-
-    update_interval : int
-        Only update the bounding distribution every `update_interval`-th
-        likelihood call.
-
-    first_update : dict
-        A dictionary containing parameters governing when the sampler should
-        first update the bounding distribution from the unit cube to the one
-        specified by the user.
-
-    rstate : `~numpy.random.Generator`
-        `~numpy.random.Generator` instance.
-
-    queue_size: int
-        Carry out likelihood evaluations in parallel by queueing up new live
-        point proposals using (at most) this many threads/members.
-
-    pool: pool
-        Use this pool of workers to execute operations in parallel.
-
-    use_pool : dict, optional
-        A dictionary containing flags indicating where the provided `pool`
-        should be used to execute operations in parallel.
-
-    kwargs : dict, optional
-        A dictionary of additional parameters.
-
-    """
-
-    def __init__(self,
-                 loglikelihood,
-                 prior_transform,
-                 ndim,
-                 live_points,
-                 method,
-                 update_interval,
-                 first_update,
-                 rstate,
-                 queue_size,
-                 pool,
-                 use_pool,
-                 kwargs=None,
-                 blob=False,
-                 logvol_init=0,
-                 ncdim=0):
-        # Initialize sampler.
-        super().__init__(loglikelihood,
-                         prior_transform,
-                         ndim,
-                         live_points,
-                         method,
-                         update_interval,
-                         first_update,
-                         rstate,
-                         queue_size,
-                         pool,
-                         use_pool,
-                         ncdim=ncdim,
-                         blob=blob,
-                         logvol_init=logvol_init,
-                         kwargs=kwargs or {})
-
-        self.bound = MultiEllipsoid(
-            ctrs=[np.zeros(self.ncdim) + .5],
-            covs=[np.identity(self.ncdim) * self.ncdim / 4])
-        # this is ellipsoid in the center of the cube that contains
-        # the whole cube
-        self.bounding = 'multi'
-
-    def update(self, subset=slice(None)):
-        """Update the bounding ellipsoids using the current set of
-        live points."""
-
-        # Check if we should use the pool for updating.
-        if self.use_pool_update:
-            pool = self.pool
-        else:
-            pool = None
-
-        # Update the bounding ellipsoids.
-        self.bound.update(self.live_u[subset, :self.ncdim],
-                          rstate=self.rstate,
-                          bootstrap=self.bootstrap,
-                          pool=pool)
-        if self.enlarge != 1.:
-            self.bound.scale_to_logvol(self.bound.logvols +
-                                       np.log(self.enlarge))
-
-        return copy.deepcopy(self.bound)
-
-    def propose_live(self, *args):
-        """Return a live point/axes to be used by other sampling methods.
-           If args is not empty, it contains the subset of indices of points to
-           sample from."""
-
-        if len(args) > 0:
-            i = self.rstate.choice(args[0])
-        else:
-            i = self.rstate.integers(self.nlive)
-        # Copy a random live point.
-        u = self.live_u[i, :]
-        u_fit = u[:self.ncdim]
-
-        # Automatically trigger an update if we're not in any ellipsoid.
-        if not self.bound.contains(u_fit):
-            # Update the bounding ellipsoids.
-            self.update_bound_if_needed(-np.inf, force=True)
-            # Check for ellipsoid overlap (again).
-            if not self.bound.contains(u_fit):
-                raise RuntimeError('Update of the ellipsoid failed')
-
-        if self.sampling in ['rwalk', 'rslice', 'slice']:
-            # Pick a random ellipsoid (not necessarily the one that contains u)
-            # This a crucial step as we must choose a random ellipsoid,
-            # rather than the ellipsoid to which this point belongs.
-            # because a non-random ellipsoid can break detailed balance
-            # see #364
-            # here we choose ellipsoid in proportion of its volume
-            probs = np.exp(self.bound.logvols - self.bound.logvol_tot)
-            ell_idx = rand_choice(probs, self.rstate)
-            # Choose axes.
-            ax = self.bound.ells[ell_idx].axes
-        else:
-            ax = np.identity(self.ndim)
-
-        return u, ax
-
-
-class RadFriendsSampler(SuperSampler):
-    """
-    Samples conditioned on the union of (possibly overlapping) N-spheres
-    centered on the current set of live points.
-
-    Parameters
-    ----------
-    loglikelihood : function
-        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
-        array of length `ndim`.
-
-    prior_transform : function
-        Function transforming a sample from the a unit cube to the parameter
-        space of interest according to the prior.
-
-    ndim : int
-        Number of parameters accepted by `prior_transform`.
-
-    live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
-        Initial set of "live" points. Contains `live_u`, the coordinates
-        on the unit cube, `live_v`, the transformed variables, and
-        `live_logl`, the associated loglikelihoods.
-
-    method : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`,
-        `'hslice'`}, optional
-        Method used to sample uniformly within the likelihood constraint,
-        conditioned on the provided bounds.
-
-    update_interval : int
-        Only update the bounding distribution every `update_interval`-th
-        likelihood call.
-
-    first_update : dict
-        A dictionary containing parameters governing when the sampler should
-        first update the bounding distribution from the unit cube to the one
-        specified by the user.
-
-    rstate : `~numpy.random.Generator`
-        `~numpy.random.Generator` instance.
-
-    queue_size: int
-        Carry out likelihood evaluations in parallel by queueing up new live
-        point proposals using (at most) this many threads/members.
-
-    pool: pool
-        Use this pool of workers to execute operations in parallel.
-
-    use_pool : dict, optional
-        A dictionary containing flags indicating where the provided `pool`
-        should be used to execute operations in parallel.
-
-    kwargs : dict, optional
-        A dictionary of additional parameters.
-
-    """
-
-    def __init__(self,
-                 loglikelihood,
-                 prior_transform,
-                 ndim,
-                 live_points,
-                 method,
-                 update_interval,
-                 first_update,
-                 rstate,
-                 queue_size,
-                 pool,
-                 use_pool,
-                 kwargs=None,
-                 blob=False,
-                 logvol_init=0,
-                 ncdim=0):
-
-        # Initialize sampler.
-        super().__init__(loglikelihood,
-                         prior_transform,
-                         ndim,
-                         live_points,
-                         method,
-                         update_interval,
-                         first_update,
-                         rstate,
-                         queue_size,
-                         pool,
-                         use_pool,
-                         ncdim=ncdim,
-                         logvol_init=logvol_init,
-                         blob=blob,
-                         kwargs=kwargs or {})
-
-        self.bound = RadFriends(self.ncdim)
-        self.bounding = 'balls'
-
-    def update(self, subset=slice(None)):
-        """Update the N-sphere radii using the current set of live points."""
-
-        # Check if we should use the provided pool for updating.
-        if self.use_pool_update:
-            pool = self.pool
-        else:
-            pool = None
-
-        # Update the N-spheres.
-        self.bound.update(self.live_u[subset, :self.ncdim],
-                          rstate=self.rstate,
-                          bootstrap=self.bootstrap,
-                          pool=pool)
-        if self.enlarge != 1.:
-            self.bound.scale_to_logvol(self.bound.logvol_ball +
-                                       np.log(self.enlarge))
-
-        return copy.deepcopy(self.bound)
-
-    def propose_live(self, *args):
-        """Propose a live point/axes to be used by other sampling methods.
-           If args is not empty, it contains the subset of indices of points to
-           sample from."""
-
-        if len(args) > 0:
-            subset = args[0]
-            i = self.rstate.choice(subset)
-        else:
-            i = self.rstate.integers(self.nlive)
-        u = self.live_u[i, :]
-        ax = self.bound.axes
-
-        return u, ax
-
-
-class SupFriendsSampler(SuperSampler):
-    """
-    Samples conditioned on the union of (possibly overlapping) N-cubes
-    centered on the current set of live points.
-
-    Parameters
-    ----------
-    loglikelihood : function
-        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
-        array of length `ndim`.
-
-    prior_transform : function
-        Function transforming a sample from the a unit cube to the parameter
-        space of interest according to the prior.
-
-    ndim : int
-        Number of parameters accepted by `prior_transform`.
-
-    live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
-        Initial set of "live" points. Contains `live_u`, the coordinates
-        on the unit cube, `live_v`, the transformed variables, and
-        `live_logl`, the associated loglikelihoods.
-
-    method : {`'unif'`, `'rwalk'`,
-        `'slice'`, `'rslice'`, `'hslice'`}, optional
-        Method used to sample uniformly within the likelihood constraint,
-        conditioned on the provided bounds.
-
-    update_interval : int
-        Only update the bounding distribution every `update_interval`-th
-        likelihood call.
-
-    first_update : dict
-        A dictionary containing parameters governing when the sampler should
-        first update the bounding distribution from the unit cube to the one
-        specified by the user.
-
-    rstate : `~numpy.random.Generator`
-        `~numpy.random.Generator` instance.
-
-    queue_size: int
-        Carry out likelihood evaluations in parallel by queueing up new live
-        point proposals using (at most) this many threads/members.
-
-    pool: pool
-        Use this pool of workers to execute operations in parallel.
-
-    use_pool : dict, optional
-        A dictionary containing flags indicating where the provided `pool`
-        should be used to execute operations in parallel.
-
-    kwargs : dict, optional
-        A dictionary of additional parameters.
-
-    """
-
-    def __init__(self,
-                 loglikelihood,
-                 prior_transform,
-                 ndim,
-                 live_points,
-                 method,
-                 update_interval,
-                 first_update,
-                 rstate,
-                 queue_size,
-                 pool,
-                 use_pool,
-                 kwargs=None,
-                 blob=False,
-                 logvol_init=0,
-                 ncdim=0):
-
-        # Initialize sampler.
-        super().__init__(loglikelihood,
-                         prior_transform,
-                         ndim,
-                         live_points,
-                         method,
-                         update_interval,
-                         first_update,
-                         rstate,
-                         queue_size,
-                         pool,
-                         use_pool,
-                         ncdim=ncdim,
-                         blob=blob,
-                         logvol_init=logvol_init,
-                         kwargs=kwargs or {})
-
-        self.bound = SupFriends(self.ncdim)
-        self.bounding = 'cubes'
-
-    def update(self, subset=slice(None)):
-        """Update the N-cube side-lengths using the current set of
-        live points."""
-
-        # Check if we should use the provided pool for updating.
-        if self.use_pool_update:
-            pool = self.pool
-        else:
-            pool = None
-
-        # Update the N-cubes.
-        self.bound.update(self.live_u[subset, :self.ncdim],
-                          rstate=self.rstate,
-                          bootstrap=self.bootstrap,
-                          pool=pool)
-        if self.enlarge != 1.:
-            self.bound.scale_to_logvol(self.bound.logvol_cube +
-                                       np.log(self.enlarge))
-
-        return copy.deepcopy(self.bound)
-
-    def propose_live(self, *args):
-        """Return a live point/axes to be used by other sampling methods.
-           If args is not empty, it contains the subset of indices of points to
-           sample from."""
-
-        if len(args) > 0:
-            i = self.rstate.choice(args[0])
-        else:
-            i = self.rstate.integers(self.nlive)
-        u = self.live_u[i, :]
-        ax = self.bound.axes
-
-        return u, ax

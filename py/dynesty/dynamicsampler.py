@@ -18,9 +18,8 @@ import copy
 from enum import Enum
 import numpy as np
 from scipy.special import logsumexp
-from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
-                             MultiEllipsoidSampler, RadFriendsSampler,
-                             SupFriendsSampler)
+from .nestedsamplers import SuperSampler
+
 from .results import Results
 from .utils import (get_seed_sequence, get_print_func, _kld_error,
                     compute_integrals, IteratorResult, IteratorResultShort,
@@ -32,14 +31,6 @@ __all__ = [
     "weight_function",
     "stopping_function",
 ]
-
-_SAMPLERS = {
-    'none': UnitCubeSampler,
-    'single': SingleEllipsoidSampler,
-    'multi': MultiEllipsoidSampler,
-    'balls': RadFriendsSampler,
-    'cubes': SupFriendsSampler
-}
 
 
 class DynamicSamplerStatesEnum(Enum):
@@ -608,7 +599,7 @@ def _configure_batch_sampler(main_sampler,
 
     # This will be a list of first points yielded from
     # this batch before we start proper sampling
-    batch_sampler = _SAMPLERS[main_sampler.bounding](
+    batch_sampler = SuperSampler(
         main_sampler.loglikelihood,
         main_sampler.prior_transform,
         main_sampler.ndim,
@@ -623,7 +614,8 @@ def _configure_batch_sampler(main_sampler,
         main_sampler.use_pool,
         ncdim=main_sampler.ncdim,
         kwargs=main_sampler.kwargs,
-        blob=main_sampler.blob)
+        blob=main_sampler.blob,
+        bounding=main_sampler.bounding)
     batch_sampler.save_bounds = save_bounds
     batch_sampler.logl_first_update = main_sampler.sampler.logl_first_update
 
@@ -1315,21 +1307,22 @@ class DynamicSampler:
 
             if first_update is None:
                 first_update = self.first_update
-            self.sampler = _SAMPLERS[bounding](self.loglikelihood,
-                                               self.prior_transform,
-                                               self.ndim,
-                                               self.live_init,
-                                               self.method,
-                                               update_interval,
-                                               first_update,
-                                               self.rstate,
-                                               self.queue_size,
-                                               self.pool,
-                                               self.use_pool,
-                                               ncdim=self.ncdim,
-                                               kwargs=self.kwargs,
-                                               blob=self.blob,
-                                               logvol_init=logvol_init)
+            self.sampler = SuperSampler(self.loglikelihood,
+                                        self.prior_transform,
+                                        self.ndim,
+                                        self.live_init,
+                                        self.method,
+                                        update_interval,
+                                        first_update,
+                                        self.rstate,
+                                        self.queue_size,
+                                        self.pool,
+                                        self.use_pool,
+                                        ncdim=self.ncdim,
+                                        kwargs=self.kwargs,
+                                        blob=self.blob,
+                                        logvol_init=logvol_init,
+                                        bounding=bounding)
             self.bound_list = self.sampler.bound_list
             self.internal_state = DynamicSamplerStatesEnum.LIVEPOINTSINIT
             # Run the sampler internally as a generator.

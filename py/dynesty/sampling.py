@@ -152,7 +152,8 @@ def sample_bound_unif(args):
     blob = None
     while True:
         u = bound.samples(1, rstate=rstate).flatten()
-        unitcheck(u, nonbounded)
+        if not unitcheck(u, nonbounded):
+            continue
         v = args.prior_transform(np.asarray(u))
         logl = args.loglikelihood(np.asarray(v))
         nc += 1

@@ -154,10 +154,20 @@ def sample_bound_unif(args):
     blob = None
     if nonbounded is not None:
         nonbounded = nonbounded[:n_cluster]
+    ntries = 0
+    threshold_warning = 10000
     while True:
         u = bound.samples(1, rstate=rstate).flatten()
         if not unitcheck(u, nonbounded):
+            ntries += 1
+            if ntries > threshold_warning:
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("once")
+                    warnings.warn(
+                        "Ellipsoid sampling is extremely inefficient")
             continue
+        else:
+            ntries = 0
         if n_cluster != ndim:
             u = np.concatenate((u, rstate.uniform(size=(ndim - n_cluster))))
         v = args.prior_transform(np.asarray(u))

@@ -353,17 +353,11 @@ class SuperSampler(Sampler):
                               bootstrap=self.bootstrap,
                               pool=pool)
         if self.enlarge != 1.:
-            if self.bounding == 'single':
+            if self.bounding in ['single', 'balls', 'cubes']:
                 self.bound.scale_to_logvol(self.bound.logvol +
                                            np.log(self.enlarge))
             if self.bounding == 'multi':
                 self.bound.scale_to_logvol(self.bound.logvols +
-                                           np.log(self.enlarge))
-            elif self.bounding == 'balls':
-                self.bound.scale_to_logvol(self.bound.logvol_ball +
-                                           np.log(self.enlarge))
-            elif self.bounding == 'cubes':
-                self.bound.scale_to_logvol(self.bound.logvol_cube +
                                            np.log(self.enlarge))
 
         return copy.deepcopy(self.bound)

@@ -661,20 +661,20 @@ class RadFriends:
 
         detsign, detln = linalg.slogdet(self.am)
         assert detsign > 0
-        self.logvol_ball = logvol_prefactor(self.n) - 0.5 * detln
+        self.logvol = logvol_prefactor(self.n) - 0.5 * detln
         self.expand = 1.
         self.funit = 1
 
     def scale_to_logvol(self, logvol):
         """Scale ball to encompass a target volume."""
 
-        f = np.exp((logvol - self.logvol_ball) * (1.0 / self.n))
+        f = np.exp((logvol - self.logvol) * (1.0 / self.n))
         # linear factor
         self.cov *= f**2
         self.am /= f**2
         self.axes *= f
         self.axes_inv /= f
-        self.logvol_ball = logvol
+        self.logvol = logvol
 
     def within(self, x):
         """Check which balls `x` falls within."""
@@ -763,7 +763,7 @@ class RadFriends:
         ])
         qs = np.array([_[1] for _ in samples])
         qsum = np.sum(1. / qs)
-        logvol = np.log(1. / ndraws * qsum * len(self.ctrs)) + self.logvol_ball
+        logvol = np.log(1. / ndraws * qsum * len(self.ctrs)) + self.logvol
 
         if return_overlap:
             # Estimate the fractional amount of overlap with the
@@ -853,7 +853,7 @@ class RadFriends:
         # Compute volume.
         detsign, detln = linalg.slogdet(self.am)
         assert detsign > 0
-        self.logvol_ball = (logvol_prefactor(self.n) - 0.5 * detln)
+        self.logvol = (logvol_prefactor(self.n) - 0.5 * detln)
         self.expand = 1.
 
         # Estimate the volume and fractional overlap with the unit cube
@@ -924,20 +924,20 @@ class SupFriends:
 
         detsign, detln = linalg.slogdet(self.am)
         assert detsign > 0
-        self.logvol_cube = self.n * np.log(2.) - 0.5 * detln
+        self.logvol = self.n * np.log(2.) - 0.5 * detln
         self.expand = 1.
         self.funit = 1
 
     def scale_to_logvol(self, logvol):
         """Scale cube to encompass a target volume."""
 
-        f = np.exp((logvol - self.logvol_cube) * (1.0 / self.n))
+        f = np.exp((logvol - self.logvol) * (1.0 / self.n))
         # linear factor
         self.cov *= f**2
         self.am /= f**2
         self.axes *= f
         self.axes_inv /= f
-        self.logvol_cube = logvol
+        self.logvol = logvol
 
     def within(self, x):
         """Checks which cubes `x` falls within."""
@@ -1028,7 +1028,7 @@ class SupFriends:
             self.sample(rstate=rstate, return_q=True) for i in range(ndraws)
         ]
         qsum = sum((1. / q for (x, q) in samples))
-        logvol = np.log(1. * qsum / ndraws * len(self.ctrs)) + self.logvol_cube
+        logvol = np.log(1. * qsum / ndraws * len(self.ctrs)) + self.logvol
 
         if return_overlap:
             # Estimate the fractional overlap with the unit cube using
@@ -1117,7 +1117,7 @@ class SupFriends:
 
         detsign, detln = linalg.slogdet(self.am)
         assert detsign > 0
-        self.logvol_cube = (self.n * np.log(2.) - 0.5 * detln)
+        self.logvol = (self.n * np.log(2.) - 0.5 * detln)
         self.expand = 1.
 
         # Estimate the volume and fractional overlap with the unit cube

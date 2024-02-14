@@ -352,6 +352,8 @@ class Sampler:
         else:
             args = ()
             self.kwargs['bound'] = self.bound
+        if self.bounding in ['balls', 'cubes']:
+            self.bound.ctrs = self.live_u
         if not self.unit_cube_sampling:
             # Add/zip arguments to submit to the queue.
             point_queue = []

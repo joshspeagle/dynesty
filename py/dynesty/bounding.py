@@ -688,7 +688,7 @@ class RadFriends:
     def overlap(self, x):
         """Check how many balls `x` falls within."""
 
-        q = len(self.within(x, self.ctrs))
+        q = len(self.within(x))
 
         return q
 
@@ -725,7 +725,7 @@ class RadFriends:
                 # Select a ball at random.
                 idx = rstate.integers(nctrs)
                 x = self.ctrs[idx] + dx
-                q = self.overlap(x, self.ctrs)
+                q = self.overlap(x)
             # random is faster than uniform
             if q == 1 or return_q or rstate.random() < (1. / q):
                 if return_q:

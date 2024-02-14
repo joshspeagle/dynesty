@@ -376,13 +376,13 @@ class UnitCubeSampler(SuperSampler):
     def update(self, subset=slice(None)):
         """Update the unit cube bound."""
 
-        return copy.deepcopy(self.unitcube)
+        return copy.deepcopy(self.bound)
 
     def propose_unif(self, *args):
         """Propose a new live point by sampling *uniformly*
         within the unit cube."""
 
-        u = self.unitcube.sample(rstate=self.rstate)
+        u = self.bound.sample(rstate=self.rstate)
         ax = np.identity(self.ndim)
         if self.ndim != self.ncdim:
             u = np.concatenate(

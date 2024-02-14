@@ -87,7 +87,6 @@ class SuperSampler(Sampler):
                          logvol_init=logvol_init)
         # Initialize method to propose a new starting point.
         self._PROPOSE = {
-            'unif': self.propose_unif,
             'rwalk': self.propose_live,
             'slice': self.propose_live,
             'rslice': self.propose_live,
@@ -144,9 +143,6 @@ class SuperSampler(Sampler):
         self.max_move = self.kwargs.get('max_move', 100)
         self.slice_history = {'ncontract': 0, 'nexpand': 0}
         self.hslice_history = {'nmove': 0, 'nreflect': 0, 'ncontract': 0}
-
-    def propose_unif(self, *args):
-        pass
 
     def propose_live(self, *args):
         pass
@@ -378,18 +374,6 @@ class UnitCubeSampler(SuperSampler):
 
         return copy.deepcopy(self.bound)
 
-    def propose_unif(self, *args):
-        """Propose a new live point by sampling *uniformly*
-        within the unit cube."""
-
-        u = self.bound.sample(rstate=self.rstate)
-        ax = np.identity(self.ndim)
-        if self.ndim != self.ncdim:
-            u = np.concatenate(
-                [u, self.rstate.random(size=self.ndim - self.ncdim)])
-
-        return u, ax
-
     def propose_live(self, *args):
         """Return a live point/axes to be used by other sampling methods.
            If args is not empty, it contains the subset of indices of points to
@@ -522,34 +506,6 @@ class SingleEllipsoidSampler(SuperSampler):
                                        np.log(self.enlarge))
 
         return copy.deepcopy(self.bound)
-
-    def propose_unif(self, *args):
-        """Propose a new live point by sampling *uniformly*
-        within the ellipsoid."""
-
-        threshold_warning = 10000
-        if self.ncdim != self.ndim and self.nonbounded is not None:
-            nonb = self.nonbounded[:self.ncdim]
-        else:
-            nonb = self.nonbounded
-        niter = 0
-        while True:
-            # Sample a point from the ellipsoid.
-            u = self.bound.sample(rstate=self.rstate)
-            niter += 1
-            # Check if `u` is within the unit cube.
-            if unitcheck(u, nonb):
-                break  # if it is, we're done!
-
-        if niter > threshold_warning:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("once")
-                warnings.warn("Ellipsoid sampling is extremely inefficient")
-
-        if self.ndim != self.ncdim:
-            u = np.concatenate(
-                [u, self.rstate.random(size=self.ndim - self.ncdim)])
-        return u, self.bound.axes
 
     def propose_live(self, *args):
         """Return a live point/axes to be used by other sampling methods.
@@ -686,37 +642,6 @@ class MultiEllipsoidSampler(SuperSampler):
                                        np.log(self.enlarge))
 
         return copy.deepcopy(self.bound)
-
-    def propose_unif(self, *args):
-        """Propose a new live point by sampling *uniformly* within
-        the union of ellipsoids."""
-
-        threshold_warning = 10000
-
-        if self.ncdim != self.ndim and self.nonbounded is not None:
-            nonb = self.nonbounded[:self.ncdim]
-        else:
-            nonb = self.nonbounded
-
-        niter = 0
-
-        while True:
-            # Sample a point from the union of ellipsoids.
-            # Returns the point `u`, ellipsoid index `idx`, and number of
-            # overlapping ellipsoids `q` at position `u`.
-            u, idx = self.bound.sample(rstate=self.rstate)
-            niter += 1
-            # Check if the point is within the unit cube.
-            if unitcheck(u, nonb):
-                break  # if successful, we're done!
-        if niter > threshold_warning:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("once")
-                warnings.warn("Ellipsoid sampling is extremely inefficient")
-        if self.ncdim != self.ndim:
-            u = np.concatenate(
-                [u, self.rstate.random(size=self.ndim - self.ncdim)])
-        return u, self.bound.ells[idx].axes
 
     def propose_live(self, *args):
         """Return a live point/axes to be used by other sampling methods.
@@ -869,29 +794,6 @@ class RadFriendsSampler(SuperSampler):
 
         return copy.deepcopy(self.bound)
 
-    def propose_unif(self, *args):
-        """Propose a new live point by sampling *uniformly* within
-        the union of N-spheres defined by our live points."""
-        self.bound.ctrs = self.live_u[:, :self.ncdim]
-        while True:
-            # Sample a point `u` from the union of N-spheres along with the
-            # number of overlapping spheres `q` at point `u`.
-            u, q = self.bound.sample(rstate=self.rstate, return_q=True)
-
-            # Check if our sample is within the unit cube.
-            if unitcheck(u, self.nonbounded):
-                # Accept the point with probability 1/q to account for
-                # overlapping balls.
-                if q == 1 or self.rstate.random() < 1.0 / q:
-                    break  # if successful, we're done!
-
-        # Define the axes of the N-sphere.
-        ax = self.bound.axes
-
-        u = np.concatenate(
-            [u, self.rstate.random(size=self.ndim - self.ncdim)])
-        return u, ax
-
     def propose_live(self, *args):
         """Propose a live point/axes to be used by other sampling methods.
            If args is not empty, it contains the subset of indices of points to
@@ -1021,30 +923,6 @@ class SupFriendsSampler(SuperSampler):
                                        np.log(self.enlarge))
 
         return copy.deepcopy(self.bound)
-
-    def propose_unif(self, *args):
-        """Propose a new live point by sampling *uniformly* within
-        the collection of N-cubes defined by our live points."""
-
-        self.bound.ctrs = self.live_u[:, :self.ncdim]
-        while True:
-            # Sample a point `u` from the union of N-cubes along with the
-            # number of overlapping cubes `q` at point `u`.
-            u, q = self.bound.sample(rstate=self.rstate, return_q=True)
-
-            # Check if our point is within the unit cube.
-            if unitcheck(u, self.nonbounded):
-                # Accept the point with probability 1/q to account for
-                # overlapping cubes.
-                if q == 1 or self.rstate.random() < 1.0 / q:
-                    break  # if successful, we're done!
-
-        # Define the axes of our N-cube.
-        ax = self.bound.axes
-        if self.ndim != self.ncdim:
-            u = np.concatenate(
-                [u, self.rstate.random(size=self.ndim - self.ncdim)])
-        return u, ax
 
     def propose_live(self, *args):
         """Return a live point/axes to be used by other sampling methods.

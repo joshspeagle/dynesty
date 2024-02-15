@@ -118,13 +118,12 @@ class Sampler:
         # random state
         self.rstate = rstate
 
-        # set to none just for qa
-        self.scale = None
         if callable(sampling):
             _SAMPLING["user-defined"] = sampling
             sampling = "user-defined"
-
-        self.kwargs = {}
+        # Initialize method to "evolve" a point to a new position.
+        self.sampling = sampling
+        self.evolve_point = _SAMPLING[sampling]
 
         # parallelism
         self.pool = pool  # provided pool
@@ -172,11 +171,9 @@ class Sampler:
         self.plateau_mode = False
         self.plateau_counter = None
         self.plateau_logdvol = None
+
         # results
         self.saved_run = RunRecord()
-
-        # Initialize method to "evolve" a point to a new position.
-        self.sampling, self.evolve_point = sampling, _SAMPLING[sampling]
 
         # Initialize heuristic used to update our sampling method.
         self._UPDATE = {
@@ -191,7 +188,6 @@ class Sampler:
         self.scale = 1.
 
         self.kwargs = kwargs or {}
-        # please use self.kwargs below
 
         self.custom_update = self.kwargs.get('update_func')
         self.update_proposal = self._UPDATE.get(sampling, self.update_user)

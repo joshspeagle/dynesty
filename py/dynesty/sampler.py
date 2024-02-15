@@ -381,7 +381,7 @@ class Sampler:
                 ax = self.bound.axes
             else:
                 ax = np.identity(self.ncdim)
-        elif self.bound == 'multi':
+        elif self.bounding == 'multi':
             u_fit = u[:self.ncdim]
 
             # Automatically trigger an update if we're not in any ellipsoid.

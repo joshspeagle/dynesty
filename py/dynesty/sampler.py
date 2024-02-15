@@ -175,17 +175,6 @@ class Sampler:
         # results
         self.saved_run = RunRecord()
 
-        # Initialize method to propose a new starting point.
-        self._PROPOSE = {
-            'rwalk': self.propose_live,
-            'slice': self.propose_live,
-            'rslice': self.propose_live,
-            'hslice': self.propose_live,
-            'user-defined': self.propose_live
-        }
-
-        self.propose_point = self._PROPOSE.get(sampling, self.propose_live)
-
         # Initialize method to "evolve" a point to a new position.
         self.sampling, self.evolve_point = sampling, _SAMPLING[sampling]
 
@@ -647,7 +636,7 @@ class Sampler:
                 if self.sampling == 'unif':
                     point, axes = None, None
                 else:
-                    point, axes = self.propose_point(*args)
+                    point, axes = self.propose_live(*args)
                 point_queue.append(point)
                 axes_queue.append(axes)
                 self.nqueue += 1

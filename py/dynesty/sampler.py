@@ -220,7 +220,7 @@ class Sampler:
         self.hslice_history = {'nmove': 0, 'nreflect': 0, 'ncontract': 0}
 
         if bounding not in ['none', 'single', 'multi', 'balls', 'cubes']:
-            raise Exception('oops')
+            raise ValueError('Unsupported bounding type')
         self.bounding = bounding
         if bounding == 'none':
             self.bound = UnitCube(self.ncdim)

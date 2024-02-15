@@ -156,15 +156,16 @@ def sample_bound_unif(args):
         nonbounded = nonbounded[:n_cluster]
     ntries = 0
     threshold_warning = 10000
+    threshold_warned = False
     while True:
         u = bound.samples(1, rstate=rstate).flatten()
         if not unitcheck(u, nonbounded):
             ntries += 1
-            if ntries > threshold_warning:
-                with warnings.catch_warnings():
-                    warnings.filterwarnings("once")
-                    warnings.warn(
-                        "Ellipsoid sampling is extremely inefficient")
+            if ntries > threshold_warning and not threshold_warned:
+                warnings.warn("Ellipsoid sampling is extremely inefficient",
+                              category=RuntimeWarning)
+                threshold_warned = True
+
             continue
         else:
             ntries = 0

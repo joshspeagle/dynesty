@@ -638,6 +638,8 @@ class MultiEllipsoid:
 class RadFriends:
     """
     A collection of N-balls of identical size centered on each live point.
+    Importantly this class requires that the centers of the balls are set
+    in the .ctrs attribute.
 
     Parameters
     ----------
@@ -901,6 +903,8 @@ class RadFriends:
 class SupFriends:
     """
     A collection of N-cubes of identical size centered on each live point.
+    Importantly this class requires that the centers of the cubes are set
+    in the .ctrs attribute.
 
     Parameters
     ----------

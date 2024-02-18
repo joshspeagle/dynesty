@@ -18,9 +18,7 @@ import copy
 from enum import Enum
 import numpy as np
 from scipy.special import logsumexp
-from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
-                             MultiEllipsoidSampler, RadFriendsSampler,
-                             SupFriendsSampler)
+from .sampler import Sampler
 from .results import Results
 from .utils import (get_seed_sequence, get_print_func, _kld_error,
                     compute_integrals, IteratorResult, IteratorResultShort,
@@ -32,14 +30,6 @@ __all__ = [
     "weight_function",
     "stopping_function",
 ]
-
-_SAMPLERS = {
-    'none': UnitCubeSampler,
-    'single': SingleEllipsoidSampler,
-    'multi': MultiEllipsoidSampler,
-    'balls': RadFriendsSampler,
-    'cubes': SupFriendsSampler
-}
 
 
 class DynamicSamplerStatesEnum(Enum):
@@ -608,19 +598,20 @@ def _configure_batch_sampler(main_sampler,
 
     # This will be a list of first points yielded from
     # this batch before we start proper sampling
-    batch_sampler = _SAMPLERS[main_sampler.bounding](
+    batch_sampler = Sampler(
         main_sampler.loglikelihood,
         main_sampler.prior_transform,
         main_sampler.ndim,
         main_sampler.live_init,  # this is not used at all
         # as we replace the starting points
-        main_sampler.method,
+        main_sampler.sampling,
+        main_sampler.bounding,
         update_interval,
         main_sampler.first_update,
-        main_sampler.rstate,
-        main_sampler.queue_size,
-        main_sampler.pool,
-        main_sampler.use_pool,
+        rstate=main_sampler.rstate,
+        queue_size=main_sampler.queue_size,
+        pool=main_sampler.pool,
+        use_pool=main_sampler.use_pool,
         ncdim=main_sampler.ncdim,
         kwargs=main_sampler.kwargs,
         blob=main_sampler.blob)
@@ -925,7 +916,7 @@ class DynamicSampler:
         self.blob = kwargs.get('blob') or False
         # bounding/sampling
         self.bounding = bound
-        self.method = method
+        self.sampling = method
         self.update_interval_ratio = update_interval_ratio
         self.first_update = first_update
 
@@ -965,7 +956,7 @@ class DynamicSampler:
         self.it = 1  # number of iterations
         self.batch = 0  # number of batches allocated dynamically
         self.ncall = 0  # number of function calls
-        self.bound = []  # initial states used to compute bounds
+        self.bound_list = []  # initial states used to compute bounds
         self.eff = 1.  # sampling efficiency
         self.base = False  # base run complete
         self.nlive0 = nlive0
@@ -1100,7 +1091,7 @@ class DynamicSampler:
 
         # Add any saved bounds (and ancillary quantities) to the results.
         if self.sampler.save_bounds:
-            results.append(('bound', copy.deepcopy(self.bound)))
+            results.append(('bound', copy.deepcopy(self.bound_list)))
             results.append(
                 ('bound_iter', np.array(self.saved_run['bounditer'])))
             results.append(
@@ -1315,22 +1306,23 @@ class DynamicSampler:
 
             if first_update is None:
                 first_update = self.first_update
-            self.sampler = _SAMPLERS[bounding](self.loglikelihood,
-                                               self.prior_transform,
-                                               self.ndim,
-                                               self.live_init,
-                                               self.method,
-                                               update_interval,
-                                               first_update,
-                                               self.rstate,
-                                               self.queue_size,
-                                               self.pool,
-                                               self.use_pool,
-                                               ncdim=self.ncdim,
-                                               kwargs=self.kwargs,
-                                               blob=self.blob,
-                                               logvol_init=logvol_init)
-            self.bound = self.sampler.bound
+            self.sampler = Sampler(self.loglikelihood,
+                                   self.prior_transform,
+                                   self.ndim,
+                                   self.live_init,
+                                   self.sampling,
+                                   bounding,
+                                   update_interval,
+                                   first_update,
+                                   rstate=self.rstate,
+                                   queue_size=self.queue_size,
+                                   pool=self.pool,
+                                   use_pool=self.use_pool,
+                                   ncdim=self.ncdim,
+                                   kwargs=self.kwargs,
+                                   blob=self.blob,
+                                   logvol_init=logvol_init)
+            self.bound_list = self.sampler.bound_list
             self.internal_state = DynamicSamplerStatesEnum.LIVEPOINTSINIT
             # Run the sampler internally as a generator.
         for it, results in enumerate(
@@ -1557,7 +1549,7 @@ class DynamicSampler:
             # This is not actually correct, and because of that
             # the bounds from base run or added batches are lost
             # Ideally bounds need to be saved somehow not just overwritten
-            self.bound = self.batch_sampler.bound
+            self.bound_list = self.batch_sampler.bound_list
 
             self.new_logl_min, self.new_logl_max = logl_min, logl_max
             # Reset "new" results.

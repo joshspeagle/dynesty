@@ -203,9 +203,8 @@ def test_mc_logvolRad():
     for D in Ds:
         cen2[0] = D
         rf = db.RadFriends(ndim, sig1)
-        lv = rf.monte_carlo_logvol(np.array([cen1, cen2]),
-                                   nsamp,
-                                   rstate=rstate)[0]
+        rf.ctrs = np.array([cen1, cen2])
+        lv = rf.monte_carlo_logvol(nsamp, rstate=rstate)[0]
         vtrue = two_sphere_vol(cen1, cen2, r1, r1)
         assert (np.abs(np.log(vtrue) - lv) < 1e-2)
 
@@ -223,9 +222,8 @@ def test_mc_logvolCube():
     for D in Ds:
         cen2[0] = D
         rf = db.SupFriends(ndim, sig1)
-        lv = rf.monte_carlo_logvol(np.array([cen1, cen2]),
-                                   nsamp,
-                                   rstate=rstate)[0]
+        rf.ctrs = np.array([cen1, cen2])
+        lv = rf.monte_carlo_logvol(nsamp, rstate=rstate)[0]
         if D > 2 * r1:
             lvtrue = np.log(2 * r1) * ndim + np.log(2)
         else:

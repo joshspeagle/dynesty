@@ -604,7 +604,7 @@ def _configure_batch_sampler(main_sampler,
         main_sampler.ndim,
         main_sampler.live_init,  # this is not used at all
         # as we replace the starting points
-        main_sampler.method,
+        main_sampler.sampling,
         main_sampler.bounding,
         update_interval,
         main_sampler.first_update,
@@ -916,7 +916,7 @@ class DynamicSampler:
         self.blob = kwargs.get('blob') or False
         # bounding/sampling
         self.bounding = bound
-        self.method = method
+        self.sampling = method
         self.update_interval_ratio = update_interval_ratio
         self.first_update = first_update
 
@@ -1310,7 +1310,7 @@ class DynamicSampler:
                                    self.prior_transform,
                                    self.ndim,
                                    self.live_init,
-                                   self.method,
+                                   self.sampling,
                                    bounding,
                                    update_interval,
                                    first_update,

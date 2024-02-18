@@ -57,8 +57,7 @@ class Sampler:
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
-    sampling : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`,
-               `'hslice'`}
+    sampling : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`, `'hslice'`}
         Sampling Method used to sample uniformly within the likelihood
         constraint, conditioned on the provided bounds.
 

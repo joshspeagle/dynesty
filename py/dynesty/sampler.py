@@ -98,6 +98,7 @@ class Sampler:
     logvol_init: float, optional
         The initial log of volume when starting sampling. This is relevant
         when the log(L) is finite only within a fraction of prior volume.
+
     """
 
     def __init__(self,

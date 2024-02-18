@@ -15,7 +15,8 @@ from .results import Results, print_fn
 from .sampling import sample_unif, SamplerArgument
 from .utils import (get_seed_sequence, get_print_func, progress_integration,
                     IteratorResult, RunRecord, get_neff_from_logwt,
-                    compute_integrals, DelayTimer, _LOWL_VAL)
+                    compute_integrals, DelayTimer, _LOWL_VAL,
+                    get_random_generator)
 
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
                        SupFriends, rand_choice)
@@ -56,6 +57,11 @@ class Sampler:
         on the unit cube, `live_v`, the transformed variables, and
         `live_logl`, the associated loglikelihoods.
 
+    sampling : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`,
+               `'hslice'`}
+        Sampling Method used to sample uniformly within the likelihood
+        constraint, conditioned on the provided bounds.
+
     update_interval : int
         Only update the bounding distribution every `update_interval`-th
         likelihood call.
@@ -79,6 +85,19 @@ class Sampler:
         A dictionary containing flags indicating where the provided `pool`
         should be used to execute operations in parallel.
 
+    kwargs : dict, optional
+        A dictionary of additional parameters.
+
+    ncdim: int, optional
+        The number of clustering dimensions. The first ncdim dimensions
+        will be sampled using the sampling method, the remaining
+        dimensions will
+        just sample uniformly from the prior distribution.
+        If this is `None` (default), this will default to ndim.
+
+    logvol_init: float, optional
+        The initial log of volume when starting sampling. This is relevant
+        when the log(L) is finite only within a fraction of prior volume.
     """
 
     def __init__(self,
@@ -87,23 +106,23 @@ class Sampler:
                  ndim,
                  live_points,
                  sampling,
+                 bounding,
                  update_interval,
                  first_update,
-                 rstate,
-                 queue_size,
-                 pool,
-                 use_pool,
+                 rstate=None,
+                 queue_size=None,
+                 pool=None,
+                 use_pool=None,
                  kwargs=None,
-                 ncdim=0,
+                 ncdim=None,
                  blob=False,
-                 logvol_init=0,
-                 bounding=None):
+                 logvol_init=0):
 
         # distributions
         self.loglikelihood = loglikelihood
         self.prior_transform = prior_transform
         self.ndim = ndim
-        self.ncdim = ncdim
+        self.ncdim = ncdim or ndim
         self.blob = blob
         # live points
         self.live_u, self.live_v, self.live_logl = live_points[:3]
@@ -116,7 +135,7 @@ class Sampler:
         self.live_it = np.zeros(self.nlive, dtype=int)
 
         # random state
-        self.rstate = rstate
+        self.rstate = rstate or get_random_generator()
 
         if callable(sampling):
             _SAMPLING["user-defined"] = sampling
@@ -131,7 +150,8 @@ class Sampler:
             self.M = map
         else:
             self.M = pool.map
-        self.use_pool = use_pool  # provided flags for when to use the pool
+        self.use_pool = use_pool or {
+        }  # provided flags for when to use the pool
         self.use_pool_ptform = use_pool.get('prior_transform', True)
         self.use_pool_logl = use_pool.get('loglikelihood', True)
         self.use_pool_evolve = use_pool.get('propose_point', True)
@@ -142,8 +162,6 @@ class Sampler:
             self.queue_size = 1
         self.queue = []  # proposed live point queue
         self.nqueue = 0  # current size of the queue
-        self.unused = 0  # total number of proposals unused
-        self.used = 0  # total number of proposals used
 
         # sampling
         self.it = 1  # current iteration
@@ -473,8 +491,6 @@ class Sampler:
         # parallelism
         self.queue = []
         self.nqueue = 0
-        self.unused = 0
-        self.used = 0
 
         # sampling
         self.it = 1
@@ -602,12 +618,9 @@ class Sampler:
     def _fill_queue(self, loglstar):
         """Sequentially add new live point proposals to the queue."""
 
-        # All the samplers should have have a starting point
-        # satisfying a strict logl>loglstar criterion
-        # The slice sampler will just fail if it's not the case
-        # therefore we provide those subsets of points to choose from.
-
         if self.sampling != 'unif':
+            # All the samplers should have have a starting point
+            # satisfying a strict logl>loglstar criterion
             args = (np.nonzero(self.live_logl > loglstar)[0], )
             if len(args[0]) == 0:
                 raise RuntimeError(
@@ -622,6 +635,7 @@ class Sampler:
             self.kwargs['n_cluster'] = self.ncdim
         if self.bounding in ['balls', 'cubes']:
             self.bound.ctrs = self.live_u
+
         if not self.unit_cube_sampling:
             # Add/zip arguments to submit to the queue.
             point_queue = []
@@ -640,9 +654,7 @@ class Sampler:
             # Propose/evaluate points directly from the unit cube.
             point_queue = self.rstate.random(size=(self.queue_size -
                                                    self.nqueue, self.ndim))
-            axes_queue = np.identity(
-                self.ncdim)[None, :, :] + np.zeros(self.queue_size -
-                                                   self.nqueue)[:, None, None]
+            axes_queue = [None] * self.queue_size
             evolve_point = sample_unif
             self.nqueue = self.queue_size
         if self.queue_size > 1:
@@ -679,7 +691,6 @@ class Sampler:
 
         # Grab the earliest entry.
         u, v, logl, nc, blob = self.queue.pop(0)
-        self.used += 1  # add to the total number of used points
         self.nqueue -= 1
 
         return u, v, logl, nc, blob

@@ -646,8 +646,8 @@ functioning and will be removed in further releases""", DeprecationWarning)
 
         # Set up parallel (or serial) evaluation.
         M, queue_size = _parse_pool_queue(pool, queue_size)
-        if use_pool is None:
-            use_pool = {}
+
+        use_pool = use_pool or {}
 
         # Wrap functions.
         ptform = _function_wrapper(prior_transform,
@@ -696,18 +696,18 @@ functioning and will be removed in further releases""", DeprecationWarning)
                          ndim,
                          live_points,
                          sample,
+                         bound,
                          update_interval,
                          first_update,
-                         rstate,
-                         queue_size,
-                         pool,
-                         use_pool,
-                         kwargs,
+                         rstate=rstate,
+                         queue_size=queue_size,
+                         pool=pool,
+                         use_pool=use_pool,
+                         kwargs=kwargs,
                          ncdim=ncdim,
                          blob=blob,
-                         logvol_init=logvol_init,
-                         bounding=bound)
-        sampler.ncalls = init_ncalls
+                         logvol_init=logvol_init)
+        sampler.ncall = init_ncalls
         return sampler
 
 
@@ -848,8 +848,7 @@ functioning and will be removed in further releases""", DeprecationWarning)
 
         # Set up parallel (or serial) evaluation.
         queue_size = _parse_pool_queue(pool, queue_size)[1]
-        if use_pool is None:
-            use_pool = {}
+        use_pool = use_pool or {}
 
         # Wrap functions.
         ptform = _function_wrapper(prior_transform,

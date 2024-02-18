@@ -605,16 +605,16 @@ def _configure_batch_sampler(main_sampler,
         main_sampler.live_init,  # this is not used at all
         # as we replace the starting points
         main_sampler.method,
+        main_sampler.bounding,
         update_interval,
         main_sampler.first_update,
-        main_sampler.rstate,
-        main_sampler.queue_size,
-        main_sampler.pool,
-        main_sampler.use_pool,
+        rstate=main_sampler.rstate,
+        queue_size=main_sampler.queue_size,
+        pool=main_sampler.pool,
+        use_pool=main_sampler.use_pool,
         ncdim=main_sampler.ncdim,
         kwargs=main_sampler.kwargs,
-        blob=main_sampler.blob,
-        bounding=main_sampler.bounding)
+        blob=main_sampler.blob)
     batch_sampler.save_bounds = save_bounds
     batch_sampler.logl_first_update = main_sampler.sampler.logl_first_update
 
@@ -1311,17 +1311,17 @@ class DynamicSampler:
                                    self.ndim,
                                    self.live_init,
                                    self.method,
+                                   bounding,
                                    update_interval,
                                    first_update,
-                                   self.rstate,
-                                   self.queue_size,
-                                   self.pool,
-                                   self.use_pool,
+                                   rstate=self.rstate,
+                                   queue_size=self.queue_size,
+                                   pool=self.pool,
+                                   use_pool=self.use_pool,
                                    ncdim=self.ncdim,
                                    kwargs=self.kwargs,
                                    blob=self.blob,
-                                   logvol_init=logvol_init,
-                                   bounding=bounding)
+                                   logvol_init=logvol_init)
             self.bound_list = self.sampler.bound_list
             self.internal_state = DynamicSamplerStatesEnum.LIVEPOINTSINIT
             # Run the sampler internally as a generator.

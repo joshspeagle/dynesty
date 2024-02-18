@@ -17,8 +17,8 @@ from .utils import unitcheck, apply_reflect, get_random_generator
 from .bounding import randsphere
 
 __all__ = [
-    "sample_unif", "sample_rwalk", "sample_slice", "sample_rslice",
-    "sample_hslice"
+    "sample_unif", "sample_bound_unif", "sample_rwalk", "sample_slice",
+    "sample_rslice", "sample_hslice"
 ]
 
 SamplerArgument = namedtuple('SamplerArgument', [
@@ -94,25 +94,22 @@ def sample_unif(args):
 
 def sample_bound_unif(args):
     """
-    Return a new live point proposed by random walking away from an
-    existing live point.
+    Return a new live point sampling uniformly within the
+    boundary.
 
     Parameters
     ----------
     u : `~numpy.ndarray` with shape (ndim,)
-        Position of the initial sample. **This is a copy of an existing live
-        point.**
+        Initial sample (not used)
 
     loglstar : float
         Ln(likelihood) bound.
 
     axes : `~numpy.ndarray` with shape (ndim, ndim)
-        Axes used to propose new points. For random walks new positions are
-        proposed using the :class:`~dynesty.bounding.Ellipsoid` whose
-        shape is defined by axes.
+        Axes used to propose new points. (not used)
 
     scale : float
-        Value used to scale the provided axes.
+        Value used to scale the provided axes. (not used)
 
     prior_transform : function
         Function transforming a sample from the a unit cube to the parameter
@@ -124,6 +121,11 @@ def sample_bound_unif(args):
 
     kwargs : dict
         A dictionary of additional method-specific parameters.
+        This method requires keywords:
+        bound (dynesty.bounding object)
+        ndim (number of dimensions)
+        n_cluster (number of dimensions that are clustered)
+        nonbounded array
 
     Returns
     -------
@@ -639,7 +641,8 @@ def sample_slice(args):
 
     # Modifying axes and computing lengths.
     axes = scale * axes.T  # scale based on past tuning
-    # Note we are transposing as axes[:,i] corresponds to i-th principal axis of the ellipsoid
+    # Note we are transposing as axes[:,i] corresponds to i-th principal axis
+    # of the ellipsoid
     expansion_warning_set = False
     # Slice sampling loop.
     for _ in range(slices):

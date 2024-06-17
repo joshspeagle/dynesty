@@ -176,7 +176,7 @@ Live Points
 -----------
 
 Similar to ensemble sampling methods such as 
-`emcee <http://dan.iel.fm/emcee/current/>`_, the behavior of Nested Sampling
+`emcee <https://emcee.readthedocs.io/en/stable/>`_, the behavior of Nested Sampling
 can also be sensitive to the number of live points used. Increasing the number
 of live points leads to smaller changes in the prior volume :math:`\ln X` over
 time. This improves the effective resolution while simultaneously increasing

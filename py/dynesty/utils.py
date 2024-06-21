@@ -2056,7 +2056,7 @@ def _merge_two(res1, res2, compute_aux=False):
             if nplateau > 1:
                 # the number of live points should not change throughout
                 # the plateau
-                # assert nlive_array[i:][plateau_mask].ptp() == 0
+                # assert np.ptp(nlive_array[i:][plateau_mask]) == 0
                 # TODO currently I disabled this check
 
                 plateau_counter = nplateau

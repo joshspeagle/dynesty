@@ -786,7 +786,7 @@ class Sampler:
                         self.added_live = False
                     if current_n_effective > n_effective:
                         stop_iterations = True
-            if self.live_logl.ptp() == 0:
+            if np.ptp(self.live_logl) == 0:
                 warnings.warn(
                     'We have reached the plateau in the likelihood we are'
                     ' stopping sampling')

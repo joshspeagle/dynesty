@@ -66,7 +66,7 @@ def compute_weights(results):
     logwt = results.logwt
     samples_n = results.samples_n
 
-    if logz.ptp() == 0:
+    if np.ptp(logz) == 0:
         # this pathological case can happen if all logl are very small
         # and all logz are very small and the same
         # then the calculation below failse

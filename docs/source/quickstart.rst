@@ -176,7 +176,7 @@ Live Points
 -----------
 
 Similar to ensemble sampling methods such as 
-`emcee <http://dan.iel.fm/emcee/current/>`_, the behavior of Nested Sampling
+`emcee <https://emcee.readthedocs.io/en/stable/>`_, the behavior of Nested Sampling
 can also be sensitive to the number of live points used. Increasing the number
 of live points leads to smaller changes in the prior volume :math:`\ln X` over
 time. This improves the effective resolution while simultaneously increasing
@@ -613,7 +613,7 @@ The numpy blob can return arbitrary 1D numpy arrays. The can be record arrays as
 Running Externally
 ------------------
 
-Similar to `emcee <http://dan.iel.fm/emcee/current/>`_, `sampler` objects in
+Similar to `emcee <https://emcee.readthedocs.io/en/stable/>`_, `sampler` objects in
 ``dynesty`` can also be run externally as a **generator** via the
 :meth:`~dynesty.sampler.Sampler.sample` function. This might look something
 like::

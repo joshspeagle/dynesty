@@ -85,8 +85,8 @@ put in by `Kyle Barbary <http://kylebarbary.com/>`_ and  `other contributors
 <https://github.com/joshspeagle/dynesty/blob/master/AUTHORS.md>`_.
 
 Much of the API is inspired by the ensemble MCMC package
-`emcee <http://dan.iel.fm/emcee/current/>`_ as well as other work by
-`Daniel Foreman-Mackey <http://dan.iel.fm/>`_.
+`emcee <https://emcee.readthedocs.io/en/stable/>`_ as well as other work by
+`Daniel Foreman-Mackey <http://dfm.io/>`_.
 
 Many of the plotting utilities draw heavily upon Daniel Foreman-Mackey's
 wonderful `corner <http://corner.readthedocs.io>`_ package.

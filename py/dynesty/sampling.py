@@ -17,8 +17,8 @@ from .utils import unitcheck, apply_reflect, get_random_generator
 from .bounding import randsphere
 
 __all__ = [
-    "sample_unif", "sample_rwalk", "sample_slice", "sample_rslice",
-    "sample_hslice"
+    "sample_unif", "sample_bound_unif", "sample_rwalk", "sample_slice",
+    "sample_rslice", "sample_hslice"
 ]
 
 SamplerArgument = namedtuple('SamplerArgument', [
@@ -90,6 +90,95 @@ def sample_unif(args):
     blob = None
 
     return args.u, v, logl, nc, blob
+
+
+def sample_bound_unif(args):
+    """
+    Return a new live point sampling uniformly within the
+    boundary.
+
+    Parameters
+    ----------
+    u : `~numpy.ndarray` with shape (ndim,)
+        Initial sample (not used)
+
+    loglstar : float
+        Ln(likelihood) bound.
+
+    axes : `~numpy.ndarray` with shape (ndim, ndim)
+        Axes used to propose new points. (not used)
+
+    scale : float
+        Value used to scale the provided axes. (not used)
+
+    prior_transform : function
+        Function transforming a sample from the a unit cube to the parameter
+        space of interest according to the prior.
+
+    loglikelihood : function
+        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
+        array of length `ndim`.
+
+    kwargs : dict
+        A dictionary of additional method-specific parameters.
+        This method requires keywords:
+        bound (dynesty.bounding object)
+        ndim (number of dimensions)
+        n_cluster (number of dimensions that are clustered)
+        nonbounded array
+
+    Returns
+    -------
+    u : `~numpy.ndarray` with shape (ndim,)
+        Position of the final proposed point within the unit cube.
+
+    v : `~numpy.ndarray` with shape (ndim,)
+        Position of the final proposed point in the target parameter space.
+
+    logl : float
+        Ln(likelihood) of the final proposed point.
+
+    nc : int
+        Number of function calls used to generate the sample.
+
+    blob : dict
+        Collection of ancillary quantities used to tune :data:`scale`.
+
+    """
+
+    # Unzipping.
+    rstate = get_random_generator(args.rseed)
+    bound = args.kwargs['bound']
+    nonbounded = args.kwargs.get('nonbounded')
+    n_cluster = args.kwargs.get('n_cluster')
+    ndim = args.kwargs.get('ndim')
+    nc = 0
+    blob = None
+    if nonbounded is not None:
+        nonbounded = nonbounded[:n_cluster]
+    ntries = 0
+    threshold_warning = 10000
+    threshold_warned = False
+    while True:
+        u = bound.samples(1, rstate=rstate).flatten()
+        if not unitcheck(u, nonbounded):
+            ntries += 1
+            if ntries > threshold_warning and not threshold_warned:
+                warnings.warn("Ellipsoid sampling is extremely inefficient",
+                              category=RuntimeWarning)
+                threshold_warned = True
+
+            continue
+        else:
+            ntries = 0
+        if n_cluster != ndim:
+            u = np.concatenate((u, rstate.uniform(size=(ndim - n_cluster))))
+        v = args.prior_transform(np.asarray(u))
+        logl = args.loglikelihood(np.asarray(v))
+        nc += 1
+        if logl > args.loglstar:
+            break
+    return u, v, logl, nc, blob
 
 
 def sample_rwalk(args):
@@ -552,7 +641,8 @@ def sample_slice(args):
 
     # Modifying axes and computing lengths.
     axes = scale * axes.T  # scale based on past tuning
-    # Note we are transposing as axes[:,i] corresponds to i-th principal axis of the ellipsoid
+    # Note we are transposing as axes[:,i] corresponds to i-th principal axis
+    # of the ellipsoid
     expansion_warning_set = False
     # Slice sampling loop.
     for _ in range(slices):

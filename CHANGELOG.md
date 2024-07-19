@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Changed
 ### Fixed
+- Fix the issue with leaking file descriptors when using dynesty pool. Can lead to 'too many open files' problem ( #379, reported by @bencebecsy, fixed by @segasai )
 
 [2.1.4 - 2024-06-26]
 ### Added

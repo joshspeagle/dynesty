@@ -158,6 +158,8 @@ class Pool:
     def __exit__(self, exc_type, exc_val, exc_tb):
         try:
             self.pool.terminate()
+            self.pool.join()
+            del self.pool
         except:  # noqa
             pass
         try:

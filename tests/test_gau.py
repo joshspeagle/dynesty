@@ -164,11 +164,29 @@ def test_gaussian():
         assert (np.abs(logz - g.logz_truth) < sig * results.logzerr[-1])
     res_comb = dyfunc.merge_runs([result_list[0]])
     res_comb = dyfunc.merge_runs(result_list)
-    assert (np.abs(res_comb['logz'][-1] - g.logz_truth) <
-            sig * results['logzerr'][-1])
+    assert (np.abs(res_comb['logz'][-1] - g.logz_truth)
+            < sig * results['logzerr'][-1])
     # check summary
     res = sampler.results
     res.summary()
+
+
+def test_merge():
+    rstate = get_rstate()
+    g = Gaussian()
+    sampler1 = dynesty.DynamicNestedSampler(g.loglikelihood,
+                                            g.prior_transform,
+                                            g.ndim,
+                                            nlive=nlive,
+                                            rstate=rstate)
+    sampler1.run_nested(print_progress=printing, maxbatch=1)
+    sampler2 = dynesty.DynamicNestedSampler(g.loglikelihood,
+                                            g.prior_transform,
+                                            g.ndim,
+                                            nlive=nlive,
+                                            rstate=rstate)
+    sampler2.run_nested(print_progress=printing, maxbatch=2)
+    dyfunc.merge_runs((sampler1.results, sampler2.results))
 
 
 def test_generator():
@@ -239,9 +257,9 @@ def test_bounding_sample(bound, sample):
     print(sampler.citations)
 
 
-@pytest.mark.parametrize("bound,sample",
-                         itertools.product(
-                             ['single', 'multi', 'balls', 'cubes'], ['unif']))
+@pytest.mark.parametrize(
+    "bound,sample",
+    itertools.product(['single', 'multi', 'balls', 'cubes'], ['unif']))
 def test_bounding_bootstrap(bound, sample):
     # check various bounding methods with bootstrap
 

@@ -1865,6 +1865,48 @@ def kld_error(res,
         return kld
 
 
+def _prepare_for_merge(res):
+    """
+    Internal method used to prepare a run for merging with another run.
+    It takes the results object and it returns the dictionary with basic run info
+    and the number of live points at each iteration.
+    """
+    # Initialize the first ("base") run.
+    run_info = dict(id=res.samples_id,
+                    u=res.samples_u,
+                    v=res.samples,
+                    logl=res.logl,
+                    nc=res.ncall,
+                    it=res.samples_it,
+                    blob=res.blob)
+    nrun = len(run_info['id'])
+
+    # Number of live points throughout the run.
+    if res.isdynamic():
+        run_nlive = res.samples_n
+    else:
+        niter, nlive = res.niter, res.nlive
+        if nrun == niter:
+            run_nlive = np.ones(niter, dtype=int) * nlive
+        elif nrun == (niter + nlive):
+            run_nlive = np.minimum(np.arange(nrun, 0, -1), nlive)
+        else:
+            raise ValueError("Final number of samples differs from number of "
+                             "iterations and number of live points in `res1`.")
+
+    # Batch information (if available).
+    # note we also check for existance of batch_bounds
+    # because unravel_run makes 'static' runs of 1 livepoint
+    # but some will have bounds
+    if res.isdynamic() or 'batch_bounds' in res.keys():
+        run_info['batch'] = res.samples_batch
+        run_info['bounds'] = res.batch_bounds
+    else:
+        run_info['batch'] = np.zeros(nrun, dtype=int)
+        run_info['bounds'] = np.array([(-np.inf, np.inf)])
+    return run_nlive, run_info
+
+
 def _merge_two(res1, res2, compute_aux=False):
     """
     Internal method used to merges two runs with differing (possibly variable)
@@ -1891,90 +1933,17 @@ def _merge_two(res1, res2, compute_aux=False):
         nested sampling run.
 
     """
-
-    # Initialize the first ("base") run.
-    base_info = dict(id=res1.samples_id,
-                     u=res1.samples_u,
-                     v=res1.samples,
-                     logl=res1.logl,
-                     nc=res1.ncall,
-                     it=res1.samples_it,
-                     blob=res1.blob)
+    base_nlive, base_info = _prepare_for_merge(res1)
+    new_nlive, new_info = _prepare_for_merge(res2)
     nbase = len(base_info['id'])
-
-    # Number of live points throughout the run.
-    if res1.isdynamic():
-        base_n = res1.samples_n
-    else:
-        niter, nlive = res1.niter, res1.nlive
-        if nbase == niter:
-            base_n = np.ones(niter, dtype=int) * nlive
-        elif nbase == (niter + nlive):
-            base_n = np.minimum(np.arange(nbase, 0, -1), nlive)
-        else:
-            raise ValueError("Final number of samples differs from number of "
-                             "iterations and number of live points in `res1`.")
-
-    # Batch information (if available).
-    # note we also check for existance of batch_bounds
-    # because unravel_run makes 'static' runs of 1 livepoint
-    # but some will have bounds
-    if res1.isdynamic() or 'batch_bounds' in res1.keys():
-        base_info['batch'] = res1.samples_batch
-        base_info['bounds'] = res1.batch_bounds
-    else:
-        base_info['batch'] = np.zeros(nbase, dtype=int)
-        base_info['bounds'] = np.array([(-np.inf, np.inf)])
-
-    # Initialize the second ("new") run.
-    new_info = dict(id=res2.samples_id,
-                    u=res2.samples_u,
-                    v=res2.samples,
-                    logl=res2.logl,
-                    nc=res2.ncall,
-                    it=res2.samples_it,
-                    blob=res2.blob)
     nnew = len(new_info['id'])
-
-    # Number of live points throughout the run.
-    if res2.isdynamic():
-        new_n = res2.samples_n
-    else:
-        niter, nlive = res2.niter, res2.nlive
-        if nnew == niter:
-            new_n = np.ones(niter, dtype=int) * nlive
-        elif nnew == (niter + nlive):
-            new_n = np.minimum(np.arange(nnew, 0, -1), nlive)
-        else:
-            raise ValueError("Final number of samples differs from number of "
-                             "iterations and number of live points in `res2`.")
-
-    # Batch information (if available).
-    # note we also check for existance of batch_bounds
-    # because unravel_run makes 'static' runs of 1 livepoint
-    # but some will have bounds
-    if res2.isdynamic() or 'batch_bounds' in res2.keys():
-        new_info['batch'] = res2.samples_batch
-        new_info['bounds'] = res2.batch_bounds
-    else:
-        new_info['batch'] = np.zeros(nnew, dtype=int)
-        new_info['bounds'] = np.array([(-np.inf, np.inf)])
-
-    # Initialize our new combind run.
-    combined_info = dict(id=[],
-                         u=[],
-                         v=[],
-                         logl=[],
-                         logvol=[],
-                         logwt=[],
-                         logz=[],
-                         logzvar=[],
-                         h=[],
-                         nc=[],
-                         it=[],
-                         n=[],
-                         batch=[],
-                         blob=[])
+    # Initialize our new combined run.
+    combined_info = dict()
+    for curk in [
+            'id', 'u', 'v', 'logl', 'logvol', 'logwt', 'logz', 'logzvar', 'h',
+            'nc', 'it', 'n', 'batch', 'blob'
+    ]:
+        combined_info[curk] = []
 
     # Check if batch info is the same and modify counters accordingly.
     if np.all(base_info['bounds'] == new_info['bounds']):
@@ -1986,8 +1955,6 @@ def _merge_two(res1, res2, compute_aux=False):
 
     # Start our counters at the beginning of each set of dead points.
     idx_base, idx_new = 0, 0
-    logl_b, logl_n = base_info['logl'][idx_base], new_info['logl'][idx_new]
-    nlive_b, nlive_n = base_n[idx_base], new_n[idx_new]
 
     # Iteratively walk through both set of samples to simulate
     # a combined run.
@@ -1995,6 +1962,24 @@ def _merge_two(res1, res2, compute_aux=False):
     llmin_b = np.min(base_info['bounds'][base_info['batch']])
     llmin_n = np.min(new_info['bounds'][new_info['batch']])
     for i in range(ntot):
+        # Attempt to step along our samples. If we're out of samples,
+        # set values to defaults.
+        if idx_base < nbase:
+            logl_b = base_info['logl'][idx_base]
+            nlive_b = base_nlive[idx_base]
+        else:
+            logl_b = np.inf
+            nlive_b = 0
+            # TODO this is potentially incorrect
+            # It is not clear what nlive should be when we
+            # are past the end of one of the run
+        if idx_new < nnew:
+            logl_n = new_info['logl'][idx_new]
+            nlive_n = new_nlive[idx_new]
+        else:
+            logl_n = np.inf
+            nlive_n = 0
+
         if logl_b > llmin_n and logl_n > llmin_b:
             # If our samples from the both runs are past the each others'
             # lower log-likelihood bound, both runs are now "active".
@@ -2026,21 +2011,6 @@ def _merge_two(res1, res2, compute_aux=False):
             combined_info[curk].append(from_run[curk][add_idx])
 
         combined_info['n'].append(nlive)
-
-        # Attempt to step along our samples. If we're out of samples,
-        # set values to defaults.
-        try:
-            logl_b = base_info['logl'][idx_base]
-            nlive_b = base_n[idx_base]
-        except IndexError:
-            logl_b = np.inf
-            nlive_b = 0
-        try:
-            logl_n = new_info['logl'][idx_new]
-            nlive_n = new_n[idx_new]
-        except IndexError:
-            logl_n = np.inf
-            nlive_n = 0
 
     plateau_mode = False
     plateau_counter = 0

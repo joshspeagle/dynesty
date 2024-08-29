@@ -1935,8 +1935,8 @@ def _merge_two(res1, res2, compute_aux=False):
     """
     base_nlive, base_info = _prepare_for_merge(res1)
     new_nlive, new_info = _prepare_for_merge(res2)
-    nbase = len(base_info['id'])
-    nnew = len(new_info['id'])
+    base_nsamples = len(base_info['id'])
+    new_nsamples = len(new_info['id'])
     # Initialize our new combined run.
     combined_info = dict()
     for curk in [
@@ -1945,42 +1945,43 @@ def _merge_two(res1, res2, compute_aux=False):
     ]:
         combined_info[curk] = []
 
-    # Check if batch info is the same and modify counters accordingly.
-    ubounds = np.unique(np.concatenate(
+    # These are merged batch bounds
+    combined_bounds = np.unique(np.concatenate(
         (base_info['bounds'], new_info['bounds'])),
-                        axis=0)
+                                axis=0)
+    # Here we try to find where the new bounds are in the combined bounds
     new_bound_map = {}
     base_bound_map = {}
     for i in range(len(new_info['bounds'])):
         new_bound_map[i] = np.where(
-            np.all(new_info['bounds'][i] == ubounds, axis=1))[0][0]
+            np.all(new_info['bounds'][i] == combined_bounds, axis=1))[0][0]
     for i in range(len(base_info['bounds'])):
         base_bound_map[i] = np.where(
-            np.all(base_info['bounds'][i] == ubounds, axis=1))[0][0]
+            np.all(base_info['bounds'][i] == combined_bounds, axis=1))[0][0]
 
-    # Start our counters at the beginning of each set of dead points.
-    idx_base, idx_new = 0, 0
+    llmin_b = np.min(base_info['bounds'][base_info['batch']])
+    llmin_n = np.min(new_info['bounds'][new_info['batch']])
 
     # Iteratively walk through both set of samples to simulate
     # a combined run.
-    ntot = nbase + nnew
-    llmin_b = np.min(base_info['bounds'][base_info['batch']])
-    llmin_n = np.min(new_info['bounds'][new_info['batch']])
-    for i in range(ntot):
+    combined_nsamples = base_nsamples + new_nsamples
+    # Start our counters at the beginning of each set of dead points.
+    base_idx, new_idx = 0, 0
+    for i in range(combined_nsamples):
         # Attempt to step along our samples. If we're out of samples,
         # set values to defaults.
-        if idx_base < nbase:
-            logl_b = base_info['logl'][idx_base]
-            nlive_b = base_nlive[idx_base]
+        if base_idx < base_nsamples:
+            logl_b = base_info['logl'][base_idx]
+            nlive_b = base_nlive[base_idx]
         else:
             logl_b = np.inf
             nlive_b = 0
             # TODO this is potentially incorrect
             # It is not clear what nlive should be when we
             # are past the end of one of the run
-        if idx_new < nnew:
-            logl_n = new_info['logl'][idx_new]
-            nlive_n = new_nlive[idx_new]
+        if new_idx < new_nsamples:
+            logl_n = new_info['logl'][new_idx]
+            nlive_n = new_nlive[new_idx]
         else:
             logl_n = np.inf
             nlive_n = 0
@@ -1988,35 +1989,35 @@ def _merge_two(res1, res2, compute_aux=False):
         if logl_b > llmin_n and logl_n > llmin_b:
             # If our samples from the both runs are past the each others'
             # lower log-likelihood bound, both runs are now "active".
-            nlive = nlive_b + nlive_n
+            cur_nlive = nlive_b + nlive_n
         elif logl_b <= llmin_n:
             # If instead our collection of dead points from the "base" run
             # are below the bound, just use those.
-            nlive = nlive_b
+            cur_nlive = nlive_b
         else:
             # Our collection of dead points from the "new" run
             # are below the bound, so just use those.
-            nlive = nlive_n
+            cur_nlive = nlive_n
 
         # Increment our position along depending on
         # which dead point (saved or new) is worse.
 
         if logl_b <= logl_n:
-            add_idx = idx_base
+            add_idx = base_idx
             from_run = base_info
             from_map = base_bound_map
-            idx_base += 1
+            base_idx += 1
         else:
-            add_idx = idx_new
+            add_idx = new_idx
             from_run = new_info
             from_map = new_bound_map
-            idx_new += 1
+            new_idx += 1
         combined_info['batch'].append(from_map[from_run['batch'][add_idx]])
 
         for curk in ['id', 'u', 'v', 'logl', 'nc', 'it', 'blob']:
             combined_info[curk].append(from_run[curk][add_idx])
 
-        combined_info['n'].append(nlive)
+        combined_info['n'].append(cur_nlive)
 
     plateau_mode = False
     plateau_counter = 0
@@ -2048,16 +2049,16 @@ def _merge_two(res1, res2, compute_aux=False):
             if plateau_counter == 0:
                 plateau_mode = False
     # Compute sampling efficiency.
-    eff = 100. * ntot / sum(combined_info['nc'])
+    eff = 100. * combined_nsamples / sum(combined_info['nc'])
 
     # Save results.
-    r = dict(niter=ntot,
+    r = dict(niter=combined_nsamples,
              ncall=np.asarray(combined_info['nc']),
              eff=eff,
              samples=np.asarray(combined_info['v']),
              logl=np.asarray(combined_info['logl']),
              logvol=np.asarray(combined_info['logvol']),
-             batch_bounds=np.asarray(ubounds),
+             batch_bounds=np.asarray(combined_bounds),
              blob=np.asarray(combined_info['blob']))
 
     for curk in ['id', 'it', 'n', 'u', 'batch']:

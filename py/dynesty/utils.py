@@ -1868,8 +1868,8 @@ def kld_error(res,
 def _prepare_for_merge(res):
     """
     Internal method used to prepare a run for merging with another run.
-    It takes the results object and it returns the dictionary with basic run info
-    and the number of live points at each iteration.
+    It takes the results object and it returns the dictionary with basic run
+    info and the number of live points at each iteration.
     """
     # Initialize the first ("base") run.
     run_info = dict(id=res.samples_id,
@@ -1889,6 +1889,8 @@ def _prepare_for_merge(res):
         if nrun == niter:
             run_nlive = np.ones(niter, dtype=int) * nlive
         elif nrun == (niter + nlive):
+            # this is the case where the last live points are added
+            # one by one in the end of the run
             run_nlive = np.minimum(np.arange(nrun, 0, -1), nlive)
         else:
             raise ValueError("Final number of samples differs from number of "
@@ -1959,8 +1961,8 @@ def _merge_two(res1, res2, compute_aux=False):
         base_bound_map[i] = np.where(
             np.all(base_info['bounds'][i] == combined_bounds, axis=1))[0][0]
 
-    llmin_b = np.min(base_info['bounds'][base_info['batch']])
-    llmin_n = np.min(new_info['bounds'][new_info['batch']])
+    base_lowedge = np.min(base_info['bounds'][base_info['batch']])
+    new_lowedge = np.min(new_info['bounds'][new_info['batch']])
 
     # Iteratively walk through both set of samples to simulate
     # a combined run.
@@ -1971,38 +1973,38 @@ def _merge_two(res1, res2, compute_aux=False):
         # Attempt to step along our samples. If we're out of samples,
         # set values to defaults.
         if base_idx < base_nsamples:
-            logl_b = base_info['logl'][base_idx]
-            nlive_b = base_nlive[base_idx]
+            base_cur_logl = base_info['logl'][base_idx]
+            base_cur_nlive = base_nlive[base_idx]
         else:
-            logl_b = np.inf
-            nlive_b = 0
+            base_cur_logl = np.inf
+            base_cur_nlive = 0
             # TODO this is potentially incorrect
             # It is not clear what nlive should be when we
             # are past the end of one of the run
         if new_idx < new_nsamples:
-            logl_n = new_info['logl'][new_idx]
-            nlive_n = new_nlive[new_idx]
+            new_cur_logl = new_info['logl'][new_idx]
+            new_cur_nlive = new_nlive[new_idx]
         else:
-            logl_n = np.inf
-            nlive_n = 0
+            new_cur_logl = np.inf
+            new_cur_nlive = 0
 
-        if logl_b > llmin_n and logl_n > llmin_b:
+        if base_cur_logl > new_lowedge and new_cur_logl > base_lowedge:
             # If our samples from the both runs are past the each others'
             # lower log-likelihood bound, both runs are now "active".
-            cur_nlive = nlive_b + nlive_n
-        elif logl_b <= llmin_n:
+            cur_nlive = base_cur_nlive + new_cur_nlive
+        elif base_cur_logl <= new_lowedge:
             # If instead our collection of dead points from the "base" run
             # are below the bound, just use those.
-            cur_nlive = nlive_b
+            cur_nlive = base_cur_nlive
         else:
             # Our collection of dead points from the "new" run
             # are below the bound, so just use those.
-            cur_nlive = nlive_n
+            cur_nlive = new_cur_nlive
 
         # Increment our position along depending on
         # which dead point (saved or new) is worse.
 
-        if logl_b <= logl_n:
+        if base_cur_logl <= new_cur_logl:
             add_idx = base_idx
             from_run = base_info
             from_map = base_bound_map

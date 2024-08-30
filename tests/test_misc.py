@@ -726,6 +726,30 @@ def test_ncall(dynamic):
     assert samp.ncall == L.ncall
 
 
+@pytest.mark.parametrize('bounds', [[-10, -9], [-2, -1], [-1, 0]])
+def test_merge(bounds):
+    # test that if we merge two runs
+    # where one run has a really narrow batch with a lot of points
+    ndim = 2
+    rstate = get_rstate()
+    sampler1 = dynesty.DynamicNestedSampler(loglike,
+                                            prior_transform,
+                                            ndim,
+                                            nlive=nlive,
+                                            rstate=rstate)
+    sampler1.run_nested(maxbatch=0, nlive_init=50, print_progress=printing)
+    sampler2 = dynesty.DynamicNestedSampler(loglike,
+                                            prior_transform,
+                                            ndim,
+                                            nlive=nlive,
+                                            rstate=rstate)
+    sampler2.run_nested(maxbatch=0, nlive_init=51, print_progress=printing)
+    sampler2.add_batch(mode='manual', logl_bounds=bounds, nlive=1000)
+    xres = dyutil.merge_runs([sampler1.results, sampler2.results])
+    stds = xres.samples_equal().std(axis=0)
+    assert np.all(np.abs(stds - 1) < 0.1)
+
+
 def test_quantile():
     rstate = get_rstate()
     with pytest.raises(Exception):

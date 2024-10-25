@@ -295,11 +295,11 @@ the provided bounds which can be passed via the `sample` argument:
 In addition, `dynesty` also supports passing **custom callable functions**
 to the `sample` argument, provided they follow the same format as the
 default sampling functions defined `here
-<https://github.com/joshspeagle/dynesty/blob/master/dynesty/sampling.py>`__.
+<https://github.com/joshspeagle/dynesty/blob/master/py/dynesty/sampling.py>`__.
 These can also be accompanied by custom "update functions" that try to
 adaptively scale proposals to ensure better overall sampling efficiency.
 See `here
-<https://github.com/joshspeagle/dynesty/blob/master/dynesty/nestedsamplers.py>`__
+<https://github.com/joshspeagle/dynesty/blob/master/py/dynesty/nestedsamplers.py>`__
 for examples of some of the functions that are associated with the default
 sampling methods described above.
 

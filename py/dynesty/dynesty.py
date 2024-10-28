@@ -11,14 +11,15 @@ import sys
 import warnings
 import traceback
 import numpy as np
-
-from .nestedsamplers import _SAMPLING, SuperSampler
+from .sampler import Sampler, _SAMPLING
 from .dynamicsampler import (DynamicSampler, _get_update_interval_ratio,
-                             _SAMPLERS, _initialize_live_points)
+                             _initialize_live_points)
 from .utils import (LogLikelihood, get_random_generator, get_enlarge_bootstrap,
                     get_nonbounded)
 
 __all__ = ["NestedSampler", "DynamicNestedSampler", "_function_wrapper"]
+
+_SAMPLERS = ['none', 'single', 'multi', 'balls', 'cubes']
 
 
 def _get_citations(nested_type, bound, sampler):
@@ -505,7 +506,7 @@ optional
         return static_docstring
 
 
-class NestedSampler(SuperSampler):
+class NestedSampler(Sampler):
     """
     The main class performing the static nested sampling.
     It inherits all the methods of the dynesty.sampler.SuperSampler.
@@ -645,8 +646,8 @@ functioning and will be removed in further releases""", DeprecationWarning)
 
         # Set up parallel (or serial) evaluation.
         M, queue_size = _parse_pool_queue(pool, queue_size)
-        if use_pool is None:
-            use_pool = {}
+
+        use_pool = use_pool or {}
 
         # Wrap functions.
         ptform = _function_wrapper(prior_transform,
@@ -689,23 +690,24 @@ functioning and will be removed in further releases""", DeprecationWarning)
             use_pool_ptform=use_pool.get('prior_transform', True))
 
         # Initialize our nested sampler.
-        sampler = super().__new__(_SAMPLERS[bound])
+        sampler = super().__new__(Sampler)
         sampler.__init__(loglike,
                          ptform,
                          ndim,
                          live_points,
                          sample,
+                         bound,
                          update_interval,
                          first_update,
-                         rstate,
-                         queue_size,
-                         pool,
-                         use_pool,
-                         kwargs,
+                         rstate=rstate,
+                         queue_size=queue_size,
+                         pool=pool,
+                         use_pool=use_pool,
+                         kwargs=kwargs,
                          ncdim=ncdim,
                          blob=blob,
                          logvol_init=logvol_init)
-        sampler.ncalls = init_ncalls
+        sampler.ncall = init_ncalls
         return sampler
 
 
@@ -846,8 +848,7 @@ functioning and will be removed in further releases""", DeprecationWarning)
 
         # Set up parallel (or serial) evaluation.
         queue_size = _parse_pool_queue(pool, queue_size)[1]
-        if use_pool is None:
-            use_pool = {}
+        use_pool = use_pool or {}
 
         # Wrap functions.
         ptform = _function_wrapper(prior_transform,

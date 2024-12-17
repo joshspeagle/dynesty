@@ -6,8 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 [Unreleased]
 ### Added
-
 ### Changed
+### Fixed
+
+[2.1.5 - 2024-12-17]
 ### Fixed
 - Fix the issue with merge_runs when the dynamic runs with different number of batches are merged ( #481 reported by @rodleiva, fixed by @segasai)
 - Fix the issue with leaking file descriptors when using dynesty pool. Can lead to 'too many open files' problem ( #379, reported by @bencebecsy, fixed by @segasai)

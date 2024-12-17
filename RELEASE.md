@@ -5,7 +5,8 @@ Essential steps for the release (order is important):
 * update the changelog.md and changelog in the docs
 * change the internal version number ( py/dynesty/_version.py )
 * git tag
-* release on pypi and github
+* release on pypi and github (Note it may not be a good idea to make a release on github,
+as I believe that creates one more zenodo record )
 
 Things to check before the release
 

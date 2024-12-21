@@ -604,6 +604,9 @@ def _configure_batch_sampler(main_sampler,
     saved_logvol = np.array(main_sampler.saved_run['logvol'])
     saved_scale = np.array(main_sampler.saved_run['scale'])
     saved_blobs = np.array(main_sampler.saved_run['blob'])
+    saved_distances_indices = np.array(main_sampler.saved_run["distance_insertion_index"])
+    saved_log_distance_ratios = np.array(main_sampler.saved_run["log_distance_ratio"])
+    saved_likelihood_indices = np.array(main_sampler.saved_run["likelihood_insertion_index"])
     first_points = []
 
     # This will be a list of first points yielded from
@@ -721,6 +724,9 @@ def _configure_batch_sampler(main_sampler,
                 logl_min = -np.inf
 
         live_scale = saved_scale[subset0[0]]
+        live_distance_index = saved_distances_indices[subset0[0]]
+        live_log_distance_ratio = saved_log_distance_ratios[subset0[0]]
+        live_likelihood_index = saved_likelihood_indices[subset0[0]]
         # set the scale based on the lowest point
 
         # we are weighting each point by X_i to ensure
@@ -771,6 +777,9 @@ def _configure_batch_sampler(main_sampler,
         batch_sampler.live_logl = live_logl
         batch_sampler.scale = live_scale
         batch_sampler.live_blobs = live_blobs
+        batch_sampler.distance_insertion_index = live_distance_index
+        batch_sampler.log_distance_ratio = live_log_distance_ratio
+        batch_sampler.likelihood_insertion_index = live_likelihood_index
 
         batch_sampler.update_bound_if_needed(logl_min)
         # Trigger an update of the internal bounding distribution based
@@ -1105,7 +1114,8 @@ class DynamicSampler:
                 ('bound_iter', np.array(self.saved_run['bounditer'])))
             results.append(
                 ('samples_bound', np.array(self.saved_run['boundidx'])))
-            results.append(('scale', np.array(self.saved_run['scale'])))
+            for key in ['scale', 'distance_insertion_index', 'log_distance_ratio', 'likelihood_insertion_index']:
+                results.append((key, np.array(self.saved_run[key])))
 
         return Results(results)
 
@@ -1358,7 +1368,11 @@ class DynamicSampler:
                             blob=results.blob,
                             boundidx=results.boundidx,
                             bounditer=results.bounditer,
-                            scale=self.sampler.scale)
+                            scale=self.sampler.scale,
+                            distance_insertion_index=self.sampler.distance_insertion_index,
+                            log_distance_ratio=self.sampler.log_distance_ratio,
+                            likelihood_insertion_index=self.sampler.likelihood_insertion_index,
+                            )
 
             self.base_run.append(add_info)
             self.saved_run.append(add_info)
@@ -1403,7 +1417,11 @@ class DynamicSampler:
                             n=self.nlive_init - it,
                             boundidx=results.boundidx,
                             bounditer=results.bounditer,
-                            scale=self.sampler.scale)
+                            scale=self.sampler.scale,
+                            distance_insertion_index=-1,
+                            log_distance_ratio=-1,
+                            likelihood_insertion_index=-1,
+                            )
 
             self.base_run.append(add_info)
             self.saved_run.append(add_info)
@@ -1611,7 +1629,11 @@ class DynamicSampler:
                      n=nlive_new,
                      boundidx=results.boundidx,
                      bounditer=results.bounditer,
-                     scale=batch_sampler.scale)
+                     scale=batch_sampler.scale,
+                     distance_insertion_index=batch_sampler.distance_insertion_index,
+                     log_distance_ratio=batch_sampler.log_distance_ratio,
+                     likelihood_insertion_index=batch_sampler.likelihood_insertion_index,
+                     )
             self.new_run.append(D)
             # Increment relevant counters.
             self.ncall += results.nc
@@ -1660,7 +1682,11 @@ class DynamicSampler:
                      blob=results.blob,
                      boundidx=results.boundidx,
                      bounditer=results.bounditer,
-                     scale=batch_sampler.scale)
+                     scale=batch_sampler.scale,
+                     distance_insertion_index=-1,
+                     log_distance_ratio=-1,
+                     likelihood_insertion_index=-1,
+                     )
             self.new_run.append(D)
 
             # Increment relevant counters.
@@ -1693,7 +1719,10 @@ class DynamicSampler:
 
         for k in [
                 'id', 'u', 'v', 'logl', 'nc', 'boundidx', 'it', 'bounditer',
-                'n', 'scale', 'blob', 'logvol'
+                'n', 'scale', 'blob', 'logvol',
+                'distance_insertion_index',
+                'log_distance_ratio',
+                'likelihood_insertion_index',
         ]:
             saved_d[k] = np.array(self.saved_run[k])
             new_d[k] = np.array(self.new_run[k])
@@ -1745,7 +1774,10 @@ class DynamicSampler:
 
             for k in [
                     'id', 'u', 'v', 'logl', 'nc', 'boundidx', 'it',
-                    'bounditer', 'scale', 'blob'
+                    'bounditer', 'scale', 'blob',
+                    'distance_insertion_index',
+                    'log_distance_ratio',
+                    'likelihood_insertion_index',
             ]:
                 add_info[k] = add_source[k][add_idx]
             self.saved_run.append(add_info)

@@ -638,6 +638,8 @@ class MultiEllipsoid:
 class RadFriends:
     """
     A collection of N-balls of identical size centered on each live point.
+    Importantly this class requires that the centers of the balls are set
+    in the .ctrs attribute.
 
     Parameters
     ----------
@@ -661,43 +663,43 @@ class RadFriends:
 
         detsign, detln = linalg.slogdet(self.am)
         assert detsign > 0
-        self.logvol_ball = logvol_prefactor(self.n) - 0.5 * detln
+        self.logvol = logvol_prefactor(self.n) - 0.5 * detln
         self.expand = 1.
         self.funit = 1
 
     def scale_to_logvol(self, logvol):
         """Scale ball to encompass a target volume."""
 
-        f = np.exp((logvol - self.logvol_ball) * (1.0 / self.n))
+        f = np.exp((logvol - self.logvol) * (1.0 / self.n))
         # linear factor
         self.cov *= f**2
         self.am /= f**2
         self.axes *= f
         self.axes_inv /= f
-        self.logvol_ball = logvol
+        self.logvol = logvol
 
-    def within(self, x, ctrs):
+    def within(self, x):
         """Check which balls `x` falls within."""
 
         # Execute a brute-force search over all balls.
         idxs = np.where(
-            lalg.norm(np.dot(ctrs - x, self.axes_inv), axis=1) <= 1.)[0]
+            lalg.norm(np.dot(self.ctrs - x, self.axes_inv), axis=1) <= 1.)[0]
 
         return idxs
 
-    def overlap(self, x, ctrs):
+    def overlap(self, x):
         """Check how many balls `x` falls within."""
 
-        q = len(self.within(x, ctrs))
+        q = len(self.within(x))
 
         return q
 
-    def contains(self, x, ctrs):
+    def contains(self, x):
         """Check if the set of balls contains `x`."""
 
-        return self.overlap(x, ctrs) > 0
+        return self.overlap(x) > 0
 
-    def sample(self, ctrs, rstate=None, return_q=False):
+    def sample(self, rstate=None, return_q=False):
         """
         Sample a point uniformly distributed within the *union* of balls.
 
@@ -711,7 +713,7 @@ class RadFriends:
 
         """
 
-        nctrs = len(ctrs)  # number of balls
+        nctrs = len(self.ctrs)  # number of balls
 
         while True:
             ds = randsphere(self.n, rstate=rstate)
@@ -720,12 +722,12 @@ class RadFriends:
             # If there is only one ball, sample from it.
             if nctrs == 1:
                 q = 1
-                x = ctrs[0] + dx
+                x = self.ctrs[0] + dx
             else:
                 # Select a ball at random.
                 idx = rstate.integers(nctrs)
-                x = ctrs[idx] + dx
-                q = self.overlap(x, ctrs)
+                x = self.ctrs[idx] + dx
+                q = self.overlap(x)
             # random is faster than uniform
             if q == 1 or return_q or rstate.random() < (1. / q):
                 if return_q:
@@ -733,7 +735,7 @@ class RadFriends:
                 else:
                     return x
 
-    def samples(self, nsamples, ctrs, rstate=None):
+    def samples(self, nsamples, rstate=None):
         """
         Draw `nsamples` samples uniformly distributed within the *union* of
         balls.
@@ -745,13 +747,11 @@ class RadFriends:
 
         """
 
-        xs = np.array(
-            [self.sample(ctrs, rstate=rstate) for i in range(nsamples)])
+        xs = np.array([self.sample(rstate=rstate) for i in range(nsamples)])
 
         return xs
 
     def monte_carlo_logvol(self,
-                           ctrs,
                            ndraws=10000,
                            rstate=None,
                            return_overlap=True):
@@ -761,12 +761,11 @@ class RadFriends:
 
         # Estimate volume using Monte Carlo integration.
         samples = ([
-            self.sample(ctrs, rstate=rstate, return_q=True)
-            for i in range(ndraws)
+            self.sample(rstate=rstate, return_q=True) for i in range(ndraws)
         ])
         qs = np.array([_[1] for _ in samples])
         qsum = np.sum(1. / qs)
-        logvol = np.log(1. / ndraws * qsum * len(ctrs)) + self.logvol_ball
+        logvol = np.log(1. / ndraws * qsum * len(self.ctrs)) + self.logvol
 
         if return_overlap:
             # Estimate the fractional amount of overlap with the
@@ -856,7 +855,7 @@ class RadFriends:
         # Compute volume.
         detsign, detln = linalg.slogdet(self.am)
         assert detsign > 0
-        self.logvol_ball = (logvol_prefactor(self.n) - 0.5 * detln)
+        self.logvol = (logvol_prefactor(self.n) - 0.5 * detln)
         self.expand = 1.
 
         # Estimate the volume and fractional overlap with the unit cube
@@ -904,6 +903,8 @@ class RadFriends:
 class SupFriends:
     """
     A collection of N-cubes of identical size centered on each live point.
+    Importantly this class requires that the centers of the cubes are set
+    in the .ctrs attribute.
 
     Parameters
     ----------
@@ -927,44 +928,45 @@ class SupFriends:
 
         detsign, detln = linalg.slogdet(self.am)
         assert detsign > 0
-        self.logvol_cube = self.n * np.log(2.) - 0.5 * detln
+        self.logvol = self.n * np.log(2.) - 0.5 * detln
         self.expand = 1.
         self.funit = 1
 
     def scale_to_logvol(self, logvol):
         """Scale cube to encompass a target volume."""
 
-        f = np.exp((logvol - self.logvol_cube) * (1.0 / self.n))
+        f = np.exp((logvol - self.logvol) * (1.0 / self.n))
         # linear factor
         self.cov *= f**2
         self.am /= f**2
         self.axes *= f
         self.axes_inv /= f
-        self.logvol_cube = logvol
+        self.logvol = logvol
 
-    def within(self, x, ctrs):
+    def within(self, x):
         """Checks which cubes `x` falls within."""
 
         # Execute a brute-force search over all cubes.
         idxs = np.where(
-            np.max(np.abs(np.dot(ctrs - x, self.axes_inv)), axis=1) <= 1.)[0]
+            np.max(np.abs(np.dot(self.ctrs -
+                                 x, self.axes_inv)), axis=1) <= 1.)[0]
 
         return idxs
 
-    def overlap(self, x, ctrs):
+    def overlap(self, x):
         """Checks how many cubes `x` falls within, skipping the `j`-th
         cube."""
 
-        q = len(self.within(x, ctrs))
+        q = len(self.within(x))
 
         return q
 
-    def contains(self, x, ctrs):
+    def contains(self, x):
         """Checks if the set of cubes contains `x`."""
 
-        return self.overlap(x, ctrs) > 0
+        return self.overlap(x) > 0
 
-    def sample(self, ctrs, rstate=None, return_q=False):
+    def sample(self, rstate=None, return_q=False):
         """
         Sample a point uniformly distributed within the *union* of cubes.
 
@@ -978,22 +980,22 @@ class SupFriends:
 
         """
 
-        nctrs = len(ctrs)  # number of cubes
+        nctrs = len(self.ctrs)  # number of cubes
 
         while True:
             ds = rstate.uniform(-1, 1, size=self.n)
             dx = np.dot(ds, self.axes)
             # If there is only one cube, sample from it.
             if nctrs == 1:
-                x = ctrs[0] + dx
+                x = self.ctrs[0] + dx
                 q = 1
             else:
                 # Select a cube at random.
                 idx = rstate.integers(nctrs)
-                x = ctrs[idx] + dx
+                x = self.ctrs[idx] + dx
                 # Check how many cubes the point lies within, passing over
                 # the `idx`-th cube `x` was sampled from.
-                q = self.overlap(x, ctrs)
+                q = self.overlap(x)
             # random() is faster than uniform()
             if q == 1 or return_q or rstate.random() < (1. / q):
                 if return_q:
@@ -1001,7 +1003,7 @@ class SupFriends:
                 else:
                     return x
 
-    def samples(self, nsamples, ctrs, rstate=None):
+    def samples(self, nsamples, rstate=None):
         """
         Draw `nsamples` samples uniformly distributed within the *union* of
         cubes.
@@ -1013,13 +1015,11 @@ class SupFriends:
 
         """
 
-        xs = np.array(
-            [self.sample(ctrs, rstate=rstate) for i in range(nsamples)])
+        xs = np.array([self.sample(rstate=rstate) for i in range(nsamples)])
 
         return xs
 
     def monte_carlo_logvol(self,
-                           ctrs,
                            ndraws=10000,
                            rstate=None,
                            return_overlap=True):
@@ -1029,11 +1029,10 @@ class SupFriends:
 
         # Estimate the volume using Monte Carlo integration.
         samples = [
-            self.sample(ctrs, rstate=rstate, return_q=True)
-            for i in range(ndraws)
+            self.sample(rstate=rstate, return_q=True) for i in range(ndraws)
         ]
         qsum = sum((1. / q for (x, q) in samples))
-        logvol = np.log(1. * qsum / ndraws * len(ctrs)) + self.logvol_cube
+        logvol = np.log(1. * qsum / ndraws * len(self.ctrs)) + self.logvol
 
         if return_overlap:
             # Estimate the fractional overlap with the unit cube using
@@ -1122,7 +1121,7 @@ class SupFriends:
 
         detsign, detln = linalg.slogdet(self.am)
         assert detsign > 0
-        self.logvol_cube = (self.n * np.log(2.) - 0.5 * detln)
+        self.logvol = (self.n * np.log(2.) - 0.5 * detln)
         self.expand = 1.
 
         # Estimate the volume and fractional overlap with the unit cube

@@ -21,7 +21,7 @@ try:
     with open('README.md', 'r') as f:
         txt = f.read()
     txt = re.sub('<[^<]+>', '', txt)
-    long_description = pypandoc.convert(txt, 'rst', 'md')
+    long_description = pypandoc.convert_text(txt, 'rst', 'md')
 except ImportError:
     long_description = open('README.md').read()
 

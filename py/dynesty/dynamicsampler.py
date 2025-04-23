@@ -865,7 +865,7 @@ class DynamicSampler:
         propose new live points.
 
     method : {`'unif'`, `'rwalk'`,
-        `'slice'`, `'rslice'`, `'hslice'`}, optional
+        `'slice'`, `'rslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds.
 
@@ -930,7 +930,6 @@ class DynamicSampler:
         self.walks = self.kwargs.get('walks', 25)
         self.slices = self.kwargs.get('slices', 3)
         self.cite = self.kwargs.get('cite')
-        self.custom_update = self.kwargs.get('update_func')
 
         # random state
         self.rstate = rstate
@@ -1132,7 +1131,6 @@ class DynamicSampler:
                        maxcall=None,
                        logl_max=np.inf,
                        dlogz=0.01,
-                       n_effective=np.inf,
                        live_points=None,
                        save_samples=False,
                        resume=False):
@@ -1183,9 +1181,6 @@ class DynamicSampler:
         logl_max : float, optional
             Iteration will stop when the sampled ln(likelihood) exceeds the
             threshold set by `logl_max`. Default is no bound (`np.inf`).
-
-        n_effective: int, optional
-            This option is deprecated and will be removed in a future release.
 
         live_points: list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
             and optionally list of blobs associated with these likelihood calls
@@ -1250,16 +1245,6 @@ class DynamicSampler:
             current evidence.
 
         """
-
-        # Check for deprecated options
-        if n_effective is not np.inf:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("once")
-                warnings.warn(
-                    "The n_effective option to DynamicSampler.sample_initial "
-                    "is deprecated and will be removed in future releases",
-                    DeprecationWarning)
-
         # Initialize inputs.
         if maxcall is None:
             maxcall = sys.maxsize
@@ -1817,7 +1802,6 @@ class DynamicSampler:
                    maxcall_init=None,
                    dlogz_init=0.01,
                    logl_max_init=np.inf,
-                   n_effective_init=np.inf,
                    nlive_batch=None,
                    wt_function=None,
                    wt_kwargs=None,
@@ -1874,13 +1858,6 @@ class DynamicSampler:
         logl_max_init : float, optional
             The baseline run will stop when the sampled ln(likelihood) exceeds
             this threshold. Default is no bound (`np.inf`).
-
-        n_effective_init: int, optional
-            Minimum number of effective posterior samples needed during the
-            baseline run. If the estimated "effective sample size" (ESS)
-            exceeds this number, sampling will terminate.
-            Default is no ESS (`np.inf`).
-            This option is deprecated and will be removed in a future release.
 
         nlive_batch : int, optional
             The number of live points used when adding additional samples
@@ -1978,15 +1955,6 @@ class DynamicSampler:
             the internal state of the sampler
         """
 
-        # Check for deprecated options
-        if n_effective_init is not np.inf:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("once")
-                warnings.warn(
-                    "The n_effective_init option to DynamicSampler.run_nested "
-                    "is deprecated and will be removed in future releases",
-                    DeprecationWarning)
-
         # Initialize values.
         if maxcall is None:
             maxcall = sys.maxsize
@@ -2042,16 +2010,14 @@ This is not supported. No sampling was performed""", RuntimeWarning)
         self.checkpoint_timer = DelayTimer(checkpoint_every)
         try:
             if not self.base:
-                for results in self.sample_initial(
-                        nlive=nlive_init,
-                        dlogz=dlogz_init,
-                        maxcall=maxcall_init,
-                        maxiter=maxiter_init,
-                        logl_max=logl_max_init,
-                        live_points=live_points,
-                        n_effective=n_effective_init,
-                        resume=resume,
-                        save_samples=True):
+                for results in self.sample_initial(nlive=nlive_init,
+                                                   dlogz=dlogz_init,
+                                                   maxcall=maxcall_init,
+                                                   maxiter=maxiter_init,
+                                                   logl_max=logl_max_init,
+                                                   live_points=live_points,
+                                                   resume=resume,
+                                                   save_samples=True):
                     if resume:
                         resume = False
                     ncall += results.nc

@@ -268,8 +268,7 @@ optional
             cubes centered on each live point (`'cubes'`). Default is
             `'multi'`.
 
-        sample : {`'auto'`, `'unif'`, `'rwalk'`, `'slice'`, `'rslice'`,
-            `'hslice'`, callable}, optional
+        sample : {`'auto'`, `'unif'`, `'rwalk'`, `'slice'`, `'rslice'`}, optional
             Method used to sample uniformly within the likelihood constraint,
             conditioned on the provided bounds. Unique methods available are:
             uniform sampling within the bounds(`'unif'`),
@@ -277,17 +276,12 @@ optional
             multivariate slice sampling along preferred orientations
             (`'slice'`),
             "random" slice sampling along all orientations (`'rslice'`),
-            "Hamiltonian" slices along random trajectories (`'hslice'`), and
-            any callable function which follows the pattern of the sample
-            methods
-            defined in dynesty.sampling.
             `'auto'` selects the sampling method based on the dimensionality
             of the problem (from `ndim`).
             When `ndim < 10`, this defaults to `'unif'`.
             When `10 <= ndim <= 20`, this defaults to `'rwalk'`.
-            When `ndim > 20`, this defaults to `'hslice'` if a `gradient` is
-            provided and `'rslice'` otherwise. `'slice'`
-            is provided as alternatives for`'rslice'`.
+            When `ndim > 20`, this defaults to`'rslice'`. `'slice'`
+            is provided as alternative for`'rslice'`.
             Default is `'auto'`.
 
         periodic : iterable, optional
@@ -314,8 +308,7 @@ optional
             when the likelihood function is quick to evaluate. Default behavior
             is to target a roughly constant change in prior volume, with
             `1.5` for `'unif'`, `0.15 * walks` for `'rwalk'`.
-            `0.9 * ndim * slices` for `'slice'`, `2.0 * slices` for `'rslice'`,
-            and `25.0 * slices` for `'hslice'`.
+            `0.9 * ndim * slices` for `'slice'`, `2.0 * slices` for `'rslice'`.
 
         first_update : dict, optional
             A dictionary containing parameters governing when the sampler
@@ -404,10 +397,10 @@ optional
             Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
 
         slices : int, optional
-            For the `'slice'`, `'rslice'`, and `'hslice'` sampling
+            For the `'slice'`, `'rslice'` sampling
             options, the number of times to execute a "slice update"
             before proposing a new live point. Default is 3 for
-            `'slice'` and 3+ndim for rslice and hslice.
+            `'slice'` and 3+ndim for rslice.
             Note that `'slice'` cycles through **all dimensions**
             when executing a "slice update".
 

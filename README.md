@@ -1,6 +1,6 @@
 [![Build Status](https://github.com/joshspeagle/dynesty/actions/workflows/test.yml/badge.svg)](https://github.com/joshspeagle/dynesty/actions/)
 [![Documentation Status](https://readthedocs.org/projects/dynesty/badge/?version=latest)](https://dynesty.readthedocs.io/en/latest/?badge=latest)
-[![Coverage Status](https://coveralls.io/repos/github/joshspeagle/dynesty/badge.svg?branch=master)](https://coveralls.io/github/joshspeagle/dynesty?branch=master)[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.6609296.svg)](https://doi.org/10.5281/zenodo.3348367)
+[![Coverage Status](https://coveralls.io/repos/github/joshspeagle/dynesty/badge.svg?branch=master)](https://coveralls.io/github/joshspeagle/dynesty?branch=master)[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3348367.svg)](https://doi.org/10.5281/zenodo.3348367)
 
 
 dynesty
@@ -35,7 +35,7 @@ of the code can be found
 
 If you find the package useful in your research, please cite at least *both* of these references:
 * The original paper [Speagle (2020)](https://ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S/abstract)
-* The python implementation [Koposov et al. (2023)](https://doi.org/10.5281/zenodo.3348367) (the citation info is at the bottom of the page on the right)
+* The python implementation [Koposov et al. (2024)](https://doi.org/10.5281/zenodo.3348367) (the citation info is at the bottom of the page on the right)
 
 
 and ideally also papers describing the underlying methods (see the [documentation](https://dynesty.readthedocs.io/en/latest/references.html) for more details)

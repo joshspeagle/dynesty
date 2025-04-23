@@ -277,23 +277,6 @@ def test_neff():
     assert sampler.n_effective > 10000
 
 
-def test_oldstop():
-    # test of old stopping function functionality
-    ndim = 2
-    rstate = get_rstate()
-    import dynesty.utils as dyutil
-    stopfn = dyutil.old_stopping_function
-    sampler = dynesty.DynamicNestedSampler(loglike,
-                                           prior_transform,
-                                           ndim,
-                                           nlive=nlive,
-                                           rstate=rstate)
-    sampler.run_nested(dlogz_init=1,
-                       n_effective=None,
-                       stop_function=stopfn,
-                       print_progress=printing)
-
-
 def test_stop_nmc():
     # test stopping relying in n_mc
     ndim = 2

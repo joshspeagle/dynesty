@@ -157,9 +157,9 @@ class Sampler:
         # parallelism
         self.pool = pool  # provided pool
         if self.pool is None:
-            self.M = map
+            self.mapper = map
         else:
-            self.M = pool.map
+            self.mapper = pool.map
         self.use_pool = use_pool or {
         }  # provided flags for when to use the pool
         self.use_pool_ptform = use_pool.get('prior_transform', True)
@@ -318,13 +318,13 @@ class Sampler:
     def __setstate__(self, state):
         self.__dict__ = state
         self.pool = None
-        self.M = map
+        self.mapper = map
 
     def __getstate__(self):
         """Get state information for pickling."""
 
         state = self.__dict__.copy()
-        for k in ['M', 'pool']:
+        for k in ['mapper', 'pool']:
             if k in state:
                 del state[k]
         return state
@@ -337,7 +337,8 @@ class Sampler:
         if self.use_pool_ptform:
             # Use the pool to compute the prior transform.
             self.live_v = np.array(
-                list(self.M(self.prior_transform, np.asarray(self.live_u))))
+                list(self.mapper(self.prior_transform,
+                                 np.asarray(self.live_u))))
         else:
             # Compute the prior transform using the default `map` function.
             self.live_v = np.array(
@@ -502,7 +503,7 @@ class Sampler:
 
         if self.use_pool_evolve:
             # Use the pool to propose ("evolve") a new live point.
-            mapper = self.M
+            mapper = self.mapper
         else:
             # Propose ("evolve") a new live point using the default `map`
             # function.

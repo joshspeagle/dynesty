@@ -204,7 +204,7 @@ def _get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
 def stopping_function(results,
                       args=None,
                       rstate=None,
-                      M=None,
+                      mapper=None,
                       return_vals=False):
     """
     The default stopping function utilized by :class:`DynamicSampler`.
@@ -245,7 +245,7 @@ def stopping_function(results,
     rstate : `~numpy.random.Generator`, optional
         `~numpy.random.Generator` instance.
 
-    M : `map` function, optional
+    mapper : `map` function, optional
         An alias to a `map`-like function. This allows users to pass
         functions from pools (e.g., `pool.map`) to compute realizations in
         parallel. By default the standard `map` function is used.
@@ -269,8 +269,8 @@ def stopping_function(results,
     # Initialize values.
     if args is None:
         args = {}
-    if M is None:
-        M = map
+    if mapper is None:
+        mapper = map
 
     # Initialize hyperparameters.
     pfrac = args.get('pfrac', 1.0)
@@ -307,7 +307,7 @@ def stopping_function(results,
         approx_list = [approx for i in range(n_mc)]
         seeds = get_seed_sequence(rstate, n_mc)
         args = zip(rlist, error_list, approx_list, seeds)
-        outputs = list(M(_kld_error, args))
+        outputs = list(mapper(_kld_error, args))
         lnz_arr = np.array([res[1].logz[-1] for res in outputs])
         # Evidence stopping value.
         lnz_std = np.std(lnz_arr)
@@ -645,7 +645,7 @@ def _configure_batch_sampler(main_sampler,
              None,
              main_sampler.prior_transform,
              main_sampler.loglikelihood,
-             main_sampler.M,
+             main_sampler.mapper,
              nlive=nlive_new,
              ndim=main_sampler.ndim,
              rstate=main_sampler.rstate,
@@ -938,9 +938,9 @@ class DynamicSampler:
         self.queue_size = queue_size
         self.pool = pool
         if self.pool is None:
-            self.M = map
+            self.mapper = map
         else:
-            self.M = pool.map
+            self.mapper = pool.map
 
         self.use_pool = use_pool  # provided flags for when to use the pool
         self.use_pool_ptform = use_pool.get('prior_transform', True)
@@ -983,7 +983,7 @@ class DynamicSampler:
     def __setstate__(self, state):
         self.__dict__ = state
         self.pool = None
-        self.M = map
+        self.mapper = map
 
     def __getstate__(self):
         """Get state information for pickling."""
@@ -992,7 +992,7 @@ class DynamicSampler:
 
         # deal with pool
         del state['pool']  # remove pool
-        del state['M']  # remove `pool.map` function hook
+        del state['mapper']  # remove `pool.map` function hook
 
         return state
 
@@ -1264,7 +1264,7 @@ class DynamicSampler:
                  live_points,
                  self.prior_transform,
                  self.loglikelihood,
-                 self.M,
+                 self.mapper,
                  nlive=nlive,
                  ndim=self.ndim,
                  rstate=self.rstate,
@@ -2041,13 +2041,13 @@ This is not supported. No sampling was performed""", RuntimeWarning)
                 miter = min(maxiter - niter, maxiter_batch)
                 if mcall > 0 and miter > 0 and use_stop:
                     if self.use_pool_stopfn:
-                        M = self.M
+                        mapper = self.mapper
                     else:
-                        M = map
+                        mapper = map
                     stop, stop_vals = stop_function(res,
                                                     stop_kwargs,
                                                     rstate=self.rstate,
-                                                    M=M,
+                                                    mapper=mapper,
                                                     return_vals=True)
                     stop_val = stop_vals[2]
                 else:

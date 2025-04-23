@@ -12,7 +12,8 @@ import math
 import copy
 import numpy as np
 from .results import Results, print_fn
-from .sampling import sample_unif, SamplerArgument
+from .sampling import (UniformBoundSampler, RSliceSampler, SliceSampler,
+                       RWalkSampler)
 from .utils import (get_seed_sequence, get_print_func, progress_integration,
                     IteratorResult, RunRecord, get_neff_from_logwt,
                     compute_integrals, DelayTimer, _LOWL_VAL,
@@ -20,18 +21,11 @@ from .utils import (get_seed_sequence, get_print_func, progress_integration,
 
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
                        SupFriends)
-from .sampling import (sample_rwalk, sample_slice, sample_rslice,
-                       sample_bound_unif)
 from .utils import (get_enlarge_bootstrap, save_sampler, restore_sampler)
 
 __all__ = ["Sampler"]
 
-_SAMPLING = {
-    'unif': sample_bound_unif,
-    'rwalk': sample_rwalk,
-    'slice': sample_slice,
-    'rslice': sample_rslice,
-}
+SAMPLER_LIST = ['rwalk', 'unif', 'rslice', 'slice']
 
 
 class Sampler:
@@ -136,13 +130,18 @@ class Sampler:
         # random state
         self.rstate = rstate or get_random_generator()
 
-        if callable(sampling):
-            _SAMPLING["user-defined"] = sampling
-            sampling = "user-defined"
-        # Initialize method to "evolve" a point to a new position.
         self.sampling = sampling
-        self.evolve_point = _SAMPLING[sampling]
-
+        if sampling == 'rslice':
+            self.inner_sampler = RSliceSampler(slices=kwargs.get('slices'))
+        elif sampling == 'slice':
+            self.inner_sampler = SliceSampler(slices=kwargs.get('slices'))
+        elif sampling == 'rwalk':
+            self.inner_sampler = RWalkSampler(ncdim=self.ncdim,
+                                              walks=kwargs.get('walks'))
+        elif sampling == 'unif':
+            self.inner_sampler = UniformBoundSampler()
+        else:
+            raise ValueError(f'Unsupported Sampler {sampling}')
         # parallelism
         self.pool = pool  # provided pool
         if self.pool is None:
@@ -177,6 +176,7 @@ class Sampler:
         self.first_bound_update_ncall = first_update.get(
             'min_ncall', 2 * self.nlive)
         self.first_bound_update_eff = first_update.get('min_eff', 10.)
+
         self.logl_first_update = None
         self.unit_cube_sampling = True
         self.bound_list = [UnitCube(self.ncdim)]  # bounding distributions
@@ -192,39 +192,14 @@ class Sampler:
         # results
         self.saved_run = RunRecord()
 
-        # Initialize heuristic used to update our sampling method.
-        self._UPDATE = {
-            'unif': self.update_unif,
-            'rwalk': self.update_rwalk,
-            'slice': self.update_slice,
-            'rslice': self.update_slice,
-            'user-defined': self.update_user
-        }
-        # Initialize other arguments.
-        self.scale = 1.
-
         self.kwargs = kwargs or {}
 
-        self.custom_update = self.kwargs.get('update_func')
-        self.update_proposal = self._UPDATE.get(sampling, self.update_user)
         self.enlarge, self.bootstrap = get_enlarge_bootstrap(
             sampling, self.kwargs.get('enlarge'), self.kwargs.get('bootstrap'))
 
         self.cite = self.kwargs.get('cite')
 
         self.nonbounded = self.kwargs.get('nonbounded', None)
-
-        # Initialize random walk parameters.
-        self.walks = max(2, self.kwargs.get('walks', 25))
-        self.facc = self.kwargs.get('facc', 0.5)
-        self.facc = min(1., max(1. / self.walks, self.facc))
-        self.rwalk_history = {'naccept': 0, 'nreject': 0}
-
-        # Initialize slice parameters.
-        self.slices = self.kwargs.get('slices', 5)
-        self.fmove = self.kwargs.get('fmove', 0.9)
-        self.max_move = self.kwargs.get('max_move', 100)
-        self.slice_history = {'ncontract': 0, 'nexpand': 0}
 
         if bounding not in ['none', 'single', 'multi', 'balls', 'cubes']:
             raise ValueError('Unsupported bounding type')
@@ -247,83 +222,6 @@ class Sampler:
             self.bound = RadFriends(self.ncdim)
         elif bounding == 'cubes':
             self.bound = SupFriends(self.ncdim)
-
-    def update_unif(self, blob, update=True):
-        """Filler function."""
-        pass
-
-    def update_rwalk(self, blob, update=True):
-        """Update the random walk proposal scale based on the current
-        number of accepted/rejected steps.
-        For rwalk the scale is important because it
-        determines the speed of diffusion of points.
-        I.e. if scale is too large, the proposal efficiency will be very low
-        so it's likely that we'll only do one random walk step at the time,
-        thus producing very correlated chain.
-        The keyword update determines if we are just accumulating the number
-        of steps or actually adjusting the scale
-        """
-        self.scale = blob['scale']
-        hist = self.rwalk_history
-        hist['naccept'] += blob['accept']
-        hist['nreject'] += blob['reject']
-        if not update:
-            return
-        accept, reject = hist['naccept'], hist['nreject']
-        facc = (1. * accept) / (accept + reject)
-        # Here we are now trying to solve the Eqn
-        # f0 = F(s) where F is the function
-        # providing the acceptance rate given logscale
-        # and f0 is our target acceptance rate
-        # in this case a Newton like update to s
-        # is s_{k+1} = s_k - 1/F'(s_k) * (F_k - F_0)
-        # We can speculate that F(s)~ C*exp(-Ns)
-        # i.e. it's inversely proportional to volume
-        # Then F'(s) = -N * F \approx N * F_0
-        # Therefore s_{k+1} = s_k + 1/(N*F_0) * (F_k-F0)
-        # See also Robbins-Munro recursion which we don't follow
-        # here because our coefficients a_k do not obey \sum a_k^2 = \infty
-        self.scale *= math.exp((facc - self.facc) / self.ncdim / self.facc)
-        hist['naccept'] = 0
-        hist['nreject'] = 0
-
-    def update_slice(self, blob, update=True):
-        """Update the slice proposal scale based on the relative
-        size of the slices compared to our initial guess.
-        For slice sampling the scale is only 'advisory' in the sense that
-        the right scale will just speed up sampling as we'll have to expand
-        or contract less. It won't affect the quality of the samples much.
-        The keyword update determines if we are just accumulating the number
-        of steps or actually adjusting the scale
-        """
-        # see https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4063214/
-        # also 2002.06212
-        # https://www.tandfonline.com/doi/full/10.1080/10618600.2013.791193
-        # and https://github.com/joshspeagle/dynesty/issues/260
-        hist = self.slice_history
-
-        hist['nexpand'] += blob['nexpand']
-        hist['ncontract'] += blob['ncontract']
-        if blob['expansion_warning_set']:
-            self.kwargs['slice_doubling'] = True
-        if not update:
-            return
-        nexpand, ncontract = max(hist['nexpand'], 1), hist['ncontract']
-        mult = (nexpand * 2. / (nexpand + ncontract))
-        # avoid drastic updates to the scale factor limiting to factor
-        # of two
-        mult = np.clip(mult, 0.5, 2)
-        # Remember I can't apply the rule that scale < cube diagonal
-        # because scale is multiplied by axes
-        self.scale = self.scale * mult
-        hist['nexpand'] = 0
-        hist['ncontract'] = 0
-
-    def update_user(self, blob, update=True):
-        """Update the scale based on the user-defined update function."""
-
-        if callable(self.custom_update):
-            self.scale = self.custom_update(blob, self.scale, update=update)
 
     def save(self, fname):
         """
@@ -368,7 +266,8 @@ class Sampler:
         u = self.live_u[i, :]
         ax = self.bound.get_random_axes(self.rstate)
         u_fit = u[:self.ncdim]
-
+        if self.bounding in ['balls', 'cubes']:
+            self.bound.ctrs = self.live_u
         # Automatically trigger an update if we're not in any ellipsoid.
         if not self.bound.contains(u_fit):
             # Update the bounding ellipsoids.
@@ -379,7 +278,7 @@ class Sampler:
 
         return u, ax
 
-    def update(self, subset=slice(None)):
+    def update_bound(self, subset=slice(None)):
         """Update the bounds using the current set of
         live points."""
 
@@ -529,7 +428,6 @@ class Sampler:
         The arguments are the loglstar and number of calls
         if force is true we update the bound no matter what
         """
-
         if ncall is None:
             ncall = self.ncall
         call_check_first = (ncall >= self.first_bound_update_ncall)
@@ -556,7 +454,7 @@ class Sampler:
                 subset = self.live_logl > loglstar
             else:
                 subset = slice(None)
-            bound = self.update(subset=subset)
+            bound = self.update_bound(subset=subset)
             if self.save_bounds:
                 self.bound_list.append(bound)
             self.nbound += 1
@@ -568,45 +466,23 @@ class Sampler:
     def _fill_queue(self, loglstar):
         """Sequentially add new live point proposals to the queue."""
 
-        if self.sampling != 'unif':
-            # All the samplers should have have a starting point
-            # satisfying a strict logl>loglstar criterion
-            args = (np.nonzero(self.live_logl > loglstar)[0], )
-            if len(args[0]) == 0:
-                raise RuntimeError(
-                    'No live points are above loglstar. '
-                    'Do you have a likelihood plateau ? '
-                    'It is also possible that you are trying to sample '
-                    'excessively around the very peak of the posterior')
-        else:
-            args = ()
-            self.kwargs['bound'] = self.bound
-            self.kwargs['ndim'] = self.ndim
-            self.kwargs['n_cluster'] = self.ncdim
-        if self.bounding in ['balls', 'cubes']:
-            self.bound.ctrs = self.live_u
+        args = (np.nonzero(self.live_logl > loglstar)[0], )
+        if len(args[0]) == 0:
+            raise RuntimeError(
+                'No live points are above loglstar. '
+                'Do you have a likelihood plateau ? '
+                'It is also possible that you are trying to sample '
+                'excessively around the very peak of the posterior')
 
-        if not self.unit_cube_sampling:
-            # Add/zip arguments to submit to the queue.
-            point_queue = []
-            axes_queue = []
-            # Propose points using the provided sampling/bounding options.
-            evolve_point = self.evolve_point
-            while self.nqueue < self.queue_size:
-                if self.sampling == 'unif':
-                    point, axes = None, None
-                else:
-                    point, axes = self.propose_live(*args)
-                point_queue.append(point)
-                axes_queue.append(axes)
-                self.nqueue += 1
-        else:
-            # Propose/evaluate points directly from the unit cube.
-            point_queue = self.rstate.random(size=(self.queue_size -
-                                                   self.nqueue, self.ndim))
-            axes_queue = [None] * self.queue_size
-            evolve_point = sample_unif
-            self.nqueue = self.queue_size
+        point_queue = []
+        axes_queue = []
+        # Propose points using the provided sampling/bounding options.
+        while self.nqueue < self.queue_size:
+            point, axes = self.propose_live(*args)
+            # these points are wasted for UniformBoundSampler
+            point_queue.append(point)
+            axes_queue.append(axes)
+            self.nqueue += 1
         if self.queue_size > 1:
             seeds = get_seed_sequence(self.rstate, self.queue_size)
         else:
@@ -619,18 +495,16 @@ class Sampler:
             # Propose ("evolve") a new live point using the default `map`
             # function.
             mapper = map
-        args = []
-        for i in range(self.queue_size):
-            args.append(
-                SamplerArgument(u=point_queue[i],
-                                loglstar=loglstar,
-                                axes=axes_queue[i],
-                                scale=self.scale,
-                                prior_transform=self.prior_transform,
-                                loglikelihood=self.loglikelihood,
-                                rseed=seeds[i],
-                                kwargs=self.kwargs))
-        self.queue = list(mapper(evolve_point, args))
+
+        args = self.inner_sampler.prepare_sampler(
+            loglstar=loglstar,
+            points=point_queue,
+            axes=axes_queue,
+            seeds=seeds,
+            prior_transform=self.prior_transform,
+            loglikelihood=self.loglikelihood,
+            nested_sampler=self)
+        self.queue = list(mapper(self.inner_sampler.sample, args))
 
     def _get_point_value(self, loglstar):
         """Grab the first live point proposal in the queue."""
@@ -653,17 +527,17 @@ class Sampler:
         ncall_accum = 0
         while True:
             # Get the next point from the queue
-            u, v, logl, nc, blob = self._get_point_value(loglstar)
+            u, v, logl, nc, sampling_info = self._get_point_value(loglstar)
             ncall += nc
             ncall_accum += nc
 
-            if blob is not None and not self.unit_cube_sampling:
+            if sampling_info is not None and not self.unit_cube_sampling:
                 # If our queue is empty, update any tuning parameters
                 # associated
                 # with our proposal (sampling) method.
                 # If it's not empty we are just accumulating the
                 # the history of evaluations
-                self.update_proposal(blob, update=self.nqueue <= 0)
+                self.inner_sampler.tune(sampling_info, update=self.nqueue <= 0)
 
             # the reason I'm not using self.ncall is that it's updated at
             # higher level
@@ -792,7 +666,7 @@ class Sampler:
                         boundidx=boundidx,
                         it=point_it,
                         bounditer=bounditer,
-                        scale=self.scale,
+                        scale=self.inner_sampler.scale,
                         blob=old_blob))
             self.eff = 100. * (self.it + i) / self.ncall  # efficiency
 
@@ -1108,7 +982,7 @@ class Sampler:
                          nc=nc,
                          it=worst_it,
                          bounditer=bounditer,
-                         scale=self.scale,
+                         scale=self.inner_sampler.scale,
                          blob=old_blob))
 
             # Update the live point (previously our "worst" point).

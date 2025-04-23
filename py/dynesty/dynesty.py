@@ -11,7 +11,7 @@ import sys
 import warnings
 import traceback
 import numpy as np
-from .sampler import Sampler, _SAMPLING
+from .sampler import Sampler, SAMPLER_LIST
 from .dynamicsampler import (DynamicSampler, _get_update_interval_ratio,
                              _initialize_live_points)
 from .utils import (LogLikelihood, get_random_generator, get_enlarge_bootstrap,
@@ -562,7 +562,7 @@ functioning and will be removed in further releases""", DeprecationWarning)
             raise ValueError('ncdim unsupported for slice sampling')
 
         # Custom sampling function.
-        if sample not in _SAMPLING and not callable(sample):
+        if sample not in SAMPLER_LIST and not callable(sample):
             raise ValueError("Unknown sampling method: '{0}'".format(sample))
 
         kwargs = {}
@@ -757,7 +757,7 @@ functioning and will be removed in further releases""", DeprecationWarning)
         kwargs = {}
 
         # Custom sampling function.
-        if sample not in _SAMPLING and not callable(sample):
+        if sample not in SAMPLER_LIST and not callable(sample):
             raise ValueError(f"Unknown sampling method: {sample}")
 
         # Custom updating function.

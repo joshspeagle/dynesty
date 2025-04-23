@@ -81,9 +81,9 @@ def doit(model='diamond',
     else:
         raise Exception('unknown')
     func = {
-        'rslice': ds.sample_rslice,
-        'slice': ds.sample_slice,
-        'rwalk': ds.sample_rwalk
+        'rslice': ds.RSliceSampler().sample,
+        'slice': ds.SliceSampler().sample,
+        'rwalk': ds.RWalkSampler().sample
     }[sample]
 
     eye2 = np.eye(2)

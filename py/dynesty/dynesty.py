@@ -424,8 +424,6 @@ optional
             stored as part of the chain. That blob can contain auxiliary
             information computed inside the likelihood function.
 
-        npdim : int
-            This option is deprecated and should not be used
     """
 
     static_docstring = f"""
@@ -471,7 +469,6 @@ class NestedSampler(Sampler):
                 reflective=None,
                 update_interval=None,
                 first_update=None,
-                npdim=None,
                 rstate=None,
                 queue_size=None,
                 pool=None,
@@ -493,15 +490,6 @@ class NestedSampler(Sampler):
                 save_history=False,
                 history_filename=None):
 
-        # Prior dimensions.
-        if npdim is not None:
-            if npdim != ndim:
-                raise ValueError('''npdim functionality is not functioning
-and is deprecated ''')
-            else:
-                warnings.warn(
-                    """the npdim keyword/functionality is deprecated as not
-functioning and will be removed in further releases""", DeprecationWarning)
         ncdim = ncdim or ndim
 
         # Bounding method.
@@ -655,7 +643,6 @@ class DynamicNestedSampler(DynamicSampler):
                  reflective=None,
                  update_interval=None,
                  first_update=None,
-                 npdim=None,
                  rstate=None,
                  queue_size=None,
                  pool=None,
@@ -676,15 +663,6 @@ class DynamicNestedSampler(DynamicSampler):
                  save_history=False,
                  history_filename=None):
 
-        # Prior dimensions.
-        if npdim is not None:
-            if npdim != ndim:
-                raise ValueError('''npdim functionality is not functioning
-and is deprecated ''')
-            else:
-                warnings.warn(
-                    """the npdim keyword/functionality is deprecated as not
-functioning and will be removed in further releases""", DeprecationWarning)
         ncdim = ncdim or ndim
         nlive = nlive or 500
 

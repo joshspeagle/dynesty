@@ -20,12 +20,39 @@ from .utils import (get_seed_sequence, get_print_func, progress_integration,
                     get_random_generator)
 
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
-                       SupFriends)
+                       SupFriends, Bound)
 from .utils import (get_enlarge_bootstrap, save_sampler, restore_sampler)
 
 __all__ = ["Sampler"]
 
 SAMPLER_LIST = ['rwalk', 'unif', 'rslice', 'slice']
+
+
+def _get_bound(bounding, ndim):
+    if isinstance(bounding, str):
+        if bounding not in ['none', 'single', 'multi', 'balls', 'cubes']:
+            raise ValueError('Unsupported bounding type')
+    elif isinstance(bounding, Bound):
+        pass
+    else:
+        raise ValueError('Unsupported bounding type')
+
+    if bounding == 'none':
+        bound = UnitCube(ndim)
+    elif bounding == 'single':
+        bound = Ellipsoid(np.zeros(ndim) + .5, np.identity(ndim) * ndim / 4)
+        # this is ellipsoid in the center of the cube that contains
+        # the whole cube
+    elif bounding == 'multi':
+        bound = MultiEllipsoid(ctrs=[np.zeros(ndim) + .5],
+                               covs=[np.identity(ndim) * ndim / 4])
+        # this is ellipsoid in the center of the cube that contains
+        # the whole cube
+    elif bounding == 'balls':
+        bound = RadFriends(ndim)
+    elif bounding == 'cubes':
+        bound = SupFriends(ndim)
+    return bound
 
 
 class Sampler:
@@ -189,12 +216,13 @@ class Sampler:
         self.first_bound_update_ncall = first_update.get(
             'min_ncall', 2 * self.nlive)
         self.first_bound_update_eff = first_update.get('min_eff', 10.)
-
         self.logl_first_update = None
-        self.unit_cube_sampling = True
-        self.bound_list = [UnitCube(self.ncdim)]  # bounding distributions
-        self.nbound = 1  # total number of unique bounding distributions
         self.ncall_at_last_update = 0
+
+        self.unit_cube_sampling = True
+        self.bound = UnitCube(self.ncdim)
+        self.bound_list = [self.bound]  # bounding distributions
+        self.nbound = 1  # total number of unique bounding distributions
 
         self.logvol_init = logvol_init
 
@@ -212,27 +240,10 @@ class Sampler:
 
         self.cite = self.kwargs.get('cite')
 
-        if bounding not in ['none', 'single', 'multi', 'balls', 'cubes']:
-            raise ValueError('Unsupported bounding type')
         self.bounding = bounding
-        if bounding == 'none':
-            self.bound = UnitCube(self.ncdim)
-        elif bounding == 'single':
-            self.bound = Ellipsoid(
-                np.zeros(self.ncdim) + .5,
-                np.identity(self.ncdim) * self.ncdim / 4)
-            # this is ellipsoid in the center of the cube that contains
-            # the whole cube
-        elif bounding == 'multi':
-            self.bound = MultiEllipsoid(
-                ctrs=[np.zeros(self.ncdim) + .5],
-                covs=[np.identity(self.ncdim) * self.ncdim / 4])
-            # this is ellipsoid in the center of the cube that contains
-            # the whole cube
-        elif bounding == 'balls':
-            self.bound = RadFriends(self.ncdim)
-        elif bounding == 'cubes':
-            self.bound = SupFriends(self.ncdim)
+        self.bound_next = _get_bound(bounding, ndim)
+        # the reason I do not set it as self.bound
+        # because we start from unit cube
 
     def save(self, fname):
         """
@@ -467,12 +478,17 @@ class Sampler:
             else:
                 subset = slice(None)
             if self.unit_cube_sampling:
+                # done with unit cube
+                # updating the bound and internal sampler
                 self.unit_cube_sampling = False
                 self.logl_first_update = loglstar
+                self.bound = self.bound_next
                 self.internal_sampler = self.internal_sampler_next
-            bound = self.update_bound(subset=subset)
+                self.bound_next = None
+                self.internal_sampler_next = None
+            self.update_bound(subset=subset)
             if self.save_bounds:
-                self.bound_list.append(bound)
+                self.bound_list.append(self.bound)
             self.nbound += 1
             self.ncall_at_last_update = ncall
 

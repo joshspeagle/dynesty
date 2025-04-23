@@ -23,8 +23,38 @@ SamplerArgument = namedtuple('SamplerArgument', [
 
 
 class InnerSampler:
+    """
+    Base class for all inner samplers.
+    This class is not meant to be used directly.
+    
+    The basic interface of the class is to provide sampling that can be distributed over workers.
+    The key methods are `prepare_sampler`, `sample` and `tune`.
+    The `prepare_sampler` method constructs the list of SamplerArguments objects
+    The `sample` method is called by the workers to sample a new point. Importantly 
+    the `sample` method is a static method and does not have access to the class instance.
+    The `tune` method is called by the parent process to adjust things, such as 
+    scale of the proposal distribution.
+    The `tune` method is not a static method and has access to the class instance.
+    """
 
     def __init__(self, **kwargs):
+        """
+        Initialize the inner sampler.
+        Parameters
+        ----------
+        kwargs : dict
+            A dictionary of additional method-specific parameters.
+            This common keywords:
+            nonbounded : array
+                Array of boolean values indicating which dimensions are
+                non-bounded.
+            periodic : array
+                Array of boolean values indicating which dimensions are
+                periodic.
+            reflective : array
+                Array of boolean values indicating which dimensions are
+                reflective.
+        """
         self.scale = 1
         self.kwargs = dict()
         for k in ['nonbounded', 'periodic', 'reflective']:
@@ -39,11 +69,33 @@ class InnerSampler:
                         loglikelihood=None,
                         nested_sampler=None):
         """
-        This methods returns the list of SamplerArguments that will be
-        processed
-        by the sampler method
+        Prepare the list arguments for sampling.
+        Parameters
+        ----------
+        loglstar : float
+            Ln(likelihood) bound.
+        points : `~numpy.ndarray` with shape (n, ndim)
+            Initial sample points.
+        axes : `~numpy.ndarray` with shape (ndim, ndim)
+            Axes used to propose new points.
+        seeds : `~numpy.ndarray` with shape (n,)
+            Random number generator seeds.
+        prior_transform : function
+            Function transforming a sample from the a unit cube to the
+            parameter space of interest according to the prior.
+        loglikelihood : function
+            Function returning ln(likelihood) given parameters as a 1-d
+            `~numpy` array of length `ndim`.
+        nested_sampler : `~dynesty.samplers.Sampler`
+            The nested sampler object used to sample.
+        
+        Returns
+        -------
+        arglist:
+            List of `SamplerArgument` objects containing the parameters
+            needed for sampling.
         """
-        ret = []
+        arg_list = []
         kwargs = self.kwargs
         for curp, curax, curseed in zip(points, axes, seeds):
             curarg = SamplerArgument(u=curp,
@@ -54,11 +106,30 @@ class InnerSampler:
                                      loglikelihood=loglikelihood,
                                      rseed=curseed,
                                      kwargs=kwargs)
-            ret.append(curarg)
+            arg_list.append(curarg)
         return ret
 
     @classmethod
     def sample(cls, args):
+        """
+        Sample a new live point.
+        Parameters
+        ----------
+        args : `SamplerArgument`
+            The arguments needed for sampling.
+        Returns
+        -------
+        u : `~numpy.ndarray` with shape (ndim,)
+            Position of the final proposed point within the unit cube.
+        v : `~numpy.ndarray` with shape (ndim,)
+            Position of the final proposed point in the target parameter space.
+        logl : float
+            Ln(likelihood) of the final proposed point.
+        nc : int
+            Number of function calls used to generate the sample.
+        sampling_info : dict
+            Collection of ancillary quantities used to tune :data:`scale`.
+        """
         pass
 
     def tune(sample_info, update=False):
@@ -145,7 +216,7 @@ class UniformBoundSampler(InnerSampler):
         nc : int
             Number of function calls used to generate the sample.
 
-        blob : dict
+        sampling_info : dict
             Collection of ancillary quantities used to tune :data:`scale`.
 
         """
@@ -157,7 +228,7 @@ class UniformBoundSampler(InnerSampler):
         n_cluster = args.kwargs.get('n_cluster')
         ndim = args.kwargs.get('ndim')
         nc = 0
-        blob = None
+        sampling_info = None
         if nonbounded is not None:
             nonbounded = nonbounded[:n_cluster]
         ntries = 0
@@ -184,7 +255,7 @@ class UniformBoundSampler(InnerSampler):
             nc += 1
             if logl > args.loglstar:
                 break
-        return u, v, logl, nc, blob
+        return u, v, logl, nc, sampling_info
 
 
 class UnitCubeSampler(InnerSampler):
@@ -260,7 +331,7 @@ class UnitCubeSampler(InnerSampler):
         nc : int
             Number of function calls used to generate the sample.
 
-        blob : dict
+        sampling_info : dict
             Collection of ancillary quantities used to tune :data:`scale`.
 
         """
@@ -269,7 +340,7 @@ class UnitCubeSampler(InnerSampler):
         rstate = get_random_generator(args.rseed)
         ndim = args.kwargs.get('ndim')
         nc = 0
-        blob = None
+        sampling_info = None
         while True:
             u = rstate.uniform(size=ndim)
             v = args.prior_transform(np.asarray(u))
@@ -277,7 +348,7 @@ class UnitCubeSampler(InnerSampler):
             nc += 1
             if logl > args.loglstar:
                 break
-        return u, v, logl, nc, blob
+        return u, v, logl, nc, sampling_info
 
 
 class RWalkSampler(InnerSampler):
@@ -291,7 +362,7 @@ class RWalkSampler(InnerSampler):
         self.rwalk_history = {'naccept': 0, 'nreject': 0}
         self.ncdim = ncdim
 
-    def tune(self, blob, update=True):
+    def tune(self, sampling_info, update=True):
         """Update the random walk proposal scale based on the current
         number of accepted/rejected steps.
         For rwalk the scale is important because it
@@ -302,10 +373,10 @@ class RWalkSampler(InnerSampler):
         The keyword update determines if we are just accumulating the number
         of steps or actually adjusting the scale
         """
-        self.scale = blob['scale']
+        self.scale = sampling_info['scale']
         hist = self.rwalk_history
-        hist['naccept'] += blob['accept']
-        hist['nreject'] += blob['reject']
+        hist['naccept'] += sampling_info['accept']
+        hist['nreject'] += sampling_info['reject']
         if not update:
             return
         accept, reject = hist['naccept'], hist['nreject']
@@ -374,7 +445,7 @@ class RWalkSampler(InnerSampler):
         nc : int
             Number of function calls used to generate the sample.
 
-        blob : dict
+        sampling_info : dict
             Collection of ancillary quantities used to tune :data:`scale`.
 
         """
@@ -449,7 +520,7 @@ class SliceSampler(InnerSampler):
         nc : int
             Number of function calls used to generate the sample.
 
-        blob : dict
+        sampling_info : dict
             Collection of ancillary quantities used to tune :data:`scale`.
 
         """
@@ -502,13 +573,13 @@ class SliceSampler(InnerSampler):
                     doubling = True
                     warnings.warn('Enabling doubling strategy of slice '
                                   'sampling from Neal(2003)')
-        blob = {
+        sampling_info = {
             'nexpand': nexpand,
             'ncontract': ncontract,
             'expansion_warning_set': expansion_warning_set
         }
 
-        return u_prop, v_prop, logl_prop, nc, blob
+        return u_prop, v_prop, logl_prop, nc, sampling_info
 
 
 class RSliceSampler(InnerSampler):
@@ -572,7 +643,7 @@ class RSliceSampler(InnerSampler):
         nc : int
             Number of function calls used to generate the sample.
 
-        blob : dict
+        sampling_info : dict
             Collection of ancillary quantities used to tune :data:`scale`.
 
         """
@@ -620,13 +691,13 @@ class RSliceSampler(InnerSampler):
                 warnings.warn('Enabling doubling strategy of slice '
                               'sampling from Neal(2003)')
 
-        blob = {
+        sampling_info = {
             'nexpand': nexpand,
             'ncontract': ncontract,
             'expansion_warning_set': expansion_warning_set
         }
 
-        return u_prop, v_prop, logl_prop, nc, blob
+        return u_prop, v_prop, logl_prop, nc, sampling_info
 
 
 def generic_random_walk(u, loglstar, axes, scale, prior_transform,
@@ -676,7 +747,7 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
     nc : int
         Number of function calls used to generate the sample.
 
-    blob : dict
+    sampling_info : dict
         Collection of ancillary quantities used to tune :data:`scale`.
 
     """
@@ -741,9 +812,9 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
         v = prior_transform(u)
         logl = loglikelihood(v)
 
-    blob = {'accept': naccept, 'reject': nreject, 'scale': scale}
+    sampling_info = {'accept': naccept, 'reject': nreject, 'scale': scale}
 
-    return u, v, logl, ncall, blob
+    return u, v, logl, ncall, sampling_info
 
 
 def sample_unif(args):
@@ -794,7 +865,7 @@ def sample_unif(args):
         Number of function calls used to generate the sample. For uniform
         sampling this is `1` by construction.
 
-    blob : dict
+    sampling_info : dict
         Collection of ancillary quantities used to tune :data:`scale`. **Not
         applicable for uniform sampling.**
 
@@ -806,9 +877,9 @@ def sample_unif(args):
     v = args.prior_transform(np.asarray(args.u))
     logl = args.loglikelihood(np.asarray(v))
     nc = 1
-    blob = None
+    sampling_info = None
 
-    return args.u, v, logl, nc, blob
+    return args.u, v, logl, nc, sampling_info
 
 
 def propose_ball_point(u,
@@ -1027,7 +1098,7 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
     return u_prop, v_prop, logl_prop, nc, nexpand, ncontract, expansion_warning
 
 
-def tune_slice(sampler, blob, update=True):
+def tune_slice(sampler, sampling_info, update=True):
     """Update the slice proposal scale based on the relative
     size of the slices compared to our initial guess.
     For slice sampling the scale is only 'advisory' in the sense that
@@ -1042,9 +1113,9 @@ def tune_slice(sampler, blob, update=True):
     # and https://github.com/joshspeagle/dynesty/issues/260
     hist = sampler.slice_history
 
-    hist['nexpand'] += blob['nexpand']
-    hist['ncontract'] += blob['ncontract']
-    if blob['expansion_warning_set']:
+    hist['nexpand'] += sampling_info['nexpand']
+    hist['ncontract'] += sampling_info['ncontract']
+    if sampling_info['expansion_warning_set']:
         sampler.kwargs['slice_doubling'] = True
     if not update:
         return

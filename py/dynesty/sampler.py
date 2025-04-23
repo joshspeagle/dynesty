@@ -310,19 +310,13 @@ class Sampler:
         else:
             pool = None
 
-        if self.bounding in ['single', 'multi', 'balls', 'cubes']:
-            # Update the ellipsoid.
-            self.bound.update(self.live_u[subset, :self.ncdim],
-                              rstate=self.rstate,
-                              bootstrap=self.bootstrap,
-                              pool=pool)
+        self.bound.update(self.live_u[subset, :self.ncdim],
+                          rstate=self.rstate,
+                          bootstrap=self.bootstrap,
+                          pool=pool)
         if self.enlarge != 1.:
-            if self.bounding in ['single', 'balls', 'cubes']:
-                self.bound.scale_to_logvol(self.bound.logvol +
-                                           np.log(self.enlarge))
-            if self.bounding == 'multi':
-                self.bound.scale_to_logvol(self.bound.logvols +
-                                           np.log(self.enlarge))
+            self.bound.scale_to_logvol(self.bound.logvol +
+                                       np.log(self.enlarge))
 
         return copy.deepcopy(self.bound)
 

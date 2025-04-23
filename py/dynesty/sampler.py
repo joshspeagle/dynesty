@@ -13,7 +13,7 @@ import copy
 import numpy as np
 from .results import Results, print_fn
 from .sampling import (UniformBoundSampler, RSliceSampler, SliceSampler,
-                       RWalkSampler)
+                       RWalkSampler, UnitCubeSampler)
 from .utils import (get_seed_sequence, get_print_func, progress_integration,
                     IteratorResult, RunRecord, get_neff_from_logwt,
                     compute_integrals, DelayTimer, _LOWL_VAL,
@@ -129,19 +129,28 @@ class Sampler:
 
         # random state
         self.rstate = rstate or get_random_generator()
+        sampler_kw = dict(nonbounded=kwargs.get('nonbounded'),
+                          periodic=kwargs.get('periodic'),
+                          reflective=kwargs.get('reflective'))
 
         self.sampling = sampling
         if sampling == 'rslice':
-            self.inner_sampler = RSliceSampler(slices=kwargs.get('slices'))
+            inner_sampler = RSliceSampler(slices=kwargs.get('slices'),
+                                          **sampler_kw)
         elif sampling == 'slice':
-            self.inner_sampler = SliceSampler(slices=kwargs.get('slices'))
+            inner_sampler = SliceSampler(slices=kwargs.get('slices'),
+                                         **sampler_kw)
         elif sampling == 'rwalk':
-            self.inner_sampler = RWalkSampler(ncdim=self.ncdim,
-                                              walks=kwargs.get('walks'))
+            inner_sampler = RWalkSampler(ncdim=self.ncdim,
+                                         walks=kwargs.get('walks'),
+                                         **sampler_kw)
         elif sampling == 'unif':
-            self.inner_sampler = UniformBoundSampler()
+            inner_sampler = UniformBoundSampler(**sampler_kw)
         else:
             raise ValueError(f'Unsupported Sampler {sampling}')
+        self.inner_sampler_next = inner_sampler
+        self.inner_sampler = UnitCubeSampler(ndim=ndim)
+
         # parallelism
         self.pool = pool  # provided pool
         if self.pool is None:
@@ -198,8 +207,6 @@ class Sampler:
             sampling, self.kwargs.get('enlarge'), self.kwargs.get('bootstrap'))
 
         self.cite = self.kwargs.get('cite')
-
-        self.nonbounded = self.kwargs.get('nonbounded', None)
 
         if bounding not in ['none', 'single', 'multi', 'balls', 'cubes']:
             raise ValueError('Unsupported bounding type')
@@ -454,14 +461,15 @@ class Sampler:
                 subset = self.live_logl > loglstar
             else:
                 subset = slice(None)
+            if self.unit_cube_sampling:
+                self.unit_cube_sampling = False
+                self.logl_first_update = loglstar
+                self.inner_sampler = self.inner_sampler_next
             bound = self.update_bound(subset=subset)
             if self.save_bounds:
                 self.bound_list.append(bound)
             self.nbound += 1
             self.ncall_at_last_update = ncall
-            if self.unit_cube_sampling:
-                self.unit_cube_sampling = False
-                self.logl_first_update = loglstar
 
     def _fill_queue(self, loglstar):
         """Sequentially add new live point proposals to the queue."""

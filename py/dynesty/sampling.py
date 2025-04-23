@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Functions for proposing new live points used by
-:class:`~dynesty.sampler.Sampler` (and its children from
-:mod:`~dynesty.nestedsamplers`) and
+:class:`~dynesty.sampler.Sampler`
 :class:`~dynesty.dynamicsampler.DynamicSampler`.
 
 """
@@ -115,7 +114,7 @@ class InnerSampler:
                                      rseed=curseed,
                                      kwargs=kwargs)
             arg_list.append(curarg)
-        return ret
+        return arg_list
 
     @classmethod
     def sample(cls, args):

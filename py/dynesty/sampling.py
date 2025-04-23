@@ -44,7 +44,7 @@ class InternalSampler:
 
     def __init__(self, **kwargs):
         """Initialize the internal sampler.
-        
+
         Parameters
         ----------
         kwargs : dict
@@ -95,7 +95,7 @@ class InternalSampler:
             `~numpy` array of length `ndim`.
         nested_sampler : `~dynesty.samplers.Sampler`
             The nested sampler object used to sample.
-        
+
         Returns
         -------
         arglist:
@@ -116,8 +116,8 @@ class InternalSampler:
             arg_list.append(curarg)
         return arg_list
 
-    @classmethod
-    def sample(cls, args):
+    @staticmethod
+    def sample(args):
         """
         Sample a new live point.
 
@@ -141,15 +141,15 @@ class InternalSampler:
         """
         pass
 
-    def tune(sample_info, update=False):
+    def tune(self, sampling_info, update=False):
         """
 
-        Accumulate sampling info and optionally update the proposal scale and 
+        Accumulate sampling info and optionally update the proposal scale and
         other tuning parameters.
 
         Parameters
         ----------
-        sample_info : dict
+        sampling_info : dict
             Dictionary containing the sampling information.
         update : bool
             Whether to update the proposal scale or not (default: False).
@@ -176,8 +176,8 @@ class UniformBoundSampler(InternalSampler):
         """
         Prepare the list of arguments for sampling.
 
-        This is is overriding the base class method and providing the bound itself
-        to the sampler through kwargs.
+        This is is overriding the base class method and providing the bound
+        itself to the sampler through kwargs.
 
         """
         self.kwargs['bound'] = nested_sampler.bound
@@ -194,8 +194,8 @@ class UniformBoundSampler(InternalSampler):
                                        loglikelihood=loglikelihood,
                                        nested_sampler=nested_sampler)
 
-    @classmethod
-    def sample(cls, args):
+    @staticmethod
+    def sample(args):
         """
         Return a new live point sampling uniformly within the
         boundary.
@@ -309,8 +309,8 @@ class UnitCubeSampler(InternalSampler):
                                        loglikelihood=loglikelihood,
                                        nested_sampler=nested_sampler)
 
-    @classmethod
-    def sample(cls, args):
+    @staticmethod
+    def sample(args):
         """
         Return a new live point sampling uniformly within the
         boundary.
@@ -425,8 +425,8 @@ class RWalkSampler(InternalSampler):
         hist['naccept'] = 0
         hist['nreject'] = 0
 
-    @classmethod
-    def sample(cls, args):
+    @staticmethod
+    def sample(args):
         """
         Return a new live point proposed by random walking away from an
         existing live point.
@@ -449,11 +449,11 @@ class RWalkSampler(InternalSampler):
             Value used to scale the provided axes.
 
         prior_transform : function
-            Function transforming a sample from the a unit cube to the parameter
-            space of interest according to the prior.
+            Function transforming a sample from the a unit cube to the
+            parameter space of interest according to the prior.
 
         loglikelihood : function
-            Function returning ln(likelihood) given parameters as a 1-d 
+            Function returning ln(likelihood) given parameters as a 1-d
             `~numpy` array of length `ndim`.
 
         kwargs : dict
@@ -498,8 +498,8 @@ class SliceSampler(InternalSampler):
     def tune(self, sampler_info, update=True):
         tune_slice(self, sampler_info, update=update)
 
-    @classmethod
-    def sample(cls, args):
+    @staticmethod
+    def sample(args):
         """
         Return a new live point proposed by a series of random slices
         away from an existing live point. Standard "Gibbs-like" implementation
@@ -510,8 +510,8 @@ class SliceSampler(InternalSampler):
         Parameters
         ----------
         u : `~numpy.ndarray` with shape (ndim,)
-            Position of the initial sample. **This is a copy of an existing live
-            point.**
+            Position of the initial sample. **This is a copy of an existing
+            live point.**
 
         loglstar : float
             Ln(likelihood) bound.
@@ -524,12 +524,12 @@ class SliceSampler(InternalSampler):
             Value used to scale the provided axes.
 
         prior_transform : function
-            Function transforming a sample from the a unit cube to the parameter
-            space of interest according to the prior.
+            Function transforming a sample from the a unit cube to the
+            parameter space of interest according to the prior.
 
         loglikelihood : function
-            Function returning ln(likelihood) given parameters as a 1-d `~numpy`
-            array of length `ndim`.
+            Function returning ln(likelihood) given parameters as a 1-d
+            `~numpy` array of length `ndim`.
 
         kwargs : dict
             A dictionary of additional method-specific parameters.
@@ -571,8 +571,8 @@ class SliceSampler(InternalSampler):
 
         # Modifying axes and computing lengths.
         axes = scale * axes.T  # scale based on past tuning
-        # Note we are transposing as axes[:,i] corresponds to i-th principal axis
-        # of the ellipsoid
+        # Note we are transposing as axes[:,i] corresponds to i-th principal
+        # axis of the ellipsoid
         expansion_warning_set = False
         # Slice sampling loop.
         for _ in range(slices):
@@ -623,8 +623,8 @@ class RSliceSampler(InternalSampler):
     def tune(self, sampler_info, update=True):
         tune_slice(self, sampler_info, update=update)
 
-    @classmethod
-    def sample(cls, args):
+    @staticmethod
+    def sample(args):
         """
         Return a new live point proposed by a series of random slices
         away from an existing live point. Standard "random" implementation
@@ -647,12 +647,12 @@ class RSliceSampler(InternalSampler):
             Value used to scale the provided axes.
 
         prior_transform : function
-            Function transforming a sample from the a unit cube to the parameter
-            space of interest according to the prior.
+            Function transforming a sample from the a unit cube to the
+            parameter space of interest according to the prior.
 
         loglikelihood : function
-            Function returning ln(likelihood) given parameters as a 1-d `~numpy`
-            array of length `ndim`.
+            Function returning ln(likelihood) given parameters as a 1-d
+            `~numpy` array of length `ndim`.
 
         kwargs : dict
             A dictionary of additional method-specific parameters.

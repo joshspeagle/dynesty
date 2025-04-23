@@ -136,23 +136,23 @@ class Sampler:
 
         self.sampling = sampling
         if sampling == 'rslice':
-            inner_sampler = RSliceSampler(slices=kwargs.get('slices'),
-                                          **sampler_kw)
+            internal_sampler = RSliceSampler(slices=kwargs.get('slices'),
+                                             **sampler_kw)
         elif sampling == 'slice':
-            inner_sampler = SliceSampler(slices=kwargs.get('slices'),
-                                         **sampler_kw)
+            internal_sampler = SliceSampler(slices=kwargs.get('slices'),
+                                            **sampler_kw)
         elif sampling == 'rwalk':
-            inner_sampler = RWalkSampler(ncdim=self.ncdim,
-                                         walks=kwargs.get('walks'),
-                                         **sampler_kw)
+            internal_sampler = RWalkSampler(ncdim=self.ncdim,
+                                            walks=kwargs.get('walks'),
+                                            **sampler_kw)
         elif sampling == 'unif':
-            inner_sampler = UniformBoundSampler(**sampler_kw)
+            internal_sampler = UniformBoundSampler(**sampler_kw)
         else:
             raise ValueError(f'Unsupported Sampler {sampling}')
         # This is the sampler that will be used to sample after we
         # are done with the unit cube sampling
-        self.inner_sampler_next = inner_sampler
-        self.inner_sampler = UnitCubeSampler(ndim=ndim)
+        self.internal_sampler_next = internal_sampler
+        self.internal_sampler = UnitCubeSampler(ndim=ndim)
 
         # parallelism
         self.pool = pool  # provided pool
@@ -469,7 +469,7 @@ class Sampler:
             if self.unit_cube_sampling:
                 self.unit_cube_sampling = False
                 self.logl_first_update = loglstar
-                self.inner_sampler = self.inner_sampler_next
+                self.internal_sampler = self.internal_sampler_next
             bound = self.update_bound(subset=subset)
             if self.save_bounds:
                 self.bound_list.append(bound)
@@ -509,7 +509,7 @@ class Sampler:
             # function.
             mapper = map
 
-        args = self.inner_sampler.prepare_sampler(
+        args = self.internal_sampler.prepare_sampler(
             loglstar=loglstar,
             points=point_queue,
             axes=axes_queue,
@@ -517,7 +517,7 @@ class Sampler:
             prior_transform=self.prior_transform,
             loglikelihood=self.loglikelihood,
             nested_sampler=self)
-        self.queue = list(mapper(self.inner_sampler.sample, args))
+        self.queue = list(mapper(self.internal_sampler.sample, args))
 
     def _get_point_value(self, loglstar):
         """Grab the first live point proposal in the queue."""
@@ -550,7 +550,8 @@ class Sampler:
                 # with our proposal (sampling) method.
                 # If it's not empty we are just accumulating the
                 # the history of evaluations
-                self.inner_sampler.tune(sampling_info, update=self.nqueue <= 0)
+                self.internal_sampler.tune(sampling_info,
+                                           update=self.nqueue <= 0)
 
             # the reason I'm not using self.ncall is that it's updated at
             # higher level
@@ -679,7 +680,7 @@ class Sampler:
                         boundidx=boundidx,
                         it=point_it,
                         bounditer=bounditer,
-                        scale=self.inner_sampler.scale,
+                        scale=self.internal_sampler.scale,
                         blob=old_blob))
             self.eff = 100. * (self.it + i) / self.ncall  # efficiency
 
@@ -995,7 +996,7 @@ class Sampler:
                          nc=nc,
                          it=worst_it,
                          bounditer=bounditer,
-                         scale=self.inner_sampler.scale,
+                         scale=self.internal_sampler.scale,
                          blob=old_blob))
 
             # Update the live point (previously our "worst" point).

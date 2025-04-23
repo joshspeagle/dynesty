@@ -758,7 +758,7 @@ def _configure_batch_sampler(main_sampler,
         batch_sampler.live_u = live_u
         batch_sampler.live_v = live_v
         batch_sampler.live_logl = live_logl
-        batch_sampler.inner_sampler.scale = live_scale
+        batch_sampler.internal_sampler.scale = live_scale
         batch_sampler.live_blobs = live_blobs
 
         batch_sampler.update_bound_if_needed(logl_min)
@@ -1333,7 +1333,7 @@ class DynamicSampler:
                             blob=results.blob,
                             boundidx=results.boundidx,
                             bounditer=results.bounditer,
-                            scale=self.sampler.inner_sampler.scale)
+                            scale=self.sampler.internal_sampler.scale)
 
             self.base_run.append(add_info)
             self.saved_run.append(add_info)
@@ -1378,7 +1378,7 @@ class DynamicSampler:
                             n=self.nlive_init - it,
                             boundidx=results.boundidx,
                             bounditer=results.bounditer,
-                            scale=self.sampler.inner_sampler.scale)
+                            scale=self.sampler.internal_sampler.scale)
 
             self.base_run.append(add_info)
             self.saved_run.append(add_info)
@@ -1586,7 +1586,7 @@ class DynamicSampler:
                      n=nlive_new,
                      boundidx=results.boundidx,
                      bounditer=results.bounditer,
-                     scale=batch_sampler.inner_sampler.scale)
+                     scale=batch_sampler.internal_sampler.scale)
             self.new_run.append(D)
             # Increment relevant counters.
             self.ncall += results.nc
@@ -1635,7 +1635,7 @@ class DynamicSampler:
                      blob=results.blob,
                      boundidx=results.boundidx,
                      bounditer=results.bounditer,
-                     scale=batch_sampler.inner_sampler.scale)
+                     scale=batch_sampler.internal_sampler.scale)
             self.new_run.append(D)
 
             # Increment relevant counters.

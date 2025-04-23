@@ -23,35 +23,43 @@ SamplerArgument = namedtuple('SamplerArgument', [
 
 
 class InnerSampler:
-    """
-    Base class for all inner samplers.
+    """Base class for all inner samplers.
+
     This class is not meant to be used directly.
-    The basic interface of the class is to provide sampling that can be distributed over workers.
+    The basic interface of the class is to provide sampling that can
+    be distributed over workers.
+
     The key methods are `prepare_sampler`, `sample` and `tune`.
-    The `prepare_sampler` method constructs the list of SamplerArguments objects
-    The `sample` method is called by the workers to sample a new point. Importantly 
-    the `sample` method is a static method and does not have access to the class instance.
-    The `tune` method is called by the parent process to adjust things, such as scale of the proposal distribution.
-    The `tune` method is not a static method and has access to the class instance.
+
+    The `prepare_sampler` method constructs the list of SamplerArguments
+    objects.
+
+    The `sample` method is called by the workers to sample a new point.
+    Importantly the `sample` method is a static method and does not have
+    access to the class instance.
+
+    The `tune` method is called by the parent process to adjust things,
+    such as scale of the proposal distribution. The `tune` method is not
+    a static method and has access to the class instance.
     """
 
     def __init__(self, **kwargs):
-        """
-        Initialize the inner sampler.
+        """Initialize the inner sampler.
+        
         Parameters
         ----------
         kwargs : dict
             A dictionary of additional method-specific parameters.
             This common keywords:
-            nonbounded : array
-                Array of boolean values indicating which dimensions are
-                non-bounded.
-            periodic : array
-                Array of boolean values indicating which dimensions are
-                periodic.
-            reflective : array
-                Array of boolean values indicating which dimensions are
-                reflective.
+        nonbounded : array
+            Array of boolean values indicating which dimensions are
+            non-bounded.
+        periodic : array
+            Array of boolean values indicating which dimensions are
+            periodic.
+        reflective : array
+            Array of boolean values indicating which dimensions are
+            reflective.
 
         """
         self.scale = 1

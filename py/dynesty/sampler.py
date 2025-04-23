@@ -19,7 +19,7 @@ from .utils import (get_seed_sequence, get_print_func, progress_integration,
                     get_random_generator)
 
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
-                       SupFriends, rand_choice)
+                       SupFriends)
 from .sampling import (sample_rwalk, sample_slice, sample_rslice,
                        sample_bound_unif)
 from .utils import (get_enlarge_bootstrap, save_sampler, restore_sampler)

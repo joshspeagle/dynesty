@@ -21,7 +21,7 @@ from .utils import (get_seed_sequence, get_print_func, progress_integration,
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
                        SupFriends, rand_choice)
 from .sampling import (sample_rwalk, sample_slice, sample_rslice,
-                       sample_hslice, sample_bound_unif)
+                       sample_bound_unif)
 from .utils import (get_enlarge_bootstrap, save_sampler, restore_sampler)
 
 __all__ = ["Sampler"]
@@ -31,7 +31,6 @@ _SAMPLING = {
     'rwalk': sample_rwalk,
     'slice': sample_slice,
     'rslice': sample_rslice,
-    'hslice': sample_hslice
 }
 
 
@@ -199,7 +198,6 @@ class Sampler:
             'rwalk': self.update_rwalk,
             'slice': self.update_slice,
             'rslice': self.update_slice,
-            'hslice': self.update_hslice,
             'user-defined': self.update_user
         }
         # Initialize other arguments.
@@ -216,10 +214,6 @@ class Sampler:
 
         self.nonbounded = self.kwargs.get('nonbounded', None)
 
-        # Gradient.
-        self.grad = self.kwargs.get('grad', None)
-        self.compute_jac = self.kwargs.get('compute_jac', False)
-
         # Initialize random walk parameters.
         self.walks = max(2, self.kwargs.get('walks', 25))
         self.facc = self.kwargs.get('facc', 0.5)
@@ -231,7 +225,6 @@ class Sampler:
         self.fmove = self.kwargs.get('fmove', 0.9)
         self.max_move = self.kwargs.get('max_move', 100)
         self.slice_history = {'ncontract': 0, 'nexpand': 0}
-        self.hslice_history = {'nmove': 0, 'nreflect': 0, 'ncontract': 0}
 
         if bounding not in ['none', 'single', 'multi', 'balls', 'cubes']:
             raise ValueError('Unsupported bounding type')
@@ -326,27 +319,6 @@ class Sampler:
         hist['nexpand'] = 0
         hist['ncontract'] = 0
 
-    def update_hslice(self, blob, update=True):
-        """Update the Hamiltonian slice proposal scale based
-        on the relative amount of time spent moving vs reflecting.
-        The keyword update determines if we are just accumulating the number
-        of steps or actually adjusting the scale
-        """
-        hist = self.hslice_history
-        hist['nmove'] += blob['nmove']
-        hist['nreflect'] += blob['nreflect']
-        hist['ncontract'] += blob.get('ncontract', 0)
-        if not update:
-            return
-        nmove, nreflect = hist['nmove'], hist['nreflect']
-        ncontract = hist['ncontract']
-        fmove = (1. * nmove) / (nmove + nreflect + ncontract + 2)
-        norm = max(self.fmove, 1. - self.fmove)
-        self.scale *= math.exp((fmove - self.fmove) / norm)
-        hist['nmove'] = 0
-        hist['nreflect'] = 0
-        hist['ncontract'] = 0
-
     def update_user(self, blob, update=True):
         """Update the scale based on the user-defined update function."""
 
@@ -394,38 +366,16 @@ class Sampler:
         else:
             i = self.rstate.integers(self.nlive)
         u = self.live_u[i, :]
-        if self.bounding in ['single', 'balls', 'cubes']:
-            if self.sampling in ['rwalk', 'rslice', 'slice']:
-                ax = self.bound.axes
-            else:
-                ax = np.identity(self.ncdim)
-        elif self.bounding == 'multi':
-            u_fit = u[:self.ncdim]
+        ax = self.bound.get_random_axes(self.rstate)
+        u_fit = u[:self.ncdim]
 
-            # Automatically trigger an update if we're not in any ellipsoid.
+        # Automatically trigger an update if we're not in any ellipsoid.
+        if not self.bound.contains(u_fit):
+            # Update the bounding ellipsoids.
+            self.update_bound_if_needed(-np.inf, force=True)
+            # Check for ellipsoid overlap (again).
             if not self.bound.contains(u_fit):
-                # Update the bounding ellipsoids.
-                self.update_bound_if_needed(-np.inf, force=True)
-                # Check for ellipsoid overlap (again).
-                if not self.bound.contains(u_fit):
-                    raise RuntimeError('Update of the ellipsoid failed')
-
-            if self.sampling in ['rwalk', 'rslice', 'slice']:
-                # Pick a random ellipsoid (not necessarily the one that
-                # contains u)
-                # This a crucial step as we must choose a random ellipsoid,
-                # rather than the ellipsoid to which this point belongs.
-                # because a non-random ellipsoid can break detailed balance
-                # see #364
-                # here we choose ellipsoid in proportion of its volume
-                probs = np.exp(self.bound.logvols - self.bound.logvol_tot)
-                ell_idx = rand_choice(probs, self.rstate)
-                # Choose axes.
-                ax = self.bound.ells[ell_idx].axes
-            else:
-                ax = np.identity(self.ndim)
-        else:
-            ax = np.identity(self.ncdim)
+                raise RuntimeError('Update of the ellipsoid failed')
 
         return u, ax
 
@@ -1071,7 +1021,7 @@ class Sampler:
                         self.added_live = False
                     if current_n_effective > n_effective:
                         stop_iterations = True
-            if self.live_logl.ptp() == 0:
+            if np.ptp(self.live_logl) == 0:
                 warnings.warn(
                     'We have reached the plateau in the likelihood we are'
                     ' stopping sampling')

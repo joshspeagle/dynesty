@@ -92,13 +92,7 @@ def _get_citations(nested_type, bound, sampler):
                    ("Handley, Hobson & Lasenby (2015a)",
                     "ui.adsabs.harvard.edu/abs/2015MNRAS.450L..61H"),
                    ("Handley, Hobson & Lasenby (2015b)",
-                    "ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H")],
-        'hslice':
-        [("Neal (2003)", "projecteuclid.org/euclid.aos/1056562461"),
-         ("Skilling (2012)", "aip.scitation.org/doi/abs/10.1063/1.3703630"),
-         ("Feroz & Skilling (2013)",
-          "ui.adsabs.harvard.edu/abs/2013AIPC.1553..106F"),
-         ("Speagle (2020)", "ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S")]
+                    "ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H")]
     }
 
     def reflist_tostring(x):
@@ -144,7 +138,7 @@ Sampling Method:\n===============
     return citations
 
 
-def _get_auto_sample(ndim, gradient):
+def _get_auto_sample(ndim):
     """ Decode which sampling method to use
 
     Arguments:
@@ -157,10 +151,7 @@ def _get_auto_sample(ndim, gradient):
     elif 10 <= ndim <= 20:
         sample = 'rwalk'
     else:
-        if gradient is None:
-            sample = 'rslice'
-        else:
-            sample = 'hslice'
+        sample = 'rslice'
     return sample
 
 
@@ -178,7 +169,7 @@ def _get_walks_slices(walks0, slices0, sample, ndim):
     """
     walks, slices = None, None
     # see https://github.com/joshspeagle/dynesty/issues/289
-    if sample in ['hslice', 'rslice']:
+    if sample in ['rslice']:
         slices = 3 + ndim
     elif sample == 'slice':
         slices = 3
@@ -188,7 +179,7 @@ def _get_walks_slices(walks0, slices0, sample, ndim):
         walks = 20 + ndim
     slices = slices0 or slices
     walks = walks0 or walks
-    if sample in ['hslice', 'rslice', 'slice'] and walks0 is not None:
+    if sample in ['rslice', 'slice'] and walks0 is not None:
         warnings.warn('Specifying walks option while using slice sampler'
                       ' does not make sense')
     elif sample in ['rwalk'] and slices0 is not None:
@@ -533,10 +524,6 @@ class NestedSampler(Sampler):
                 logl_kwargs=None,
                 ptform_args=None,
                 ptform_kwargs=None,
-                gradient=None,
-                grad_args=None,
-                grad_kwargs=None,
-                compute_jac=False,
                 enlarge=None,
                 bootstrap=None,
                 walks=None,
@@ -567,11 +554,11 @@ functioning and will be removed in further releases""", DeprecationWarning)
 
         # Sampling method.
         if sample == 'auto':
-            sample = _get_auto_sample(ndim, gradient)
+            sample = _get_auto_sample(ndim)
 
         walks, slices = _get_walks_slices(walks, slices, sample, ndim)
 
-        if ncdim != ndim and sample in ['slice', 'hslice', 'rslice']:
+        if ncdim != ndim and sample in ['slice', 'rslice']:
             raise ValueError('ncdim unsupported for slice sampling')
 
         # Custom sampling function.
@@ -615,12 +602,6 @@ functioning and will be removed in further releases""", DeprecationWarning)
         # Prior transform.
         ptform_args = ptform_args or []
         ptform_kwargs = ptform_kwargs or {}
-
-        # gradient
-        if grad_args is None:
-            grad_args = []
-        if grad_kwargs is None:
-            grad_kwargs = {}
 
         # Bounding distribution modifications.
         enlarge, bootstrap = get_enlarge_bootstrap(sample, enlarge, bootstrap)
@@ -668,15 +649,6 @@ functioning and will be removed in further releases""", DeprecationWarning)
                                 history_filename=history_filename
                                 or 'dynesty_logl_history.h5',
                                 pool=pool_logl)
-
-        # Add in gradient.
-        if gradient is not None:
-            grad = _function_wrapper(gradient,
-                                     grad_args,
-                                     grad_kwargs,
-                                     name='gradient')
-            kwargs['grad'] = grad
-            kwargs['compute_jac'] = compute_jac
 
         live_points, logvol_init, init_ncalls = _initialize_live_points(
             live_points,
@@ -741,10 +713,6 @@ class DynamicNestedSampler(DynamicSampler):
                  logl_kwargs=None,
                  ptform_args=None,
                  ptform_kwargs=None,
-                 gradient=None,
-                 grad_args=None,
-                 grad_kwargs=None,
-                 compute_jac=False,
                  enlarge=None,
                  bootstrap=None,
                  walks=None,
@@ -776,11 +744,11 @@ functioning and will be removed in further releases""", DeprecationWarning)
 
         # Sampling method.
         if sample == 'auto':
-            sample = _get_auto_sample(ndim, gradient)
+            sample = _get_auto_sample(ndim)
 
         walks, slices = _get_walks_slices(walks, slices, sample, ndim)
 
-        if ncdim != ndim and sample in ['slice', 'hslice', 'rslice']:
+        if ncdim != ndim and sample in ['slice', 'rslice']:
             raise ValueError('ncdim unsupported for slice sampling')
 
         update_interval_ratio = _get_update_interval_ratio(
@@ -823,12 +791,6 @@ functioning and will be removed in further releases""", DeprecationWarning)
         ptform_args = ptform_args or []
         ptform_kwargs = ptform_kwargs or {}
 
-        # gradient
-        if grad_args is None:
-            grad_args = []
-        if grad_kwargs is None:
-            grad_kwargs = {}
-
         # Bounding distribution modifications.
         enlarge, bootstrap = get_enlarge_bootstrap(sample, enlarge, bootstrap)
         kwargs['enlarge'] = enlarge
@@ -870,15 +832,6 @@ functioning and will be removed in further releases""", DeprecationWarning)
                                 or 'dynesty_logl_history.h5',
                                 save=save_history,
                                 blob=blob)
-
-        # Add in gradient.
-        if gradient is not None:
-            grad = _function_wrapper(gradient,
-                                     grad_args,
-                                     grad_kwargs,
-                                     name='gradient')
-            kwargs['grad'] = grad
-            kwargs['compute_jac'] = compute_jac
 
         # Initialize our nested sampler.
         super().__init__(loglike, ptform, ndim, bound, sample,

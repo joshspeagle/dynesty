@@ -82,7 +82,6 @@ def doit(model='diamond',
         raise Exception('unknown')
     func = {
         'rslice': ds.sample_rslice,
-        'hslice': ds.sample_hslice,
         'slice': ds.sample_slice,
         'rwalk': ds.sample_rwalk
     }[sample]

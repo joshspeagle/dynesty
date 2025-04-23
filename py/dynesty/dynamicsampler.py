@@ -56,7 +56,7 @@ def compute_weights(results):
     logwt = results.logwt
     samples_n = results.samples_n
 
-    if logz.ptp() == 0:
+    if np.ptp(logz) == 0:
         # this pathological case can happen if all logl are very small
         # and all logz are very small and the same
         # then the calculation below failse
@@ -185,8 +185,6 @@ def _get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
             update_interval_frac = 0.9 * ndim * slices
         elif sample == 'rslice':
             update_interval_frac = 2.0 * slices
-        elif sample == 'hslice':
-            update_interval_frac = 25.0 * slices
         else:
             update_interval_frac = np.inf
             warnings.warn(

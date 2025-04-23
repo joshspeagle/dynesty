@@ -41,6 +41,50 @@ __all__ = [
 ]
 
 
+class Bound:
+    """
+    Parameters
+    ----------
+    ndim : int
+        The number of dimensions of the unit cube.
+
+    """
+
+    def __init__(self):
+        pass
+
+    def contains(self, x):
+        """Checks if unit cube contains the point `x`."""
+        pass
+
+    def sample(self, rstate=None):
+        """
+        Draw a sample uniformly distributed within the unit cube.
+
+        Returns
+        -------
+        x : `~numpy.ndarray` with shape (ndim,)
+            A coordinate within the unit cube.
+
+        """
+        pass
+
+    def samples(self, nsamples, rstate=None):
+        """
+        Draw `nsamples` samples randomly distributed within the unit cube.
+
+        Returns
+        -------
+        x : `~numpy.ndarray` with shape (nsamples, ndim)
+            A collection of coordinates within the unit cube.
+
+        """
+        pass
+
+    def get_random_axes(self, rstate):
+        pass
+
+
 class UnitCube:
     """
     An N-dimensional unit cube.
@@ -91,6 +135,9 @@ class UnitCube:
     def update(self, points, rstate=None, bootstrap=0, pool=None):
         """Filler function."""
         pass
+
+    def get_random_axes(self, rstate):
+        return np.eye(self.n)
 
 
 class Ellipsoid:
@@ -324,6 +371,9 @@ class Ellipsoid:
         # Monte Carlo integration.
         if mc_integrate:
             self.funit = self.unitcube_overlap(rstate=rstate)
+
+    def get_random_axes(self, rstate):
+        return self.axes
 
 
 class MultiEllipsoid:
@@ -634,6 +684,13 @@ class MultiEllipsoid:
             self.logvol_tot, self.funit = self.monte_carlo_logvol(
                 rstate=rstate, return_overlap=True)
 
+    def get_random_axes(self, rstate):
+        probs = np.exp(self.logvols - self.logvol_tot)
+        ell_idx = rand_choice(probs, rstate)
+        # Choose axes.
+        ax = self.ells[ell_idx].axes
+        return ax
+
 
 class RadFriends:
     """
@@ -898,6 +955,9 @@ class RadFriends:
                 overlapped_points[i:j, :] = group_points - group_mean
                 i = j
             return self._get_covariance_from_all_points(overlapped_points)
+
+    def get_random_axes(self, rstate):
+        return self.axes
 
 
 class SupFriends:
@@ -1164,6 +1224,9 @@ class SupFriends:
                 overlapped_points[i:j, :] = group_points - group_mean
                 i = j
             return self._get_covariance_from_all_points(overlapped_points)
+
+    def get_random_axes(self, rstate):
+        return self.axes
 
 
 ##################

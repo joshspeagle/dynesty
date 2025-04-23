@@ -633,11 +633,12 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
                         loglikelihood, rstate, kwargs):
     """
     Generic random walk step
+
     Parameters
     ----------
     u : `~numpy.ndarray` with shape (ndim,)
-        Position of the initial sample. **This is a copy of an existing live
-        point.**
+        Position of the initial sample.
+        **This is a copy of an existing live point.**
 
     loglstar : float
         Ln(likelihood) bound.
@@ -901,7 +902,8 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
     """
     Do a slice generic slice sampling step along a specified dimension
 
-    Arguments
+    Parameters
+    ----------
     u: ndarray (ndim sized)
         Starting point in unit cube coordinates
         It MUST satisfy the logl>loglstar criterion
@@ -914,6 +916,7 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
     loglikelihood: function
     prior_transform: function
     rstate: random state
+
     """
     nc, nexpand, ncontract = 0, 0, 0
     nexpand_threshold = 1000  # Threshold for warning the user

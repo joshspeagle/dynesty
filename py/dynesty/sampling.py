@@ -21,8 +21,8 @@ SamplerArgument = namedtuple('SamplerArgument', [
 ])
 
 
-class InnerSampler:
-    """Base class for all inner samplers.
+class InternalSampler:
+    """Base class for all internal samplers.
 
     This class is not meant to be used directly.
     The basic interface of the class is to provide sampling that can
@@ -43,7 +43,7 @@ class InnerSampler:
     """
 
     def __init__(self, **kwargs):
-        """Initialize the inner sampler.
+        """Initialize the internal sampler.
         
         Parameters
         ----------
@@ -157,7 +157,7 @@ class InnerSampler:
         pass
 
 
-class UniformBoundSampler(InnerSampler):
+class UniformBoundSampler(InternalSampler):
     """
     Uniformly sample within a bounding proposal distribution.
     """
@@ -286,7 +286,7 @@ class UniformBoundSampler(InnerSampler):
         return u, v, logl, nc, sampling_info
 
 
-class UnitCubeSampler(InnerSampler):
+class UnitCubeSampler(InternalSampler):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -379,7 +379,7 @@ class UnitCubeSampler(InnerSampler):
         return u, v, logl, nc, sampling_info
 
 
-class RWalkSampler(InnerSampler):
+class RWalkSampler(InternalSampler):
 
     def __init__(self, ncdim=None, **kwargs):
         super().__init__(**kwargs)
@@ -485,7 +485,7 @@ class RWalkSampler(InnerSampler):
                                    args.loglikelihood, rstate, args.kwargs)
 
 
-class SliceSampler(InnerSampler):
+class SliceSampler(InternalSampler):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -610,7 +610,7 @@ class SliceSampler(InnerSampler):
         return u_prop, v_prop, logl_prop, nc, sampling_info
 
 
-class RSliceSampler(InnerSampler):
+class RSliceSampler(InternalSampler):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

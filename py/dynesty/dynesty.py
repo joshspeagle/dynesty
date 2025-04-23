@@ -380,29 +380,6 @@ optional
             Additional keyword arguments that can be passed to
             `prior_transform`.
 
-        gradient : function, optional
-            A function which returns the gradient corresponding to
-            the provided `loglikelihood` *with respect to the unit cube*.
-            If provided, this will be used when computing reflections
-            when sampling with `'hslice'`. If not provided, gradients are
-            approximated numerically using 2-sided differencing.
-
-        grad_args : iterable, optional
-            Additional arguments that can be passed to `gradient`.
-
-        grad_kwargs : dict, optional
-            Additional keyword arguments that can be passed to `gradient`.
-
-        compute_jac : bool, optional
-            Whether to compute and apply the Jacobian `dv/du`
-            from the target space `v` to the unit cube `u` when evaluating the
-            `gradient`. If `False`, the gradient provided is assumed to be
-            already defined with respect to the unit cube. If `True`, the
-            gradient
-            provided is assumed to be defined with respect to the target space
-            so the Jacobian needs to be numerically computed and applied.
-            Default is `False`.
-
         enlarge : float, optional
             Enlarge the volumes of the specified bounding object(s) by this
             fraction. The preferred method is to determine this organically
@@ -433,26 +410,6 @@ optional
             `'slice'` and 3+ndim for rslice and hslice.
             Note that `'slice'` cycles through **all dimensions**
             when executing a "slice update".
-
-        fmove : float, optional
-            The target fraction of samples that are proposed along a trajectory
-            (i.e. not reflecting) for the `'hslice'` sampling option.
-            Default is `0.9`.
-
-        max_move : int, optional
-            The maximum number of timesteps allowed for `'hslice'`
-            per proposal forwards and backwards in time. Default is `100`.
-
-        update_func : function, optional
-            Any callable function which takes in a `blob` and `scale`
-            as input and returns a modification to the internal `scale` as
-            output.
-            Must follow the pattern of the update methods defined
-            in dynesty.nestedsamplers. If provided, this will supersede the
-            default functions used to update proposals. In the case where a
-            custom
-            callable function is passed to `sample` but no similar function is
-            passed to `update_func`, this will default to no update.
 
         ncdim: int, optional
             The number of clustering dimensions. The first ncdim dimensions
@@ -531,7 +488,6 @@ class NestedSampler(Sampler):
                 slices=None,
                 fmove=0.9,
                 max_move=100,
-                update_func=None,
                 ncdim=None,
                 blob=False,
                 save_history=False,
@@ -566,11 +522,6 @@ functioning and will be removed in further releases""", DeprecationWarning)
             raise ValueError("Unknown sampling method: '{0}'".format(sample))
 
         kwargs = {}
-        # Custom updating function.
-        if update_func is not None and not callable(update_func):
-            raise ValueError(
-                "Unknown update function: '{0}'".format(update_func))
-        kwargs['update_func'] = update_func
 
         # Citation generator.
         kwargs['cite'] = _get_citations('static', bound, sample)
@@ -720,7 +671,6 @@ class DynamicNestedSampler(DynamicSampler):
                  slices=None,
                  fmove=0.9,
                  max_move=100,
-                 update_func=None,
                  ncdim=None,
                  blob=False,
                  save_history=False,
@@ -759,11 +709,6 @@ functioning and will be removed in further releases""", DeprecationWarning)
         # Custom sampling function.
         if sample not in SAMPLER_LIST and not callable(sample):
             raise ValueError(f"Unknown sampling method: {sample}")
-
-        # Custom updating function.
-        if update_func is not None and not callable(update_func):
-            raise ValueError(f"Unknown update function: '{update_func}'")
-        kwargs['update_func'] = update_func
 
         # Citation generator.
         kwargs['cite'] = _get_citations('dynamic', bound, sample)

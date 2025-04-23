@@ -131,7 +131,8 @@ class Sampler:
         self.rstate = rstate or get_random_generator()
         sampler_kw = dict(nonbounded=kwargs.get('nonbounded'),
                           periodic=kwargs.get('periodic'),
-                          reflective=kwargs.get('reflective'))
+                          reflective=kwargs.get('reflective'),
+                          ndim=self.ndim)
 
         self.sampling = sampling
         if sampling == 'rslice':
@@ -148,6 +149,8 @@ class Sampler:
             inner_sampler = UniformBoundSampler(**sampler_kw)
         else:
             raise ValueError(f'Unsupported Sampler {sampling}')
+        # This is the sampler that will be used to sample after we
+        # are done with the unit cube sampling
         self.inner_sampler_next = inner_sampler
         self.inner_sampler = UnitCubeSampler(ndim=ndim)
 
@@ -163,6 +166,7 @@ class Sampler:
         self.use_pool_logl = use_pool.get('loglikelihood', True)
         self.use_pool_evolve = use_pool.get('propose_point', True)
         self.use_pool_update = use_pool.get('update_bound', True)
+
         if self.use_pool_evolve:
             self.queue_size = queue_size  # size of the queue
         else:

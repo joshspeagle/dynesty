@@ -26,14 +26,12 @@ class InnerSampler:
     """
     Base class for all inner samplers.
     This class is not meant to be used directly.
-    
     The basic interface of the class is to provide sampling that can be distributed over workers.
     The key methods are `prepare_sampler`, `sample` and `tune`.
     The `prepare_sampler` method constructs the list of SamplerArguments objects
     The `sample` method is called by the workers to sample a new point. Importantly 
     the `sample` method is a static method and does not have access to the class instance.
-    The `tune` method is called by the parent process to adjust things, such as 
-    scale of the proposal distribution.
+    The `tune` method is called by the parent process to adjust things, such as scale of the proposal distribution.
     The `tune` method is not a static method and has access to the class instance.
     """
 
@@ -54,6 +52,7 @@ class InnerSampler:
             reflective : array
                 Array of boolean values indicating which dimensions are
                 reflective.
+
         """
         self.scale = 1
         self.kwargs = dict()
@@ -69,7 +68,8 @@ class InnerSampler:
                         loglikelihood=None,
                         nested_sampler=None):
         """
-        Prepare the list arguments for sampling.
+        Prepare the list of arguments for sampling.
+
         Parameters
         ----------
         loglstar : float
@@ -113,10 +113,12 @@ class InnerSampler:
     def sample(cls, args):
         """
         Sample a new live point.
+
         Parameters
         ----------
         args : `SamplerArgument`
             The arguments needed for sampling.
+
         Returns
         -------
         u : `~numpy.ndarray` with shape (ndim,)
@@ -134,12 +136,24 @@ class InnerSampler:
 
     def tune(sample_info, update=False):
         """
-        Accumulate sampling info
+
+        Accumulate sampling info and optionally update the proposal scale and 
+        other tuning parameters.
+
+        Parameters
+        ----------
+        sample_info : dict
+            Dictionary containing the sampling information.
+        update : bool
+            Whether to update the proposal scale or not (default: False).
         """
         pass
 
 
 class UniformBoundSampler(InnerSampler):
+    """
+    Uniformly sample within a bounding proposal distribution.
+    """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -152,6 +166,13 @@ class UniformBoundSampler(InnerSampler):
                         prior_transform=None,
                         loglikelihood=None,
                         nested_sampler=None):
+        """
+        Prepare the list of arguments for sampling.
+
+        This is is overriding the base class method and providing the bound itself
+        to the sampler through kwargs.
+
+        """
         self.kwargs['bound'] = nested_sampler.bound
         self.kwargs['ndim'] = nested_sampler.ndim
         self.kwargs['n_cluster'] = nested_sampler.ncdim

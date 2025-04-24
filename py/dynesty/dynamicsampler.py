@@ -1759,15 +1759,15 @@ class DynamicSampler:
         """
 
         # Initialize values.
-        maxcall = maxcall or sys.maxsize
-        maxiter = maxiter or sys.maxsize
-        maxiter_batch = maxiter_batch or sys.maxsize
-        maxcall_batch = maxcall_batch or sys.maxsize
-        maxbatch = maxbatch or sys.maxsize
-        maxiter_init = maxiter_init or sys.maxsize
-        maxcall_init = maxcall_init or sys.maxsize
+        maxcall = sys.maxsize if maxcall is None else maxcall
+        maxiter = sys.maxsize if maxiter is None else maxiter
+        maxiter_batch = sys.maxsize if maxiter_batch is None else maxiter_batch
+        maxcall_batch = sys.maxsize if maxcall_batch is None else maxcall_batch
+        maxbatch = sys.maxsize if maxbatch is None else maxbatch
+        maxiter_init = sys.maxsize if maxiter_init is None else maxiter_init
+        maxcall_init = sys.maxsize if maxcall_init is None else maxcall_init
         wt_function = wt_function or weight_function
-        wt_kwargs = wt_kwargs or {}
+        wt_kwargs = {} if wt_kwargs is None else wt_kwargs
 
         if stop_function is None:
             default_stop_function = True
@@ -1986,11 +1986,11 @@ This is not supported. No sampling was performed""", RuntimeWarning)
         """
 
         # Initialize values.
-        maxcall = maxcall or sys.maxsize
-        maxiter = maxiter or sys.maxsize
+        maxcall = sys.maxsize if maxcall is None else maxcall
+        maxiter = sys.maxsize if maxiter is None else maxiter
         wt_function = wt_function or weight_function
         wt_kwargs = wt_kwargs or {}
-        stop_val = stop_val or np.nan
+        stop_val = np.nan if stop_val is None else stop_val
 
         res = self.results
 

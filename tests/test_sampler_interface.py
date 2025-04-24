@@ -62,7 +62,33 @@ def check_results(results,
     npt.assert_array_less(np.abs((logz_truth - logz)), sig * logz_tol)
 
 
-# GAUSSIAN TEST
+class TestSampler(dysa.InternalSampler):
+    """
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def prepare_sampler(self,
+                        loglstar=None,
+                        points=None,
+                        axes=None,
+                        seeds=None,
+                        prior_transform=None,
+                        loglikelihood=None,
+                        nested_sampler=None):
+        """
+
+        """
+        pass
+
+    @staticmethod
+    def sample(args):
+        """
+
+        """
+
+        pass
 
 
 class Gaussian:

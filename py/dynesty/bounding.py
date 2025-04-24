@@ -34,8 +34,8 @@ from scipy.cluster.vq import kmeans2
 from .utils import unitcheck, get_seed_sequence, get_random_generator
 
 __all__ = [
-    "UnitCube", "Ellipsoid", "MultiEllipsoid", "RadFriends", "SupFriends",
-    "logvol_prefactor", "randsphere", "bounding_ellipsoid",
+    "Bound", "UnitCube", "Ellipsoid", "MultiEllipsoid", "RadFriends",
+    "SupFriends", "logvol_prefactor", "randsphere", "bounding_ellipsoid",
     "bounding_ellipsoids", "_bounding_ellipsoids",
     "_ellipsoid_bootstrap_expand", "_friends_bootstrap_radius",
     "_friends_leaveoneout_radius"

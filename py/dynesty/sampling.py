@@ -24,6 +24,8 @@ SamplerArgument = namedtuple('SamplerArgument', [
     'rseed', 'kwargs'
 ])
 
+INTERNAL_SAMPLER_LIST = ['rwalk', 'unif', 'rslice', 'slice']
+
 
 class InternalSampler:
     """Base class for all internal samplers.

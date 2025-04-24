@@ -11,7 +11,8 @@ import sys
 import warnings
 import traceback
 import numpy as np
-from .sampler import Sampler, SAMPLER_LIST, _initialize_live_points
+from .sampling import INTERNAL_SAMPLER_LIST, InternalSampler
+from .sampler import Sampler, _initialize_live_points
 from .bounding import BOUND_LIST
 from . import bounding
 from .dynamicsampler import (DynamicSampler, _get_update_interval_ratio)
@@ -267,7 +268,8 @@ optional
             cubes centered on each live point (`'cubes'`). Default is
             `'multi'`.
 
-        sample : {`'auto'`, `'unif'`, `'rwalk'`, `'slice'`, `'rslice'`}, optional
+        sample : {`'auto'`, `'unif'`, `'rwalk'`, `'slice'`, `'rslice'`},
+            optional
             Method used to sample uniformly within the likelihood constraint,
             conditioned on the provided bounds. Unique methods available are:
             uniform sampling within the bounds(`'unif'`),
@@ -475,8 +477,6 @@ class NestedSampler(Sampler):
                 walks=None,
                 facc=0.5,
                 slices=None,
-                fmove=0.9,
-                max_move=100,
                 ncdim=None,
                 blob=False,
                 save_history=False,
@@ -498,7 +498,8 @@ class NestedSampler(Sampler):
             raise ValueError('ncdim unsupported for slice sampling')
 
         # Custom sampling function.
-        if sample not in SAMPLER_LIST and not callable(sample):
+        if sample not in INTERNAL_SAMPLER_LIST and not isinstance(
+                sample, InternalSampler):
             raise ValueError("Unknown sampling method: '{0}'".format(sample))
 
         kwargs = {}
@@ -546,10 +547,6 @@ class NestedSampler(Sampler):
             kwargs['facc'] = facc
         if slices is not None:
             kwargs['slices'] = slices
-        if fmove is not None:
-            kwargs['fmove'] = fmove
-        if max_move is not None:
-            kwargs['max_move'] = max_move
 
         update_interval_ratio = _get_update_interval_ratio(
             update_interval, sample, bound, ndim, nlive, slices, walks)
@@ -648,8 +645,6 @@ class DynamicNestedSampler(DynamicSampler):
                  walks=None,
                  facc=0.5,
                  slices=None,
-                 fmove=0.9,
-                 max_move=100,
                  ncdim=None,
                  blob=False,
                  save_history=False,
@@ -668,6 +663,7 @@ class DynamicNestedSampler(DynamicSampler):
 
         walks, slices = _get_walks_slices(walks, slices, sample, ndim)
 
+        # TODO change this check
         if ncdim != ndim and sample in ['slice', 'rslice']:
             raise ValueError('ncdim unsupported for slice sampling')
 
@@ -677,7 +673,8 @@ class DynamicNestedSampler(DynamicSampler):
         kwargs = {}
 
         # Custom sampling function.
-        if sample not in SAMPLER_LIST and not callable(sample):
+        if sample not in INTERNAL_SAMPLER_LIST and not isinstance(
+                sample, InternalSampler):
             raise ValueError(f"Unknown sampling method: {sample}")
 
         # Citation generator.
@@ -718,10 +715,6 @@ class DynamicNestedSampler(DynamicSampler):
             kwargs['facc'] = facc
         if slices is not None:
             kwargs['slices'] = slices
-        if fmove is not None:
-            kwargs['fmove'] = fmove
-        if max_move is not None:
-            kwargs['max_move'] = max_move
 
         # Set up parallel (or serial) evaluation.
         queue_size = _parse_pool_queue(pool, queue_size)[1]

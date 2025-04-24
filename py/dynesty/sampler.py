@@ -25,8 +25,6 @@ from .utils import (get_enlarge_bootstrap, save_sampler, restore_sampler)
 
 __all__ = ["Sampler"]
 
-SAMPLER_LIST = ['rwalk', 'unif', 'rslice', 'slice']
-
 
 def _get_bound(bounding, ndim):
     if isinstance(bounding, str):

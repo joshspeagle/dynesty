@@ -388,11 +388,16 @@ class RWalkSampler(InternalSampler):
     def __init__(self, ncdim=None, **kwargs):
         super().__init__(**kwargs)
         # Initialize random walk parameters.
-        self.walks = max(2, kwargs.get('walks', 25))
+        walks = max(2, kwargs.get('walks', 25))
         self.facc = kwargs.get('facc', 0.5)
-        self.facc = min(1., max(1. / self.walks, self.facc))
+        self.facc = min(1., max(1. / walks, self.facc))
         self.rwalk_history = {'naccept': 0, 'nreject': 0}
         self.ncdim = ncdim
+
+        # Since the sample is a static method, it's crucial
+        # to put relevant information into kwargs which is then passed to
+        # the samplers
+        self.kwargs['walks'] = walks
 
     def tune(self, sampling_info, update=True):
         """Update the random walk proposal scale based on the current
@@ -494,10 +499,13 @@ class SliceSampler(InternalSampler):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Initialize slice parameters.
-        self.slices = kwargs.get('slices', 5)
-        self.fmove = kwargs.get('fmove', 0.9)
-        self.max_move = kwargs.get('max_move', 100)
+        slices = kwargs.get('slices', 5)
         self.slice_history = {'ncontract': 0, 'nexpand': 0}
+
+        self.kwargs['slices'] = slices
+        # Since the sample is a static method, it's crucial
+        # to put relevant information into kwargs which is then passed to
+        # the samplers
 
     def tune(self, sampler_info, update=True):
         tune_slice(self, sampler_info, update=update)
@@ -619,10 +627,13 @@ class RSliceSampler(InternalSampler):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Initialize slice parameters.
-        self.slices = kwargs.get('slices', 5)
-        self.fmove = kwargs.get('fmove', 0.9)
-        self.max_move = kwargs.get('max_move', 100)
+        slices = kwargs.get('slices', 5)
         self.slice_history = {'ncontract': 0, 'nexpand': 0}
+
+        self.kwargs['slices'] = slices
+        # Since the sample is a static method, it's crucial
+        # to put relevant information into kwargs which is then passed to
+        # the samplers
 
     def tune(self, sampler_info, update=True):
         tune_slice(self, sampler_info, update=update)

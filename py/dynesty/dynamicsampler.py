@@ -674,6 +674,8 @@ def _configure_batch_sampler(main_sampler,
         batch_sampler.update_bound_if_needed(logl_min)
         # Trigger an update of the internal bounding distribution based
         # on the "new" set of live points.
+        # That should force the switch from UnitCube bound to
+        # Proper bound
     else:
         # If the lower bound doesn't encompass all base samples,
         # we need to create a uniform sample from the prior subject

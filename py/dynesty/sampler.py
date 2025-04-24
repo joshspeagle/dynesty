@@ -60,6 +60,7 @@ def _get_bound(bounding, ndim):
 class Sampler:
     """
     The basic sampler object that performs the actual nested sampling.
+    It is used for the initial sampling and also for each batch.
 
     Parameters
     ----------

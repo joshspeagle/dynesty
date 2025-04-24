@@ -311,7 +311,6 @@ class Sampler:
             pool = self.pool
         else:
             pool = None
-
         self.bound.update(self.live_u[subset, :self.ncdim],
                           rstate=self.rstate,
                           bootstrap=self.bootstrap,
@@ -338,7 +337,9 @@ class Sampler:
 
     def reset(self):
         """Re-initialize the sampler."""
-
+        warnings.warn(
+            "reset() is deprecated and will be removed in future releases",
+            DeprecationWarning)
         # live points
         self.live_u = self.rstate.random(size=(self.nlive, self.ndim))
         if self.use_pool_ptform:
@@ -363,7 +364,9 @@ class Sampler:
         # sampling
         self.it = 1
         self.ncall = self.nlive
-        self.bound_list = [UnitCube(self.ncdim)]
+        self.bound = UnitCube(self.ncdim)
+        self.bound_list = [self.bound]
+        self.internal_sampler = UnitCubeSampler(ndim=self.ndim)
         self.nbound = 1
         self.unit_cube_sampling = True
         self.added_live = False
@@ -480,8 +483,8 @@ class Sampler:
                 self.logl_first_update = loglstar
                 self.bound = self.bound_next
                 self.internal_sampler = self.internal_sampler_next
-                self.bound_next = None
-                self.internal_sampler_next = None
+                # self.bound_next = None
+                # self.internal_sampler_next = None
             self.update_bound(subset=subset)
             if self.save_bounds:
                 self.bound_list.append(self.bound)

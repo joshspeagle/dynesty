@@ -354,14 +354,14 @@ class Ellipsoid(Bound):
 
             # If provided, compute bootstraps in parallel using a pool.
             if pool is None:
-                M = map
+                mapper = map
             else:
-                M = pool.map
+                mapper = pool.map
             multis = [False for it in range(bootstrap)]
             ps = [points for it in range(bootstrap)]
             seeds = get_seed_sequence(rstate, bootstrap)
             args = zip(multis, ps, seeds)
-            expands = list(M(_ellipsoid_bootstrap_expand, args))
+            expands = list(mapper(_ellipsoid_bootstrap_expand, args))
 
             # Conservatively set the expansion factor to be the maximum
             # factor derived from our set of bootstraps.
@@ -649,14 +649,14 @@ class MultiEllipsoid(Bound):
         if bootstrap > 0:
             # If provided, compute bootstraps in parallel using a pool.
             if pool is None:
-                M = map
+                mapper = map
             else:
-                M = pool.map
+                mapper = pool.map
             multis = [True for it in range(bootstrap)]
             ps = [points for it in range(bootstrap)]
             seeds = get_seed_sequence(rstate, bootstrap)
             args = zip(multis, ps, seeds)
-            expands = list(M(_ellipsoid_bootstrap_expand, args))
+            expands = list(mapper(_ellipsoid_bootstrap_expand, args))
 
             # Conservatively set the expansion factor to be the maximum
             # factor derived from our set of bootstraps.
@@ -872,9 +872,9 @@ class RadFriends(Bound):
 
         # If possible, compute bootstraps in parallel using a pool.
         if pool is None:
-            M = map
+            mapper = map
         else:
-            M = pool.map
+            mapper = pool.map
 
         # Get new covariance.
         if use_clustering:
@@ -897,7 +897,7 @@ class RadFriends(Bound):
             ftypes = ['balls' for it in range(bootstrap)]
             seeds = get_seed_sequence(rstate, bootstrap)
             args = zip(ps, ftypes, seeds)
-            radii = list(M(_friends_bootstrap_radius, args))
+            radii = list(mapper(_friends_bootstrap_radius, args))
 
         # Conservatively set radius to be maximum of the set.
         rmax = max(radii)
@@ -1141,9 +1141,9 @@ class SupFriends(Bound):
 
         # If possible, compute bootstraps in parallel using a pool.
         if pool is None:
-            M = map
+            mapper = map
         else:
-            M = pool.map
+            mapper = pool.map
 
         # Get new covariance.
         if use_clustering:
@@ -1166,7 +1166,7 @@ class SupFriends(Bound):
             ftypes = ['cubes' for it in range(bootstrap)]
             seeds = get_seed_sequence(rstate, bootstrap)
             args = zip(ps, ftypes, seeds)
-            hsides = list(M(_friends_bootstrap_radius, args))
+            hsides = list(mapper(_friends_bootstrap_radius, args))
 
         # Conservatively set half-side-length to be maximum of the set.
         hsmax = max(hsides)

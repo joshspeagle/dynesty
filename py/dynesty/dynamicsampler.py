@@ -176,6 +176,8 @@ def _get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
     """
     Get the update_interval divided by the number of live points
     """
+
+    # TODO this needs to be updated
     if update_interval is None:
         if sample == 'unif':
             update_interval_frac = 1.5
@@ -186,10 +188,10 @@ def _get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
         elif sample == 'rslice':
             update_interval_frac = 2.0 * slices
         else:
-            update_interval_frac = np.inf
+            update_interval_frac = 1
             warnings.warn(
                 "No update_interval set with unknown sampling method: "
-                f"'{sample}'. Defaulting to no updates.")
+                f"'{sample}'. Defaulting to no 1 update per nlive points.")
     elif isinstance(update_interval, float):
         update_interval_frac = update_interval
     elif isinstance(update_interval, int):

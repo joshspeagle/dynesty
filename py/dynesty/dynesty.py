@@ -11,9 +11,8 @@ import sys
 import warnings
 import traceback
 import numpy as np
-from .sampler import Sampler, SAMPLER_LIST
-from .dynamicsampler import (DynamicSampler, _get_update_interval_ratio,
-                             _initialize_live_points)
+from .sampler import Sampler, SAMPLER_LIST, _initialize_live_points
+from .dynamicsampler import (DynamicSampler, _get_update_interval_ratio)
 from .utils import (LogLikelihood, get_random_generator, get_enlarge_bootstrap,
                     get_nonbounded)
 

@@ -57,6 +57,203 @@ def _get_bound(bounding, ndim):
     return bound
 
 
+def _initialize_live_points(live_points,
+                            prior_transform,
+                            loglikelihood,
+                            M,
+                            nlive=None,
+                            ndim=None,
+                            rstate=None,
+                            blob=False,
+                            use_pool_ptform=None):
+    """
+    Initialize the first set of live points before starting the sampling
+
+    Parameters
+    ----------
+    live_points: tuple of arrays or None
+        This can be either none or
+        tuple of 3 arrays (u, v, logl) or
+        tuple of 4 arrays (u, v, logl, blobs), i.e.
+        points location in cube coordinates,
+        point slocation in original coordinates,
+        logl values and optionally blobs associated
+
+    prior_transform: function
+
+    log_likelihood: function
+
+    M: function
+        The function supporting parallel calls like M(func, list)
+
+    nlive: int
+        Number of live-points
+
+    ndim: int
+        Number of dimensions
+
+    rstate: :class: numpy.random.RandomGenerator
+
+    blob: bool
+        If true we also keep track of blobs returned by likelihood
+
+    use_pool_ptform: bool or None
+        The flag to perform prior transform using multiprocessing pool or not
+
+    Returns
+    -------
+    (live_u, live_v, live_logl, blobs), logvol_init, ncalls : tuple
+        The first tuple consist of:
+        live_u Unit cube coordinates of points
+        live_v Original coordinates.
+        live_logl log-likelihood values of points
+        blobs - Array of blobs associated with logl calls (or None)
+        The other arguments are
+        logvol_init Log(volume) associated with returned points.
+               It will be zero, if all the log(l) values were finite
+        ncalls Integer number of function calls
+    """
+    logvol_init = 0
+    ncalls = 0
+    if live_points is None:
+        # If no live points are provided, propose them by randomly
+        # sampling from the unit cube.
+        n_attempts = 1000
+
+        min_npoints = min(nlive, max(ndim + 1, min(nlive - 20, 100)))
+        # the minimum number points we want with finite logl
+        # we want want at least ndim+1, because we want
+        # to be able to constraint the ellipsoid
+        # Note that if nlive <ndim+ 1 this doesn't really make sense
+        # but we should have warned the user earlier, so they are on their own
+        # And the reason we have max(ndim+1, X ) is that we'd like to get at
+        # least X points as otherwise the poisson estimate of the volume will
+        # be too large.
+        # The reason why X is min(nlive-20, 100) is that we want at least 100
+        # to have reasonable volume accuracy of ~ 10%
+        # and the reason for nlive-20 is because if nlive is 100, we don't want
+        # all points with finite logl, because this leads to issues with
+        # integrals and batch sampling in plateau edge tests
+        # The formula probably should be simplified
+
+        live_u = np.zeros((nlive, ndim))
+        live_v = np.zeros((nlive, ndim))
+        live_logl = np.zeros(nlive)
+        ngoods = 0  # counter for how many finite logl we have found
+        live_blobs = []
+        iattempt = 0
+        while True:
+            iattempt += 1
+
+            # simulate nlive points by uniform sampling
+            cur_live_u = rstate.random(size=(nlive, ndim))
+            if use_pool_ptform:
+                cur_live_v = M(prior_transform, np.asarray(cur_live_u))
+            else:
+                cur_live_v = map(prior_transform, np.asarray(cur_live_u))
+            cur_live_v = np.array(list(cur_live_v))
+            cur_live_logl = loglikelihood.map(np.asarray(cur_live_v))
+            if blob:
+                cur_live_blobs = np.array([_.blob for _ in cur_live_logl])
+            cur_live_logl = np.array([_.val for _ in cur_live_logl])
+            ncalls += nlive
+
+            # Convert all `-np.inf` log-likelihoods to finite large
+            # numbers. Necessary to keep estimators in our sampler from
+            # breaking.
+            finite = np.isfinite(cur_live_logl)
+            not_finite = ~finite
+            neg_infinite = np.isneginf(cur_live_logl)
+            if np.any(not_finite & (~neg_infinite)):
+                raise ValueError("The log-likelihood of live "
+                                 "point is invalid.")
+            cur_live_logl[not_finite] = _LOWL_VAL
+
+            # how many finite logl values we have
+            cur_ngood = finite.sum()
+            if cur_ngood > 0:
+                # append them to our list
+                nextra = min(nlive - ngoods, cur_ngood)
+                assert nextra >= 0
+                cur_ind = np.nonzero(finite)[0][:nextra]
+                live_logl[ngoods:ngoods + nextra] = cur_live_logl[cur_ind]
+                live_u[ngoods:ngoods + nextra] = cur_live_u[cur_ind]
+                live_v[ngoods:ngoods + nextra] = cur_live_v[cur_ind]
+                if blob:
+                    live_blobs.extend(cur_live_blobs[cur_ind])
+                ngoods += nextra
+
+            # Check if we have more than the minimum required number
+            # after that we will stop
+            if ngoods >= min_npoints:
+                # we need to fill the rest with points with
+                # not finite logl
+                nextra = nlive - ngoods
+                if nextra > 0:
+                    cur_ind = np.nonzero(not_finite)[0][:nextra]
+                    assert len(cur_ind) == nextra
+                    live_logl[ngoods:ngoods + nextra] = cur_live_logl[cur_ind]
+                    live_u[ngoods:ngoods + nextra] = cur_live_u[cur_ind]
+                    live_v[ngoods:ngoods + nextra] = cur_live_v[cur_ind]
+                    if blob:
+                        live_blobs.extend(cur_live_blobs[cur_ind])
+                logvol_init = -np.log(iattempt)
+                # The logic is the following:
+                # if we have n live points and we sampled N attempts
+                # and we have k points above LOWL_VAL
+                # then the volume associated with pts above LOWL_VAL
+                # can be estimated as k/(Nn)
+                # the rest of the points have 1/Nn volume per pt
+                # Since we quit with k points above LOWL_VAL and
+                # (n-k)  LOWL points
+                # The volume is k/(Nn) + (n-k)/(Nn) = 1/N
+                break
+            if iattempt == n_attempts:
+                if ngoods == 0:
+                    # If we found nothing after many attempts, raise the alarm.
+                    raise RuntimeError(
+                        f"After {n_attempts} attempts, we cound not "
+                        "find a single point "
+                        "that have a valid log-likelihood! Please "
+                        "check your prior transform and/or "
+                        "log-likelihood.")
+                else:
+                    # If we found nothing after many attempts, raise the alarm.
+                    warnings.warn(f"After {n_attempts} attempts, we cound not "
+                                  f"find at least {min_npoints} points "
+                                  "that have a valid log-likelihood! "
+                                  "The initial sampling is very inefficient!")
+
+    else:
+        # If live points were provided, convert the log-likelihoods and
+        # then run a quick safety check.
+        live_u, live_v, live_logl = live_points[:3]
+        if blob:
+            live_blobs = live_points[3]
+        live_logl = np.asarray(live_logl)
+        for i, logl in enumerate(live_logl):
+            if not np.isfinite(logl):
+                if np.sign(logl) < 0:
+                    live_logl[i] = _LOWL_VAL
+                else:
+                    raise ValueError("The log-likelihood ({0}) of live "
+                                     "point {1} located at u={2} v={3} "
+                                     " is invalid.".format(
+                                         logl, i, live_u[i], live_v[i]))
+        if np.all(live_logl == _LOWL_VAL):
+            raise ValueError("Not a single provided live point has a "
+                             "valid log-likelihood!")
+    if np.ptp(live_logl) == 0:
+        warnings.warn(
+            'All the initial likelihood values are the same. '
+            'You likely have a plateau in the likelihood. '
+            'Nested sampling may not be the best sampler in this case.',
+            RuntimeWarning)
+    if not blob:
+        live_blobs = None
+    return (live_u, live_v, live_logl, live_blobs), logvol_init, ncalls
+
+
 class Sampler:
     """
     The basic sampler object that performs the actual nested sampling.
@@ -338,23 +535,19 @@ class Sampler:
 
     def reset(self):
         """Re-initialize the sampler."""
-        warnings.warn(
-            "reset() is deprecated and will be removed in future releases",
-            DeprecationWarning)
-        # live points
-        self.live_u = self.rstate.random(size=(self.nlive, self.ndim))
-        if self.use_pool_ptform:
-            # Use the pool to compute the prior transform.
-            self.live_v = np.array(
-                list(self.mapper(self.prior_transform,
-                                 np.asarray(self.live_u))))
-        else:
-            # Compute the prior transform using the default `map` function.
-            self.live_v = np.array(
-                list(map(self.prior_transform, np.asarray(self.live_u))))
-        self.live_logl = np.array(
-            [_.val for _ in self.loglikelihood.map(np.asarray(self.live_v))])
 
+        (self.live_u, self.live_v, self.live_logl,
+         self.live_blobs), logvol_init, init_ncalls = _initialize_live_points(
+             None,
+             self.prior_transform,
+             self.loglikelihood,
+             self.mapper,
+             nlive=self.nlive,
+             ndim=self.ndim,
+             rstate=self.rstate,
+             blob=self.blob,
+             use_pool_ptform=self.use_pool_ptform)
+        self.logvol_init = logvol_init
         self.live_bound = np.zeros(self.nlive, dtype=int)
         self.live_it = np.zeros(self.nlive, dtype=int)
 
@@ -364,7 +557,7 @@ class Sampler:
 
         # sampling
         self.it = 1
-        self.ncall = self.nlive
+        self.ncall = init_ncalls
         self.bound = UnitCube(self.ncdim)
         self.bound_list = [self.bound]
         self.internal_sampler = UnitCubeSampler(ndim=self.ndim)

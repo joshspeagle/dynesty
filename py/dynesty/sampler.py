@@ -20,7 +20,7 @@ from .utils import (get_seed_sequence, get_print_func, progress_integration,
                     get_random_generator)
 
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
-                       SupFriends, Bound)
+                       SupFriends, Bound, BOUND_LIST)
 from .utils import (get_enlarge_bootstrap, save_sampler, restore_sampler)
 
 __all__ = ["Sampler"]
@@ -30,7 +30,7 @@ SAMPLER_LIST = ['rwalk', 'unif', 'rslice', 'slice']
 
 def _get_bound(bounding, ndim):
     if isinstance(bounding, str):
-        if bounding not in ['none', 'single', 'multi', 'balls', 'cubes']:
+        if bounding not in BOUND_LIST:
             raise ValueError('Unsupported bounding type')
     elif isinstance(bounding, Bound):
         pass
@@ -488,7 +488,7 @@ class Sampler:
         u = self.live_u[i, :]
         ax = self.bound.get_random_axes(self.rstate)
         u_fit = u[:self.ncdim]
-        if self.bounding in ['balls', 'cubes']:
+        if self.bound.need_centers:
             self.bound.ctrs = self.live_u
         # Automatically trigger an update if we're not in any ellipsoid.
         if not self.bound.contains(u_fit):

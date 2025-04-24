@@ -191,7 +191,7 @@ class UniformBoundSampler(InternalSampler):
         self.sampler_kwargs['bound'] = nested_sampler.bound
         self.sampler_kwargs['ndim'] = nested_sampler.ndim
         self.sampler_kwargs['n_cluster'] = nested_sampler.ncdim
-        if nested_sampler.bounding in ['balls', 'cubes']:
+        if nested_sampler.bound.need_centers:
             self.sampler_kwargs['bound'].ctrs = nested_sampler.live_u
 
         return super().prepare_sampler(loglstar=loglstar,

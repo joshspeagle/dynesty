@@ -41,6 +41,9 @@ __all__ = [
     "_friends_leaveoneout_radius"
 ]
 
+BOUND_LIST = ['none', 'single', 'multi', 'balls', 'cubes']
+# these are the exitsing bounds implemented here
+
 
 class Bound:
     """
@@ -48,8 +51,10 @@ class Bound:
     the key methods required from the bound
     """
 
-    def __init__(self):
+    def __init__(self, ndim):
         self.logvol = 0
+        self.need_centers = False
+        self.ndim = ndim
 
     def contains(self, x):
         """Checks if unit cube contains the point `x`."""
@@ -101,8 +106,7 @@ class UnitCube(Bound):
     """
 
     def __init__(self, ndim):
-        self.n = ndim  # dimension
-        self.logvol = 0.  # volume
+        super().__init__(ndim)
         self.funit = 1.  # overlap with the unit cube
 
     def contains(self, x):
@@ -121,7 +125,7 @@ class UnitCube(Bound):
 
         """
 
-        return rstate.random(size=self.n)
+        return rstate.random(size=self.ndim)
 
     def samples(self, nsamples, rstate=None):
         """
@@ -134,14 +138,14 @@ class UnitCube(Bound):
 
         """
 
-        return rstate.random(size=(nsamples, self.n))
+        return rstate.random(size=(nsamples, self.ndim))
 
     def update(self, points, rstate=None, bootstrap=0, pool=None):
         """Filler function."""
         pass
 
     def get_random_axes(self, rstate):
-        return np.eye(self.n)
+        return np.eye(self.ndim)
 
     def scale_to_logvol(self, logvol):
         pass
@@ -167,7 +171,8 @@ class Ellipsoid(Bound):
     """
 
     def __init__(self, ctr, cov, am=None, axes=None):
-        self.n = len(ctr)  # dimension
+        ndim = len(ctr)  # dimension
+        super().__init__(ndim)
         self.ctr = np.asarray(ctr)  # center coordinates
         self.cov = np.asarray(cov)  # covariance matrix
 
@@ -179,7 +184,7 @@ class Ellipsoid(Bound):
             self.axlens = np.sqrt(l)
             # Volume of ellipsoid is the volume of an n-sphere
             # is a product of squares of eigen values
-            self.logvol = logvol_prefactor(self.n) + 0.5 * np.log(l).sum()
+            self.logvol = logvol_prefactor(self.ndim) + 0.5 * np.log(l).sum()
         else:
             raise ValueError(
                 "The input precision matrix defining the "
@@ -209,20 +214,20 @@ class Ellipsoid(Bound):
 
         logf = (logvol - self.logvol)
         # log of the maxium axis length of the ellipsoid
-        max_log_axlen = np.log(np.sqrt(self.n) / 2)
+        max_log_axlen = np.log(np.sqrt(self.ndim) / 2)
         log_axlen = np.log(self.axlens)
-        if log_axlen.max() < max_log_axlen - logf / self.n:
+        if log_axlen.max() < max_log_axlen - logf / self.ndim:
             # we are safe to inflate the ellipsoid isothropically
             # without hitting boundaries
-            f = np.exp(logf / self.n)
+            f = np.exp(logf / self.ndim)
             self.cov *= f**2
             self.am *= 1. / f**2
             self.axlens *= f
             self.axes *= f
         else:
-            logfax = np.zeros(self.n)
+            logfax = np.zeros(self.ndim)
             curlogf = logf  # how much we have left to inflate
-            curn = self.n  # how many dimensions left
+            curn = self.ndim  # how many dimensions left
             l, v = lalg.eigh(self.cov, check_finite=False)
 
             # here we start from largest and go to smallest
@@ -280,7 +285,8 @@ class Ellipsoid(Bound):
 
         """
 
-        return self.ctr + np.dot(self.axes, randsphere(self.n, rstate=rstate))
+        return self.ctr + np.dot(self.axes, randsphere(self.ndim,
+                                                       rstate=rstate))
 
     def samples(self, nsamples, rstate=None):
         """
@@ -341,7 +347,7 @@ class Ellipsoid(Bound):
 
         # Compute new bounding ellipsoid.
         ell = bounding_ellipsoid(points)
-        self.n = ell.n
+        self.ndim = ell.ndim
         self.ctr = ell.ctr
         self.cov = ell.cov
         self.am = ell.am
@@ -369,7 +375,7 @@ class Ellipsoid(Bound):
 
             # If our ellipsoid is over-constrained, expand it.
             if expand > 1.:
-                lv = self.logvol + self.n * np.log(expand)
+                lv = self.logvol + self.ndim * np.log(expand)
                 self.scale_to_logvol(lv)
 
         # Estimate the fractional overlap with the unit cube using
@@ -422,6 +428,7 @@ class MultiEllipsoid(Bound):
                 ]
         self.__update_arrays()
 
+        super().__init__(self.ells[0].ndim)
         # Compute quantities.
         self.logvol = logsumexp(self.logvol_ells)  # ignores overlap
         self.funit = 1
@@ -662,7 +669,7 @@ class MultiEllipsoid(Bound):
             # factor derived from our set of bootstraps.
             expand = max(expands)
             # Put a warning if a boostrap leads to 100 times larger volume
-            if np.log10(expand) * firstell.n > LOG10_EXPAND_VOL_WARN:
+            if np.log10(expand) * firstell.ndim > LOG10_EXPAND_VOL_WARN:
                 warnings.warn(
                     'The enlargement factor for the ellipsoidal bounds'
                     ' determined'
@@ -708,10 +715,10 @@ class RadFriends(Bound):
     """
 
     def __init__(self, ndim, cov=None):
-        self.n = ndim
-
+        super().__init__(ndim)
+        self.need_centers = True
         if cov is None:
-            cov = np.identity(self.n)
+            cov = np.identity(self.ndim)
         self.cov = cov
         self.am = lalg.pinvh(self.cov)
         self.axes = lalg.sqrtm(self.cov)
@@ -719,14 +726,14 @@ class RadFriends(Bound):
 
         detsign, detln = linalg.slogdet(self.am)
         assert detsign > 0
-        self.logvol = logvol_prefactor(self.n) - 0.5 * detln
+        self.logvol = logvol_prefactor(self.ndim) - 0.5 * detln
         self.funit = 1
         self.ctrs = []  # placeholder
 
     def scale_to_logvol(self, logvol):
         """Scale ball to encompass a target volume."""
 
-        f = np.exp((logvol - self.logvol) * (1.0 / self.n))
+        f = np.exp((logvol - self.logvol) * (1.0 / self.ndim))
         # linear factor
         self.cov *= f**2
         self.am /= f**2
@@ -772,7 +779,7 @@ class RadFriends(Bound):
         nctrs = len(self.ctrs)  # number of balls
 
         while True:
-            ds = randsphere(self.n, rstate=rstate)
+            ds = randsphere(self.ndim, rstate=rstate)
             dx = np.dot(ds, self.axes)
 
             # If there is only one ball, sample from it.
@@ -911,7 +918,7 @@ class RadFriends(Bound):
         # Compute volume.
         detsign, detln = linalg.slogdet(self.am)
         assert detsign > 0
-        self.logvol = (logvol_prefactor(self.n) - 0.5 * detln)
+        self.logvol = (logvol_prefactor(self.ndim) - 0.5 * detln)
 
         # Estimate the volume and fractional overlap with the unit cube
         # using Monte Carlo integration.
@@ -975,10 +982,11 @@ class SupFriends(Bound):
     """
 
     def __init__(self, ndim, cov=None):
-        self.n = ndim
+        super().__init__(ndim)
+        self.need_centers = True
 
         if cov is None:
-            cov = np.identity(self.n)
+            cov = np.identity(self.ndim)
         self.cov = cov
         self.am = lalg.pinvh(self.cov)
         self.axes = lalg.sqrtm(self.cov)
@@ -986,14 +994,14 @@ class SupFriends(Bound):
 
         detsign, detln = linalg.slogdet(self.am)
         assert detsign > 0
-        self.logvol = self.n * np.log(2.) - 0.5 * detln
+        self.logvol = self.ndim * np.log(2.) - 0.5 * detln
         self.funit = 1
         self.ctrs = []
 
     def scale_to_logvol(self, logvol):
         """Scale cube to encompass a target volume."""
 
-        f = np.exp((logvol - self.logvol) * (1.0 / self.n))
+        f = np.exp((logvol - self.logvol) * (1.0 / self.ndim))
         # linear factor
         self.cov *= f**2
         self.am /= f**2
@@ -1041,7 +1049,7 @@ class SupFriends(Bound):
         nctrs = len(self.ctrs)  # number of cubes
 
         while True:
-            ds = rstate.uniform(-1, 1, size=self.n)
+            ds = rstate.uniform(-1, 1, size=self.ndim)
             dx = np.dot(ds, self.axes)
             # If there is only one cube, sample from it.
             if nctrs == 1:
@@ -1179,7 +1187,7 @@ class SupFriends(Bound):
 
         detsign, detln = linalg.slogdet(self.am)
         assert detsign > 0
-        self.logvol = (self.n * np.log(2.) - 0.5 * detln)
+        self.logvol = (self.ndim * np.log(2.) - 0.5 * detln)
 
         # Estimate the volume and fractional overlap with the unit cube
         # using Monte Carlo integration.

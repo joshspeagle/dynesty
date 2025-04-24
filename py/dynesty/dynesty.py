@@ -12,13 +12,13 @@ import warnings
 import traceback
 import numpy as np
 from .sampler import Sampler, SAMPLER_LIST, _initialize_live_points
+from .bounding import BOUND_LIST
+from . import bounding
 from .dynamicsampler import (DynamicSampler, _get_update_interval_ratio)
 from .utils import (LogLikelihood, get_random_generator, get_enlarge_bootstrap,
                     get_nonbounded)
 
 __all__ = ["NestedSampler", "DynamicNestedSampler", "_function_wrapper"]
-
-_SAMPLERS = ['none', 'single', 'multi', 'balls', 'cubes']
 
 
 def _get_citations(nested_type, bound, sampler):
@@ -485,7 +485,7 @@ class NestedSampler(Sampler):
         ncdim = ncdim or ndim
 
         # Bounding method.
-        if bound not in _SAMPLERS:
+        if bound not in BOUND_LIST and not isinstance(bound, bounding.Bound):
             raise ValueError("Unknown bounding method: '{0}'".format(bound))
 
         # Sampling method.
@@ -659,7 +659,7 @@ class DynamicNestedSampler(DynamicSampler):
         nlive = nlive or 500
 
         # Bounding method.
-        if bound not in _SAMPLERS:
+        if bound not in BOUND_LIST and not isinstance(bounding.Bound):
             raise ValueError(f"Unknown bounding method: {bound}")
 
         # Sampling method.

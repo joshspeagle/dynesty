@@ -1618,7 +1618,7 @@ def boundplot(results,
         raise ValueError("No bounds were saved in the results!")
     nsamps = len(results['samples'])
 
-    nonbounded = get_nonbounded(bounds[0].n, periodic, reflective)
+    nonbounded = get_nonbounded(bounds[0].ndim, periodic, reflective)
 
     if it is not None:
         if it >= nsamps:
@@ -1939,7 +1939,7 @@ def cornerbound(results,
     if ndim == 1:
         raise ValueError('cornerbound does not work for 1-D posteriors')
 
-    nonbounded = get_nonbounded(bounds[0].n, periodic, reflective)
+    nonbounded = get_nonbounded(bounds[0].ndim, periodic, reflective)
 
     if it is not None:
         if it >= nsamps:

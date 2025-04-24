@@ -50,10 +50,10 @@ class InternalSampler:
 
     def __init__(self, **kwargs):
         """Initialize the internal sampler.
-        
-        Importantely this sets up the sampler_kwargs that is being passed 
+
+        Importantely this sets up the sampler_kwargs that is being passed
         to each .sample() call
-        
+
         Parameters
         ----------
         kwargs : dict
@@ -68,7 +68,6 @@ class InternalSampler:
         reflective : array
             Array of boolean values indicating which dimensions are
             reflective.
-        
 
         """
         self.scale = 1
@@ -825,7 +824,6 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
     while ncall < walks:
 
         # This proposes a new point within the ellipsoid
-        # This also potentially modifies the scale
         u_prop, fail = propose_ball_point(u,
                                           scale,
                                           axes,
@@ -835,8 +833,6 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
                                           periodic=periodic,
                                           reflective=reflective,
                                           nonbounded=nonbounded)
-        # If generation of points within an ellipsoid was
-        # highly inefficient we adjust the scale
         if fail:
             nreject += 1
             ncall += 1
@@ -864,71 +860,6 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
     sampling_info = {'accept': naccept, 'reject': nreject, 'scale': scale}
 
     return u, v, logl, ncall, sampling_info
-
-
-def sample_unif(args):
-    """
-    Evaluate a new point sampled uniformly from a bounding proposal
-    distribution. Parameters are zipped within `args` to utilize
-    `pool.map`-style functions.
-
-    Parameters
-    ----------
-    u : `~numpy.ndarray` with shape (ndim,)
-        Position of the initial sample.
-
-    loglstar : float
-        Ln(likelihood) bound. **Not applicable here.**
-
-    axes : `~numpy.ndarray` with shape (ndim, ndim)
-        Axes used to propose new points. **Not applicable here.**
-
-    scale : float
-        Value used to scale the provided axes. **Not applicable here.**
-
-    prior_transform : function
-        Function transforming a sample from the a unit cube to the parameter
-        space of interest according to the prior.
-
-    loglikelihood : function
-        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
-        array of length `ndim`.
-
-    kwargs : dict
-        A dictionary of additional method-specific parameters.
-        **Not applicable here.**
-
-    Returns
-    -------
-    u : `~numpy.ndarray` with shape (ndim,)
-        Position of the final proposed point within the unit cube. **For
-        uniform sampling this is the same as the initial input position.**
-
-    v : `~numpy.ndarray` with shape (ndim,)
-        Position of the final proposed point in the target parameter space.
-
-    logl : float
-        Ln(likelihood) of the final proposed point.
-
-    nc : int
-        Number of function calls used to generate the sample. For uniform
-        sampling this is `1` by construction.
-
-    sampling_info : dict
-        Collection of ancillary quantities used to tune :data:`scale`. **Not
-        applicable for uniform sampling.**
-
-    """
-
-    # Unzipping.
-
-    # Evaluate.
-    v = args.prior_transform(np.asarray(args.u))
-    logl = args.loglikelihood(np.asarray(v))
-    nc = 1
-    sampling_info = None
-
-    return args.u, v, logl, nc, sampling_info
 
 
 def propose_ball_point(u,

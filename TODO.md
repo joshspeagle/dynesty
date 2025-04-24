@@ -10,3 +10,7 @@ Here's rough todo
 
 * Allow saving some information from the sampler into RunRecord ?
 
+* Think of Sampler interface, do i really need seeds ?
+
+* what about generation of livepoints/axes by proposed_live not used by uniform sampler
+do i care about that ? probably not 

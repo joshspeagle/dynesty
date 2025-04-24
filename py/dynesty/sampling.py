@@ -48,7 +48,10 @@ class InternalSampler:
 
     def __init__(self, **kwargs):
         """Initialize the internal sampler.
-
+        
+        Importantely this sets up the sampler_kwargs that is being passed 
+        to each .sample() call
+        
         Parameters
         ----------
         kwargs : dict
@@ -63,12 +66,13 @@ class InternalSampler:
         reflective : array
             Array of boolean values indicating which dimensions are
             reflective.
+        
 
         """
         self.scale = 1
-        self.kwargs = dict()
+        self.sampler_kwargs = dict()
         for k in ['nonbounded', 'periodic', 'reflective']:
-            self.kwargs[k] = kwargs.get(k)
+            self.sampler_kwargs[k] = kwargs.get(k)
 
     def prepare_sampler(self,
                         loglstar=None,
@@ -107,7 +111,7 @@ class InternalSampler:
             needed for sampling.
         """
         arg_list = []
-        kwargs = self.kwargs
+        kwargs = self.sampler_kwargs
         for curp, curax, curseed in zip(points, axes, seeds):
             curarg = SamplerArgument(u=curp,
                                      loglstar=loglstar,
@@ -184,11 +188,11 @@ class UniformBoundSampler(InternalSampler):
         itself to the sampler through kwargs.
 
         """
-        self.kwargs['bound'] = nested_sampler.bound
-        self.kwargs['ndim'] = nested_sampler.ndim
-        self.kwargs['n_cluster'] = nested_sampler.ncdim
+        self.sampler_kwargs['bound'] = nested_sampler.bound
+        self.sampler_kwargs['ndim'] = nested_sampler.ndim
+        self.sampler_kwargs['n_cluster'] = nested_sampler.ncdim
         if nested_sampler.bounding in ['balls', 'cubes']:
-            self.kwargs['bound'].ctrs = nested_sampler.live_u
+            self.sampler_kwargs['bound'].ctrs = nested_sampler.live_u
 
         return super().prepare_sampler(loglstar=loglstar,
                                        points=points,
@@ -304,7 +308,7 @@ class UnitCubeSampler(InternalSampler):
                         prior_transform=None,
                         loglikelihood=None,
                         nested_sampler=None):
-        self.kwargs['ndim'] = self.ndim
+        self.sampler_kwargs['ndim'] = self.ndim
         return super().prepare_sampler(loglstar=loglstar,
                                        points=points,
                                        axes=axes,
@@ -397,7 +401,7 @@ class RWalkSampler(InternalSampler):
         # Since the sample is a static method, it's crucial
         # to put relevant information into kwargs which is then passed to
         # the samplers
-        self.kwargs['walks'] = walks
+        self.sampler_kwargs['walks'] = walks
 
     def tune(self, sampling_info, update=True):
         """Update the random walk proposal scale based on the current
@@ -502,7 +506,7 @@ class SliceSampler(InternalSampler):
         slices = kwargs.get('slices', 5)
         self.slice_history = {'ncontract': 0, 'nexpand': 0}
 
-        self.kwargs['slices'] = slices
+        self.sampler_kwargs['slices'] = slices
         # Since the sample is a static method, it's crucial
         # to put relevant information into kwargs which is then passed to
         # the samplers
@@ -630,7 +634,7 @@ class RSliceSampler(InternalSampler):
         slices = kwargs.get('slices', 5)
         self.slice_history = {'ncontract': 0, 'nexpand': 0}
 
-        self.kwargs['slices'] = slices
+        self.sampler_kwargs['slices'] = slices
         # Since the sample is a static method, it's crucial
         # to put relevant information into kwargs which is then passed to
         # the samplers
@@ -1159,7 +1163,7 @@ def tune_slice(sampler, sampling_info, update=True):
     hist['nexpand'] += sampling_info['nexpand']
     hist['ncontract'] += sampling_info['ncontract']
     if sampling_info['expansion_warning_set']:
-        sampler.kwargs['slice_doubling'] = True
+        sampler.sampler_kwargs['slice_doubling'] = True
     if not update:
         return
     nexpand, ncontract = max(hist['nexpand'], 1), hist['ncontract']

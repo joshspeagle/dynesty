@@ -868,8 +868,7 @@ def get_seed_sequence(rstate, nitems):
     Return the list of seeds to initialize random generators
     This is useful when distributing work across a pool
     """
-    seeds = np.random.SeedSequence(rstate.integers(0, 2**63 - 1,
-                                                   size=4)).spawn(nitems)
+    seeds = rstate.spawn(nitems)
     return seeds
 
 

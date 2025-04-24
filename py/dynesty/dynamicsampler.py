@@ -1051,10 +1051,8 @@ class DynamicSampler:
 
         """
         # Initialize inputs.
-        if maxcall is None:
-            maxcall = sys.maxsize
-        if maxiter is None:
-            maxiter = sys.maxsize
+        maxcall = maxcall or sys.maxsize
+        maxiter = maxiter or sys.maxsize
         nlive = nlive or self.nlive0
         update_interval = self.__get_update_interval(update_interval, nlive)
         if nlive <= 2 * self.ncdim:
@@ -1761,24 +1759,16 @@ class DynamicSampler:
         """
 
         # Initialize values.
-        if maxcall is None:
-            maxcall = sys.maxsize
-        if maxiter is None:
-            maxiter = sys.maxsize
-        if maxiter_batch is None:
-            maxiter_batch = sys.maxsize
-        if maxcall_batch is None:
-            maxcall_batch = sys.maxsize
-        if maxbatch is None:
-            maxbatch = sys.maxsize
-        if maxiter_init is None:
-            maxiter_init = sys.maxsize
-        if maxcall_init is None:
-            maxcall_init = sys.maxsize
-        if wt_function is None:
-            wt_function = weight_function
-        if wt_kwargs is None:
-            wt_kwargs = {}
+        maxcall = maxcall or sys.maxsize
+        maxiter = maxiter or sys.maxsize
+        maxiter_batch = maxiter_batch or sys.maxsize
+        maxcall_batch = maxcall_batch or sys.maxsize
+        maxbatch = maxbatch or sys.maxsize
+        maxiter_init = maxiter_init or sys.maxsize
+        maxcall_init = maxcall_init or sys.maxsize
+        wt_function = wt_function or weight_function
+        wt_kwargs = wt_kwargs or {}
+
         if stop_function is None:
             default_stop_function = True
             stop_function = stopping_function

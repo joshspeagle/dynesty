@@ -52,6 +52,8 @@ def _get_bound(bounding, ndim):
         bound = RadFriends(ndim)
     elif bounding == 'cubes':
         bound = SupFriends(ndim)
+    else:
+        bound = bounding
     return bound
 
 

@@ -721,6 +721,7 @@ class RadFriends(Bound):
         assert detsign > 0
         self.logvol = logvol_prefactor(self.n) - 0.5 * detln
         self.funit = 1
+        self.ctrs = []  # placeholder
 
     def scale_to_logvol(self, logvol):
         """Scale ball to encompass a target volume."""
@@ -987,6 +988,7 @@ class SupFriends(Bound):
         assert detsign > 0
         self.logvol = self.n * np.log(2.) - 0.5 * detln
         self.funit = 1
+        self.ctrs = []
 
     def scale_to_logvol(self, logvol):
         """Scale cube to encompass a target volume."""
@@ -1633,7 +1635,8 @@ def _friends_bootstrap_radius(args):
         # among the resampled points using the Euclidean norm
         # (i.e. "half-side-length" of n-cube).
         dists = kdtree.query(points_out, k=1, eps=0, p=np.inf)[0]
-
+    else:
+        raise ValueError(f'Unknown type {ftype}')
     # Conservative upper-bound on radius.
     dist = max(dists)
 
@@ -1655,7 +1658,8 @@ def _friends_leaveoneout_radius(points, ftype):
     elif ftype == 'cubes':
         # Compute half-side-length to two nearest neighbors (self + neighbor).
         dists = kdtree.query(points, k=2, eps=0, p=np.inf)[0]
-
+    else:
+        raise ValueError(f'unknown ftype {ftype}')
     dist = dists[:, 1]  # distances to LOO nearest neighbor
 
     return dist

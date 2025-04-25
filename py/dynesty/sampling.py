@@ -390,19 +390,19 @@ class UnitCubeSampler(InternalSampler):
 
 class RWalkSampler(InternalSampler):
 
-    def __init__(self, ncdim=None, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Initialize random walk parameters.
         walks = max(2, kwargs.get('walks', 25))
         self.facc = kwargs.get('facc', 0.5)
         self.facc = min(1., max(1. / walks, self.facc))
         self.rwalk_history = {'naccept': 0, 'nreject': 0}
-        self.ncdim = ncdim
-
+        self.ncdim = kwargs.get('ncdim')
         # Since the sample is a static method, it's crucial
         # to put relevant information into kwargs which is then passed to
         # the samplers
         self.sampler_kwargs['walks'] = walks
+        self.sampler_kwargs['ncdim'] = self.ncdim
 
     def tune(self, sampling_info, update=True):
         """Update the random walk proposal scale based on the current

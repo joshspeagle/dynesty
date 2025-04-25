@@ -179,7 +179,7 @@ def test_bounding_sample(bound, sample):
     sample = {
         'unif': dysa.UniformBoundSampler(),
         'rslice': dysa.RSliceSampler(),
-        'rwalk': dysa.SliceSampler(),
+        'rwalk': dysa.RWalkSampler(ncdim=g.ndim),
         'slice': dysa.SliceSampler()
     }[sample]
     sampler = dynesty.NestedSampler(g.loglikelihood,

@@ -262,8 +262,7 @@ def _get_internal_sampler(sampling, kwargs, sampler_kw):
         internal_sampler = SliceSampler(slices=kwargs.get('slices'),
                                         **sampler_kw)
     elif sampling == 'rwalk':
-        internal_sampler = RWalkSampler(ncdim=kwargs.get('ncdim'),
-                                        walks=kwargs.get('walks'),
+        internal_sampler = RWalkSampler(walks=kwargs.get('walks'),
                                         **sampler_kw)
     elif sampling == 'unif':
         internal_sampler = UniformBoundSampler(**sampler_kw)
@@ -380,7 +379,8 @@ class Sampler:
         sampler_kw = dict(nonbounded=kwargs.get('nonbounded'),
                           periodic=kwargs.get('periodic'),
                           reflective=kwargs.get('reflective'),
-                          ndim=self.ndim)
+                          ndim=self.ndim,
+                          ncdim=self.ncdim)
 
         self.sampling = sampling
         internal_sampler = _get_internal_sampler(sampling, kwargs, sampler_kw)

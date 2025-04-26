@@ -38,12 +38,11 @@ def _get_bound(bounding, ndim):
     if bounding == 'none':
         bound = UnitCube(ndim)
     elif bounding == 'single':
-        bound = Ellipsoid(np.zeros(ndim) + .5, np.identity(ndim) * ndim / 4)
+        bound = Ellipsoid(ndim)
         # this is ellipsoid in the center of the cube that contains
         # the whole cube
     elif bounding == 'multi':
-        bound = MultiEllipsoid(ctrs=[np.zeros(ndim) + .5],
-                               covs=[np.identity(ndim) * ndim / 4])
+        bound = MultiEllipsoid(ndim)
         # this is ellipsoid in the center of the cube that contains
         # the whole cube
     elif bounding == 'balls':

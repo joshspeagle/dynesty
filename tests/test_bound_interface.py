@@ -174,12 +174,10 @@ def test_bounding_sample(bound, sample):
     else:
         g = Gaussian()
     ndim = g.ndim
-    eye = np.eye(ndim)
-    C = np.zeros(ndim) + .5
     bound = {
         'none': db.UnitCube(ndim),
-        'multi': db.MultiEllipsoid(ctrs=[C], covs=[eye]),
-        'single': db.Ellipsoid(C, eye),
+        'multi': db.MultiEllipsoid(ndim),
+        'single': db.Ellipsoid(ndim),
         'balls': db.RadFriends(ndim),
         'cubes': db.SupFriends(ndim),
         'box': Box(ndim)

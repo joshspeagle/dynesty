@@ -170,9 +170,11 @@ class Ellipsoid(Bound):
 
     """
 
-    def __init__(self, ctr, cov, am=None, axes=None):
-        ndim = len(ctr)  # dimension
+    def __init__(self, ndim, ctr=None, cov=None, am=None, axes=None):
         super().__init__(ndim)
+        if ctr is None:
+            ctr = 0.5 * np.zeros(ndim)
+            cov = np.identity(ndim) * ndim / 4
         self.ctr = np.asarray(ctr)  # center coordinates
         self.cov = np.asarray(cov)  # covariance matrix
 
@@ -407,7 +409,9 @@ class MultiEllipsoid(Bound):
 
     """
 
-    def __init__(self, ells=None, ctrs=None, covs=None):
+    def __init__(self, ndim, ells=None, ctrs=None, covs=None):
+        if ells is None and ctrs is None:
+            ells = [Ellipsoid(ndim)]
         if ells is not None:
             # Try to initialize quantities using provided `Ellipsoid` objects.
             if (ctrs is None) and (covs is None):

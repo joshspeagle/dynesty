@@ -22,8 +22,11 @@ def test_sample(withq, ndim):
     cen2 = np.zeros(ndim)
     cen2[0] = shift
     sig = np.eye(ndim) * rad**2
-    ells = [db.Ellipsoid(cen1, sig), db.Ellipsoid(cen2, sig)]
-    mu = db.MultiEllipsoid(ells)
+    ells = [
+        db.Ellipsoid(ndim, ctr=cen1, cov=sig),
+        db.Ellipsoid(ndim, ctr=cen2, cov=sig)
+    ]
+    mu = db.MultiEllipsoid(ndim, ells=ells)
     R = []
     nsim = 100000
     rstate = get_rstate()
@@ -61,7 +64,7 @@ def test_samples_single():
     ndim = 10
     cen = np.zeros(ndim) + .5
     sig = np.eye(ndim)
-    ell = db.Ellipsoid(cen, sig)
+    ell = db.Ellipsoid(ndim, ctr=cen, cov=sig)
     nsamp = 10000
     X = ell.samples(nsamp, rstate=rstate)
     R = np.sqrt(((X - cen[None, :])**2).sum(axis=1))
@@ -76,7 +79,7 @@ def test_samples_multi():
     ndim = 10
     cen = np.zeros(ndim) + .5
     sig = np.eye(ndim)
-    ell = db.MultiEllipsoid([db.Ellipsoid(cen, sig)])
+    ell = db.MultiEllipsoid(ndim, ells=[db.Ellipsoid(ndim, ctr=cen, cov=sig)])
     nsamp = 10000
     X = ell.samples(nsamp, rstate=rstate)
     R = np.sqrt(((X - cen[None, :])**2).sum(axis=1))
@@ -92,7 +95,7 @@ def test_cube_overlap():
     cen = np.zeros(ndim) + .5
     cen[0] = 0
     sig = np.eye(ndim) * .5**2
-    ell = db.Ellipsoid(cen, sig)
+    ell = db.Ellipsoid(ndim, ctr=cen, cov=sig)
     nsamp = 10000
     frac = ell.unitcube_overlap(nsamp, rstate=rstate)
     true_answer = 0.5
@@ -108,9 +111,9 @@ def test_overlap():
     rad = 0.7
     sig = np.eye(ndim) * rad**2
 
-    ell1 = db.Ellipsoid(cen1, sig)
-    ell2 = db.Ellipsoid(cen2, sig)
-    ell = db.MultiEllipsoid([ell1, ell2])
+    ell1 = db.Ellipsoid(ndim, ctr=cen1, cov=sig)
+    ell2 = db.Ellipsoid(ndim, ctr=cen2, cov=sig)
+    ell = db.MultiEllipsoid(ndim, ells=[ell1, ell2])
     nsamp = 10000
     xs = rstate.uniform(size=(nsamp, ndim))
     ind1 = np.sum((xs - cen1[None, :])**2, axis=1) < rad**2
@@ -182,9 +185,10 @@ def test_mc_logvol():
     nsamp = 10000
     for D in Ds:
         cen2[0] = D
-        ell = db.MultiEllipsoid(
-            [db.Ellipsoid(cen1, sig1),
-             db.Ellipsoid(cen2, sig2)])
+        ell = db.MultiEllipsoid(ndim, [
+            db.Ellipsoid(ndim, ctr=cen1, cov=sig1),
+            db.Ellipsoid(ndim, ctr=cen2, cov=sig2)
+        ])
         lv = ell.monte_carlo_logvol(nsamp, rstate=rstate)[0]
         vtrue = two_sphere_vol(cen1, cen2, r1, r2)
         assert (np.abs(np.log(vtrue) - lv) < 1e-2)

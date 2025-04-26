@@ -2145,8 +2145,16 @@ def restore_sampler(fname, pool=None):
     Static or dynamic nested sampling object
 
     """
-    with open(fname, 'rb') as fp:
-        res = pickle_module.load(fp)
+    if not os.path.exists(fname):
+        raise ValueError('File does not exist')
+    try:
+        with open(fname, 'rb') as fp:
+            res = pickle_module.load(fp)
+    except pickle_module.PickleError:
+        raise RuntimeError(
+            'Failed to restore the sampler. '
+            'It is either an invalid file or it comes from a different '
+            'dynesty version.')
     sampler = res['sampler']
     save_ver = res['version']
     dynesty_format_version = 1
@@ -2186,7 +2194,7 @@ def restore_sampler(fname, pool=None):
 
 def save_sampler(sampler, fname):
     """
-    Save the state of the dynamic sampler in a file
+    Save the state of the sampler in a file
 
     Parameters
     ----------

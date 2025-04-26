@@ -58,7 +58,7 @@ def _get_bound(bounding, ndim):
 def _initialize_live_points(live_points,
                             prior_transform,
                             loglikelihood,
-                            M,
+                            mapper,
                             nlive=None,
                             ndim=None,
                             rstate=None,
@@ -81,8 +81,8 @@ def _initialize_live_points(live_points,
 
     log_likelihood: function
 
-    M: function
-        The function supporting parallel calls like M(func, list)
+    mapper: function
+        The function supporting parallel calls like mapper(func, list)
 
     nlive: int
         Number of live-points
@@ -146,7 +146,7 @@ def _initialize_live_points(live_points,
             # simulate nlive points by uniform sampling
             cur_live_u = rstate.random(size=(nlive, ndim))
             if use_pool_ptform:
-                cur_live_v = M(prior_transform, np.asarray(cur_live_u))
+                cur_live_v = mapper(prior_transform, np.asarray(cur_live_u))
             else:
                 cur_live_v = map(prior_transform, np.asarray(cur_live_u))
             cur_live_v = np.array(list(cur_live_v))

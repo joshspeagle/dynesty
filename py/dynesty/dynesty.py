@@ -196,10 +196,10 @@ def _parse_pool_queue(pool, queue_size):
     if queue_size is not None and queue_size < 1:
         raise ValueError("The queue must contain at least one element!")
     elif (queue_size == 1) or (pool is None and queue_size is None):
-        M = map
+        mapper = map
         queue_size = 1
     elif pool is not None:
-        M = pool.map
+        mapper = pool.map
         if queue_size is None:
             try:
                 queue_size = pool.size
@@ -211,7 +211,7 @@ def _parse_pool_queue(pool, queue_size):
     else:
         raise ValueError("`queue_size > 1` but no `pool` provided.")
 
-    return M, queue_size
+    return mapper, queue_size
 
 
 def _check_first_update(first_update):
@@ -554,7 +554,7 @@ class NestedSampler(Sampler):
             max(min(np.round(update_interval_ratio * nlive), sys.maxsize), 1))
 
         # Set up parallel (or serial) evaluation.
-        M, queue_size = _parse_pool_queue(pool, queue_size)
+        mapper, queue_size = _parse_pool_queue(pool, queue_size)
 
         use_pool = use_pool or {}
 
@@ -582,7 +582,7 @@ class NestedSampler(Sampler):
             live_points,
             ptform,
             loglike,
-            M,
+            mapper,
             nlive=nlive,
             ndim=ndim,
             rstate=rstate,

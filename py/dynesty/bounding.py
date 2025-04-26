@@ -428,11 +428,12 @@ class MultiEllipsoid(Bound):
             else:
                 self.nells = len(ctrs)
                 self.ells = [
-                    Ellipsoid(ctrs[i], covs[i]) for i in range(self.nells)
+                    Ellipsoid(ndim, ctr=ctrs[i], cov=covs[i])
+                    for i in range(self.nells)
                 ]
         self.__update_arrays()
 
-        super().__init__(self.ells[0].ndim)
+        super().__init__(ndim)
         # Compute quantities.
         self.logvol = logsumexp(self.logvol_ells)  # ignores overlap
         self.funit = 1
@@ -1431,7 +1432,7 @@ def bounding_ellipsoid(points):
             # is problematic
             break
     # Initialize our ellipsoid with *safe* covariance matrix.
-    ell = Ellipsoid(ctr, covar, am=am, axes=axes)
+    ell = Ellipsoid(ndim, ctr=ctr, cov=covar, am=am, axes=axes)
 
     return ell
 
@@ -1562,7 +1563,7 @@ def bounding_ellipsoids(points):
     # Recursively split the bounding ellipsoid
     ells = _bounding_ellipsoids(points, ell)
 
-    return MultiEllipsoid(ells=ells)
+    return MultiEllipsoid(points.shape[1], ells=ells)
 
 
 def _bootstrap_points(points, rseed):

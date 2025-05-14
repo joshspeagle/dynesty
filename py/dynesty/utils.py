@@ -821,7 +821,7 @@ def get_nonbounded(ndim, periodic, reflective):
     and false for periodic/reflective
     """
     if periodic is not None and reflective is not None:
-        if np.intersect1d(periodic, reflective) != 0:
+        if np.intersect1d(periodic, reflective).size > 0:
             raise ValueError("You have specified a parameter as both "
                              "periodic and reflective.")
 

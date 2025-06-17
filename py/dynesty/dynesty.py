@@ -15,7 +15,7 @@ from .sampling import INTERNAL_SAMPLER_LIST, InternalSampler
 from .sampler import Sampler, _initialize_live_points
 from .bounding import BOUND_LIST
 from . import bounding
-from .dynamicsampler import (DynamicSampler, _get_update_interval_ratio)
+from .dynamicsampler import DynamicSampler
 from .utils import (LogLikelihood, get_random_generator, get_enlarge_bootstrap,
                     get_nonbounded)
 
@@ -222,6 +222,39 @@ def _check_first_update(first_update):
     for k in first_update.keys():
         if k not in ['min_ncall', 'min_eff']:
             raise ValueError('Unrecognized keywords in first_update')
+
+
+def _get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
+                               slices, walks):
+    """
+    Get the update_interval (i.e. boundary update interval)
+    divided by the number of live points.
+    """
+
+    # TODO this needs to be updated
+    if update_interval is None:
+        if sample == 'unif':
+            update_interval_frac = 1.5
+        elif sample == 'rwalk':
+            update_interval_frac = 0.15 * walks
+        elif sample == 'slice':
+            update_interval_frac = 0.9 * ndim * slices
+        elif sample == 'rslice':
+            update_interval_frac = 2.0 * slices
+        else:
+            update_interval_frac = 1
+            warnings.warn(
+                "No update_interval set with unknown sampling method: "
+                f"'{sample}'. Defaulting to no 1 update per nlive points.")
+    elif isinstance(update_interval, float):
+        update_interval_frac = update_interval
+    elif isinstance(update_interval, int):
+        update_interval_frac = update_interval * 1. / nlive
+    else:
+        raise RuntimeError(f'Strange update_interval value {update_interval}')
+    if bound == 'none':
+        update_interval_frac = np.inf
+    return update_interval_frac
 
 
 def _assemble_sampler_docstring(dynamic):

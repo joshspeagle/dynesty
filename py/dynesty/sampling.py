@@ -263,7 +263,7 @@ class UniformBoundSampler(InternalSampler):
         bound = args.kwargs['bound']
         nonbounded = args.kwargs.get('nonbounded')
         n_cluster = args.kwargs.get('n_cluster')
-        ndim = args.kwargs.get('ndim')
+        ndim = args.kwargs['ndim']
         nc = 0
         sampling_info = None
         if nonbounded is not None:
@@ -581,7 +581,7 @@ class SliceSampler(InternalSampler):
         # Setup.
         n = len(u)
         assert axes.shape[0] == n
-        slices = kwargs.get('slices', 5)  # number of slices
+        slices = kwargs['slices']  # number of slices
         nc = 0
         nexpand = 0
         ncontract = 0

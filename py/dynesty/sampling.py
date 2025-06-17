@@ -708,7 +708,7 @@ class RSliceSampler(InternalSampler):
         # Setup.
         n = len(u)
         assert axes.shape[0] == n
-        slices = kwargs.get('slices', 5)  # number of slices
+        slices = kwargs['slices']  # number of slices
         nc = 0
         nexpand = 0
         ncontract = 0
@@ -808,7 +808,7 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
     # Setup.
     n = len(u)
     n_cluster = axes.shape[0]
-    walks = kwargs.get('walks', 25)  # number of steps
+    walks = kwargs['walks']  # number of steps
 
     naccept = 0
     # Total number of accepted points with L>L*

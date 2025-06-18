@@ -209,7 +209,7 @@ def _initialize_live_points(live_points,
                 if ngoods == 0:
                     # If we found nothing after many attempts, raise the alarm.
                     raise RuntimeError(
-                        f"After {n_attempts} attempts, we cound not "
+                        f"After {n_attempts} attempts, we could not "
                         "find a single point "
                         "that have a valid log-likelihood! Please "
                         "check your prior transform and/or "

@@ -2104,121 +2104,6 @@ def _kld_error(args):
                      approx=approx)
 
 
-def old_stopping_function(results,
-                          args=None,
-                          rstate=None,
-                          M=None,
-                          return_vals=False):
-    """
-    The old stopping function utilized by :class:`DynamicSampler`.
-    Zipped parameters are passed to the function via :data:`args`.
-    Assigns the run a stopping value based on a weighted average of the
-    stopping values for the posterior and evidence::
-        stop = pfrac * stop_post + (1.- pfrac) * stop_evid
-    The evidence stopping value is based on the estimated evidence error
-    (i.e. standard deviation) relative to a given threshold::
-        stop_evid = evid_std / evid_thresh
-    The posterior stopping value is based on the fractional error (i.e.
-    standard deviation / mean) in the Kullback-Leibler (KL) divergence
-    relative to a given threshold::
-        stop_post = (kld_std / kld_mean) / post_thresh
-    Estimates of the mean and standard deviation are computed using `n_mc`
-    realizations of the input using a provided `'error'` keyword (either
-    `'jitter'` or `'resample'`).
-    Returns the boolean `stop <= 1`. If `True`, the :class:`DynamicSampler`
-    will stop adding new samples to our results.
-    Parameters
-    ----------
-    results : :class:`Results` instance
-        :class:`Results` instance.
-    args : dictionary of keyword arguments, optional
-        Arguments used to set the stopping values. Default values are
-        `pfrac = 1.0`, `evid_thresh = 0.1`, `post_thresh = 0.02`,
-        `n_mc = 128`, `error = 'jitter'`, and `approx = True`.
-    rstate : `~numpy.random.Generator`, optional
-        `~numpy.random.Generator` instance.
-    M : `map` function, optional
-        An alias to a `map`-like function. This allows users to pass
-        functions from pools (e.g., `pool.map`) to compute realizations in
-        parallel. By default the standard `map` function is used.
-    return_vals : bool, optional
-        Whether to return the stopping value (and its components). Default
-        is `False`.
-    Returns
-    -------
-    stop_flag : bool
-        Boolean flag indicating whether we have passed the desired stopping
-        criteria.
-    stop_vals : tuple of shape (3,), optional
-        The individual stopping values `(stop_post, stop_evid, stop)` used
-        to determine the stopping criteria.
-    """
-
-    with warnings.catch_warnings():
-        warnings.filterwarnings("once")
-        warnings.warn(
-            "This an old stopping function that will "
-            "be removed in future releases", DeprecationWarning)
-    # Initialize values.
-    if args is None:
-        args = {}
-    if M is None:
-        M = map
-
-    # Initialize hyperparameters.
-    pfrac = args.get('pfrac', 1.0)
-    if not 0. <= pfrac <= 1.:
-        raise ValueError(
-            f"The provided `pfrac` {pfrac} is not between 0. and 1.")
-    evid_thresh = args.get('evid_thresh', 0.1)
-    if pfrac < 1. and evid_thresh < 0.:
-        raise ValueError(
-            f"The provided `evid_thresh` {evid_thresh} is not non-negative "
-            f"even though `pfrac` is {pfrac}.")
-    post_thresh = args.get('post_thresh', 0.02)
-    if pfrac > 0. and post_thresh < 0.:
-        raise ValueError(
-            f"The provided `post_thresh` {post_thresh} is not non-negative "
-            f"even though `pfrac` is {pfrac}.")
-    n_mc = args.get('n_mc', 128)
-    if n_mc <= 1:
-        raise ValueError(f"The number of realizations {n_mc} must be greater "
-                         "than 1.")
-    if n_mc < 20:
-        warnings.warn("Using a small number of realizations might result in "
-                      "excessively noisy stopping value estimates.")
-    error = args.get('error', 'jitter')
-    if error not in {'jitter', 'resample'}:
-        raise ValueError(f"The chosen `'error'` option {error} is not valid.")
-    approx = args.get('approx', True)
-
-    # Compute realizations of ln(evidence) and the KL divergence.
-    rlist = [results for i in range(n_mc)]
-    error_list = [error for i in range(n_mc)]
-    approx_list = [approx for i in range(n_mc)]
-    seeds = get_seed_sequence(rstate, n_mc)
-    args = zip(rlist, error_list, approx_list, seeds)
-    outputs = list(M(_kld_error, args))
-    kld_arr, lnz_arr = np.array([(kld[-1], res.logz[-1])
-                                 for kld, res in outputs]).T
-
-    # Evidence stopping value.
-    lnz_std = np.std(lnz_arr)
-    stop_evid = lnz_std / evid_thresh
-
-    # Posterior stopping value.
-    kld_mean, kld_std = np.mean(kld_arr), np.std(kld_arr)
-    stop_post = (kld_std / kld_mean) / post_thresh
-
-    # Effective stopping value.
-    stop = pfrac * stop_post + (1. - pfrac) * stop_evid
-
-    if return_vals:
-        return stop <= 1., (stop_post, stop_evid, stop)
-    else:
-        return stop <= 1.
-
-
 def restore_sampler(fname, pool=None):
     """
     Restore the dynamic sampler from a file.
@@ -2239,8 +2124,16 @@ def restore_sampler(fname, pool=None):
     Static or dynamic nested sampling object
 
     """
-    with open(fname, 'rb') as fp:
-        res = pickle_module.load(fp)
+    if not os.path.exists(fname):
+        raise ValueError('File does not exist')
+    try:
+        with open(fname, 'rb') as fp:
+            res = pickle_module.load(fp)
+    except pickle_module.PickleError:
+        raise RuntimeError(
+            'Failed to restore the sampler. '
+            'It is either an invalid file or it comes from a different '
+            'dynesty version.')
     sampler = res['sampler']
     save_ver = res['version']
     dynesty_format_version = 1
@@ -2272,7 +2165,7 @@ def restore_sampler(fname, pool=None):
         samplers = [sampler]
 
     for cursamp in samplers:
-        cursamp.M = mapper
+        cursamp.mapper = mapper
         cursamp.pool = pool
         cursamp.loglikelihood.pool = pool
     return sampler
@@ -2280,7 +2173,7 @@ def restore_sampler(fname, pool=None):
 
 def save_sampler(sampler, fname):
     """
-    Save the state of the dynamic sampler in a file
+    Save the state of the sampler in a file
 
     Parameters
     ----------

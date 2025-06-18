@@ -11,10 +11,11 @@ import sys
 import warnings
 import traceback
 import numpy as np
-
-from .nestedsamplers import _SAMPLING, SuperSampler
-from .dynamicsampler import (DynamicSampler, _get_update_interval_ratio,
-                             _SAMPLERS, _initialize_live_points)
+from .sampling import INTERNAL_SAMPLER_LIST, InternalSampler
+from .sampler import Sampler, _initialize_live_points
+from .bounding import BOUND_LIST
+from . import bounding
+from .dynamicsampler import DynamicSampler
 from .utils import (LogLikelihood, get_random_generator, get_enlarge_bootstrap,
                     get_nonbounded)
 
@@ -91,13 +92,7 @@ def _get_citations(nested_type, bound, sampler):
                    ("Handley, Hobson & Lasenby (2015a)",
                     "ui.adsabs.harvard.edu/abs/2015MNRAS.450L..61H"),
                    ("Handley, Hobson & Lasenby (2015b)",
-                    "ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H")],
-        'hslice':
-        [("Neal (2003)", "projecteuclid.org/euclid.aos/1056562461"),
-         ("Skilling (2012)", "aip.scitation.org/doi/abs/10.1063/1.3703630"),
-         ("Feroz & Skilling (2013)",
-          "ui.adsabs.harvard.edu/abs/2013AIPC.1553..106F"),
-         ("Speagle (2020)", "ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S")]
+                    "ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H")]
     }
 
     def reflist_tostring(x):
@@ -143,7 +138,7 @@ Sampling Method:\n===============
     return citations
 
 
-def _get_auto_sample(ndim, gradient):
+def _get_auto_sample(ndim):
     """ Decode which sampling method to use
 
     Arguments:
@@ -156,10 +151,7 @@ def _get_auto_sample(ndim, gradient):
     elif 10 <= ndim <= 20:
         sample = 'rwalk'
     else:
-        if gradient is None:
-            sample = 'rslice'
-        else:
-            sample = 'hslice'
+        sample = 'rslice'
     return sample
 
 
@@ -177,7 +169,7 @@ def _get_walks_slices(walks0, slices0, sample, ndim):
     """
     walks, slices = None, None
     # see https://github.com/joshspeagle/dynesty/issues/289
-    if sample in ['hslice', 'rslice']:
+    if sample in ['rslice']:
         slices = 3 + ndim
     elif sample == 'slice':
         slices = 3
@@ -187,7 +179,7 @@ def _get_walks_slices(walks0, slices0, sample, ndim):
         walks = 20 + ndim
     slices = slices0 or slices
     walks = walks0 or walks
-    if sample in ['hslice', 'rslice', 'slice'] and walks0 is not None:
+    if sample in ['rslice', 'slice'] and walks0 is not None:
         warnings.warn('Specifying walks option while using slice sampler'
                       ' does not make sense')
     elif sample in ['rwalk'] and slices0 is not None:
@@ -204,10 +196,10 @@ def _parse_pool_queue(pool, queue_size):
     if queue_size is not None and queue_size < 1:
         raise ValueError("The queue must contain at least one element!")
     elif (queue_size == 1) or (pool is None and queue_size is None):
-        M = map
+        mapper = map
         queue_size = 1
     elif pool is not None:
-        M = pool.map
+        mapper = pool.map
         if queue_size is None:
             try:
                 queue_size = pool.size
@@ -219,7 +211,7 @@ def _parse_pool_queue(pool, queue_size):
     else:
         raise ValueError("`queue_size > 1` but no `pool` provided.")
 
-    return M, queue_size
+    return mapper, queue_size
 
 
 def _check_first_update(first_update):
@@ -230,6 +222,39 @@ def _check_first_update(first_update):
     for k in first_update.keys():
         if k not in ['min_ncall', 'min_eff']:
             raise ValueError('Unrecognized keywords in first_update')
+
+
+def _get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
+                               slices, walks):
+    """
+    Get the update_interval (i.e. boundary update interval)
+    divided by the number of live points.
+    """
+
+    # TODO this needs to be updated
+    if update_interval is None:
+        if sample == 'unif':
+            update_interval_frac = 1.5
+        elif sample == 'rwalk':
+            update_interval_frac = 0.15 * walks
+        elif sample == 'slice':
+            update_interval_frac = 0.9 * ndim * slices
+        elif sample == 'rslice':
+            update_interval_frac = 2.0 * slices
+        else:
+            update_interval_frac = 1
+            warnings.warn(
+                "No update_interval set with unknown sampling method: "
+                f"'{sample}'. Defaulting to no 1 update per nlive points.")
+    elif isinstance(update_interval, float):
+        update_interval_frac = update_interval
+    elif isinstance(update_interval, int):
+        update_interval_frac = update_interval * 1. / nlive
+    else:
+        raise RuntimeError(f'Strange update_interval value {update_interval}')
+    if bound == 'none':
+        update_interval_frac = np.inf
+    return update_interval_frac
 
 
 def _assemble_sampler_docstring(dynamic):
@@ -276,8 +301,8 @@ optional
             cubes centered on each live point (`'cubes'`). Default is
             `'multi'`.
 
-        sample : {`'auto'`, `'unif'`, `'rwalk'`, `'slice'`, `'rslice'`,
-            `'hslice'`, callable}, optional
+        sample : {`'auto'`, `'unif'`, `'rwalk'`, `'slice'`, `'rslice'`},
+            optional
             Method used to sample uniformly within the likelihood constraint,
             conditioned on the provided bounds. Unique methods available are:
             uniform sampling within the bounds(`'unif'`),
@@ -285,17 +310,12 @@ optional
             multivariate slice sampling along preferred orientations
             (`'slice'`),
             "random" slice sampling along all orientations (`'rslice'`),
-            "Hamiltonian" slices along random trajectories (`'hslice'`), and
-            any callable function which follows the pattern of the sample
-            methods
-            defined in dynesty.sampling.
             `'auto'` selects the sampling method based on the dimensionality
             of the problem (from `ndim`).
             When `ndim < 10`, this defaults to `'unif'`.
             When `10 <= ndim <= 20`, this defaults to `'rwalk'`.
-            When `ndim > 20`, this defaults to `'hslice'` if a `gradient` is
-            provided and `'rslice'` otherwise. `'slice'`
-            is provided as alternatives for`'rslice'`.
+            When `ndim > 20`, this defaults to`'rslice'`. `'slice'`
+            is provided as alternative for`'rslice'`.
             Default is `'auto'`.
 
         periodic : iterable, optional
@@ -322,8 +342,7 @@ optional
             when the likelihood function is quick to evaluate. Default behavior
             is to target a roughly constant change in prior volume, with
             `1.5` for `'unif'`, `0.15 * walks` for `'rwalk'`.
-            `0.9 * ndim * slices` for `'slice'`, `2.0 * slices` for `'rslice'`,
-            and `25.0 * slices` for `'hslice'`.
+            `0.9 * ndim * slices` for `'slice'`, `2.0 * slices` for `'rslice'`.
 
         first_update : dict, optional
             A dictionary containing parameters governing when the sampler
@@ -388,29 +407,6 @@ optional
             Additional keyword arguments that can be passed to
             `prior_transform`.
 
-        gradient : function, optional
-            A function which returns the gradient corresponding to
-            the provided `loglikelihood` *with respect to the unit cube*.
-            If provided, this will be used when computing reflections
-            when sampling with `'hslice'`. If not provided, gradients are
-            approximated numerically using 2-sided differencing.
-
-        grad_args : iterable, optional
-            Additional arguments that can be passed to `gradient`.
-
-        grad_kwargs : dict, optional
-            Additional keyword arguments that can be passed to `gradient`.
-
-        compute_jac : bool, optional
-            Whether to compute and apply the Jacobian `dv/du`
-            from the target space `v` to the unit cube `u` when evaluating the
-            `gradient`. If `False`, the gradient provided is assumed to be
-            already defined with respect to the unit cube. If `True`, the
-            gradient
-            provided is assumed to be defined with respect to the target space
-            so the Jacobian needs to be numerically computed and applied.
-            Default is `False`.
-
         enlarge : float, optional
             Enlarge the volumes of the specified bounding object(s) by this
             fraction. The preferred method is to determine this organically
@@ -435,32 +431,12 @@ optional
             Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
 
         slices : int, optional
-            For the `'slice'`, `'rslice'`, and `'hslice'` sampling
+            For the `'slice'`, `'rslice'` sampling
             options, the number of times to execute a "slice update"
             before proposing a new live point. Default is 3 for
-            `'slice'` and 3+ndim for rslice and hslice.
+            `'slice'` and 3+ndim for rslice.
             Note that `'slice'` cycles through **all dimensions**
             when executing a "slice update".
-
-        fmove : float, optional
-            The target fraction of samples that are proposed along a trajectory
-            (i.e. not reflecting) for the `'hslice'` sampling option.
-            Default is `0.9`.
-
-        max_move : int, optional
-            The maximum number of timesteps allowed for `'hslice'`
-            per proposal forwards and backwards in time. Default is `100`.
-
-        update_func : function, optional
-            Any callable function which takes in a `blob` and `scale`
-            as input and returns a modification to the internal `scale` as
-            output.
-            Must follow the pattern of the update methods defined
-            in dynesty.nestedsamplers. If provided, this will supersede the
-            default functions used to update proposals. In the case where a
-            custom
-            callable function is passed to `sample` but no similar function is
-            passed to `update_func`, this will default to no update.
 
         ncdim: int, optional
             The number of clustering dimensions. The first ncdim dimensions
@@ -475,8 +451,6 @@ optional
             stored as part of the chain. That blob can contain auxiliary
             information computed inside the likelihood function.
 
-        npdim : int
-            This option is deprecated and should not be used
     """
 
     static_docstring = f"""
@@ -505,7 +479,7 @@ optional
         return static_docstring
 
 
-class NestedSampler(SuperSampler):
+class NestedSampler(Sampler):
     """
     The main class performing the static nested sampling.
     It inherits all the methods of the dynesty.sampler.SuperSampler.
@@ -522,7 +496,6 @@ class NestedSampler(SuperSampler):
                 reflective=None,
                 update_interval=None,
                 first_update=None,
-                npdim=None,
                 rstate=None,
                 queue_size=None,
                 pool=None,
@@ -532,57 +505,37 @@ class NestedSampler(SuperSampler):
                 logl_kwargs=None,
                 ptform_args=None,
                 ptform_kwargs=None,
-                gradient=None,
-                grad_args=None,
-                grad_kwargs=None,
-                compute_jac=False,
                 enlarge=None,
                 bootstrap=None,
                 walks=None,
                 facc=0.5,
                 slices=None,
-                fmove=0.9,
-                max_move=100,
-                update_func=None,
                 ncdim=None,
                 blob=False,
                 save_history=False,
                 history_filename=None):
 
-        # Prior dimensions.
-        if npdim is not None:
-            if npdim != ndim:
-                raise ValueError('''npdim functionality is not functioning
-and is deprecated ''')
-            else:
-                warnings.warn(
-                    """the npdim keyword/functionality is deprecated as not
-functioning and will be removed in further releases""", DeprecationWarning)
         ncdim = ncdim or ndim
 
         # Bounding method.
-        if bound not in _SAMPLERS:
+        if bound not in BOUND_LIST and not isinstance(bound, bounding.Bound):
             raise ValueError("Unknown bounding method: '{0}'".format(bound))
 
         # Sampling method.
         if sample == 'auto':
-            sample = _get_auto_sample(ndim, gradient)
+            sample = _get_auto_sample(ndim)
 
         walks, slices = _get_walks_slices(walks, slices, sample, ndim)
 
-        if ncdim != ndim and sample in ['slice', 'hslice', 'rslice']:
+        if ncdim != ndim and sample in ['slice', 'rslice']:
             raise ValueError('ncdim unsupported for slice sampling')
 
         # Custom sampling function.
-        if sample not in _SAMPLING and not callable(sample):
+        if sample not in INTERNAL_SAMPLER_LIST and not isinstance(
+                sample, InternalSampler):
             raise ValueError("Unknown sampling method: '{0}'".format(sample))
 
         kwargs = {}
-        # Custom updating function.
-        if update_func is not None and not callable(update_func):
-            raise ValueError(
-                "Unknown update function: '{0}'".format(update_func))
-        kwargs['update_func'] = update_func
 
         # Citation generator.
         kwargs['cite'] = _get_citations('static', bound, sample)
@@ -615,12 +568,6 @@ functioning and will be removed in further releases""", DeprecationWarning)
         ptform_args = ptform_args or []
         ptform_kwargs = ptform_kwargs or {}
 
-        # gradient
-        if grad_args is None:
-            grad_args = []
-        if grad_kwargs is None:
-            grad_kwargs = {}
-
         # Bounding distribution modifications.
         enlarge, bootstrap = get_enlarge_bootstrap(sample, enlarge, bootstrap)
         kwargs['enlarge'] = enlarge
@@ -633,10 +580,6 @@ functioning and will be removed in further releases""", DeprecationWarning)
             kwargs['facc'] = facc
         if slices is not None:
             kwargs['slices'] = slices
-        if fmove is not None:
-            kwargs['fmove'] = fmove
-        if max_move is not None:
-            kwargs['max_move'] = max_move
 
         update_interval_ratio = _get_update_interval_ratio(
             update_interval, sample, bound, ndim, nlive, slices, walks)
@@ -644,9 +587,9 @@ functioning and will be removed in further releases""", DeprecationWarning)
             max(min(np.round(update_interval_ratio * nlive), sys.maxsize), 1))
 
         # Set up parallel (or serial) evaluation.
-        M, queue_size = _parse_pool_queue(pool, queue_size)
-        if use_pool is None:
-            use_pool = {}
+        mapper, queue_size = _parse_pool_queue(pool, queue_size)
+
+        use_pool = use_pool or {}
 
         # Wrap functions.
         ptform = _function_wrapper(prior_transform,
@@ -668,20 +611,11 @@ functioning and will be removed in further releases""", DeprecationWarning)
                                 or 'dynesty_logl_history.h5',
                                 pool=pool_logl)
 
-        # Add in gradient.
-        if gradient is not None:
-            grad = _function_wrapper(gradient,
-                                     grad_args,
-                                     grad_kwargs,
-                                     name='gradient')
-            kwargs['grad'] = grad
-            kwargs['compute_jac'] = compute_jac
-
         live_points, logvol_init, init_ncalls = _initialize_live_points(
             live_points,
             ptform,
             loglike,
-            M,
+            mapper,
             nlive=nlive,
             ndim=ndim,
             rstate=rstate,
@@ -689,23 +623,24 @@ functioning and will be removed in further releases""", DeprecationWarning)
             use_pool_ptform=use_pool.get('prior_transform', True))
 
         # Initialize our nested sampler.
-        sampler = super().__new__(_SAMPLERS[bound])
+        sampler = super().__new__(Sampler)
         sampler.__init__(loglike,
                          ptform,
                          ndim,
                          live_points,
                          sample,
+                         bound,
                          update_interval,
                          first_update,
-                         rstate,
-                         queue_size,
-                         pool,
-                         use_pool,
-                         kwargs,
+                         rstate=rstate,
+                         queue_size=queue_size,
+                         pool=pool,
+                         use_pool=use_pool,
+                         kwargs=kwargs,
                          ncdim=ncdim,
                          blob=blob,
                          logvol_init=logvol_init)
-        sampler.ncalls = init_ncalls
+        sampler.ncall = init_ncalls
         return sampler
 
 
@@ -730,7 +665,6 @@ class DynamicNestedSampler(DynamicSampler):
                  reflective=None,
                  update_interval=None,
                  first_update=None,
-                 npdim=None,
                  rstate=None,
                  queue_size=None,
                  pool=None,
@@ -739,46 +673,31 @@ class DynamicNestedSampler(DynamicSampler):
                  logl_kwargs=None,
                  ptform_args=None,
                  ptform_kwargs=None,
-                 gradient=None,
-                 grad_args=None,
-                 grad_kwargs=None,
-                 compute_jac=False,
                  enlarge=None,
                  bootstrap=None,
                  walks=None,
                  facc=0.5,
                  slices=None,
-                 fmove=0.9,
-                 max_move=100,
-                 update_func=None,
                  ncdim=None,
                  blob=False,
                  save_history=False,
                  history_filename=None):
 
-        # Prior dimensions.
-        if npdim is not None:
-            if npdim != ndim:
-                raise ValueError('''npdim functionality is not functioning
-and is deprecated ''')
-            else:
-                warnings.warn(
-                    """the npdim keyword/functionality is deprecated as not
-functioning and will be removed in further releases""", DeprecationWarning)
         ncdim = ncdim or ndim
         nlive = nlive or 500
 
         # Bounding method.
-        if bound not in _SAMPLERS:
+        if bound not in BOUND_LIST and not isinstance(bounding.Bound):
             raise ValueError(f"Unknown bounding method: {bound}")
 
         # Sampling method.
         if sample == 'auto':
-            sample = _get_auto_sample(ndim, gradient)
+            sample = _get_auto_sample(ndim)
 
         walks, slices = _get_walks_slices(walks, slices, sample, ndim)
 
-        if ncdim != ndim and sample in ['slice', 'hslice', 'rslice']:
+        # TODO change this check
+        if ncdim != ndim and sample in ['slice', 'rslice']:
             raise ValueError('ncdim unsupported for slice sampling')
 
         update_interval_ratio = _get_update_interval_ratio(
@@ -787,13 +706,9 @@ functioning and will be removed in further releases""", DeprecationWarning)
         kwargs = {}
 
         # Custom sampling function.
-        if sample not in _SAMPLING and not callable(sample):
+        if sample not in INTERNAL_SAMPLER_LIST and not isinstance(
+                sample, InternalSampler):
             raise ValueError(f"Unknown sampling method: {sample}")
-
-        # Custom updating function.
-        if update_func is not None and not callable(update_func):
-            raise ValueError(f"Unknown update function: '{update_func}'")
-        kwargs['update_func'] = update_func
 
         # Citation generator.
         kwargs['cite'] = _get_citations('dynamic', bound, sample)
@@ -821,12 +736,6 @@ functioning and will be removed in further releases""", DeprecationWarning)
         ptform_args = ptform_args or []
         ptform_kwargs = ptform_kwargs or {}
 
-        # gradient
-        if grad_args is None:
-            grad_args = []
-        if grad_kwargs is None:
-            grad_kwargs = {}
-
         # Bounding distribution modifications.
         enlarge, bootstrap = get_enlarge_bootstrap(sample, enlarge, bootstrap)
         kwargs['enlarge'] = enlarge
@@ -839,15 +748,10 @@ functioning and will be removed in further releases""", DeprecationWarning)
             kwargs['facc'] = facc
         if slices is not None:
             kwargs['slices'] = slices
-        if fmove is not None:
-            kwargs['fmove'] = fmove
-        if max_move is not None:
-            kwargs['max_move'] = max_move
 
         # Set up parallel (or serial) evaluation.
         queue_size = _parse_pool_queue(pool, queue_size)[1]
-        if use_pool is None:
-            use_pool = {}
+        use_pool = use_pool or {}
 
         # Wrap functions.
         ptform = _function_wrapper(prior_transform,
@@ -869,15 +773,6 @@ functioning and will be removed in further releases""", DeprecationWarning)
                                 or 'dynesty_logl_history.h5',
                                 save=save_history,
                                 blob=blob)
-
-        # Add in gradient.
-        if gradient is not None:
-            grad = _function_wrapper(gradient,
-                                     grad_args,
-                                     grad_kwargs,
-                                     name='gradient')
-            kwargs['grad'] = grad
-            kwargs['compute_jac'] = compute_jac
 
         # Initialize our nested sampler.
         super().__init__(loglike, ptform, ndim, bound, sample,

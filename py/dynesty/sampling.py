@@ -75,6 +75,15 @@ class InternalSampler:
         for k in ['nonbounded', 'periodic', 'reflective']:
             self.sampler_kwargs[k] = kwargs.get(k)
 
+    @property
+    def update_bound_interval(self):
+        """ How often to force updating the bounds
+        The value is in units of ncall per nlive.
+        I.e. the value of 10 means for N live points,
+        the bound will be updated every 10 * N calls
+        """
+        return 1  # default value
+
     def prepare_sampler(self,
                         loglstar=None,
                         points=None,
@@ -439,6 +448,15 @@ class RWalkSampler(InternalSampler):
         hist['naccept'] = 0
         hist['nreject'] = 0
 
+    @property
+    def update_bound_interval(self):
+        """ How often to force updating the bounds
+        The value is in units of ncall per nlive.
+        I.e. the value of 10 means for N live points,
+        the bound will be updated every 10 * N calls
+        """
+        return self.sampler_kwargs['nwalks']  # default value
+
     @staticmethod
     def sample(args):
         """
@@ -511,6 +529,15 @@ class SliceSampler(InternalSampler):
         # Since the sample is a static method, it's crucial
         # to put relevant information into kwargs which is then passed to
         # the samplers
+
+    @property
+    def update_bound_interval(self):
+        """ How often to force updating the bounds
+        The value is in units of ncall per nlive.
+        I.e. the value of 10 means for N live points,
+        the bound will be updated every 10 * N calls
+        """
+        return self.sampler_kwargs['slices'] * self.ndim
 
     def tune(self, sampler_info, update=True):
         tune_slice(self, sampler_info, update=update)
@@ -642,6 +669,15 @@ class RSliceSampler(InternalSampler):
 
     def tune(self, sampler_info, update=True):
         tune_slice(self, sampler_info, update=update)
+
+    @property
+    def update_bound_interval(self):
+        """ How often to force updating the bounds
+        The value is in units of ncall per nlive.
+        I.e. the value of 10 means for N live points,
+        the bound will be updated every 10 * N calls
+        """
+        return self.sampler_kwargs['slices']
 
     @staticmethod
     def sample(args):

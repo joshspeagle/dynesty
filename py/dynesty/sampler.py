@@ -300,7 +300,7 @@ class Sampler:
         Sampling Method used to sample uniformly within the likelihood
         constraint, conditioned on the provided bounds.
 
-    update_interval : int
+    bound_update_interval : int
         Only update the bounding distribution every `update_interval`-th
         likelihood call.
 
@@ -346,8 +346,8 @@ class Sampler:
                  live_points,
                  sampling,
                  bounding,
-                 update_interval,
-                 first_update,
+                 bound_update_interval=None,
+                 first_bound_update=None,
                  rstate=None,
                  queue_size=None,
                  pool=None,
@@ -419,10 +419,10 @@ class Sampler:
         self.save_bounds = True
 
         # bounding updates
-        self.bound_update_interval = update_interval
-        self.first_bound_update_ncall = first_update.get(
+        self.bound_update_interval = bound_update_interval
+        self.first_bound_update_ncall = first_bound_update.get(
             'min_ncall', 2 * self.nlive)
-        self.first_bound_update_eff = first_update.get('min_eff', 10.)
+        self.first_bound_update_eff = first_bound_update.get('min_eff', 10.)
         self.logl_first_update = None
         self.ncall_at_last_update = 0
 
@@ -653,9 +653,12 @@ class Sampler:
         """
         if ncall is None:
             ncall = self.ncall
+        if self.bound_update_interval is None:
+            delta_bound = self.sampler.bound_update_interval * self.nlive
+        delta_bound = self.bound_update_interval * self.nlive
+
         call_check_first = (ncall >= self.first_bound_update_ncall)
-        call_check = (ncall >= self.bound_update_interval +
-                      self.ncall_at_last_update)
+        call_check = (ncall >= delta_bound + self.ncall_at_last_update)
         efficiency_check = (self.eff < self.first_bound_update_eff)
         # there are three cases when we update the bound
         # * if we are still using uniform cube sampling and both efficiency is

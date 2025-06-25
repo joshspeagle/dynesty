@@ -681,14 +681,14 @@ class DynamicSampler:
                  loglikelihood,
                  prior_transform,
                  ndim,
-                 bound,
-                 method,
-                 queue_size,
-                 pool,
-                 use_pool,
-                 ncdim,
-                 nlive0,
-                 kwargs,
+                 sampling,
+                 bounding,
+                 ncdim=None,
+                 nlive0=None,
+                 kwargs=None,
+                 queue_size=None,
+                 pool=None,
+                 use_pool=None,
                  rstate=None,
                  bound_update_interval_ratio=None,
                  first_bound_update=None):
@@ -700,8 +700,8 @@ class DynamicSampler:
         self.ncdim = ncdim
         self.blob = kwargs.get('blob') or False
         # bounding/sampling
-        self.bounding = bound
-        self.sampling = method
+        self.bounding = bounding
+        self.sampling = sampling
         self.bound_update_interval_ratio = bound_update_interval_ratio
         self.first_bound_update = first_bound_update
 
@@ -712,7 +712,7 @@ class DynamicSampler:
         self.kwargs = kwargs
 
         self.enlarge, self.bootstrap = get_enlarge_bootstrap(
-            method, kwargs.get('enlarge'), kwargs.get('bootstrap'))
+            sampling, kwargs.get('enlarge'), kwargs.get('bootstrap'))
 
         self.walks = self.kwargs.get('walks', 25)
         self.slices = self.kwargs.get('slices', 3)

@@ -714,8 +714,6 @@ class DynamicSampler:
         self.enlarge, self.bootstrap = get_enlarge_bootstrap(
             sampling, kwargs.get('enlarge'), kwargs.get('bootstrap'))
 
-        self.walks = self.kwargs.get('walks', 25)
-        self.slices = self.kwargs.get('slices', 3)
         self.cite = self.kwargs.get('cite')
 
         # random state

@@ -455,7 +455,7 @@ class RWalkSampler(InternalSampler):
         I.e. the value of 10 means for N live points,
         the bound will be updated every 10 * N calls
         """
-        return self.sampler_kwargs['nwalks']  # default value
+        return self.sampler_kwargs['walks']  # default value
 
     @staticmethod
     def sample(args):

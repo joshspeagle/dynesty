@@ -377,8 +377,8 @@ def _configure_batch_sampler(main_sampler,
         # as we replace the starting points
         main_sampler.sampling,
         main_sampler.bounding,
-        update_interval,
-        main_sampler.first_update,
+        bound_update_interval=update_interval,
+        first_bound_update=main_sampler.first_bound_update,
         rstate=main_sampler.rstate,
         queue_size=main_sampler.queue_size,
         pool=main_sampler.pool,
@@ -677,9 +677,21 @@ class DynamicSampler:
         A dictionary of additional parameters (described below).
     """
 
-    def __init__(self, loglikelihood, prior_transform, ndim, bound, method,
-                 update_interval_ratio, first_update, rstate, queue_size, pool,
-                 use_pool, ncdim, nlive0, kwargs):
+    def __init__(self,
+                 loglikelihood,
+                 prior_transform,
+                 ndim,
+                 bound,
+                 method,
+                 queue_size,
+                 pool,
+                 use_pool,
+                 ncdim,
+                 nlive0,
+                 kwargs,
+                 rstate=None,
+                 bound_update_interval_ratio=None,
+                 first_bound_update=None):
 
         # distributions
         self.loglikelihood = loglikelihood
@@ -690,8 +702,8 @@ class DynamicSampler:
         # bounding/sampling
         self.bounding = bound
         self.sampling = method
-        self.bound_update_interval_ratio = update_interval_ratio
-        self.first_update = first_update
+        self.bound_update_interval_ratio = bound_update_interval_ratio
+        self.first_bound_update = first_bound_update
 
         # internal sampler object
         self.sampler = None
@@ -1061,15 +1073,21 @@ class DynamicSampler:
             bounding = self.bounding
 
             if first_update is None:
-                first_update = self.first_update
+                first_update = self.first_bound_update
+            if update_interval is None:
+                update_interval = self.bound_update_interval_ratio
+            else:
+                update_interval = self.__get_update_interval(
+                    update_interval, nlive)
+
             self.sampler = Sampler(self.loglikelihood,
                                    self.prior_transform,
                                    self.ndim,
                                    self.live_init,
                                    self.sampling,
                                    bounding,
-                                   update_interval,
-                                   first_update,
+                                   bound_update_interval=update_interval,
+                                   first_bound_update=first_update,
                                    rstate=self.rstate,
                                    queue_size=self.queue_size,
                                    pool=self.pool,

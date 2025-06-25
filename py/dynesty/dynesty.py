@@ -775,9 +775,20 @@ class DynamicNestedSampler(DynamicSampler):
                                 blob=blob)
 
         # Initialize our nested sampler.
-        super().__init__(loglike, ptform, ndim, bound, sample,
-                         update_interval_ratio, first_update, rstate,
-                         queue_size, pool, use_pool, ncdim, nlive, kwargs)
+        super().__init__(loglike,
+                         ptform,
+                         ndim,
+                         bound,
+                         sample,
+                         queue_size,
+                         pool,
+                         use_pool,
+                         ncdim,
+                         nlive,
+                         kwargs,
+                         rstate=rstate,
+                         bound_update_interval_ratio=update_interval_ratio,
+                         first_bound_update=first_update)
 
 
 DynamicNestedSampler.__init__.__doc__ = _assemble_sampler_docstring(True)

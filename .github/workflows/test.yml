@@ -44,7 +44,7 @@ jobs:
           # The extra options are there to fail on warnings
 
       - name: pylint
-        run: pylint --fail-under=9 --extension-pkg-whitelist=scipy.special py/dynesty/*py
+        run: pylint --fail-under=9 --ignored-modules=scipy.special py/dynesty/*py
 
       - name: RandomCheck
         # check that np.random is not used directly

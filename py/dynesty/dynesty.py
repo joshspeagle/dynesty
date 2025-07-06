@@ -485,7 +485,11 @@ def _common_sampler_init(ndim=None,
                          sample=None,
                          walks=None,
                          slices=None,
-                         rstate=None):
+                         rstate=None,
+                         periodic=None,
+                         reflective=None,
+                         bootstrap=None,
+                         enlarge=None):
     ret = {}
     sampler_kwargs = {}
 
@@ -516,7 +520,21 @@ def _common_sampler_init(ndim=None,
         rstate = get_random_generator()
     ret['rstate'] = rstate
 
-    return ret, sampler_kwargs
+    kwargs = {}
+
+    # Citation generator.
+    kwargs['cite'] = _get_citations('dynamic', bound, sample)
+
+    nonbounded = get_nonbounded(ndim, periodic, reflective)
+    kwargs['nonbounded'] = nonbounded
+    kwargs['periodic'] = periodic
+    kwargs['reflective'] = reflective
+    # Bounding distribution modifications.
+    enlarge, bootstrap = get_enlarge_bootstrap(sample, enlarge, bootstrap)
+    kwargs['enlarge'] = enlarge
+    kwargs['bootstrap'] = bootstrap
+
+    return ret, sampler_kwargs, kwargs
 
 
 class NestedSampler(Sampler):
@@ -555,16 +573,20 @@ class NestedSampler(Sampler):
                 save_history=False,
                 history_filename=None):
 
-        params, sampler_kwargs = _common_sampler_init(ndim=ndim,
-                                                      ncdim=ncdim,
-                                                      bound=bound,
-                                                      sample=sample,
-                                                      walks=walks,
-                                                      slices=slices,
-                                                      rstate=rstate)
-        del ncdim, sample, walks, slices, rstate
-
-        kwargs = {}
+        params, sampler_kwargs, kwargs = _common_sampler_init(
+            ndim=ndim,
+            ncdim=ncdim,
+            bound=bound,
+            sample=sample,
+            walks=walks,
+            slices=slices,
+            rstate=rstate,
+            periodic=periodic,
+            reflective=reflective,
+            bootstrap=bootstrap,
+            enlarge=enlarge)
+        del (ncdim, sample, walks, slices, rstate, periodic, reflective,
+             bootstrap, enlarge)
 
         # Citation generator.
         kwargs['cite'] = _get_citations('static', bound, params['sample'])
@@ -573,11 +595,6 @@ class NestedSampler(Sampler):
         if nlive <= 2 * ndim:
             warnings.warn(
                 "Beware! Having `nlive <= 2 * ndim` is extremely risky!")
-
-        nonbounded = get_nonbounded(ndim, periodic, reflective)
-        kwargs['nonbounded'] = nonbounded
-        kwargs['periodic'] = periodic
-        kwargs['reflective'] = reflective
 
         # Keyword arguments controlling the first update.
         if first_update is None:
@@ -592,12 +609,6 @@ class NestedSampler(Sampler):
         # Prior transform.
         ptform_args = ptform_args or []
         ptform_kwargs = ptform_kwargs or {}
-
-        # Bounding distribution modifications.
-        enlarge, bootstrap = get_enlarge_bootstrap(params['sample'], enlarge,
-                                                   bootstrap)
-        kwargs['enlarge'] = enlarge
-        kwargs['bootstrap'] = bootstrap
 
         # Sampling.
         if params['walks'] is not None:
@@ -710,29 +721,25 @@ class DynamicNestedSampler(DynamicSampler):
                  save_history=False,
                  history_filename=None):
 
-        params, sampler_kwargs = _common_sampler_init(ndim=ndim,
-                                                      ncdim=ncdim,
-                                                      bound=bound,
-                                                      sample=sample,
-                                                      walks=walks,
-                                                      slices=slices,
-                                                      rstate=rstate)
-        del ncdim, sample, walks, slices, rstate
+        params, sampler_kwargs, kwargs = _common_sampler_init(
+            ndim=ndim,
+            ncdim=ncdim,
+            bound=bound,
+            sample=sample,
+            walks=walks,
+            slices=slices,
+            rstate=rstate,
+            periodic=periodic,
+            reflective=reflective,
+            bootstrap=bootstrap,
+            enlarge=enlarge)
+        del (ncdim, sample, walks, slices, rstate, periodic, reflective,
+             bootstrap, enlarge)
 
         update_interval_ratio = _get_update_interval_ratio(
             update_interval, params['sample'], bound, ndim, nlive,
             params['slices'], params['walks'])
 
-        kwargs = {}
-
-        # Citation generator.
-        kwargs['cite'] = _get_citations('dynamic', bound, params['sample'])
-
-        nonbounded = get_nonbounded(ndim, periodic, reflective)
-        kwargs['nonbounded'] = nonbounded
-        kwargs['periodic'] = periodic
-        kwargs['reflective'] = reflective
-        kwargs['blob'] = blob
         # Keyword arguments controlling the first update.
         if first_update is None:
             first_update = {}
@@ -746,12 +753,6 @@ class DynamicNestedSampler(DynamicSampler):
         # Prior transform.
         ptform_args = ptform_args or []
         ptform_kwargs = ptform_kwargs or {}
-
-        # Bounding distribution modifications.
-        enlarge, bootstrap = get_enlarge_bootstrap(params['sample'], enlarge,
-                                                   bootstrap)
-        kwargs['enlarge'] = enlarge
-        kwargs['bootstrap'] = bootstrap
 
         # Sampling.
         if params['walks'] is not None:
@@ -798,6 +799,7 @@ class DynamicNestedSampler(DynamicSampler):
                          ncdim=params['ncdim'],
                          nlive0=nlive,
                          kwargs=kwargs,
+                         blob=blob,
                          rstate=params['rstate'],
                          bound_update_interval_ratio=update_interval_ratio,
                          first_bound_update=first_update)

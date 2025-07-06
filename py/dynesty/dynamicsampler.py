@@ -688,6 +688,7 @@ class DynamicSampler:
                  kwargs=None,
                  queue_size=None,
                  pool=None,
+                 blob=None,
                  use_pool=None,
                  rstate=None,
                  bound_update_interval_ratio=None,
@@ -698,7 +699,7 @@ class DynamicSampler:
         self.prior_transform = prior_transform
         self.ndim = ndim
         self.ncdim = ncdim
-        self.blob = kwargs.get('blob') or False
+        self.blob = blob or False
         # bounding/sampling
         self.bounding = bounding
         self.sampling = sampling

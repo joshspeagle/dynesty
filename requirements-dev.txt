@@ -15,6 +15,7 @@ jupyter
 ipyparallel
 
 pylint<=3.3.7
+astroid<=3.3.9 
 
 sphinx
 sphinx-rtd-theme

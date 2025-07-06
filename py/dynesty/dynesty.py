@@ -479,7 +479,12 @@ optional
         return static_docstring
 
 
-def _common_sampler_init(ndim=None, ncdim=None, bound=None, sample=None):
+def _common_sampler_init(ndim=None,
+                         ncdim=None,
+                         bound=None,
+                         sample=None,
+                         walks=None,
+                         slices=None):
     ret = {}
     sampler_kwargs = {}
 
@@ -501,6 +506,9 @@ def _common_sampler_init(ndim=None, ncdim=None, bound=None, sample=None):
     # TODO change this check to deal with new sampler interface
     if ncdim != ndim and sample in ['slice', 'rslice']:
         raise ValueError('ncdim unsupported for slice sampling')
+
+    ret['walks'], ret['slices'] = _get_walks_slices(walks, slices, sample,
+                                                    ndim)
 
     return ret, sampler_kwargs
 
@@ -544,11 +552,10 @@ class NestedSampler(Sampler):
         params, sampler_kwargs = _common_sampler_init(ndim=ndim,
                                                       ncdim=ncdim,
                                                       bound=bound,
-                                                      sample=sample)
-        del ncdim, sample
-
-        walks, slices = _get_walks_slices(walks, slices, params['sample'],
-                                          ndim)
+                                                      sample=sample,
+                                                      walks=walks,
+                                                      slices=slices)
+        del ncdim, sample, walks, slices
 
         kwargs = {}
 
@@ -590,16 +597,16 @@ class NestedSampler(Sampler):
         kwargs['bootstrap'] = bootstrap
 
         # Sampling.
-        if walks is not None:
-            kwargs['walks'] = walks
+        if params['walks'] is not None:
+            kwargs['walks'] = params['walks']
         if facc is not None:
             kwargs['facc'] = facc
-        if slices is not None:
-            kwargs['slices'] = slices
+        if params['slices'] is not None:
+            kwargs['slices'] = params['slices']
 
         update_interval_ratio = _get_update_interval_ratio(
-            update_interval, params['sample'], bound, ndim, nlive, slices,
-            walks)
+            update_interval, params['sample'], bound, ndim, nlive,
+            params['slices'], params['walks'])
         update_interval = int(
             max(min(np.round(update_interval_ratio * nlive), sys.maxsize), 1))
 
@@ -703,15 +710,14 @@ class DynamicNestedSampler(DynamicSampler):
         params, sampler_kwargs = _common_sampler_init(ndim=ndim,
                                                       ncdim=ncdim,
                                                       bound=bound,
-                                                      sample=sample)
-        del ncdim, sample
-
-        walks, slices = _get_walks_slices(walks, slices, params['sample'],
-                                          ndim)
+                                                      sample=sample,
+                                                      walks=walks,
+                                                      slices=slices)
+        del ncdim, sample, walks, slices
 
         update_interval_ratio = _get_update_interval_ratio(
-            update_interval, params['sample'], bound, ndim, nlive, slices,
-            walks)
+            update_interval, params['sample'], bound, ndim, nlive,
+            params['slices'], params['walks'])
 
         kwargs = {}
 
@@ -748,12 +754,12 @@ class DynamicNestedSampler(DynamicSampler):
         kwargs['bootstrap'] = bootstrap
 
         # Sampling.
-        if walks is not None:
-            kwargs['walks'] = walks
+        if params['walks'] is not None:
+            kwargs['walks'] = params['walks']
         if facc is not None:
             kwargs['facc'] = facc
-        if slices is not None:
-            kwargs['slices'] = slices
+        if params['slices'] is not None:
+            kwargs['slices'] = params['slices']
 
         # Set up parallel (or serial) evaluation.
         queue_size = _parse_pool_queue(pool, queue_size)[1]

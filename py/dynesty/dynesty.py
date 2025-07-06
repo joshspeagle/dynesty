@@ -596,7 +596,6 @@ def _common_sampler_init(nlive=None,
         kwargs['facc'] = facc
     if slices is not None:
         kwargs['slices'] = slices
-    # TODO I NEED TO CHECK if I need ret['slices'], ret['walks'] at all
 
     # Citation generator.
     if dynamic:
@@ -619,7 +618,7 @@ def _common_sampler_init(nlive=None,
 class NestedSampler(Sampler):
     """
     The main class performing the static nested sampling.
-    It inherits all the methods of the dynesty.sampler.SuperSampler.
+    It inherits all the methods of the dynesty.sampler.Sampler.
     """
 
     def __new__(cls,
@@ -680,11 +679,6 @@ class NestedSampler(Sampler):
             save_history=save_history,
             history_filename=history_filename,
             dynamic=False)
-
-        del (ncdim, sample, walks, slices, rstate, periodic, reflective,
-             bootstrap, enlarge, first_update, facc, prior_transform,
-             ptform_args, ptform_kwargs, loglikelihood, use_pool, pool,
-             queue_size, save_history, history_filename)
 
         update_interval = int(
             max(
@@ -792,11 +786,6 @@ class DynamicNestedSampler(DynamicSampler):
             history_filename=history_filename,
             dynamic=True)
 
-        del (ncdim, sample, walks, slices, rstate, periodic, reflective,
-             bootstrap, enlarge, first_update, facc, prior_transform,
-             ptform_args, ptform_kwargs, loglikelihood, use_pool, pool,
-             queue_size, save_history, history_filename)
-
         # Initialize our nested sampler.
         super().__init__(
             params['loglikelihood_wrap'],
@@ -813,8 +802,7 @@ class DynamicNestedSampler(DynamicSampler):
             bound_update_interval_ratio=params['update_interval_ratio'],
             first_bound_update=params['first_bound_update'],
             kwargs=kwargs,
-            blob=blob,
-        )
+            blob=blob)
 
 
 DynamicNestedSampler.__init__.__doc__ = _assemble_sampler_docstring(True)

@@ -491,6 +491,7 @@ def _common_sampler_init(ndim=None,
                          bootstrap=None,
                          enlarge=None,
                          first_update=None,
+                         facc=None,
                          dynamic=False):
     ret = {}
     sampler_kwargs = {}
@@ -514,9 +515,8 @@ def _common_sampler_init(ndim=None,
     if ncdim != ndim and sample in ['slice', 'rslice']:
         raise ValueError('ncdim unsupported for slice sampling')
 
-    ret['walks'], ret['slices'] = _get_walks_slices(walks, slices, sample,
-                                                    ndim)
-
+    walks, slices = _get_walks_slices(walks, slices, sample, ndim)
+    ret['walks'], ret['slices'] = walks, slices
     # Random state.
     if rstate is None:
         rstate = get_random_generator()
@@ -528,7 +528,16 @@ def _common_sampler_init(ndim=None,
     else:
         _check_first_update(first_update)
     ret['first_bound_update'] = first_update
+
     kwargs = {}
+    # Sampling.
+    if walks is not None:
+        kwargs['walks'] = walks
+    if facc is not None:
+        kwargs['facc'] = facc
+    if slices is not None:
+        kwargs['slices'] = slices
+    # TODO I NEED TO CHECK if I need ret['slices'], ret['walks'] at all
 
     # Citation generator.
     if dynamic:
@@ -597,9 +606,10 @@ class NestedSampler(Sampler):
             bootstrap=bootstrap,
             enlarge=enlarge,
             first_update=first_update,
+            facc=facc,
             dynamic=False)
         del (ncdim, sample, walks, slices, rstate, periodic, reflective,
-             bootstrap, enlarge, first_update)
+             bootstrap, enlarge, first_update, facc)
 
         # Dimensional warning check.
         if nlive <= 2 * ndim:
@@ -613,14 +623,6 @@ class NestedSampler(Sampler):
         # Prior transform.
         ptform_args = ptform_args or []
         ptform_kwargs = ptform_kwargs or {}
-
-        # Sampling.
-        if params['walks'] is not None:
-            kwargs['walks'] = params['walks']
-        if facc is not None:
-            kwargs['facc'] = facc
-        if params['slices'] is not None:
-            kwargs['slices'] = params['slices']
 
         update_interval_ratio = _get_update_interval_ratio(
             update_interval, params['sample'], bound, ndim, nlive,
@@ -738,9 +740,10 @@ class DynamicNestedSampler(DynamicSampler):
             bootstrap=bootstrap,
             enlarge=enlarge,
             first_update=first_update,
+            facc=facc,
             dynamic=True)
         del (ncdim, sample, walks, slices, rstate, periodic, reflective,
-             bootstrap, enlarge, first_update)
+             bootstrap, enlarge, first_update, facc)
 
         update_interval_ratio = _get_update_interval_ratio(
             update_interval, params['sample'], bound, ndim, nlive,
@@ -753,14 +756,6 @@ class DynamicNestedSampler(DynamicSampler):
         # Prior transform.
         ptform_args = ptform_args or []
         ptform_kwargs = ptform_kwargs or {}
-
-        # Sampling.
-        if params['walks'] is not None:
-            kwargs['walks'] = params['walks']
-        if facc is not None:
-            kwargs['facc'] = facc
-        if params['slices'] is not None:
-            kwargs['slices'] = params['slices']
 
         # Set up parallel (or serial) evaluation.
         queue_size = _parse_pool_queue(pool, queue_size)[1]

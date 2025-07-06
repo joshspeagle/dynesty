@@ -491,6 +491,11 @@ def _common_sampler_init(ndim=None, ncdim=None, bound=None, sample=None):
     # Sampling method.
     if sample == 'auto':
         sample = _get_auto_sample(ndim)
+    # Custom sampler
+    if sample not in INTERNAL_SAMPLER_LIST and not isinstance(
+            sample, InternalSampler):
+        raise ValueError("Unknown sampling method: '{0}'".format(sample))
+
     ret['sample'] = sample
 
     # TODO change this check to deal with new sampler interface
@@ -544,12 +549,6 @@ class NestedSampler(Sampler):
 
         walks, slices = _get_walks_slices(walks, slices, params['sample'],
                                           ndim)
-
-        # Custom sampling function.
-        if params['sample'] not in INTERNAL_SAMPLER_LIST and not isinstance(
-                params['sample'], InternalSampler):
-            raise ValueError("Unknown sampling method: '{0}'".format(
-                params['sample']))
 
         kwargs = {}
 
@@ -715,11 +714,6 @@ class DynamicNestedSampler(DynamicSampler):
             walks)
 
         kwargs = {}
-
-        # Custom sampling function.
-        if params['sample'] not in INTERNAL_SAMPLER_LIST and not isinstance(
-                params['sample'], InternalSampler):
-            raise ValueError(f"Unknown sampling method: {params['sample']}")
 
         # Citation generator.
         kwargs['cite'] = _get_citations('dynamic', bound, params['sample'])

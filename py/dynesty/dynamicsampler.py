@@ -813,19 +813,18 @@ class DynamicSampler:
         return restore_sampler(fname, pool=pool)
 
     def __get_update_interval(self, update_interval, nlive):
-        if not isinstance(update_interval, int):
-            if isinstance(update_interval, float):
-                cur_update_interval_ratio = update_interval
-            elif update_interval is None:
-                cur_update_interval_ratio = self.bound_update_interval_ratio
-            else:
-                raise RuntimeError(
-                    str.format('Weird update_interval value {}',
-                               update_interval))
-            update_interval = int(
-                max(
-                    min(np.round(cur_update_interval_ratio * nlive),
-                        sys.maxsize), 1))
+        if update_interval is None:
+            cur_update_interval_ratio = self.bound_update_interval_ratio
+        elif isinstance(update_interval, int):
+            cur_update_interval_ratio = update_interval / nlive
+        elif isinstance(update_interval, float):
+            cur_update_interval_ratio = update_interval
+        else:
+            raise RuntimeError(
+                str.format('Weird update_interval value {}', update_interval))
+        update_interval = int(
+            max(min(np.round(cur_update_interval_ratio * nlive), sys.maxsize),
+                1))
         return update_interval
 
     def reset(self):

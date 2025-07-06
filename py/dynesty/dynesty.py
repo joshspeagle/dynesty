@@ -479,15 +479,24 @@ optional
         return static_docstring
 
 
-def _common_sampler_init(ndim=None, ncdim=None, bound=None):
+def _common_sampler_init(ndim=None, ncdim=None, bound=None, sample=None):
     ret = {}
     sampler_kwargs = {}
 
     ncdim = ncdim or ndim
     ret['ncdim'] = ncdim
     # Bounding method.
-    if bound not in BOUND_LIST and not isinstance(bounding.Bound):
+    if bound not in BOUND_LIST and not isinstance(bound, bounding.Bound):
         raise ValueError(f"Unknown bounding method: {bound}")
+    # Sampling method.
+    if sample == 'auto':
+        sample = _get_auto_sample(ndim)
+    ret['sample'] = sample
+
+    # TODO change this check to deal with new sampler interface
+    if ncdim != ndim and sample in ['slice', 'rslice']:
+        raise ValueError('ncdim unsupported for slice sampling')
+
     return ret, sampler_kwargs
 
 
@@ -529,27 +538,23 @@ class NestedSampler(Sampler):
 
         params, sampler_kwargs = _common_sampler_init(ndim=ndim,
                                                       ncdim=ncdim,
-                                                      bound=bound)
-        del ncdim
+                                                      bound=bound,
+                                                      sample=sample)
+        del ncdim, sample
 
-        # Sampling method.
-        if sample == 'auto':
-            sample = _get_auto_sample(ndim)
-
-        walks, slices = _get_walks_slices(walks, slices, sample, ndim)
-
-        if params['ncdim'] != ndim and sample in ['slice', 'rslice']:
-            raise ValueError('ncdim unsupported for slice sampling')
+        walks, slices = _get_walks_slices(walks, slices, params['sample'],
+                                          ndim)
 
         # Custom sampling function.
-        if sample not in INTERNAL_SAMPLER_LIST and not isinstance(
-                sample, InternalSampler):
-            raise ValueError("Unknown sampling method: '{0}'".format(sample))
+        if params['sample'] not in INTERNAL_SAMPLER_LIST and not isinstance(
+                params['sample'], InternalSampler):
+            raise ValueError("Unknown sampling method: '{0}'".format(
+                params['sample']))
 
         kwargs = {}
 
         # Citation generator.
-        kwargs['cite'] = _get_citations('static', bound, sample)
+        kwargs['cite'] = _get_citations('static', bound, params['sample'])
 
         # Dimensional warning check.
         if nlive <= 2 * ndim:
@@ -580,7 +585,8 @@ class NestedSampler(Sampler):
         ptform_kwargs = ptform_kwargs or {}
 
         # Bounding distribution modifications.
-        enlarge, bootstrap = get_enlarge_bootstrap(sample, enlarge, bootstrap)
+        enlarge, bootstrap = get_enlarge_bootstrap(params['sample'], enlarge,
+                                                   bootstrap)
         kwargs['enlarge'] = enlarge
         kwargs['bootstrap'] = bootstrap
 
@@ -593,7 +599,8 @@ class NestedSampler(Sampler):
             kwargs['slices'] = slices
 
         update_interval_ratio = _get_update_interval_ratio(
-            update_interval, sample, bound, ndim, nlive, slices, walks)
+            update_interval, params['sample'], bound, ndim, nlive, slices,
+            walks)
         update_interval = int(
             max(min(np.round(update_interval_ratio * nlive), sys.maxsize), 1))
 
@@ -639,7 +646,7 @@ class NestedSampler(Sampler):
                          ptform,
                          ndim,
                          live_points,
-                         sample,
+                         params['sample'],
                          bound,
                          bound_update_interval=update_interval,
                          first_bound_update=first_update,
@@ -696,31 +703,26 @@ class DynamicNestedSampler(DynamicSampler):
 
         params, sampler_kwargs = _common_sampler_init(ndim=ndim,
                                                       ncdim=ncdim,
-                                                      bound=bound)
-        del ncdim
+                                                      bound=bound,
+                                                      sample=sample)
+        del ncdim, sample
 
-        # Sampling method.
-        if sample == 'auto':
-            sample = _get_auto_sample(ndim)
-
-        walks, slices = _get_walks_slices(walks, slices, sample, ndim)
-
-        # TODO change this check
-        if params['ncdim'] != ndim and sample in ['slice', 'rslice']:
-            raise ValueError('ncdim unsupported for slice sampling')
+        walks, slices = _get_walks_slices(walks, slices, params['sample'],
+                                          ndim)
 
         update_interval_ratio = _get_update_interval_ratio(
-            update_interval, sample, bound, ndim, nlive, slices, walks)
+            update_interval, params['sample'], bound, ndim, nlive, slices,
+            walks)
 
         kwargs = {}
 
         # Custom sampling function.
-        if sample not in INTERNAL_SAMPLER_LIST and not isinstance(
-                sample, InternalSampler):
-            raise ValueError(f"Unknown sampling method: {sample}")
+        if params['sample'] not in INTERNAL_SAMPLER_LIST and not isinstance(
+                params['sample'], InternalSampler):
+            raise ValueError(f"Unknown sampling method: {params['sample']}")
 
         # Citation generator.
-        kwargs['cite'] = _get_citations('dynamic', bound, sample)
+        kwargs['cite'] = _get_citations('dynamic', bound, params['sample'])
 
         nonbounded = get_nonbounded(ndim, periodic, reflective)
         kwargs['nonbounded'] = nonbounded
@@ -746,7 +748,8 @@ class DynamicNestedSampler(DynamicSampler):
         ptform_kwargs = ptform_kwargs or {}
 
         # Bounding distribution modifications.
-        enlarge, bootstrap = get_enlarge_bootstrap(sample, enlarge, bootstrap)
+        enlarge, bootstrap = get_enlarge_bootstrap(params['sample'], enlarge,
+                                                   bootstrap)
         kwargs['enlarge'] = enlarge
         kwargs['bootstrap'] = bootstrap
 
@@ -787,7 +790,7 @@ class DynamicNestedSampler(DynamicSampler):
         super().__init__(loglike,
                          ptform,
                          ndim,
-                         sample,
+                         params['sample'],
                          bound,
                          queue_size=queue_size,
                          pool=pool,

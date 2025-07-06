@@ -252,8 +252,6 @@ def _initialize_live_points(live_points,
 
 
 def _get_internal_sampler(sampling, kwargs, sampler_kw):
-    # TODO fix the ncdim
-    # I need to get rid of it # it really should only be used for rwalk
     if sampling == 'rslice':
         internal_sampler = RSliceSampler(slices=kwargs.get('slices'),
                                          **sampler_kw)
@@ -346,14 +344,14 @@ class Sampler:
                  live_points,
                  sampling,
                  bounding,
-                 bound_update_interval=None,
-                 first_bound_update=None,
+                 ncdim=None,
                  rstate=None,
-                 queue_size=None,
                  pool=None,
                  use_pool=None,
+                 queue_size=None,
+                 bound_update_interval=None,
+                 first_bound_update=None,
                  kwargs=None,
-                 ncdim=None,
                  blob=False,
                  logvol_init=0):
 

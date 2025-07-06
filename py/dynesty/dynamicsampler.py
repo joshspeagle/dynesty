@@ -683,16 +683,16 @@ class DynamicSampler:
                  ndim,
                  sampling,
                  bounding,
-                 ncdim=None,
                  nlive0=None,
-                 kwargs=None,
-                 queue_size=None,
-                 pool=None,
-                 blob=None,
-                 use_pool=None,
+                 ncdim=None,
                  rstate=None,
+                 pool=None,
+                 use_pool=None,
+                 queue_size=None,
                  bound_update_interval_ratio=None,
-                 first_bound_update=None):
+                 first_bound_update=None,
+                 kwargs=None,
+                 blob=None):
 
         # distributions
         self.loglikelihood = loglikelihood

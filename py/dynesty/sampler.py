@@ -346,14 +346,14 @@ class Sampler:
                  live_points,
                  sampling,
                  bounding,
-                 bound_update_interval=None,
-                 first_bound_update=None,
+                 ncdim=None,
                  rstate=None,
-                 queue_size=None,
                  pool=None,
                  use_pool=None,
+                 queue_size=None,
+                 bound_update_interval=None,
+                 first_bound_update=None,
                  kwargs=None,
-                 ncdim=None,
                  blob=False,
                  logvol_init=0):
 

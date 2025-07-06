@@ -489,7 +489,8 @@ def _common_sampler_init(ndim=None,
                          periodic=None,
                          reflective=None,
                          bootstrap=None,
-                         enlarge=None):
+                         enlarge=None,
+                         first_update=None):
     ret = {}
     sampler_kwargs = {}
 
@@ -520,6 +521,12 @@ def _common_sampler_init(ndim=None,
         rstate = get_random_generator()
     ret['rstate'] = rstate
 
+    # Keyword arguments controlling the first update.
+    if first_update is None:
+        first_update = {}
+    else:
+        _check_first_update(first_update)
+    ret['first_bound_update'] = first_update
     kwargs = {}
 
     # Citation generator.
@@ -584,9 +591,10 @@ class NestedSampler(Sampler):
             periodic=periodic,
             reflective=reflective,
             bootstrap=bootstrap,
-            enlarge=enlarge)
+            enlarge=enlarge,
+            first_update=first_update)
         del (ncdim, sample, walks, slices, rstate, periodic, reflective,
-             bootstrap, enlarge)
+             bootstrap, enlarge, first_update)
 
         # Citation generator.
         kwargs['cite'] = _get_citations('static', bound, params['sample'])
@@ -595,12 +603,6 @@ class NestedSampler(Sampler):
         if nlive <= 2 * ndim:
             warnings.warn(
                 "Beware! Having `nlive <= 2 * ndim` is extremely risky!")
-
-        # Keyword arguments controlling the first update.
-        if first_update is None:
-            first_update = {}
-        else:
-            _check_first_update(first_update)
 
         # Log-likelihood.
         logl_args = logl_args or []
@@ -669,7 +671,7 @@ class NestedSampler(Sampler):
                          params['sample'],
                          bound,
                          bound_update_interval=update_interval,
-                         first_bound_update=first_update,
+                         first_bound_update=params['first_bound_update'],
                          rstate=params['rstate'],
                          queue_size=queue_size,
                          pool=pool,
@@ -732,19 +734,14 @@ class DynamicNestedSampler(DynamicSampler):
             periodic=periodic,
             reflective=reflective,
             bootstrap=bootstrap,
-            enlarge=enlarge)
+            enlarge=enlarge,
+            first_update=first_update)
         del (ncdim, sample, walks, slices, rstate, periodic, reflective,
-             bootstrap, enlarge)
+             bootstrap, enlarge, first_update)
 
         update_interval_ratio = _get_update_interval_ratio(
             update_interval, params['sample'], bound, ndim, nlive,
             params['slices'], params['walks'])
-
-        # Keyword arguments controlling the first update.
-        if first_update is None:
-            first_update = {}
-        else:
-            _check_first_update(first_update)
 
         # Log-likelihood.
         logl_args = logl_args or []
@@ -802,7 +799,7 @@ class DynamicNestedSampler(DynamicSampler):
                          blob=blob,
                          rstate=params['rstate'],
                          bound_update_interval_ratio=update_interval_ratio,
-                         first_bound_update=first_update)
+                         first_bound_update=params['first_bound_update'])
 
 
 DynamicNestedSampler.__init__.__doc__ = _assemble_sampler_docstring(True)

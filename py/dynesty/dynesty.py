@@ -234,27 +234,27 @@ def _get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
     # TODO this needs to be updated
     if update_interval is None:
         if sample == 'unif':
-            update_interval_frac = 1.5
+            update_interval_ratio = 1.5
         elif sample == 'rwalk':
-            update_interval_frac = 0.15 * walks
+            update_interval_ratio = 0.15 * walks
         elif sample == 'slice':
-            update_interval_frac = 0.9 * ndim * slices
+            update_interval_ratio = 0.9 * ndim * slices
         elif sample == 'rslice':
-            update_interval_frac = 2.0 * slices
+            update_interval_ratio = 2.0 * slices
         else:
-            update_interval_frac = 1
+            update_interval_ratio = 1
             warnings.warn(
                 "No update_interval set with unknown sampling method: "
                 f"'{sample}'. Defaulting to no 1 update per nlive points.")
     elif isinstance(update_interval, float):
-        update_interval_frac = update_interval
+        update_interval_ratio = update_interval
     elif isinstance(update_interval, int):
-        update_interval_frac = update_interval * 1. / nlive
+        update_interval_ratio = update_interval * 1. / nlive
     else:
         raise RuntimeError(f'Strange update_interval value {update_interval}')
     if bound == 'none':
-        update_interval_frac = np.inf
-    return update_interval_frac
+        update_interval_ratio = np.inf
+    return update_interval_ratio
 
 
 def _assemble_sampler_docstring(dynamic):
@@ -678,6 +678,7 @@ class NestedSampler(Sampler):
             queue_size=queue_size,
             save_history=save_history,
             history_filename=history_filename,
+            update_interval=update_interval,
             dynamic=False)
 
         update_interval = int(
@@ -784,6 +785,7 @@ class DynamicNestedSampler(DynamicSampler):
             queue_size=queue_size,
             save_history=save_history,
             history_filename=history_filename,
+            update_interval=update_interval,
             dynamic=True)
 
         # Initialize our nested sampler.

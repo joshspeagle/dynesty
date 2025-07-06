@@ -484,7 +484,8 @@ def _common_sampler_init(ndim=None,
                          bound=None,
                          sample=None,
                          walks=None,
-                         slices=None):
+                         slices=None,
+                         rstate=None):
     ret = {}
     sampler_kwargs = {}
 
@@ -509,6 +510,10 @@ def _common_sampler_init(ndim=None,
 
     ret['walks'], ret['slices'] = _get_walks_slices(walks, slices, sample,
                                                     ndim)
+
+    # Random state.
+    if rstate is None:
+        rstate = get_random_generator()
 
     return ret, sampler_kwargs
 
@@ -554,8 +559,9 @@ class NestedSampler(Sampler):
                                                       bound=bound,
                                                       sample=sample,
                                                       walks=walks,
-                                                      slices=slices)
-        del ncdim, sample, walks, slices
+                                                      slices=slices,
+                                                      rstate=rstate)
+        del ncdim, sample, walks, slices, rstate
 
         kwargs = {}
 
@@ -577,10 +583,6 @@ class NestedSampler(Sampler):
             first_update = {}
         else:
             _check_first_update(first_update)
-
-        # Random state.
-        if rstate is None:
-            rstate = get_random_generator()
 
         # Log-likelihood.
         logl_args = logl_args or []
@@ -642,7 +644,7 @@ class NestedSampler(Sampler):
             mapper,
             nlive=nlive,
             ndim=ndim,
-            rstate=rstate,
+            rstate=params['rstate'],
             blob=blob,
             use_pool_ptform=use_pool.get('prior_transform', True))
 
@@ -656,7 +658,7 @@ class NestedSampler(Sampler):
                          bound,
                          bound_update_interval=update_interval,
                          first_bound_update=first_update,
-                         rstate=rstate,
+                         rstate=params['rstate'],
                          queue_size=queue_size,
                          pool=pool,
                          use_pool=use_pool,
@@ -712,8 +714,9 @@ class DynamicNestedSampler(DynamicSampler):
                                                       bound=bound,
                                                       sample=sample,
                                                       walks=walks,
-                                                      slices=slices)
-        del ncdim, sample, walks, slices
+                                                      slices=slices,
+                                                      rstate=rstate)
+        del ncdim, sample, walks, slices, rstate
 
         update_interval_ratio = _get_update_interval_ratio(
             update_interval, params['sample'], bound, ndim, nlive,
@@ -734,10 +737,6 @@ class DynamicNestedSampler(DynamicSampler):
             first_update = {}
         else:
             _check_first_update(first_update)
-
-        # Random state.
-        if rstate is None:
-            rstate = get_random_generator()
 
         # Log-likelihood.
         logl_args = logl_args or []
@@ -798,7 +797,7 @@ class DynamicNestedSampler(DynamicSampler):
                          ncdim=params['ncdim'],
                          nlive0=nlive,
                          kwargs=kwargs,
-                         rstate=rstate,
+                         rstate=params['rstate'],
                          bound_update_interval_ratio=update_interval_ratio,
                          first_bound_update=first_update)
 

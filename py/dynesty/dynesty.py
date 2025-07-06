@@ -479,6 +479,18 @@ optional
         return static_docstring
 
 
+def _common_sampler_init(ndim=None, ncdim=None, bound=None):
+    ret = {}
+    sampler_kwargs = {}
+
+    ncdim = ncdim or ndim
+    ret['ncdim'] = ncdim
+    # Bounding method.
+    if bound not in BOUND_LIST and not isinstance(bounding.Bound):
+        raise ValueError(f"Unknown bounding method: {bound}")
+    return ret, sampler_kwargs
+
+
 class NestedSampler(Sampler):
     """
     The main class performing the static nested sampling.
@@ -515,12 +527,10 @@ class NestedSampler(Sampler):
                 save_history=False,
                 history_filename=None):
 
-        params, sampler_kwargs = _common_sampler_init(ndim=ndim, ncdim=ncdim)
+        params, sampler_kwargs = _common_sampler_init(ndim=ndim,
+                                                      ncdim=ncdim,
+                                                      bound=bound)
         del ncdim
-
-        # Bounding method.
-        if bound not in BOUND_LIST and not isinstance(bound, bounding.Bound):
-            raise ValueError("Unknown bounding method: '{0}'".format(bound))
 
         # Sampling method.
         if sample == 'auto':
@@ -649,14 +659,6 @@ NestedSampler.__new__.__doc__ = _assemble_sampler_docstring(False)
 NestedSampler.__init__.__doc__ = _assemble_sampler_docstring(False)
 
 
-def _common_sampler_init(ndim=None, ncdim=None):
-    ncdim = ncdim or ndim
-    ret = {}
-    ret['ncdim'] = ncdim
-    sampler_kwargs = {}
-    return ret, sampler_kwargs
-
-
 class DynamicNestedSampler(DynamicSampler):
     """
     The main class for performing dynamic nested sampling.
@@ -667,7 +669,7 @@ class DynamicNestedSampler(DynamicSampler):
                  loglikelihood,
                  prior_transform,
                  ndim,
-                 nlive=None,
+                 nlive=500,
                  bound='multi',
                  sample='auto',
                  periodic=None,
@@ -692,13 +694,10 @@ class DynamicNestedSampler(DynamicSampler):
                  save_history=False,
                  history_filename=None):
 
-        nlive = nlive or 500
-        params, sampler_kwargs = _common_sampler_init(ndim=ndim, ncdim=ncdim)
+        params, sampler_kwargs = _common_sampler_init(ndim=ndim,
+                                                      ncdim=ncdim,
+                                                      bound=bound)
         del ncdim
-
-        # Bounding method.
-        if bound not in BOUND_LIST and not isinstance(bounding.Bound):
-            raise ValueError(f"Unknown bounding method: {bound}")
 
         # Sampling method.
         if sample == 'auto':

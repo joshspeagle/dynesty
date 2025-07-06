@@ -514,6 +514,7 @@ def _common_sampler_init(ndim=None,
     # Random state.
     if rstate is None:
         rstate = get_random_generator()
+    ret['rstate'] = rstate
 
     return ret, sampler_kwargs
 

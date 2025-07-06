@@ -2,7 +2,7 @@
 -r requirements.txt
 
 # Required for the test suite:
-pytest<=3.3.7
+pytest
 pytest-cov
 pytest-xdist
 coveralls
@@ -14,7 +14,7 @@ tqdm
 jupyter
 ipyparallel
 
-pylint
+pylint<=3.3.7
 
 sphinx
 sphinx-rtd-theme

@@ -515,7 +515,8 @@ class NestedSampler(Sampler):
                 save_history=False,
                 history_filename=None):
 
-        ncdim = ncdim or ndim
+        params, sampler_kwargs = _common_sampler_init(ndim=ndim, ncdim=ncdim)
+        del ncdim
 
         # Bounding method.
         if bound not in BOUND_LIST and not isinstance(bound, bounding.Bound):
@@ -527,7 +528,7 @@ class NestedSampler(Sampler):
 
         walks, slices = _get_walks_slices(walks, slices, sample, ndim)
 
-        if ncdim != ndim and sample in ['slice', 'rslice']:
+        if params['ncdim'] != ndim and sample in ['slice', 'rslice']:
             raise ValueError('ncdim unsupported for slice sampling')
 
         # Custom sampling function.
@@ -637,7 +638,7 @@ class NestedSampler(Sampler):
                          pool=pool,
                          use_pool=use_pool,
                          kwargs=kwargs,
-                         ncdim=ncdim,
+                         ncdim=params['ncdim'],
                          blob=blob,
                          logvol_init=logvol_init)
         sampler.ncall = init_ncalls
@@ -646,6 +647,14 @@ class NestedSampler(Sampler):
 
 NestedSampler.__new__.__doc__ = _assemble_sampler_docstring(False)
 NestedSampler.__init__.__doc__ = _assemble_sampler_docstring(False)
+
+
+def _common_sampler_init(ndim=None, ncdim=None):
+    ncdim = ncdim or ndim
+    ret = {}
+    ret['ncdim'] = ncdim
+    sampler_kwargs = {}
+    return ret, sampler_kwargs
 
 
 class DynamicNestedSampler(DynamicSampler):
@@ -683,8 +692,9 @@ class DynamicNestedSampler(DynamicSampler):
                  save_history=False,
                  history_filename=None):
 
-        ncdim = ncdim or ndim
         nlive = nlive or 500
+        params, sampler_kwargs = _common_sampler_init(ndim=ndim, ncdim=ncdim)
+        del ncdim
 
         # Bounding method.
         if bound not in BOUND_LIST and not isinstance(bounding.Bound):
@@ -697,7 +707,7 @@ class DynamicNestedSampler(DynamicSampler):
         walks, slices = _get_walks_slices(walks, slices, sample, ndim)
 
         # TODO change this check
-        if ncdim != ndim and sample in ['slice', 'rslice']:
+        if params['ncdim'] != ndim and sample in ['slice', 'rslice']:
             raise ValueError('ncdim unsupported for slice sampling')
 
         update_interval_ratio = _get_update_interval_ratio(
@@ -783,7 +793,7 @@ class DynamicNestedSampler(DynamicSampler):
                          queue_size=queue_size,
                          pool=pool,
                          use_pool=use_pool,
-                         ncdim=ncdim,
+                         ncdim=params['ncdim'],
                          nlive0=nlive,
                          kwargs=kwargs,
                          rstate=rstate,

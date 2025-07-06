@@ -490,7 +490,8 @@ def _common_sampler_init(ndim=None,
                          reflective=None,
                          bootstrap=None,
                          enlarge=None,
-                         first_update=None):
+                         first_update=None,
+                         dynamic=False):
     ret = {}
     sampler_kwargs = {}
 
@@ -530,7 +531,10 @@ def _common_sampler_init(ndim=None,
     kwargs = {}
 
     # Citation generator.
-    kwargs['cite'] = _get_citations('dynamic', bound, sample)
+    if dynamic:
+        kwargs['cite'] = _get_citations('dynamic', bound, sample)
+    else:
+        kwargs['cite'] = _get_citations('static', bound, sample)
 
     nonbounded = get_nonbounded(ndim, periodic, reflective)
     kwargs['nonbounded'] = nonbounded
@@ -592,12 +596,10 @@ class NestedSampler(Sampler):
             reflective=reflective,
             bootstrap=bootstrap,
             enlarge=enlarge,
-            first_update=first_update)
+            first_update=first_update,
+            dynamic=False)
         del (ncdim, sample, walks, slices, rstate, periodic, reflective,
              bootstrap, enlarge, first_update)
-
-        # Citation generator.
-        kwargs['cite'] = _get_citations('static', bound, params['sample'])
 
         # Dimensional warning check.
         if nlive <= 2 * ndim:
@@ -735,7 +737,8 @@ class DynamicNestedSampler(DynamicSampler):
             reflective=reflective,
             bootstrap=bootstrap,
             enlarge=enlarge,
-            first_update=first_update)
+            first_update=first_update,
+            dynamic=True)
         del (ncdim, sample, walks, slices, rstate, periodic, reflective,
              bootstrap, enlarge, first_update)
 

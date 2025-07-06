@@ -505,6 +505,7 @@ def _common_sampler_init(nlive=None,
                          queue_size=None,
                          save_history=None,
                          history_filename=None,
+                         update_interval=None,
                          dynamic=False):
     ret = {}
     sampler_kwargs = {}
@@ -533,7 +534,6 @@ def _common_sampler_init(nlive=None,
         raise ValueError('ncdim unsupported for slice sampling')
 
     walks, slices = _get_walks_slices(walks, slices, sample, ndim)
-    ret['walks'], ret['slices'] = walks, slices
     # Random state.
     if rstate is None:
         rstate = get_random_generator()
@@ -562,7 +562,7 @@ def _common_sampler_init(nlive=None,
     ret['use_pool'] = use_pool
     ret['mapper'] = mapper
     ret['queue_size'] = queue_size
-
+    ret['pool'] = pool
     if use_pool.get('loglikelihood', True):
         pool_logl = pool
     else:
@@ -583,6 +583,11 @@ def _common_sampler_init(nlive=None,
                                        save=save_history,
                                        blob=blob)
     ret['loglikelihood_wrap'] = loglikelihood_wrap
+
+    update_interval_ratio = _get_update_interval_ratio(update_interval, sample,
+                                                       bound, ndim, nlive,
+                                                       slices, walks)
+    ret['update_interval_ratio'] = update_interval_ratio
     kwargs = {}
     # Sampling.
     if walks is not None:
@@ -681,11 +686,10 @@ class NestedSampler(Sampler):
              ptform_args, ptform_kwargs, loglikelihood, use_pool, pool,
              queue_size, save_history, history_filename)
 
-        update_interval_ratio = _get_update_interval_ratio(
-            update_interval, params['sample'], bound, ndim, nlive,
-            params['slices'], params['walks'])
         update_interval = int(
-            max(min(np.round(update_interval_ratio * nlive), sys.maxsize), 1))
+            max(
+                min(np.round(params['update_interval_ratio'] * nlive),
+                    sys.maxsize), 1))
 
         live_points, logvol_init, init_ncalls = _initialize_live_points(
             live_points,
@@ -706,14 +710,14 @@ class NestedSampler(Sampler):
                          live_points,
                          params['sample'],
                          bound,
-                         bound_update_interval=update_interval,
-                         first_bound_update=params['first_bound_update'],
+                         ncdim=params['ncdim'],
                          rstate=params['rstate'],
-                         queue_size=params['queue_size'],
                          pool=params['pool'],
                          use_pool=params['use_pool'],
+                         queue_size=params['queue_size'],
+                         bound_update_interval=update_interval,
+                         first_bound_update=params['first_bound_update'],
                          kwargs=kwargs,
-                         ncdim=params['ncdim'],
                          blob=blob,
                          logvol_init=logvol_init)
         sampler.ncall = init_ncalls
@@ -793,26 +797,24 @@ class DynamicNestedSampler(DynamicSampler):
              ptform_args, ptform_kwargs, loglikelihood, use_pool, pool,
              queue_size, save_history, history_filename)
 
-        update_interval_ratio = _get_update_interval_ratio(
-            update_interval, params['sample'], bound, ndim, nlive,
-            params['slices'], params['walks'])
-
         # Initialize our nested sampler.
-        super().__init__(params['loglikelihood_wrap'],
-                         params['prior_transform_wrap'],
-                         ndim,
-                         params['sample'],
-                         bound,
-                         queue_size=params['queue_size'],
-                         pool=params['pool'],
-                         use_pool=params['use_pool'],
-                         ncdim=params['ncdim'],
-                         nlive0=nlive,
-                         kwargs=kwargs,
-                         blob=blob,
-                         rstate=params['rstate'],
-                         bound_update_interval_ratio=update_interval_ratio,
-                         first_bound_update=params['first_bound_update'])
+        super().__init__(
+            params['loglikelihood_wrap'],
+            params['prior_transform_wrap'],
+            ndim,
+            params['sample'],
+            bound,
+            nlive0=nlive,
+            ncdim=params['ncdim'],
+            rstate=params['rstate'],
+            pool=params['pool'],
+            use_pool=params['use_pool'],
+            queue_size=params['queue_size'],
+            bound_update_interval_ratio=params['update_interval_ratio'],
+            first_bound_update=params['first_bound_update'],
+            kwargs=kwargs,
+            blob=blob,
+        )
 
 
 DynamicNestedSampler.__init__.__doc__ = _assemble_sampler_docstring(True)

@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        python-version: ['3.8', '3.10', '3.12.8']
+        python-version: ['3.8', '3.10', '3.12']
 
     steps:
       - name: Checkout
@@ -43,8 +43,9 @@ jobs:
           make html SPHINXOPTS="-W --keep-going"
           # The extra options are there to fail on warnings
 
-      - name: pylint
-        run: pylint --fail-under=9 --extension-pkg-whitelist=scipy.special py/dynesty/*py
+# - name: pylint
+#   run: pylint --fail-under=9 --extension-pkg-whitelist=scipy.special py/dynesty/*py
+# temporarily disabled due to some bizarre astroid issue... 
 
       - name: RandomCheck
         # check that np.random is not used directly

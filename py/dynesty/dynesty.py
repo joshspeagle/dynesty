@@ -479,7 +479,8 @@ optional
         return static_docstring
 
 
-def _common_sampler_init(ndim=None,
+def _common_sampler_init(nlive=None,
+                         ndim=None,
                          ncdim=None,
                          bound=None,
                          sample=None,
@@ -492,12 +493,19 @@ def _common_sampler_init(ndim=None,
                          enlarge=None,
                          first_update=None,
                          facc=None,
+                         prior_transform=None,
+                         ptform_args=None,
+                         ptform_kwargs=None,
                          dynamic=False):
     ret = {}
     sampler_kwargs = {}
 
     ncdim = ncdim or ndim
     ret['ncdim'] = ncdim
+    # Dimensional warning check.
+    if nlive <= 2 * ndim:
+        warnings.warn("Beware! Having `nlive <= 2 * ndim` is extremely risky!")
+
     # Bounding method.
     if bound not in BOUND_LIST and not isinstance(bound, bounding.Bound):
         raise ValueError(f"Unknown bounding method: {bound}")
@@ -529,6 +537,15 @@ def _common_sampler_init(ndim=None,
         _check_first_update(first_update)
     ret['first_bound_update'] = first_update
 
+    # Prior transform.
+    ptform_args = ptform_args or []
+    ptform_kwargs = ptform_kwargs or {}
+    # Wrap functions.
+    prior_transform_wrap = _function_wrapper(prior_transform,
+                                             ptform_args,
+                                             ptform_kwargs,
+                                             name='prior_transform')
+    ret['prior_transform_wrap'] = prior_transform_wrap
     kwargs = {}
     # Sampling.
     if walks is not None:
@@ -594,6 +611,7 @@ class NestedSampler(Sampler):
                 history_filename=None):
 
         params, sampler_kwargs, kwargs = _common_sampler_init(
+            nlive=nlive,
             ndim=ndim,
             ncdim=ncdim,
             bound=bound,
@@ -607,22 +625,17 @@ class NestedSampler(Sampler):
             enlarge=enlarge,
             first_update=first_update,
             facc=facc,
+            prior_transform=prior_transform,
+            ptform_args=ptform_args,
+            ptform_kwargs=ptform_kwargs,
             dynamic=False)
         del (ncdim, sample, walks, slices, rstate, periodic, reflective,
-             bootstrap, enlarge, first_update, facc)
-
-        # Dimensional warning check.
-        if nlive <= 2 * ndim:
-            warnings.warn(
-                "Beware! Having `nlive <= 2 * ndim` is extremely risky!")
+             bootstrap, enlarge, first_update, facc, prior_transform,
+             ptform_args, ptform_kwargs)
 
         # Log-likelihood.
         logl_args = logl_args or []
         logl_kwargs = logl_kwargs or {}
-
-        # Prior transform.
-        ptform_args = ptform_args or []
-        ptform_kwargs = ptform_kwargs or {}
 
         update_interval_ratio = _get_update_interval_ratio(
             update_interval, params['sample'], bound, ndim, nlive,
@@ -635,11 +648,6 @@ class NestedSampler(Sampler):
 
         use_pool = use_pool or {}
 
-        # Wrap functions.
-        ptform = _function_wrapper(prior_transform,
-                                   ptform_args,
-                                   ptform_kwargs,
-                                   name='prior_transform')
         if use_pool.get('loglikelihood', True):
             pool_logl = pool
         else:
@@ -657,7 +665,7 @@ class NestedSampler(Sampler):
 
         live_points, logvol_init, init_ncalls = _initialize_live_points(
             live_points,
-            ptform,
+            params['prior_transform_wrap'],
             loglike,
             mapper,
             nlive=nlive,
@@ -669,7 +677,7 @@ class NestedSampler(Sampler):
         # Initialize our nested sampler.
         sampler = super().__new__(Sampler)
         sampler.__init__(loglike,
-                         ptform,
+                         params['prior_transform_wrap'],
                          ndim,
                          live_points,
                          params['sample'],
@@ -728,6 +736,7 @@ class DynamicNestedSampler(DynamicSampler):
                  history_filename=None):
 
         params, sampler_kwargs, kwargs = _common_sampler_init(
+            nlive=nlive,
             ndim=ndim,
             ncdim=ncdim,
             bound=bound,
@@ -741,9 +750,13 @@ class DynamicNestedSampler(DynamicSampler):
             enlarge=enlarge,
             first_update=first_update,
             facc=facc,
+            prior_transform=prior_transform,
+            ptform_args=ptform_args,
+            ptform_kwargs=ptform_kwargs,
             dynamic=True)
         del (ncdim, sample, walks, slices, rstate, periodic, reflective,
-             bootstrap, enlarge, first_update, facc)
+             bootstrap, enlarge, first_update, facc, prior_transform,
+             ptform_args, ptform_kwargs)
 
         update_interval_ratio = _get_update_interval_ratio(
             update_interval, params['sample'], bound, ndim, nlive,
@@ -753,19 +766,9 @@ class DynamicNestedSampler(DynamicSampler):
         logl_args = logl_args or []
         logl_kwargs = logl_kwargs or {}
 
-        # Prior transform.
-        ptform_args = ptform_args or []
-        ptform_kwargs = ptform_kwargs or {}
-
         # Set up parallel (or serial) evaluation.
         queue_size = _parse_pool_queue(pool, queue_size)[1]
         use_pool = use_pool or {}
-
-        # Wrap functions.
-        ptform = _function_wrapper(prior_transform,
-                                   ptform_args,
-                                   ptform_kwargs,
-                                   name='prior_transform')
 
         if use_pool.get('loglikelihood', True):
             pool_logl = pool
@@ -784,7 +787,7 @@ class DynamicNestedSampler(DynamicSampler):
 
         # Initialize our nested sampler.
         super().__init__(loglike,
-                         ptform,
+                         params['prior_transform_wrap'],
                          ndim,
                          params['sample'],
                          bound,

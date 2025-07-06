@@ -493,9 +493,18 @@ def _common_sampler_init(nlive=None,
                          enlarge=None,
                          first_update=None,
                          facc=None,
+                         blob=None,
                          prior_transform=None,
                          ptform_args=None,
                          ptform_kwargs=None,
+                         loglikelihood=None,
+                         logl_args=None,
+                         logl_kwargs=None,
+                         use_pool=None,
+                         pool=None,
+                         queue_size=None,
+                         save_history=None,
+                         history_filename=None,
                          dynamic=False):
     ret = {}
     sampler_kwargs = {}
@@ -546,6 +555,34 @@ def _common_sampler_init(nlive=None,
                                              ptform_kwargs,
                                              name='prior_transform')
     ret['prior_transform_wrap'] = prior_transform_wrap
+
+    # Set up parallel (or serial) evaluation.
+    mapper, queue_size = _parse_pool_queue(pool, queue_size)
+    use_pool = use_pool or {}
+    ret['use_pool'] = use_pool
+    ret['mapper'] = mapper
+    ret['queue_size'] = queue_size
+
+    if use_pool.get('loglikelihood', True):
+        pool_logl = pool
+    else:
+        pool_logl = None
+
+    # Log-likelihood.
+    logl_args = logl_args or []
+    logl_kwargs = logl_kwargs or {}
+
+    loglikelihood_wrap = LogLikelihood(_function_wrapper(loglikelihood,
+                                                         logl_args,
+                                                         logl_kwargs,
+                                                         name='loglikelihood'),
+                                       ndim,
+                                       pool=pool_logl,
+                                       history_filename=history_filename
+                                       or 'dynesty_logl_history.h5',
+                                       save=save_history,
+                                       blob=blob)
+    ret['loglikelihood_wrap'] = loglikelihood_wrap
     kwargs = {}
     # Sampling.
     if walks is not None:
@@ -624,18 +661,25 @@ class NestedSampler(Sampler):
             bootstrap=bootstrap,
             enlarge=enlarge,
             first_update=first_update,
+            blob=blob,
             facc=facc,
             prior_transform=prior_transform,
             ptform_args=ptform_args,
             ptform_kwargs=ptform_kwargs,
+            loglikelihood=loglikelihood,
+            logl_args=logl_args,
+            logl_kwargs=logl_kwargs,
+            use_pool=use_pool,
+            pool=pool,
+            queue_size=queue_size,
+            save_history=save_history,
+            history_filename=history_filename,
             dynamic=False)
+
         del (ncdim, sample, walks, slices, rstate, periodic, reflective,
              bootstrap, enlarge, first_update, facc, prior_transform,
-             ptform_args, ptform_kwargs)
-
-        # Log-likelihood.
-        logl_args = logl_args or []
-        logl_kwargs = logl_kwargs or {}
+             ptform_args, ptform_kwargs, loglikelihood, use_pool, pool,
+             queue_size, save_history, history_filename)
 
         update_interval_ratio = _get_update_interval_ratio(
             update_interval, params['sample'], bound, ndim, nlive,
@@ -643,40 +687,20 @@ class NestedSampler(Sampler):
         update_interval = int(
             max(min(np.round(update_interval_ratio * nlive), sys.maxsize), 1))
 
-        # Set up parallel (or serial) evaluation.
-        mapper, queue_size = _parse_pool_queue(pool, queue_size)
-
-        use_pool = use_pool or {}
-
-        if use_pool.get('loglikelihood', True):
-            pool_logl = pool
-        else:
-            pool_logl = None
-        loglike = LogLikelihood(_function_wrapper(loglikelihood,
-                                                  logl_args,
-                                                  logl_kwargs,
-                                                  name='loglikelihood'),
-                                ndim,
-                                save=save_history,
-                                blob=blob,
-                                history_filename=history_filename
-                                or 'dynesty_logl_history.h5',
-                                pool=pool_logl)
-
         live_points, logvol_init, init_ncalls = _initialize_live_points(
             live_points,
             params['prior_transform_wrap'],
-            loglike,
-            mapper,
+            params['loglikelihood_wrap'],
+            params['mapper'],
             nlive=nlive,
             ndim=ndim,
             rstate=params['rstate'],
             blob=blob,
-            use_pool_ptform=use_pool.get('prior_transform', True))
+            use_pool_ptform=params['use_pool'].get('prior_transform', True))
 
         # Initialize our nested sampler.
         sampler = super().__new__(Sampler)
-        sampler.__init__(loglike,
+        sampler.__init__(params['loglikelihood_wrap'],
                          params['prior_transform_wrap'],
                          ndim,
                          live_points,
@@ -685,9 +709,9 @@ class NestedSampler(Sampler):
                          bound_update_interval=update_interval,
                          first_bound_update=params['first_bound_update'],
                          rstate=params['rstate'],
-                         queue_size=queue_size,
-                         pool=pool,
-                         use_pool=use_pool,
+                         queue_size=params['queue_size'],
+                         pool=params['pool'],
+                         use_pool=params['use_pool'],
                          kwargs=kwargs,
                          ncdim=params['ncdim'],
                          blob=blob,
@@ -749,51 +773,39 @@ class DynamicNestedSampler(DynamicSampler):
             bootstrap=bootstrap,
             enlarge=enlarge,
             first_update=first_update,
+            blob=blob,
             facc=facc,
             prior_transform=prior_transform,
             ptform_args=ptform_args,
             ptform_kwargs=ptform_kwargs,
+            loglikelihood=loglikelihood,
+            logl_args=logl_args,
+            logl_kwargs=logl_kwargs,
+            use_pool=use_pool,
+            pool=pool,
+            queue_size=queue_size,
+            save_history=save_history,
+            history_filename=history_filename,
             dynamic=True)
+
         del (ncdim, sample, walks, slices, rstate, periodic, reflective,
              bootstrap, enlarge, first_update, facc, prior_transform,
-             ptform_args, ptform_kwargs)
+             ptform_args, ptform_kwargs, loglikelihood, use_pool, pool,
+             queue_size, save_history, history_filename)
 
         update_interval_ratio = _get_update_interval_ratio(
             update_interval, params['sample'], bound, ndim, nlive,
             params['slices'], params['walks'])
 
-        # Log-likelihood.
-        logl_args = logl_args or []
-        logl_kwargs = logl_kwargs or {}
-
-        # Set up parallel (or serial) evaluation.
-        queue_size = _parse_pool_queue(pool, queue_size)[1]
-        use_pool = use_pool or {}
-
-        if use_pool.get('loglikelihood', True):
-            pool_logl = pool
-        else:
-            pool_logl = None
-        loglike = LogLikelihood(_function_wrapper(loglikelihood,
-                                                  logl_args,
-                                                  logl_kwargs,
-                                                  name='loglikelihood'),
-                                ndim,
-                                pool=pool_logl,
-                                history_filename=history_filename
-                                or 'dynesty_logl_history.h5',
-                                save=save_history,
-                                blob=blob)
-
         # Initialize our nested sampler.
-        super().__init__(loglike,
+        super().__init__(params['loglikelihood_wrap'],
                          params['prior_transform_wrap'],
                          ndim,
                          params['sample'],
                          bound,
-                         queue_size=queue_size,
-                         pool=pool,
-                         use_pool=use_pool,
+                         queue_size=params['queue_size'],
+                         pool=params['pool'],
+                         use_pool=params['use_pool'],
                          ncdim=params['ncdim'],
                          nlive0=nlive,
                          kwargs=kwargs,

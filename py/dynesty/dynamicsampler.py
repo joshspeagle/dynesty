@@ -917,7 +917,6 @@ class DynamicSampler:
                        logl_max=np.inf,
                        dlogz=0.01,
                        live_points=None,
-                       save_samples=False,
                        resume=False):
         """
         Generate a series of initial samples from a nested sampling
@@ -1099,7 +1098,6 @@ class DynamicSampler:
             # Run the sampler internally as a generator.
         for it, results in enumerate(
                 self.sampler.sample(maxiter=maxiter,
-                                    save_samples=save_samples,
                                     maxcall=maxcall,
                                     logl_max=logl_max,
                                     dlogz=dlogz,
@@ -1361,7 +1359,6 @@ class DynamicSampler:
                                      logl_max=logl_max,
                                      maxiter=maxiter_left,
                                      maxcall=maxcall_left,
-                                     save_samples=True,
                                      save_bounds=save_bounds,
                                      resume=resume)):
             # Save results.
@@ -1797,8 +1794,7 @@ This is not supported. No sampling was performed""", RuntimeWarning)
                                                    maxiter=maxiter_init,
                                                    logl_max=logl_max_init,
                                                    live_points=live_points,
-                                                   resume=resume,
-                                                   save_samples=True):
+                                                   resume=resume):
                     if resume:
                         resume = False
                     ncall += results.nc

@@ -413,7 +413,6 @@ class Sampler:
         self.added_live = False  # whether leftover live points were used
         self.eff = 0.  # overall sampling efficiency
         self.cite = ''  # Default empty
-        self.save_samples = True
         self.save_bounds = True
 
         # bounding updates
@@ -590,20 +589,17 @@ class Sampler:
             d[k] = np.array(self.saved_run[k])
 
         # Add all saved samples to the results.
-        if self.save_samples:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                results = [('nlive', self.nlive), ('niter', self.it - 1),
-                           ('ncall', d['nc']), ('eff', self.eff),
-                           ('samples', d['v']), ('blob', d['blob'])]
-                for k in ['id', 'it', 'u']:
-                    results.append(('samples_' + k, d[k]))
-                for k in ['logwt', 'logl', 'logvol', 'logz']:
-                    results.append((k, d[k]))
-                results.append(('logzerr', np.sqrt(d['logzvar'])))
-                results.append(('information', d['h']))
-        else:
-            raise ValueError("You didn't save any samples!")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            results = [('nlive', self.nlive), ('niter', self.it - 1),
+                       ('ncall', d['nc']), ('eff', self.eff),
+                       ('samples', d['v']), ('blob', d['blob'])]
+            for k in ['id', 'it', 'u']:
+                results.append(('samples_' + k, d[k]))
+            for k in ['logwt', 'logl', 'logvol', 'logz']:
+                results.append((k, d[k]))
+            results.append(('logzerr', np.sqrt(d['logzvar'])))
+            results.append(('information', d['h']))
 
         # Add any saved bounds (and ancillary quantities) to the results.
         if self.save_bounds:
@@ -878,28 +874,27 @@ class Sampler:
             delta_logz = np.logaddexp(0, loglmax + logvol - logz)
 
             # Save results.
-            if self.save_samples:
-                self.saved_run.append(
-                    dict(
-                        id=idx,
-                        u=ustar,
-                        v=vstar,
-                        logl=loglstar,
-                        logvol=logvol,
-                        logwt=logwt,
-                        logz=logz,
-                        logzvar=logzvar,
-                        h=h,
-                        nc=1,  # this is technically a lie
-                        # as we didn't call the likelihood even once
-                        # however because we lose track of ncs if we start
-                        # from points that are not sampled from unit cube
-                        # it can lead to sum(nc)!=ncall
-                        boundidx=boundidx,
-                        it=point_it,
-                        bounditer=bounditer,
-                        scale=self.internal_sampler.scale,
-                        blob=old_blob))
+            self.saved_run.append(
+                dict(
+                    id=idx,
+                    u=ustar,
+                    v=vstar,
+                    logl=loglstar,
+                    logvol=logvol,
+                    logwt=logwt,
+                    logz=logz,
+                    logzvar=logzvar,
+                    h=h,
+                    nc=1,  # this is technically a lie
+                    # as we didn't call the likelihood even once
+                    # however because we lose track of ncs if we start
+                    # from points that are not sampled from unit cube
+                    # it can lead to sum(nc)!=ncall
+                    boundidx=boundidx,
+                    it=point_it,
+                    bounditer=bounditer,
+                    scale=self.internal_sampler.scale,
+                    blob=old_blob))
             self.eff = 100. * (self.it + i) / self.ncall  # efficiency
 
             # Return our new "dead" point and ancillary quantities.
@@ -926,13 +921,12 @@ class Sampler:
 
         if self.added_live:
             self.added_live = False
-            if self.save_samples:
-                for k in [
-                        'id', 'u', 'v', 'logl', 'logvol', 'logwt', 'logz',
-                        'logzvar', 'h', 'nc', 'boundidx', 'it', 'bounditer',
-                        'scale'
-                ]:
-                    del self.saved_run[k][-self.nlive:]
+            for k in [
+                    'id', 'u', 'v', 'logl', 'logvol', 'logwt', 'logz',
+                    'logzvar', 'h', 'nc', 'boundidx', 'it', 'bounditer',
+                    'scale'
+            ]:
+                del self.saved_run[k][-self.nlive:]
         else:
             raise ValueError("No live points were added to the "
                              "list of samples!")
@@ -945,7 +939,6 @@ class Sampler:
                n_effective=np.inf,
                add_live=True,
                save_bounds=True,
-               save_samples=True,
                resume=False):
         """
         **The main nested sampling loop.** Iteratively replace the worst live
@@ -990,11 +983,6 @@ class Sampler:
         save_bounds : bool, optional
             Whether or not to save past distributions used to bound
             the live points internally. Default is `True`.
-
-        save_samples : bool, optional
-            Whether or not to save past samples from the nested sampling run
-            (along with other ancillary quantities) internally.
-            Default is `True`.
 
         Returns
         -------
@@ -1053,7 +1041,6 @@ class Sampler:
             maxcall = sys.maxsize
         if maxiter is None:
             maxiter = sys.maxsize
-        self.save_samples = save_samples
         self.save_bounds = save_bounds
         ncall = 0
         # Check whether we're starting fresh or continuing a previous run.
@@ -1134,15 +1121,6 @@ class Sampler:
                 stop_iterations = True
 
             if stop_iterations:
-                if not self.save_samples:
-                    # If dumping past states, save only the required quantities
-                    # TODO I don't quite understand why we do this
-                    add_info = dict(logz=logz,
-                                    logzvar=logzvar,
-                                    h=h,
-                                    logvol=logvol,
-                                    logl=loglstar)
-                    self.saved_run.append(add_info)
                 break
 
             worst = np.argmin(self.live_logl)  # index
@@ -1200,22 +1178,21 @@ class Sampler:
                 bounditer = 0
 
             # Save the worst live point. It is now a "dead" point.
-            if self.save_samples:
-                self.saved_run.append(
-                    dict(id=worst,
-                         u=ustar,
-                         v=vstar,
-                         logl=loglstar,
-                         logvol=logvol,
-                         logwt=logwt,
-                         logz=logz,
-                         logzvar=logzvar,
-                         h=h,
-                         nc=nc,
-                         it=worst_it,
-                         bounditer=bounditer,
-                         scale=self.internal_sampler.scale,
-                         blob=old_blob))
+            self.saved_run.append(
+                dict(id=worst,
+                     u=ustar,
+                     v=vstar,
+                     logl=loglstar,
+                     logvol=logvol,
+                     logwt=logwt,
+                     logz=logz,
+                     logzvar=logzvar,
+                     h=h,
+                     nc=nc,
+                     it=worst_it,
+                     bounditer=bounditer,
+                     scale=self.internal_sampler.scale,
+                     blob=old_blob))
 
             # Update the live point (previously our "worst" point).
             self.live_u[worst] = u
@@ -1364,7 +1341,6 @@ class Sampler:
                                 dlogz=dlogz,
                                 logl_max=logl_max,
                                 save_bounds=save_bounds,
-                                save_samples=True,
                                 n_effective=n_effective,
                                 resume=resume,
                                 add_live=add_live)):

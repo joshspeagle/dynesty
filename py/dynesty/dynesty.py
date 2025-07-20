@@ -479,8 +479,10 @@ optional
         return static_docstring
 
 
-def _common_sampler_init(nlive=None,
-                         ndim=None,
+def _common_sampler_init(*, nlive,
+                         ndim,
+                         prior_transform,
+                         loglikelihood,
                          ncdim=None,
                          bound=None,
                          sample=None,
@@ -494,10 +496,8 @@ def _common_sampler_init(nlive=None,
                          first_update=None,
                          facc=None,
                          blob=None,
-                         prior_transform=None,
                          ptform_args=None,
                          ptform_kwargs=None,
-                         loglikelihood=None,
                          logl_args=None,
                          logl_kwargs=None,
                          use_pool=None,
@@ -571,7 +571,8 @@ def _common_sampler_init(nlive=None,
     # Log-likelihood.
     logl_args = logl_args or []
     logl_kwargs = logl_kwargs or {}
-
+    save_history = save_history or False
+    blob = blob or False
     loglikelihood_wrap = LogLikelihood(_function_wrapper(loglikelihood,
                                                          logl_args,
                                                          logl_kwargs,

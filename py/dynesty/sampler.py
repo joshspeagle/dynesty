@@ -251,26 +251,6 @@ def _initialize_live_points(live_points,
     return (live_u, live_v, live_logl, live_blobs), logvol_init, ncalls
 
 
-def _get_internal_sampler(sampling, kwargs, sampler_kw):
-    if sampling == 'rslice':
-        internal_sampler = RSliceSampler(slices=kwargs.get('slices'),
-                                         **sampler_kw)
-    elif sampling == 'slice':
-        internal_sampler = SliceSampler(slices=kwargs.get('slices'),
-                                        **sampler_kw)
-    elif sampling == 'rwalk':
-        internal_sampler = RWalkSampler(walks=kwargs.get('walks'),
-                                        **sampler_kw)
-    elif sampling == 'unif':
-        internal_sampler = UniformBoundSampler(**sampler_kw)
-    elif isinstance(sampling, InternalSampler):
-        # todo check what to do with the options
-        internal_sampler = sampling
-    else:
-        raise ValueError(f'Unsupported Sampler {sampling}')
-    return internal_sampler
-
-
 class Sampler:
     """
     The basic sampler object that performs the actual nested sampling.
@@ -351,8 +331,10 @@ class Sampler:
                  queue_size=None,
                  bound_update_interval=None,
                  first_bound_update=None,
-                 kwargs=None,
+                 bound_bootstrap=None,
+                 bound_enlarge=None,
                  blob=False,
+                 cite=None,
                  logvol_init=0):
 
         # distributions
@@ -373,17 +355,10 @@ class Sampler:
 
         # random state
         self.rstate = rstate or get_random_generator()
-        sampler_kw = dict(nonbounded=kwargs.get('nonbounded'),
-                          periodic=kwargs.get('periodic'),
-                          reflective=kwargs.get('reflective'),
-                          ndim=self.ndim,
-                          ncdim=self.ncdim)
-
         self.sampling = sampling
-        internal_sampler = _get_internal_sampler(sampling, kwargs, sampler_kw)
         # This is the sampler that will be used to sample after we
         # are done with the unit cube sampling
-        self.internal_sampler_next = internal_sampler
+        self.internal_sampler_next = sampling
         self.internal_sampler = UnitCubeSampler(ndim=ndim)
 
         # parallelism
@@ -437,17 +412,17 @@ class Sampler:
         # results
         self.saved_run = RunRecord()
 
-        self.kwargs = kwargs or {}
-
-        self.enlarge, self.bootstrap = get_enlarge_bootstrap(
-            sampling, self.kwargs.get('enlarge'), self.kwargs.get('bootstrap'))
-
-        self.cite = self.kwargs.get('cite')
+        # self.cite = self.kwargs.get('cite')
+        self.bound_bootstrap = bound_bootstrap
+        self.bound_enlarge = bound_enlarge
 
         self.bounding = bounding
         self.bound_next = _get_bound(bounding, ndim)
         # the reason I do not set it as self.bound
         # because we start from unit cube
+
+        self.cite = cite
+
 
     def save(self, fname):
         """
@@ -515,11 +490,11 @@ class Sampler:
             pool = None
         self.bound.update(self.live_u[subset, :self.ncdim],
                           rstate=self.rstate,
-                          bootstrap=self.bootstrap,
+                          bootstrap=self.bound_bootstrap,
                           pool=pool)
-        if self.enlarge != 1.:
+        if self.bound_enlarge != 1.:
             self.bound.scale_to_logvol(self.bound.logvol +
-                                       np.log(self.enlarge))
+                                       np.log(self.bound_enlarge))
 
         return copy.deepcopy(self.bound)
 

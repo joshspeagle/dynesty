@@ -11,7 +11,8 @@ import sys
 import warnings
 import traceback
 import numpy as np
-from .sampling import INTERNAL_SAMPLER_LIST, InternalSampler
+from .sampling import (INTERNAL_SAMPLER_LIST, InternalSampler, RSliceSampler, 
+    UniformBoundSampler, UnitCubeSampler, RWalkSampler, SliceSampler)
 from .sampler import Sampler, _initialize_live_points
 from .bounding import BOUND_LIST
 from . import bounding
@@ -77,23 +78,6 @@ def _get_citations(nested_type, bound, sampler):
          ("Buchner (2017)", "ui.adsabs.harvard.edu/abs/2017arXiv170704476B")]
     }
 
-    # citations for different samplers
-    sampler_refs = {
-        'unif':
-        '',
-        'rwalk':
-        [("Skilling (2006)", "projecteuclid.org/euclid.ba/1340370944")],
-        'slice': [("Neal (2003)", "projecteuclid.org/euclid.aos/1056562461"),
-                  ("Handley, Hobson & Lasenby (2015a)",
-                   "ui.adsabs.harvard.edu/abs/2015MNRAS.450L..61H"),
-                  ("Handley, Hobson & Lasenby (2015b)",
-                   "ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H")],
-        'rslice': [("Neal (2003):", "projecteuclid.org/euclid.aos/1056562461"),
-                   ("Handley, Hobson & Lasenby (2015a)",
-                    "ui.adsabs.harvard.edu/abs/2015MNRAS.450L..61H"),
-                   ("Handley, Hobson & Lasenby (2015b)",
-                    "ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H")]
-    }
 
     def reflist_tostring(x):
         """ internal function to convert reference lists to
@@ -112,7 +96,7 @@ def _get_citations(nested_type, bound, sampler):
     nested_citations = reflist_tostring(nested_refs)
     # if using a custom sampler, dynesty does not know the citations
     bound_citations = reflist_tostring(bound_refs.get(bound, ""))
-    sampler_citations = reflist_tostring(sampler_refs.get(sampler, ""))
+    sampler_citations = reflist_tostring(sampler.citations)
 
     assert nested_type in ['dynamic', 'static']
     if nested_type == 'dynamic':
@@ -138,54 +122,38 @@ Sampling Method:\n===============
     return citations
 
 
-def _get_auto_sample(ndim):
-    """ Decode which sampling method to use
 
-    Arguments:
-    ndim: int (dimensionality)
-    gradient: (None or function/true)
-    Returns: sampler string
-    """
-    if ndim < 10:
-        sample = 'unif'
-    elif 10 <= ndim <= 20:
-        sample = 'rwalk'
+def _get_internal_sampler(sampling, ndim, ncdim, periodic, reflective, walks, slices, facc):
+    default_steps = {'rwalk':ndim+20, 'slice':3, 'rslice':3+ndim}
+    if sampling == 'auto':
+        if ndim < 10:
+            sampling = UniformBoundSampler(ndim=ndim)
+        elif 10 <= ndim <= 20:
+            sampling= RWalkSampler(ndim=ndim, walks=default_steps['rwalk'])
+        else:
+            sampling = RSliceSampler(ndim=ndim, slices=default_steps['rslice'])
+
+    nonbounded = get_nonbounded(ndim, periodic, reflective)
+    sampler_kw = dict(ncdim=ncdim, ndim=ndim, nonbounded=nonbounded, periodic=periodic, reflective=reflective, facc=facc)
+    if sampling == 'rslice':
+        sampler_kw['slices'] = slices or default_steps['rslice']
+        internal_sampler = RSliceSampler(**sampler_kw)
+    elif sampling == 'slice':
+        sampler_kw['slices'] = slices or default_steps['slice']
+        internal_sampler = SliceSampler(**sampler_kw)
+    elif sampling == 'rwalk':
+        sampler_kw['walks'] = slices or default_steps['rwalk']
+        internal_sampler = RWalkSampler(**sampler_kw)
+    elif sampling == 'unif':
+        internal_sampler = UniformBoundSampler(**sampler_kw)
+    elif isinstance(sampling, InternalSampler):
+        # todo check what to do with the options
+        internal_sampler = sampling._new_from_template(sampler_kw)
     else:
-        sample = 'rslice'
-    return sample
+        raise ValueError(f'Unsupported Sampler {sampling}')
+    return internal_sampler
 
 
-def _get_walks_slices(walks0, slices0, sample, ndim):
-    """
-    Get the best number of steps for random walk/slicing based on
-    the type of sampler and dimension
-
-    Arguments:
-    walks0: integer (provided by user or none for auto)
-    slices0: integer (provided by user or none for auto)
-    sample: string (sampler type)
-    ndim: int (dimensionality)
-    Returns the tuple with number of walk steps, number of slice steps
-    """
-    walks, slices = None, None
-    # see https://github.com/joshspeagle/dynesty/issues/289
-    if sample in ['rslice']:
-        slices = 3 + ndim
-    elif sample == 'slice':
-        slices = 3
-        # we don't add dimensions, since we loop over them
-    elif sample == 'rwalk':
-        # this is technically incorrect a we need to add ndim **2
-        walks = 20 + ndim
-    slices = slices0 or slices
-    walks = walks0 or walks
-    if sample in ['rslice', 'slice'] and walks0 is not None:
-        warnings.warn('Specifying walks option while using slice sampler'
-                      ' does not make sense')
-    elif sample in ['rwalk'] and slices0 is not None:
-        warnings.warn('Specifying slice option while using rwalk sampler'
-                      ' does not make sense')
-    return walks, slices
 
 
 def _parse_pool_queue(pool, queue_size):
@@ -224,37 +192,28 @@ def _check_first_update(first_update):
             raise ValueError('Unrecognized keywords in first_update')
 
 
-def _get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
-                               slices, walks):
+def _get_update_interval_ratio(update_interval, sample, nlive):
     """
     Get the update_interval (i.e. boundary update interval)
     divided by the number of live points.
     """
 
-    # TODO this needs to be updated
     if update_interval is None:
-        if sample == 'unif':
-            update_interval_ratio = 1.5
-        elif sample == 'rwalk':
-            update_interval_ratio = 0.15 * walks
-        elif sample == 'slice':
-            update_interval_ratio = 0.9 * ndim * slices
-        elif sample == 'rslice':
-            update_interval_ratio = 2.0 * slices
+        if isinstance(sample, InternalSampler):
+            update_interval_ratio = sample.update_bound_interval_ratio
         else:
             update_interval_ratio = 1
             warnings.warn(
                 "No update_interval set with unknown sampling method: "
-                f"'{sample}'. Defaulting to no 1 update per nlive points.")
+                f"'. Defaulting to no 1 update per nlive points.")
     elif isinstance(update_interval, float):
         update_interval_ratio = update_interval
     elif isinstance(update_interval, int):
         update_interval_ratio = update_interval * 1. / nlive
     else:
         raise RuntimeError(f'Strange update_interval value {update_interval}')
-    if bound == 'none':
-        update_interval_ratio = np.inf
     return update_interval_ratio
+
 
 
 def _assemble_sampler_docstring(dynamic):
@@ -520,20 +479,19 @@ def _common_sampler_init(*, nlive,
     if bound not in BOUND_LIST and not isinstance(bound, bounding.Bound):
         raise ValueError(f"Unknown bounding method: {bound}")
     # Sampling method.
-    if sample == 'auto':
-        sample = _get_auto_sample(ndim)
+    sample  = _get_internal_sampler(sample, ndim,ncdim,periodic, reflective, walks, slices, facc)
+
     # Custom sampler
     if sample not in INTERNAL_SAMPLER_LIST and not isinstance(
             sample, InternalSampler):
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
 
-    ret['sample'] = sample
-
     # TODO change this check to deal with new sampler interface
-    if ncdim != ndim and sample in ['slice', 'rslice']:
+    if ncdim != ndim and (isinstance(sample, SliceSampler) or isinstance(sample, RSliceSampler)):
         raise ValueError('ncdim unsupported for slice sampling')
 
-    walks, slices = _get_walks_slices(walks, slices, sample, ndim)
+    ret['sample'] = sample
+
     # Random state.
     if rstate is None:
         rstate = get_random_generator()
@@ -585,35 +543,21 @@ def _common_sampler_init(*, nlive,
                                        blob=blob)
     ret['loglikelihood_wrap'] = loglikelihood_wrap
 
-    update_interval_ratio = _get_update_interval_ratio(update_interval, sample,
-                                                       bound, ndim, nlive,
-                                                       slices, walks)
+    update_interval_ratio = _get_update_interval_ratio(update_interval, sample, nlive)
     ret['update_interval_ratio'] = update_interval_ratio
-    kwargs = {}
-    # Sampling.
-    if walks is not None:
-        kwargs['walks'] = walks
-    if facc is not None:
-        kwargs['facc'] = facc
-    if slices is not None:
-        kwargs['slices'] = slices
 
     # Citation generator.
     if dynamic:
-        kwargs['cite'] = _get_citations('dynamic', bound, sample)
+        ret['cite'] = _get_citations('dynamic', bound, sample)
     else:
-        kwargs['cite'] = _get_citations('static', bound, sample)
+        ret['cite'] = _get_citations('static', bound, sample)
 
-    nonbounded = get_nonbounded(ndim, periodic, reflective)
-    kwargs['nonbounded'] = nonbounded
-    kwargs['periodic'] = periodic
-    kwargs['reflective'] = reflective
     # Bounding distribution modifications.
     enlarge, bootstrap = get_enlarge_bootstrap(sample, enlarge, bootstrap)
-    kwargs['enlarge'] = enlarge
-    kwargs['bootstrap'] = bootstrap
+    ret['bound_enlarge'] = enlarge
+    ret['bound_bootstrap'] = bootstrap
 
-    return ret, sampler_kwargs, kwargs
+    return ret, sampler_kwargs
 
 
 class NestedSampler(Sampler):
@@ -652,7 +596,7 @@ class NestedSampler(Sampler):
                 save_history=False,
                 history_filename=None):
 
-        params, sampler_kwargs, kwargs = _common_sampler_init(
+        params, sampler_kwargs = _common_sampler_init(
             nlive=nlive,
             ndim=ndim,
             ncdim=ncdim,
@@ -713,7 +657,9 @@ class NestedSampler(Sampler):
                          queue_size=params['queue_size'],
                          bound_update_interval=update_interval,
                          first_bound_update=params['first_bound_update'],
-                         kwargs=kwargs,
+                         bound_bootstrap=params['bound_bootstrap'],
+                         bound_enlarge=params['bound_enlarge'],
+                         cite=params['cite'],
                          blob=blob,
                          logvol_init=logvol_init)
         sampler.ncall = init_ncalls
@@ -759,7 +705,7 @@ class DynamicNestedSampler(DynamicSampler):
                  save_history=False,
                  history_filename=None):
 
-        params, sampler_kwargs, kwargs = _common_sampler_init(
+        params, sampler_kwargs = _common_sampler_init(
             nlive=nlive,
             ndim=ndim,
             ncdim=ncdim,
@@ -804,7 +750,9 @@ class DynamicNestedSampler(DynamicSampler):
             queue_size=params['queue_size'],
             bound_update_interval_ratio=params['update_interval_ratio'],
             first_bound_update=params['first_bound_update'],
-            kwargs=kwargs,
+                        bound_bootstrap=params['bound_bootstrap'],
+                        bound_enlarge=params['bound_enlarge'],
+                         cite=params['cite'],
             blob=blob)
 
 

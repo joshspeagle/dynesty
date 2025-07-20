@@ -384,8 +384,9 @@ def _configure_batch_sampler(main_sampler,
         pool=main_sampler.pool,
         use_pool=main_sampler.use_pool,
         ncdim=main_sampler.ncdim,
-        kwargs=main_sampler.kwargs,
-        blob=main_sampler.blob)
+        blob=main_sampler.blob,
+        bound_bootstrap=main_sampler.bound_bootstrap,
+        bound_enlarge=main_sampler.bound_enlarge)
     batch_sampler.save_bounds = save_bounds
     batch_sampler.logl_first_update = main_sampler.sampler.logl_first_update
 
@@ -691,8 +692,9 @@ class DynamicSampler:
                  queue_size=None,
                  bound_update_interval_ratio=None,
                  first_bound_update=None,
-                 kwargs=None,
-                 blob=None):
+                 bound_bootstrap=None,
+                 bound_enlarge=None,
+                 blob=None,cite=None):
 
         # distributions
         self.loglikelihood = loglikelihood
@@ -709,13 +711,10 @@ class DynamicSampler:
         # internal sampler object
         self.sampler = None
 
-        # extra arguments
-        self.kwargs = kwargs
+        self.bound_enlarge, self.bound_bootstrap =  bound_enlarge, bound_bootstrap
 
-        self.enlarge, self.bootstrap = get_enlarge_bootstrap(
-            sampling, kwargs.get('enlarge'), kwargs.get('bootstrap'))
-
-        self.cite = self.kwargs.get('cite')
+        # TODO FIX
+        # self.cite = self.kwargs.get('cite')
 
         # random state
         self.rstate = rstate
@@ -765,6 +764,8 @@ class DynamicSampler:
         # the reason why we need a global object is to
         # preserve the timer betweeen batch calls
         self.live_blobs = None
+
+        self.cite = cite
 
     def __setstate__(self, state):
         self.__dict__ = state
@@ -906,7 +907,8 @@ class DynamicSampler:
 
         """
 
-        return self.cite
+        # TODO REMOVE
+        return []## self.cite
 
     def sample_initial(self,
                        nlive=None,
@@ -1090,7 +1092,8 @@ class DynamicSampler:
                                    pool=self.pool,
                                    use_pool=self.use_pool,
                                    ncdim=self.ncdim,
-                                   kwargs=self.kwargs,
+                                   bound_bootstrap=self.bound_bootstrap,
+                                   bound_enlarge=self.bound_enlarge,
                                    blob=self.blob,
                                    logvol_init=logvol_init)
             self.bound_list = self.sampler.bound_list

@@ -221,6 +221,7 @@ def test_first_update():
                                         prior_transform,
                                         ndim,
                                         nlive=nlive,
+                                        update_interval=100,
                                         first_update=first_update,
                                         rstate=rstate)
         sampler.run_nested(print_progress=printing)

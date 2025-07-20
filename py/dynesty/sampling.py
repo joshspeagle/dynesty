@@ -68,21 +68,37 @@ class InternalSampler:
         reflective : array
             Array of boolean values indicating which dimensions are
             reflective.
-
+        ndim: int
+            Number of dimensions.
         """
         self.scale = 1
+        self.input_kwargs = kwargs
         self.sampler_kwargs = dict()
+        self.ndim = kwargs.get('ndim')
         for k in ['nonbounded', 'periodic', 'reflective']:
             self.sampler_kwargs[k] = kwargs.get(k)
 
     @property
-    def update_bound_interval(self):
+    def update_bound_interval_ratio(self):
         """ How often to force updating the bounds
         The value is in units of ncall per nlive.
         I.e. the value of 10 means for N live points,
         the bound will be updated every 10 * N calls
         """
         return 1  # default value
+    
+    def _new_from_template(self, template_kwargs):
+        """
+        Create a new sampler from a template.
+        """
+        template_kwargs1 = self.input_kwargs.copy()
+        for k, v in template_kwargs.items():
+            if k not in self.input_kwargs:
+                template_kwargs1[k] = v
+            else:
+                if template_kwargs1[k] != self.input_kwargs[k]:
+                    print('warning incompatible sampler parameters', template_kwargs1[k] ,' ',self.input_kwargs[k])                
+        return self.__class__(**template_kwargs1)
 
     def prepare_sampler(self,
                         loglstar=None,
@@ -173,7 +189,8 @@ class InternalSampler:
             Whether to update the proposal scale or not (default: False).
         """
         pass
-
+    def citations(self):
+        return []
 
 class UniformBoundSampler(InternalSampler):
     """
@@ -449,7 +466,7 @@ class RWalkSampler(InternalSampler):
         hist['nreject'] = 0
 
     @property
-    def update_bound_interval(self):
+    def update_bound_interval_ratio(self):
         """ How often to force updating the bounds
         The value is in units of ncall per nlive.
         I.e. the value of 10 means for N live points,
@@ -516,6 +533,8 @@ class RWalkSampler(InternalSampler):
                                    args.scale, args.prior_transform,
                                    args.loglikelihood, rstate, args.kwargs)
 
+    def citations(self):
+        return [("Skilling (2006)", "projecteuclid.org/euclid.ba/1340370944")]
 
 class SliceSampler(InternalSampler):
 
@@ -531,7 +550,7 @@ class SliceSampler(InternalSampler):
         # the samplers
 
     @property
-    def update_bound_interval(self):
+    def update_bound_interval_ratio(self):
         """ How often to force updating the bounds
         The value is in units of ncall per nlive.
         I.e. the value of 10 means for N live points,
@@ -653,6 +672,14 @@ class SliceSampler(InternalSampler):
 
         return u_prop, v_prop, logl_prop, nc, sampling_info
 
+    @property
+    def citations(self):
+        return [("Neal (2003)", "projecteuclid.org/euclid.aos/1056562461"),
+                  ("Handley, Hobson & Lasenby (2015a)",
+                   "ui.adsabs.harvard.edu/abs/2015MNRAS.450L..61H"),
+                  ("Handley, Hobson & Lasenby (2015b)",
+                   "ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H")]
+
 
 class RSliceSampler(InternalSampler):
 
@@ -671,7 +698,7 @@ class RSliceSampler(InternalSampler):
         tune_slice(self, sampler_info, update=update)
 
     @property
-    def update_bound_interval(self):
+    def update_bound_interval_ratio(self):
         """ How often to force updating the bounds
         The value is in units of ncall per nlive.
         I.e. the value of 10 means for N live points,
@@ -782,7 +809,13 @@ class RSliceSampler(InternalSampler):
         }
 
         return u_prop, v_prop, logl_prop, nc, sampling_info
-
+    @property
+    def citations(self):
+        return [("Neal (2003)", "projecteuclid.org/euclid.aos/1056562461"),
+                  ("Handley, Hobson & Lasenby (2015a)",
+                   "ui.adsabs.harvard.edu/abs/2015MNRAS.450L..61H"),
+                  ("Handley, Hobson & Lasenby (2015b)",
+                   "ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H")]
 
 def generic_random_walk(u, loglstar, axes, scale, prior_transform,
                         loglikelihood, rstate, kwargs):

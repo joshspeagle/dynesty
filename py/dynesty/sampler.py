@@ -269,10 +269,9 @@ class Sampler:
     ndim : int, optional
         Number of parameters accepted by `prior_transform`.
 
-    live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
-        Initial set of "live" points. Contains `live_u`, the coordinates
-        on the unit cube, `live_v`, the transformed variables, and
-        `live_logl`, the associated loglikelihoods.
+    live_points : list of 3 or 4 `~numpy.ndarray`
+        Each with shape (nlive, ndim) for the first three arrays.
+        If `blob=True`, a fourth array of blobs (arbitrary shape) may be included.
 
     sampling : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`}
         Sampling Method used to sample uniformly within the likelihood

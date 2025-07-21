@@ -694,7 +694,8 @@ class DynamicSampler:
                  first_bound_update=None,
                  bound_bootstrap=None,
                  bound_enlarge=None,
-                 blob=None,cite=None):
+                 blob=None,
+                 cite=None):
 
         # distributions
         self.loglikelihood = loglikelihood
@@ -711,7 +712,7 @@ class DynamicSampler:
         # internal sampler object
         self.sampler = None
 
-        self.bound_enlarge, self.bound_bootstrap =  bound_enlarge, bound_bootstrap
+        self.bound_enlarge, self.bound_bootstrap = bound_enlarge, bound_bootstrap
 
         # TODO FIX
         # self.cite = self.kwargs.get('cite')
@@ -908,7 +909,7 @@ class DynamicSampler:
         """
 
         # TODO REMOVE
-        return []## self.cite
+        return []  ## self.cite
 
     def sample_initial(self,
                        nlive=None,

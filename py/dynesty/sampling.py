@@ -86,7 +86,7 @@ class InternalSampler:
         the bound will be updated every 10 * N calls
         """
         return 1  # default value
-    
+
     def _new_from_template(self, template_kwargs):
         """
         Create a new sampler from a template.
@@ -97,7 +97,8 @@ class InternalSampler:
                 template_kwargs1[k] = v
             else:
                 if template_kwargs1[k] != self.input_kwargs[k]:
-                    print('warning incompatible sampler parameters', template_kwargs1[k] ,' ',self.input_kwargs[k])                
+                    print('warning incompatible sampler parameters',
+                          template_kwargs1[k], ' ', self.input_kwargs[k])
         return self.__class__(**template_kwargs1)
 
     def prepare_sampler(self,
@@ -189,9 +190,11 @@ class InternalSampler:
             Whether to update the proposal scale or not (default: False).
         """
         pass
+
     @property
     def citations(self):
         return []
+
 
 class UniformBoundSampler(InternalSampler):
     """
@@ -538,6 +541,7 @@ class RWalkSampler(InternalSampler):
     def citations(self):
         return [("Skilling (2006)", "projecteuclid.org/euclid.ba/1340370944")]
 
+
 class SliceSampler(InternalSampler):
 
     def __init__(self, **kwargs):
@@ -677,10 +681,10 @@ class SliceSampler(InternalSampler):
     @property
     def citations(self):
         return [("Neal (2003)", "projecteuclid.org/euclid.aos/1056562461"),
-                  ("Handley, Hobson & Lasenby (2015a)",
-                   "ui.adsabs.harvard.edu/abs/2015MNRAS.450L..61H"),
-                  ("Handley, Hobson & Lasenby (2015b)",
-                   "ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H")]
+                ("Handley, Hobson & Lasenby (2015a)",
+                 "ui.adsabs.harvard.edu/abs/2015MNRAS.450L..61H"),
+                ("Handley, Hobson & Lasenby (2015b)",
+                 "ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H")]
 
 
 class RSliceSampler(InternalSampler):
@@ -811,13 +815,15 @@ class RSliceSampler(InternalSampler):
         }
 
         return u_prop, v_prop, logl_prop, nc, sampling_info
+
     @property
     def citations(self):
         return [("Neal (2003)", "projecteuclid.org/euclid.aos/1056562461"),
-                  ("Handley, Hobson & Lasenby (2015a)",
-                   "ui.adsabs.harvard.edu/abs/2015MNRAS.450L..61H"),
-                  ("Handley, Hobson & Lasenby (2015b)",
-                   "ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H")]
+                ("Handley, Hobson & Lasenby (2015a)",
+                 "ui.adsabs.harvard.edu/abs/2015MNRAS.450L..61H"),
+                ("Handley, Hobson & Lasenby (2015b)",
+                 "ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H")]
+
 
 def generic_random_walk(u, loglstar, axes, scale, prior_transform,
                         loglikelihood, rstate, kwargs):

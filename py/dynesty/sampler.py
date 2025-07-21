@@ -423,7 +423,6 @@ class Sampler:
 
         self.cite = cite
 
-
     def save(self, fname):
         """
         Save the state of the dynamic sampler in a file

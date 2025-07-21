@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Functions for proposing new live points used by
-:class:`~dynesty.sampler.Sampler` (and its children from
-:mod:`~dynesty.nestedsamplers`) and
+:class:`~dynesty.sampler.Sampler`
 :class:`~dynesty.dynamicsampler.DynamicSampler`.
 
 """
@@ -12,154 +11,829 @@ from collections import namedtuple
 import warnings
 import numpy as np
 from numpy import linalg
-
+import math
 from .utils import unitcheck, apply_reflect, get_random_generator
 from .bounding import randsphere
 
 __all__ = [
-    "sample_unif", "sample_rwalk", "sample_slice", "sample_rslice",
-    "sample_hslice"
+    'InternalSampler', 'RSliceSampler', 'SliceSampler', 'RWalkSampler',
+    'UniformBoundSampler', 'UnitCubeSampler'
 ]
-
 SamplerArgument = namedtuple('SamplerArgument', [
     'u', 'loglstar', 'axes', 'scale', 'prior_transform', 'loglikelihood',
     'rseed', 'kwargs'
 ])
 
+INTERNAL_SAMPLER_LIST = ['rwalk', 'unif', 'rslice', 'slice']
 
-def sample_unif(args):
-    """
-    Evaluate a new point sampled uniformly from a bounding proposal
-    distribution. Parameters are zipped within `args` to utilize
-    `pool.map`-style functions.
 
-    Parameters
-    ----------
-    u : `~numpy.ndarray` with shape (ndim,)
-        Position of the initial sample.
+class InternalSampler:
+    """Base class for all internal samplers.
 
-    loglstar : float
-        Ln(likelihood) bound. **Not applicable here.**
+    This class is not meant to be used directly.
+    The basic interface of the class is to provide sampling that can
+    be distributed over workers.
 
-    axes : `~numpy.ndarray` with shape (ndim, ndim)
-        Axes used to propose new points. **Not applicable here.**
+    The key methods are `prepare_sampler`, `sample` and `tune`.
 
-    scale : float
-        Value used to scale the provided axes. **Not applicable here.**
+    The `prepare_sampler` method constructs the list of SamplerArguments
+    objects.
 
-    prior_transform : function
-        Function transforming a sample from the a unit cube to the parameter
-        space of interest according to the prior.
+    The `sample` method is called by the workers to sample a new point.
+    Importantly the `sample` method is a static method and does not have
+    access to the class instance.
 
-    loglikelihood : function
-        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
-        array of length `ndim`.
-
-    kwargs : dict
-        A dictionary of additional method-specific parameters.
-        **Not applicable here.**
-
-    Returns
-    -------
-    u : `~numpy.ndarray` with shape (ndim,)
-        Position of the final proposed point within the unit cube. **For
-        uniform sampling this is the same as the initial input position.**
-
-    v : `~numpy.ndarray` with shape (ndim,)
-        Position of the final proposed point in the target parameter space.
-
-    logl : float
-        Ln(likelihood) of the final proposed point.
-
-    nc : int
-        Number of function calls used to generate the sample. For uniform
-        sampling this is `1` by construction.
-
-    blob : dict
-        Collection of ancillary quantities used to tune :data:`scale`. **Not
-        applicable for uniform sampling.**
-
+    The `tune` method is called by the parent process to adjust things,
+    such as scale of the proposal distribution. The `tune` method is not
+    a static method and has access to the class instance.
     """
 
-    # Unzipping.
+    def __init__(self, **kwargs):
+        """Initialize the internal sampler.
 
-    # Evaluate.
-    v = args.prior_transform(np.asarray(args.u))
-    logl = args.loglikelihood(np.asarray(v))
-    nc = 1
-    blob = None
+        Importantely this sets up the sampler_kwargs that is being passed
+        to each .sample() call
 
-    return args.u, v, logl, nc, blob
+        Parameters
+        ----------
+        kwargs : dict
+            A dictionary of additional method-specific parameters.
+            This common keywords:
+        nonbounded : array
+            Array of boolean values indicating which dimensions are
+            non-bounded.
+        periodic : array
+            Array of boolean values indicating which dimensions are
+            periodic.
+        reflective : array
+            Array of boolean values indicating which dimensions are
+            reflective.
+        ndim: int
+            Number of dimensions.
+        """
+        self.scale = 1
+        self.input_kwargs = kwargs
+        self.sampler_kwargs = dict()
+        self.ndim = kwargs.get('ndim')
+        for k in ['nonbounded', 'periodic', 'reflective']:
+            self.sampler_kwargs[k] = kwargs.get(k)
+
+    @property
+    def update_bound_interval_ratio(self):
+        """ How often to force updating the bounds
+        The value is in units of ncall per nlive.
+        I.e. the value of 10 means for N live points,
+        the bound will be updated every 10 * N calls
+        """
+        return 1  # default value
+
+    def _new_from_template(self, template_kwargs):
+        """
+        Create a new sampler from a template.
+        """
+        template_kwargs1 = self.input_kwargs.copy()
+        for k, v in template_kwargs.items():
+            if k not in self.input_kwargs:
+                template_kwargs1[k] = v
+            else:
+                if template_kwargs1[k] != self.input_kwargs[k]:
+                    warnings.warn(f"Incompatible sampler parameters: {template_kwargs1[k]} vs {self.input_kwargs[k]}")
+        return self.__class__(**template_kwargs1)
+
+    def prepare_sampler(self,
+                        loglstar=None,
+                        points=None,
+                        axes=None,
+                        seeds=None,
+                        prior_transform=None,
+                        loglikelihood=None,
+                        nested_sampler=None):
+        """
+        Prepare the list of arguments for sampling.
+
+        Parameters
+        ----------
+        loglstar : float
+            Ln(likelihood) bound.
+        points : `~numpy.ndarray` with shape (n, ndim)
+            Initial sample points.
+        axes : `~numpy.ndarray` with shape (ndim, ndim)
+            Axes used to propose new points.
+        seeds : `~numpy.ndarray` with shape (n,)
+            Random number generator seeds.
+        prior_transform : function
+            Function transforming a sample from the a unit cube to the
+            parameter space of interest according to the prior.
+        loglikelihood : function
+            Function returning ln(likelihood) given parameters as a 1-d
+            `~numpy` array of length `ndim`.
+        nested_sampler : `~dynesty.samplers.Sampler`
+            The nested sampler object used to sample.
+
+        Returns
+        -------
+        arglist:
+            List of `SamplerArgument` objects containing the parameters
+            needed for sampling.
+        """
+        arg_list = []
+        kwargs = self.sampler_kwargs
+        for curp, curax, curseed in zip(points, axes, seeds):
+            curarg = SamplerArgument(u=curp,
+                                     loglstar=loglstar,
+                                     axes=curax,
+                                     scale=self.scale,
+                                     prior_transform=prior_transform,
+                                     loglikelihood=loglikelihood,
+                                     rseed=curseed,
+                                     kwargs=kwargs)
+            arg_list.append(curarg)
+        return arg_list
+
+    @staticmethod
+    def sample(args):
+        """
+        Sample a new live point.
+
+        Parameters
+        ----------
+        args : `SamplerArgument`
+            The arguments needed for sampling.
+
+        Returns
+        -------
+        u : `~numpy.ndarray` with shape (ndim,)
+            Position of the final proposed point within the unit cube.
+        v : `~numpy.ndarray` with shape (ndim,)
+            Position of the final proposed point in the target parameter space.
+        logl : float
+            Ln(likelihood) of the final proposed point.
+        nc : int
+            Number of function calls used to generate the sample.
+        sampling_info : dict
+            Collection of ancillary quantities used to tune :data:`scale`.
+        """
+        pass
+
+    def tune(self, sampling_info, update=False):
+        """
+
+        Accumulate sampling info and optionally update the proposal scale and
+        other tuning parameters.
+
+        Parameters
+        ----------
+        sampling_info : dict
+            Dictionary containing the sampling information.
+        update : bool
+            Whether to update the proposal scale or not (default: False).
+        """
+        pass
+
+    @property
+    def citations(self):
+        return []
 
 
-def sample_rwalk(args):
+class UniformBoundSampler(InternalSampler):
     """
-    Return a new live point proposed by random walking away from an
-    existing live point.
-
-    Parameters
-    ----------
-    u : `~numpy.ndarray` with shape (ndim,)
-        Position of the initial sample. **This is a copy of an existing live
-        point.**
-
-    loglstar : float
-        Ln(likelihood) bound.
-
-    axes : `~numpy.ndarray` with shape (ndim, ndim)
-        Axes used to propose new points. For random walks new positions are
-        proposed using the :class:`~dynesty.bounding.Ellipsoid` whose
-        shape is defined by axes.
-
-    scale : float
-        Value used to scale the provided axes.
-
-    prior_transform : function
-        Function transforming a sample from the a unit cube to the parameter
-        space of interest according to the prior.
-
-    loglikelihood : function
-        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
-        array of length `ndim`.
-
-    kwargs : dict
-        A dictionary of additional method-specific parameters.
-
-    Returns
-    -------
-    u : `~numpy.ndarray` with shape (ndim,)
-        Position of the final proposed point within the unit cube.
-
-    v : `~numpy.ndarray` with shape (ndim,)
-        Position of the final proposed point in the target parameter space.
-
-    logl : float
-        Ln(likelihood) of the final proposed point.
-
-    nc : int
-        Number of function calls used to generate the sample.
-
-    blob : dict
-        Collection of ancillary quantities used to tune :data:`scale`.
-
+    Uniformly sample within a bounding proposal distribution.
     """
 
-    # Unzipping.
-    rstate = get_random_generator(args.rseed)
-    return generic_random_walk(args.u, args.loglstar, args.axes, args.scale,
-                               args.prior_transform, args.loglikelihood,
-                               rstate, args.kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def prepare_sampler(self,
+                        loglstar=None,
+                        points=None,
+                        axes=None,
+                        seeds=None,
+                        prior_transform=None,
+                        loglikelihood=None,
+                        nested_sampler=None):
+        """
+        Prepare the list of arguments for sampling.
+
+        This is is overriding the base class method and providing the bound
+        itself to the sampler through kwargs.
+
+        """
+        self.sampler_kwargs['bound'] = nested_sampler.bound
+        self.sampler_kwargs['ndim'] = nested_sampler.ndim
+        self.sampler_kwargs['n_cluster'] = nested_sampler.ncdim
+        if nested_sampler.bound.need_centers:
+            self.sampler_kwargs['bound'].ctrs = nested_sampler.live_u
+
+        return super().prepare_sampler(loglstar=loglstar,
+                                       points=points,
+                                       axes=axes,
+                                       seeds=seeds,
+                                       prior_transform=prior_transform,
+                                       loglikelihood=loglikelihood,
+                                       nested_sampler=nested_sampler)
+
+    @staticmethod
+    def sample(args):
+        """
+        Return a new live point sampling uniformly within the
+        boundary.
+
+        Parameters
+        ----------
+        u : `~numpy.ndarray` with shape (ndim,)
+            Initial sample (not used)
+
+        loglstar : float
+            Ln(likelihood) bound.
+
+        axes : `~numpy.ndarray` with shape (ndim, ndim)
+            Axes used to propose new points. (not used)
+
+        scale : float
+            Value used to scale the provided axes. (not used)
+
+        prior_transform : function
+            Function transforming a sample from the a unit cube to the
+            parameter space of interest according to the prior.
+
+        loglikelihood : function
+            Function returning ln(likelihood) given parameters as a 1-d
+            `~numpy` array of length `ndim`.
+
+        kwargs : dict
+            A dictionary of additional method-specific parameters.
+            This method requires keywords:
+            bound (dynesty.bounding object)
+            ndim (number of dimensions)
+            n_cluster (number of dimensions that are clustered)
+            nonbounded array
+
+        Returns
+        -------
+        u : `~numpy.ndarray` with shape (ndim,)
+            Position of the final proposed point within the unit cube.
+
+        v : `~numpy.ndarray` with shape (ndim,)
+            Position of the final proposed point in the target parameter space.
+
+        logl : float
+            Ln(likelihood) of the final proposed point.
+
+        nc : int
+            Number of function calls used to generate the sample.
+
+        sampling_info : dict
+            Collection of ancillary quantities used to tune :data:`scale`.
+
+        """
+
+        # Unzipping.
+        rstate = get_random_generator(args.rseed)
+        bound = args.kwargs['bound']
+        nonbounded = args.kwargs.get('nonbounded')
+        n_cluster = args.kwargs.get('n_cluster')
+        ndim = args.kwargs['ndim']
+        nc = 0
+        sampling_info = None
+        if nonbounded is not None:
+            nonbounded = nonbounded[:n_cluster]
+        ntries = 0
+        threshold_warning = 10000
+        threshold_warned = False
+        while True:
+            u = bound.samples(1, rstate=rstate).flatten()
+            if not unitcheck(u, nonbounded):
+                ntries += 1
+                if ntries > threshold_warning and not threshold_warned:
+                    warnings.warn(
+                        "Ellipsoid sampling is extremely inefficient",
+                        category=RuntimeWarning)
+                    threshold_warned = True
+
+                continue
+            else:
+                ntries = 0
+            if n_cluster != ndim:
+                u = np.concatenate(
+                    (u, rstate.uniform(size=(ndim - n_cluster))))
+            v = args.prior_transform(np.asarray(u))
+            logl = args.loglikelihood(np.asarray(v))
+            nc += 1
+            if logl > args.loglstar:
+                break
+        return u, v, logl, nc, sampling_info
+
+
+class UnitCubeSampler(InternalSampler):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.ndim = kwargs['ndim']
+
+    def prepare_sampler(self,
+                        loglstar=None,
+                        points=None,
+                        axes=None,
+                        seeds=None,
+                        prior_transform=None,
+                        loglikelihood=None,
+                        nested_sampler=None):
+        self.sampler_kwargs['ndim'] = self.ndim
+        return super().prepare_sampler(loglstar=loglstar,
+                                       points=points,
+                                       axes=axes,
+                                       seeds=seeds,
+                                       prior_transform=prior_transform,
+                                       loglikelihood=loglikelihood,
+                                       nested_sampler=nested_sampler)
+
+    @staticmethod
+    def sample(args):
+        """
+        Return a new live point sampling uniformly within the
+        boundary.
+
+        Parameters
+        ----------
+        u : `~numpy.ndarray` with shape (ndim,)
+            Initial sample (not used)
+
+        loglstar : float
+            Ln(likelihood) bound.
+
+        axes : `~numpy.ndarray` with shape (ndim, ndim)
+            Axes used to propose new points. (not used)
+
+        scale : float
+            Value used to scale the provided axes. (not used)
+
+        prior_transform : function
+            Function transforming a sample from the a unit cube to the
+            parameter space of interest according to the prior.
+
+        loglikelihood : function
+            Function returning ln(likelihood) given parameters as a 1-d
+            `~numpy` array of length `ndim`.
+
+        kwargs : dict
+            A dictionary of additional method-specific parameters.
+            This method requires keywords:
+            bound (dynesty.bounding object)
+            ndim (number of dimensions)
+            n_cluster (number of dimensions that are clustered)
+            nonbounded array
+
+        Returns
+        -------
+        u : `~numpy.ndarray` with shape (ndim,)
+            Position of the final proposed point within the unit cube.
+
+        v : `~numpy.ndarray` with shape (ndim,)
+            Position of the final proposed point in the target parameter space.
+
+        logl : float
+            Ln(likelihood) of the final proposed point.
+
+        nc : int
+            Number of function calls used to generate the sample.
+
+        sampling_info : dict
+            Collection of ancillary quantities used to tune :data:`scale`.
+
+        """
+
+        # Unzipping.
+        rstate = get_random_generator(args.rseed)
+        ndim = args.kwargs.get('ndim')
+        nc = 0
+        sampling_info = None
+        while True:
+            u = rstate.uniform(size=ndim)
+            v = args.prior_transform(np.asarray(u))
+            logl = args.loglikelihood(np.asarray(v))
+            nc += 1
+            if logl > args.loglstar:
+                break
+        return u, v, logl, nc, sampling_info
+
+
+class RWalkSampler(InternalSampler):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Initialize random walk parameters.
+        walks = max(2, kwargs.get('walks', 25))
+        self.facc = kwargs.get('facc', 0.5)
+        self.facc = min(1., max(1. / walks, self.facc))
+        self.rwalk_history = {'naccept': 0, 'nreject': 0}
+        self.ncdim = kwargs.get('ncdim')
+        # Since the sample is a static method, it's crucial
+        # to put relevant information into kwargs which is then passed to
+        # the samplers
+        self.sampler_kwargs['walks'] = walks
+        self.sampler_kwargs['ncdim'] = self.ncdim
+
+    def tune(self, sampling_info, update=True):
+        """Update the random walk proposal scale based on the current
+        number of accepted/rejected steps.
+        For rwalk the scale is important because it
+        determines the speed of diffusion of points.
+        I.e. if scale is too large, the proposal efficiency will be very low
+        so it's likely that we'll only do one random walk step at the time,
+        thus producing very correlated chain.
+        The keyword update determines if we are just accumulating the number
+        of steps or actually adjusting the scale
+        """
+        self.scale = sampling_info['scale']
+        hist = self.rwalk_history
+        hist['naccept'] += sampling_info['accept']
+        hist['nreject'] += sampling_info['reject']
+        if not update:
+            return
+        accept, reject = hist['naccept'], hist['nreject']
+        facc = (1. * accept) / (accept + reject)
+        # Here we are now trying to solve the Eqn
+        # f0 = F(s) where F is the function
+        # providing the acceptance rate given logscale
+        # and f0 is our target acceptance rate
+        # in this case a Newton like update to s
+        # is s_{k+1} = s_k - 1/F'(s_k) * (F_k - F_0)
+        # We can speculate that F(s)~ C*exp(-Ns)
+        # i.e. it's inversely proportional to volume
+        # Then F'(s) = -N * F \approx N * F_0
+        # Therefore s_{k+1} = s_k + 1/(N*F_0) * (F_k-F0)
+        # See also Robbins-Munro recursion which we don't follow
+        # here because our coefficients a_k do not obey \sum a_k^2 = \infty
+        self.scale *= math.exp((facc - self.facc) / self.ncdim / self.facc)
+        hist['naccept'] = 0
+        hist['nreject'] = 0
+
+    @property
+    def update_bound_interval_ratio(self):
+        """ How often to force updating the bounds
+        The value is in units of ncall per nlive.
+        I.e. the value of 10 means for N live points,
+        the bound will be updated every 10 * N calls
+        """
+        return self.sampler_kwargs['walks']  # default value
+
+    @staticmethod
+    def sample(args):
+        """
+        Return a new live point proposed by random walking away from an
+        existing live point.
+
+        Parameters
+        ----------
+        u : `~numpy.ndarray` with shape (ndim,)
+            Position of the initial sample. **This is a copy of an existing
+            live point.**
+
+        loglstar : float
+            Ln(likelihood) bound.
+
+        axes : `~numpy.ndarray` with shape (ndim, ndim)
+            Axes used to propose new points. For random walks new positions are
+            proposed using the :class:`~dynesty.bounding.Ellipsoid` whose
+            shape is defined by axes.
+
+        scale : float
+            Value used to scale the provided axes.
+
+        prior_transform : function
+            Function transforming a sample from the a unit cube to the
+            parameter space of interest according to the prior.
+
+        loglikelihood : function
+            Function returning ln(likelihood) given parameters as a 1-d
+            `~numpy` array of length `ndim`.
+
+        kwargs : dict
+            A dictionary of additional method-specific parameters.
+
+        Returns
+        -------
+        u : `~numpy.ndarray` with shape (ndim,)
+            Position of the final proposed point within the unit cube.
+
+        v : `~numpy.ndarray` with shape (ndim,)
+            Position of the final proposed point in the target parameter space.
+
+        logl : float
+            Ln(likelihood) of the final proposed point.
+
+        nc : int
+            Number of function calls used to generate the sample.
+
+        sampling_info : dict
+            Collection of ancillary quantities used to tune :data:`scale`.
+
+        """
+
+        # Unzipping.
+        rstate = get_random_generator(args.rseed)
+        return generic_random_walk(args.u, args.loglstar, args.axes,
+                                   args.scale, args.prior_transform,
+                                   args.loglikelihood, rstate, args.kwargs)
+
+    @property
+    def citations(self):
+        return [("Skilling (2006)", "projecteuclid.org/euclid.ba/1340370944")]
+
+
+class SliceSampler(InternalSampler):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Initialize slice parameters.
+        slices = kwargs.get('slices', 5)
+        self.slice_history = {'ncontract': 0, 'nexpand': 0}
+
+        self.sampler_kwargs['slices'] = slices
+        # Since the sample is a static method, it's crucial
+        # to put relevant information into kwargs which is then passed to
+        # the samplers
+
+    @property
+    def update_bound_interval_ratio(self):
+        """ How often to force updating the bounds
+        The value is in units of ncall per nlive.
+        I.e. the value of 10 means for N live points,
+        the bound will be updated every 10 * N calls
+        """
+        return self.sampler_kwargs['slices'] * self.ndim
+
+    def tune(self, sampler_info, update=True):
+        tune_slice(self, sampler_info, update=update)
+
+    @staticmethod
+    def sample(args):
+        """
+        Return a new live point proposed by a series of random slices
+        away from an existing live point. Standard "Gibbs-like" implementation
+        where a single multivariate "slice" is a combination of `ndim`
+        univariate slices
+        through each axis.
+
+        Parameters
+        ----------
+        u : `~numpy.ndarray` with shape (ndim,)
+            Position of the initial sample. **This is a copy of an existing
+            live point.**
+
+        loglstar : float
+            Ln(likelihood) bound.
+
+        axes : `~numpy.ndarray` with shape (ndim, ndim)
+            Axes used to propose new points. For slices new positions are
+            proposed along the arthogonal basis defined by :data:`axes`.
+
+        scale : float
+            Value used to scale the provided axes.
+
+        prior_transform : function
+            Function transforming a sample from the a unit cube to the
+            parameter space of interest according to the prior.
+
+        loglikelihood : function
+            Function returning ln(likelihood) given parameters as a 1-d
+            `~numpy` array of length `ndim`.
+
+        kwargs : dict
+            A dictionary of additional method-specific parameters.
+
+        Returns
+        -------
+        u : `~numpy.ndarray` with shape (ndim,)
+            Position of the final proposed point within the unit cube.
+
+        v : `~numpy.ndarray` with shape (ndim,)
+            Position of the final proposed point in the target parameter space.
+
+        logl : float
+            Ln(likelihood) of the final proposed point.
+
+        nc : int
+            Number of function calls used to generate the sample.
+
+        sampling_info : dict
+            Collection of ancillary quantities used to tune :data:`scale`.
+
+        """
+
+        # Unzipping.
+        (u, loglstar, axes, scale, prior_transform, loglikelihood,
+         kwargs) = (args.u, args.loglstar, args.axes, args.scale,
+                    args.prior_transform, args.loglikelihood, args.kwargs)
+        rstate = get_random_generator(args.rseed)
+        # Periodicity.
+        nonperiodic = kwargs.get('nonperiodic', None)
+        doubling = kwargs.get('slice_doubling', False)
+        # Setup.
+        n = len(u)
+        assert axes.shape[0] == n
+        slices = kwargs['slices']  # number of slices
+        nc = 0
+        nexpand = 0
+        ncontract = 0
+
+        # Modifying axes and computing lengths.
+        axes = scale * axes.T  # scale based on past tuning
+        # Note we are transposing as axes[:,i] corresponds to i-th principal
+        # axis of the ellipsoid
+        expansion_warning_set = False
+        # Slice sampling loop.
+        for _ in range(slices):
+
+            # Shuffle axis update order.
+            idxs = np.arange(n)
+            rstate.shuffle(idxs)
+
+            # Slice sample along a random direction.
+            for idx in idxs:
+
+                # Select axis.
+                axis = axes[idx]
+                (u_prop, v_prop, logl_prop, nc1, nexpand1, ncontract1,
+                 expansion_warning) = generic_slice_step(
+                     u, axis, nonperiodic, loglstar, loglikelihood,
+                     prior_transform, doubling, rstate)
+                u = u_prop
+                nc += nc1
+                nexpand += nexpand1
+                ncontract += ncontract1
+                if expansion_warning and not doubling:
+                    # if we expanded the interval by more than
+                    # the threshold we set the warning and enable doubling
+                    expansion_warning_set = True
+                    doubling = True
+                    warnings.warn('Enabling doubling strategy of slice '
+                                  'sampling from Neal(2003)')
+        sampling_info = {
+            'nexpand': nexpand,
+            'ncontract': ncontract,
+            'expansion_warning_set': expansion_warning_set
+        }
+
+        return u_prop, v_prop, logl_prop, nc, sampling_info
+
+    @property
+    def citations(self):
+        return [("Neal (2003)", "projecteuclid.org/euclid.aos/1056562461"),
+                ("Handley, Hobson & Lasenby (2015a)",
+                 "ui.adsabs.harvard.edu/abs/2015MNRAS.450L..61H"),
+                ("Handley, Hobson & Lasenby (2015b)",
+                 "ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H")]
+
+
+class RSliceSampler(InternalSampler):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Initialize slice parameters.
+        slices = kwargs.get('slices', 5)
+        self.slice_history = {'ncontract': 0, 'nexpand': 0}
+
+        self.sampler_kwargs['slices'] = slices
+        # Since the sample is a static method, it's crucial
+        # to put relevant information into kwargs which is then passed to
+        # the samplers
+
+    def tune(self, sampler_info, update=True):
+        tune_slice(self, sampler_info, update=update)
+
+    @property
+    def update_bound_interval_ratio(self):
+        """ How often to force updating the bounds
+        The value is in units of ncall per nlive.
+        I.e. the value of 10 means for N live points,
+        the bound will be updated every 10 * N calls
+        """
+        return self.sampler_kwargs['slices']
+
+    @staticmethod
+    def sample(args):
+        """
+        Return a new live point proposed by a series of random slices
+        away from an existing live point. Standard "random" implementation
+        where
+        each slice is along a random direction based on the provided axes.
+
+        Parameters
+        ----------
+        u : `~numpy.ndarray` with shape (ndim,)
+            Position of the initial sample. **This is a copy of an existing
+            live point.**
+
+        loglstar : float
+            Ln(likelihood) bound.
+
+        axes : `~numpy.ndarray` with shape (ndim, ndim)
+            Axes used to propose new slice directions.
+
+        scale : float
+            Value used to scale the provided axes.
+
+        prior_transform : function
+            Function transforming a sample from the a unit cube to the
+            parameter space of interest according to the prior.
+
+        loglikelihood : function
+            Function returning ln(likelihood) given parameters as a 1-d
+            `~numpy` array of length `ndim`.
+
+        kwargs : dict
+            A dictionary of additional method-specific parameters.
+
+        Returns
+        -------
+        u : `~numpy.ndarray` with shape (ndim,)
+            Position of the final proposed point within the unit cube.
+
+        v : `~numpy.ndarray` with shape (ndim,)
+            Position of the final proposed point in the target parameter space.
+
+        logl : float
+            Ln(likelihood) of the final proposed point.
+
+        nc : int
+            Number of function calls used to generate the sample.
+
+        sampling_info : dict
+            Collection of ancillary quantities used to tune :data:`scale`.
+
+        """
+
+        # Unzipping.
+        (u, loglstar, axes, scale, prior_transform, loglikelihood,
+         kwargs) = (args.u, args.loglstar, args.axes, args.scale,
+                    args.prior_transform, args.loglikelihood, args.kwargs)
+        rstate = get_random_generator(args.rseed)
+        # Periodicity.
+        nonperiodic = kwargs.get('nonperiodic', None)
+        doubling = kwargs.get('slice_doubling', False)
+
+        # Setup.
+        n = len(u)
+        assert axes.shape[0] == n
+        slices = kwargs['slices']  # number of slices
+        nc = 0
+        nexpand = 0
+        ncontract = 0
+        expansion_warning_set = False
+
+        # Slice sampling loop.
+        for _ in range(slices):
+
+            # Propose a direction on the unit n-sphere.
+            drhat = rstate.standard_normal(size=n)
+            drhat /= linalg.norm(drhat)
+
+            # Transform and scale based on past tuning.
+            direction = np.dot(axes, drhat) * scale
+
+            (u_prop, v_prop, logl_prop, nc1, nexpand1, ncontract1,
+             expansion_warning) = generic_slice_step(u, direction, nonperiodic,
+                                                     loglstar, loglikelihood,
+                                                     prior_transform, doubling,
+                                                     rstate)
+            u = u_prop
+            nc += nc1
+            nexpand += nexpand1
+            ncontract += ncontract1
+            if expansion_warning and not doubling:
+                doubling = True
+                expansion_warning_set = True
+                warnings.warn('Enabling doubling strategy of slice '
+                              'sampling from Neal(2003)')
+
+        sampling_info = {
+            'nexpand': nexpand,
+            'ncontract': ncontract,
+            'expansion_warning_set': expansion_warning_set
+        }
+
+        return u_prop, v_prop, logl_prop, nc, sampling_info
+
+    @property
+    def citations(self):
+        return [("Neal (2003)", "projecteuclid.org/euclid.aos/1056562461"),
+                ("Handley, Hobson & Lasenby (2015a)",
+                 "ui.adsabs.harvard.edu/abs/2015MNRAS.450L..61H"),
+                ("Handley, Hobson & Lasenby (2015b)",
+                 "ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H")]
 
 
 def generic_random_walk(u, loglstar, axes, scale, prior_transform,
                         loglikelihood, rstate, kwargs):
     """
     Generic random walk step
+
     Parameters
     ----------
     u : `~numpy.ndarray` with shape (ndim,)
-        Position of the initial sample. **This is a copy of an existing live
-        point.**
+        Position of the initial sample.
+        **This is a copy of an existing live point.**
 
     loglstar : float
         Ln(likelihood) bound.
@@ -197,7 +871,7 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
     nc : int
         Number of function calls used to generate the sample.
 
-    blob : dict
+    sampling_info : dict
         Collection of ancillary quantities used to tune :data:`scale`.
 
     """
@@ -210,7 +884,7 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
     # Setup.
     n = len(u)
     n_cluster = axes.shape[0]
-    walks = kwargs.get('walks', 25)  # number of steps
+    walks = kwargs['walks']  # number of steps
 
     naccept = 0
     # Total number of accepted points with L>L*
@@ -226,7 +900,6 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
     while ncall < walks:
 
         # This proposes a new point within the ellipsoid
-        # This also potentially modifies the scale
         u_prop, fail = propose_ball_point(u,
                                           scale,
                                           axes,
@@ -236,8 +909,6 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
                                           periodic=periodic,
                                           reflective=reflective,
                                           nonbounded=nonbounded)
-        # If generation of points within an ellipsoid was
-        # highly inefficient we adjust the scale
         if fail:
             nreject += 1
             ncall += 1
@@ -262,9 +933,9 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
         v = prior_transform(u)
         logl = loglikelihood(v)
 
-    blob = {'accept': naccept, 'reject': nreject, 'scale': scale}
+    sampling_info = {'accept': naccept, 'reject': nreject, 'scale': scale}
 
-    return u, v, logl, ncall, blob
+    return u, v, logl, ncall, sampling_info
 
 
 def propose_ball_point(u,
@@ -358,7 +1029,8 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
     """
     Do a slice generic slice sampling step along a specified dimension
 
-    Arguments
+    Parameters
+    ----------
     u: ndarray (ndim sized)
         Starting point in unit cube coordinates
         It MUST satisfy the logl>loglstar criterion
@@ -371,6 +1043,7 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
     loglikelihood: function
     prior_transform: function
     rstate: random state
+
     """
     nc, nexpand, ncontract = 0, 0, 0
     nexpand_threshold = 1000  # Threshold for warning the user
@@ -481,659 +1154,34 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
     return u_prop, v_prop, logl_prop, nc, nexpand, ncontract, expansion_warning
 
 
-def sample_slice(args):
+def tune_slice(sampler, sampling_info, update=True):
+    """Update the slice proposal scale based on the relative
+    size of the slices compared to our initial guess.
+    For slice sampling the scale is only 'advisory' in the sense that
+    the right scale will just speed up sampling as we'll have to expand
+    or contract less. It won't affect the quality of the samples much.
+    The keyword update determines if we are just accumulating the number
+    of steps or actually adjusting the scale
     """
-    Return a new live point proposed by a series of random slices
-    away from an existing live point. Standard "Gibs-like" implementation where
-    a single multivariate "slice" is a combination of `ndim` univariate slices
-    through each axis.
-
-    Parameters
-    ----------
-    u : `~numpy.ndarray` with shape (ndim,)
-        Position of the initial sample. **This is a copy of an existing live
-        point.**
-
-    loglstar : float
-        Ln(likelihood) bound.
-
-    axes : `~numpy.ndarray` with shape (ndim, ndim)
-        Axes used to propose new points. For slices new positions are
-        proposed along the arthogonal basis defined by :data:`axes`.
-
-    scale : float
-        Value used to scale the provided axes.
-
-    prior_transform : function
-        Function transforming a sample from the a unit cube to the parameter
-        space of interest according to the prior.
-
-    loglikelihood : function
-        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
-        array of length `ndim`.
-
-    kwargs : dict
-        A dictionary of additional method-specific parameters.
-
-    Returns
-    -------
-    u : `~numpy.ndarray` with shape (ndim,)
-        Position of the final proposed point within the unit cube.
-
-    v : `~numpy.ndarray` with shape (ndim,)
-        Position of the final proposed point in the target parameter space.
-
-    logl : float
-        Ln(likelihood) of the final proposed point.
-
-    nc : int
-        Number of function calls used to generate the sample.
-
-    blob : dict
-        Collection of ancillary quantities used to tune :data:`scale`.
-
-    """
-
-    # Unzipping.
-    (u, loglstar, axes, scale, prior_transform, loglikelihood,
-     kwargs) = (args.u, args.loglstar, args.axes, args.scale,
-                args.prior_transform, args.loglikelihood, args.kwargs)
-    rstate = get_random_generator(args.rseed)
-    # Periodicity.
-    nonperiodic = kwargs.get('nonperiodic', None)
-    doubling = kwargs.get('slice_doubling', False)
-    # Setup.
-    n = len(u)
-    assert axes.shape[0] == n
-    slices = kwargs.get('slices', 5)  # number of slices
-    nc = 0
-    nexpand = 0
-    ncontract = 0
-
-    # Modifying axes and computing lengths.
-    axes = scale * axes.T  # scale based on past tuning
-    # Note we are transposing as axes[:,i] corresponds to i-th principal axis of the ellipsoid
-    expansion_warning_set = False
-    # Slice sampling loop.
-    for _ in range(slices):
-
-        # Shuffle axis update order.
-        idxs = np.arange(n)
-        rstate.shuffle(idxs)
-
-        # Slice sample along a random direction.
-        for idx in idxs:
-
-            # Select axis.
-            axis = axes[idx]
-            (u_prop, v_prop, logl_prop, nc1, nexpand1, ncontract1,
-             expansion_warning) = generic_slice_step(u, axis, nonperiodic,
-                                                     loglstar, loglikelihood,
-                                                     prior_transform, doubling,
-                                                     rstate)
-            u = u_prop
-            nc += nc1
-            nexpand += nexpand1
-            ncontract += ncontract1
-            if expansion_warning and not doubling:
-                # if we expanded the interval by more than
-                # the threshold we set the warning and enable doubling
-                expansion_warning_set = True
-                doubling = True
-                warnings.warn('Enabling doubling strategy of slice '
-                              'sampling from Neal(2003)')
-    blob = {
-        'nexpand': nexpand,
-        'ncontract': ncontract,
-        'expansion_warning_set': expansion_warning_set
-    }
-
-    return u_prop, v_prop, logl_prop, nc, blob
-
-
-def sample_rslice(args):
-    """
-    Return a new live point proposed by a series of random slices
-    away from an existing live point. Standard "random" implementation where
-    each slice is along a random direction based on the provided axes.
-
-    Parameters
-    ----------
-    u : `~numpy.ndarray` with shape (ndim,)
-        Position of the initial sample. **This is a copy of an existing live
-        point.**
-
-    loglstar : float
-        Ln(likelihood) bound.
-
-    axes : `~numpy.ndarray` with shape (ndim, ndim)
-        Axes used to propose new slice directions.
-
-    scale : float
-        Value used to scale the provided axes.
-
-    prior_transform : function
-        Function transforming a sample from the a unit cube to the parameter
-        space of interest according to the prior.
-
-    loglikelihood : function
-        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
-        array of length `ndim`.
-
-    kwargs : dict
-        A dictionary of additional method-specific parameters.
-
-    Returns
-    -------
-    u : `~numpy.ndarray` with shape (ndim,)
-        Position of the final proposed point within the unit cube.
-
-    v : `~numpy.ndarray` with shape (ndim,)
-        Position of the final proposed point in the target parameter space.
-
-    logl : float
-        Ln(likelihood) of the final proposed point.
-
-    nc : int
-        Number of function calls used to generate the sample.
-
-    blob : dict
-        Collection of ancillary quantities used to tune :data:`scale`.
-
-    """
-
-    # Unzipping.
-    (u, loglstar, axes, scale, prior_transform, loglikelihood,
-     kwargs) = (args.u, args.loglstar, args.axes, args.scale,
-                args.prior_transform, args.loglikelihood, args.kwargs)
-    rstate = get_random_generator(args.rseed)
-    # Periodicity.
-    nonperiodic = kwargs.get('nonperiodic', None)
-    doubling = kwargs.get('slice_doubling', False)
-
-    # Setup.
-    n = len(u)
-    assert axes.shape[0] == n
-    slices = kwargs.get('slices', 5)  # number of slices
-    nc = 0
-    nexpand = 0
-    ncontract = 0
-    expansion_warning_set = False
-
-    # Slice sampling loop.
-    for _ in range(slices):
-
-        # Propose a direction on the unit n-sphere.
-        drhat = rstate.standard_normal(size=n)
-        drhat /= linalg.norm(drhat)
-
-        # Transform and scale based on past tuning.
-        direction = np.dot(axes, drhat) * scale
-
-        (u_prop, v_prop, logl_prop, nc1, nexpand1, ncontract1,
-         expansion_warning) = generic_slice_step(u, direction, nonperiodic,
-                                                 loglstar, loglikelihood,
-                                                 prior_transform, doubling,
-                                                 rstate)
-        u = u_prop
-        nc += nc1
-        nexpand += nexpand1
-        ncontract += ncontract1
-        if expansion_warning and not doubling:
-            doubling = True
-            expansion_warning_set = True
-            warnings.warn('Enabling doubling strategy of slice '
-                          'sampling from Neal(2003)')
-
-    blob = {
-        'nexpand': nexpand,
-        'ncontract': ncontract,
-        'expansion_warning_set': expansion_warning_set
-    }
-
-    return u_prop, v_prop, logl_prop, nc, blob
-
-
-def sample_hslice(args):
-    """
-    Return a new live point proposed by "Hamiltonian" Slice Sampling
-    using a series of random trajectories away from an existing live point.
-    Each trajectory is based on the provided axes and samples are determined
-    by moving forwards/backwards in time until the trajectory hits an edge
-    and approximately reflecting off the boundaries.
-    Once a series of reflections has been established, we propose a new live
-    point by slice sampling across the entire path.
-
-    Parameters
-    ----------
-    u : `~numpy.ndarray` with shape (ndim,)
-        Position of the initial sample. **This is a copy of an existing live
-        point.**
-
-    loglstar : float
-        Ln(likelihood) bound.
-
-    axes : `~numpy.ndarray` with shape (ndim, ndim)
-        Axes used to propose new slice directions.
-
-    scale : float
-        Value used to scale the provided axes.
-
-    prior_transform : function
-        Function transforming a sample from the a unit cube to the parameter
-        space of interest according to the prior.
-
-    loglikelihood : function
-        Function returning ln(likelihood) given parameters as a 1-d `~numpy`
-        array of length `ndim`.
-
-    kwargs : dict
-        A dictionary of additional method-specific parameters.
-
-    Returns
-    -------
-    u : `~numpy.ndarray` with shape (ndim,)
-        Position of the final proposed point within the unit cube.
-
-    v : `~numpy.ndarray` with shape (ndim,)
-        Position of the final proposed point in the target parameter space.
-
-    logl : float
-        Ln(likelihood) of the final proposed point.
-
-    nc : int
-        Number of function calls used to generate the sample.
-
-    blob : dict
-        Collection of ancillary quantities used to tune :data:`scale`.
-
-    """
-
-    # Unzipping.
-    (u, loglstar, axes, scale, prior_transform, loglikelihood,
-     kwargs) = (args.u, args.loglstar, args.axes, args.scale,
-                args.prior_transform, args.loglikelihood, args.kwargs)
-    rstate = get_random_generator(args.rseed)
-
-    # Periodicity.
-    nonperiodic = kwargs.get('nonperiodic', None)
-
-    # Setup.
-    n = len(u)
-    assert axes.shape[0] == len(u)
-    slices = kwargs.get('slices', 5)  # number of slices
-    grad = kwargs.get('grad', None)  # gradient of log-likelihood
-    max_move = kwargs.get('max_move', 100)  # limit for `ncall`
-    compute_jac = kwargs.get('compute_jac', False)  # whether Jacobian needed
-    jitter = 0.25  # 25% jitter
-    nc = 0
-    nmove = 0
-    nreflect = 0
-    ncontract = 0
-
-    # Slice sampling loop.
-    for _ in range(slices):
-        # Define the left, "inner", and right "nodes" for a given chord.
-        # We will plan to slice sampling using these chords.
-        nodes_l, nodes_m, nodes_r = [], [], []
-
-        # Propose a direction on the unit n-sphere.
-        drhat = rstate.standard_normal(size=n)
-        drhat /= linalg.norm(drhat)
-
-        # Transform and scale based on past tuning.
-        axis = np.dot(axes, drhat) * scale * 0.01
-
-        # Create starting window.
-        vel = np.array(axis)  # current velocity
-        u_l = u.copy()
-        u_r = u.copy()
-        u_l -= rstate.uniform(1. - jitter, 1. + jitter) * vel
-        u_r += rstate.uniform(1. - jitter, 1. + jitter) * vel
-        nodes_l.append(np.array(u_l))
-        nodes_m.append(np.array(u))
-        nodes_r.append(np.array(u_r))
-
-        # Progress "right" (i.e. "forwards" in time).
-        reverse, reflect = False, False
-        u_r = np.array(u)
-        ncall = 0
-        while ncall <= max_move:
-
-            # Iterate until we can bracket the edge of the distribution.
-            nodes_l.append(np.array(u_r))
-            u_out, u_in = None, []
-            while True:
-                # Step forward.
-                u_r += rstate.uniform(1. - jitter, 1. + jitter) * vel
-                # Evaluate point.
-                if unitcheck(u_r, nonperiodic):
-                    v_r = prior_transform(np.asarray(u_r))
-                    logl_r = loglikelihood(np.asarray(v_r))
-                    nc += 1
-                    ncall += 1
-                    nmove += 1
-                else:
-                    logl_r = -np.inf
-                # Check if we satisfy the log-likelihood constraint
-                # (i.e. are "in" or "out" of bounds).
-                if logl_r < loglstar:
-                    if reflect:
-                        # If we are out of bounds and just reflected, we
-                        # reverse direction and terminate immediately.
-                        reverse = True
-                        nodes_l.pop()  # remove since chord does not exist
-                        break
-                    else:
-                        # If we're already in bounds, then we're safe.
-                        u_out = np.array(u_r)
-                        logl_out = logl_r
-                    # Check if we could compute gradients assuming we
-                    # terminated with the current `u_out`.
-                    if np.isfinite(float(logl_out)):
-                        reverse = False
-                    else:
-                        reverse = True
-                else:
-                    reflect = False
-                    u_in.append(np.array(u_r))
-                # Check if we've bracketed the edge.
-                if u_out is not None:
-                    break
-            # Define the rest of our chord.
-            if len(nodes_l) == len(nodes_r) + 1:
-                if len(u_in) > 0:
-                    u_in = u_in[rstate.choice(
-                        len(u_in))]  # pick point randomly
-                else:
-                    u_in = np.array(u)
-                    pass
-                nodes_m.append(np.array(u_in))
-                nodes_r.append(np.array(u_out))
-            # Check if we have turned around.
-            if reverse:
-                break
-
-            # Reflect off the boundary.
-            u_r, logl_r = u_out, logl_out
-            if grad is None:
-                # If the gradient is not provided, we will attempt to
-                # approximate it numerically using 2nd-order methods.
-                h = np.zeros(n)
-                for i in range(n):
-                    u_r_l, u_r_r = np.array(u_r), np.array(u_r)
-                    # right side
-                    u_r_r[i] += 1e-10
-                    if unitcheck(u_r_r, nonperiodic):
-                        v_r_r = prior_transform(np.asarray(u_r_r))
-                        logl_r_r = loglikelihood(np.asarray(v_r_r)).val
-                    else:
-                        logl_r_r = -np.inf
-                        reverse = True  # can't compute gradient
-                    nc += 1
-                    # left side
-                    u_r_l[i] -= 1e-10
-                    if unitcheck(u_r_l, nonperiodic):
-                        v_r_l = prior_transform(np.asarray(u_r_l))
-                        logl_r_l = loglikelihood(np.asarray(v_r_l)).val
-                    else:
-                        logl_r_l = -np.inf
-                        reverse = True  # can't compute gradient
-                    if reverse:
-                        break  # give up because we have to turn around
-                    nc += 1
-                    # compute dlnl/du
-                    h[i] = (logl_r_r - logl_r_l) / 2e-10
-            else:
-                # If the gradient is provided, evaluate it.
-                h = grad(v_r)
-                if compute_jac:
-                    jac = []
-                    # Evaluate and apply Jacobian dv/du if gradient
-                    # is defined as d(lnL)/dv instead of d(lnL)/du.
-                    for i in range(n):
-                        u_r_l, u_r_r = np.array(u_r), np.array(u_r)
-                        # right side
-                        u_r_r[i] += 1e-10
-                        if unitcheck(u_r_r, nonperiodic):
-                            v_r_r = prior_transform(np.asarray(u_r_r))
-                        else:
-                            reverse = True  # can't compute Jacobian
-                            v_r_r = np.array(v_r)  # assume no movement
-                        # left side
-                        u_r_l[i] -= 1e-10
-                        if unitcheck(u_r_l, nonperiodic):
-                            v_r_l = prior_transform(np.asarray(u_r_l))
-                        else:
-                            reverse = True  # can't compute Jacobian
-                            v_r_r = np.array(v_r)  # assume no movement
-                        if reverse:
-                            break  # give up because we have to turn around
-                        jac.append((v_r_r - v_r_l) / 2e-10)
-                    jac = np.array(jac)
-                    h = np.dot(jac, h)  # apply Jacobian
-                nc += 1
-            # Compute specular reflection off boundary.
-            vel_ref = vel - 2 * h * np.dot(vel, h) / linalg.norm(h)**2
-            dotprod = np.dot(vel_ref, vel)
-            dotprod /= linalg.norm(vel_ref) * linalg.norm(vel)
-            # Check angle of reflection.
-            if dotprod < -0.99:
-                # The reflection angle is sufficiently small that it might
-                # as well be a reflection.
-                reverse = True
-                break
-            else:
-                # If the reflection angle is sufficiently large, we
-                # proceed as normal to the new position.
-                vel = vel_ref
-                u_out = None
-                reflect = True
-                nreflect += 1
-
-        # Progress "left" (i.e. "backwards" in time).
-        reverse, reflect = False, False
-        vel = -np.array(axis)  # current velocity
-        u_l = np.array(u)
-        ncall = 0
-        while ncall <= max_move:
-
-            # Iterate until we can bracket the edge of the distribution.
-            # Use a doubling approach to try and locate the bounds faster.
-            nodes_r.append(np.array(u_l))
-            u_out, u_in = None, []
-            while True:
-                # Step forward.
-                u_l += rstate.uniform(1. - jitter, 1. + jitter) * vel
-                # Evaluate point.
-                if unitcheck(u_l, nonperiodic):
-                    v_l = prior_transform(np.asarray(u_l))
-                    logl_l = loglikelihood(np.asarray(v_l))
-                    nc += 1
-                    ncall += 1
-                    nmove += 1
-                else:
-                    logl_l = -np.inf
-                # Check if we satisfy the log-likelihood constraint
-                # (i.e. are "in" or "out" of bounds).
-                if logl_l < loglstar:
-                    if reflect:
-                        # If we are out of bounds and just reflected, we
-                        # reverse direction and terminate immediately.
-                        reverse = True
-                        nodes_r.pop()  # remove since chord does not exist
-                        break
-                    else:
-                        # If we're already in bounds, then we're safe.
-                        u_out = np.array(u_l)
-                        logl_out = logl_l
-                    # Check if we could compute gradients assuming we
-                    # terminated with the current `u_out`.
-                    if np.isfinite(float(logl_out)):
-                        reverse = False
-                    else:
-                        reverse = True
-                else:
-                    reflect = False
-                    u_in.append(np.array(u_l))
-                # Check if we've bracketed the edge.
-                if u_out is not None:
-                    break
-            # Define the rest of our chord.
-            if len(nodes_r) == len(nodes_l) + 1:
-                if len(u_in) > 0:
-                    u_in = u_in[rstate.choice(
-                        len(u_in))]  # pick point randomly
-                else:
-                    u_in = np.array(u)
-                    pass
-                nodes_m.append(np.array(u_in))
-                nodes_l.append(np.array(u_out))
-            # Check if we have turned around.
-            if reverse:
-                break
-
-            # Reflect off the boundary.
-            u_l, logl_l = u_out, logl_out
-            if grad is None:
-                # If the gradient is not provided, we will attempt to
-                # approximate it numerically using 2nd-order methods.
-                h = np.zeros(n)
-                for i in range(n):
-                    u_l_l, u_l_r = np.array(u_l), np.array(u_l)
-                    # right side
-                    u_l_r[i] += 1e-10
-                    if unitcheck(u_l_r, nonperiodic):
-                        v_l_r = prior_transform(np.asarray(u_l_r))
-                        logl_l_r = loglikelihood(np.asarray(v_l_r)).val
-                    else:
-                        logl_l_r = -np.inf
-                        reverse = True  # can't compute gradient
-                    nc += 1
-                    # left side
-                    u_l_l[i] -= 1e-10
-                    if unitcheck(u_l_l, nonperiodic):
-                        v_l_l = prior_transform(np.asarray(u_l_l))
-                        logl_l_l = loglikelihood(np.asarray(v_l_l)).val
-                    else:
-                        logl_l_l = -np.inf
-                        reverse = True  # can't compute gradient
-                    if reverse:
-                        break  # give up because we have to turn around
-                    nc += 1
-                    # compute dlnl/du
-                    h[i] = (logl_l_r - logl_l_l) / 2e-10
-            else:
-                # If the gradient is provided, evaluate it.
-                h = grad(v_l)
-                if compute_jac:
-                    jac = []
-                    # Evaluate and apply Jacobian dv/du if gradient
-                    # is defined as d(lnL)/dv instead of d(lnL)/du.
-                    for i in range(n):
-                        u_l_l, u_l_r = np.array(u_l), np.array(u_l)
-                        # right side
-                        u_l_r[i] += 1e-10
-                        if unitcheck(u_l_r, nonperiodic):
-                            v_l_r = prior_transform(np.asarray(u_l_r))
-                        else:
-                            reverse = True  # can't compute Jacobian
-                            v_l_r = np.array(v_l)  # assume no movement
-                        # left side
-                        u_l_l[i] -= 1e-10
-                        if unitcheck(u_l_l, nonperiodic):
-                            v_l_l = prior_transform(np.asarray(u_l_l))
-                        else:
-                            reverse = True  # can't compute Jacobian
-                            v_l_r = np.array(v_l)  # assume no movement
-                        if reverse:
-                            break  # give up because we have to turn around
-                        jac.append((v_l_r - v_l_l) / 2e-10)
-                    jac = np.array(jac)
-                    h = np.dot(jac, h)  # apply Jacobian
-                nc += 1
-            # Compute specular reflection off boundary.
-            vel_ref = vel - 2 * h * np.dot(vel, h) / linalg.norm(h)**2
-            dotprod = np.dot(vel_ref, vel)
-            dotprod /= linalg.norm(vel_ref) * linalg.norm(vel)
-            # Check angle of reflection.
-            if dotprod < -0.99:
-                # The reflection angle is sufficiently small that it might
-                # as well be a reflection.
-                reverse = True
-                break
-            else:
-                # If the reflection angle is sufficiently large, we
-                # proceed as normal to the new position.
-                vel = vel_ref
-                u_out = None
-                reflect = True
-                nreflect += 1
-
-        # Initialize lengths of chords.
-        if len(nodes_l) > 1:
-            # remove initial fallback chord
-            nodes_l.pop(0)
-            nodes_m.pop(0)
-            nodes_r.pop(0)
-        nodes_l, nodes_m, nodes_r = (np.array(nodes_l), np.array(nodes_m),
-                                     np.array(nodes_r))
-        Nchords = len(nodes_l)
-        axlen = np.zeros(Nchords, dtype=float)
-        for i, (nl, nr) in enumerate(zip(nodes_l, nodes_r)):
-            axlen[i] = linalg.norm(nr - nl)
-
-        # Slice sample from all chords simultaneously. This is equivalent to
-        # slice sampling in *time* along our trajectory.
-        axlen_init = np.array(axlen)
-        while True:
-            # Safety check.
-            if np.any(axlen < 1e-5 * axlen_init):
-                raise RuntimeError("Hamiltonian slice sampling appears to be "
-                                   "stuck! Some useful output quantities:\n"
-                                   f"u: {u}\n u_left: {u_l}\n"
-                                   f"u_right: {u_r}\n loglstar: {loglstar}.")
-
-            # Select chord.
-            axprob = axlen / np.sum(axlen)
-            idx = rstate.choice(Nchords, p=axprob)
-            # Define chord.
-            u_l, u_m, u_r = nodes_l[idx], nodes_m[idx], nodes_r[idx]
-            u_hat = u_r - u_l
-            rprop = rstate.random()
-            u_prop = u_l + rprop * u_hat  # scale from left
-            if unitcheck(u_prop, nonperiodic):
-                v_prop = prior_transform(np.asarray(u_prop))
-                logl_prop = loglikelihood(np.asarray(v_prop))
-            else:
-                logl_prop = -np.inf
-            nc += 1
-            ncontract += 1
-            # If we succeed, move to the new position.
-            if logl_prop > loglstar:
-                u = u_prop
-                break
-            # If we fail, check if the new point is to the left/right of
-            # the point interior to the bounds (`u_m`) and update
-            # the bounds accordingly.
-            else:
-                s = np.dot(u_prop - u_m, u_hat)  # check sign (+/-)
-                if s < 0:  # left
-                    nodes_l[idx] = u_prop
-                    axlen[idx] *= 1 - rprop
-                elif s > 0:  # right
-                    nodes_r[idx] = u_prop
-                    axlen[idx] *= rprop
-                else:
-                    raise RuntimeError(
-                        "Slice sampler has failed to find "
-                        "a valid point. Some useful "
-                        "output quantities:\n"
-                        f"u: {u}\n u_left: {u_l}\n"
-                        f"u_right: {u_r}\n u_hat: {u_hat}\n"
-                        f"u_prop: {u_prop}\n loglstar: {loglstar}\n"
-                        f"logl_prop: {logl_prop}")
-
-    blob = {'nmove': nmove, 'nreflect': nreflect, 'ncontract': ncontract}
-
-    return u_prop, v_prop, logl_prop, nc, blob
+    # see https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4063214/
+    # also 2002.06212
+    # https://www.tandfonline.com/doi/full/10.1080/10618600.2013.791193
+    # and https://github.com/joshspeagle/dynesty/issues/260
+    hist = sampler.slice_history
+
+    hist['nexpand'] += sampling_info['nexpand']
+    hist['ncontract'] += sampling_info['ncontract']
+    if sampling_info['expansion_warning_set']:
+        sampler.sampler_kwargs['slice_doubling'] = True
+    if not update:
+        return
+    nexpand, ncontract = max(hist['nexpand'], 1), hist['ncontract']
+    mult = (nexpand * 2. / (nexpand + ncontract))
+    # avoid drastic updates to the scale factor limiting to factor
+    # of two
+    mult = np.clip(mult, 0.5, 2)
+    # Remember I can't apply the rule that scale < cube diagonal
+    # because scale is multiplied by axes
+    sampler.scale = sampler.scale * mult
+    hist['nexpand'] = 0
+    hist['ncontract'] = 0

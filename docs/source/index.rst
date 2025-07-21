@@ -98,6 +98,14 @@ Changelog
 .. image:: ../images/logo.gif
     :align: center
 
+2.1.5 (2024-12-17)
+------------------
+Bug fix release
+
+- Fix the issue with merge_runs when the dynamic runs with different number of batches are merged ( #481 reported by @rodleiva, fixed by @segasai)
+- Fix the issue with leaking file descriptors when using dynesty pool. Can lead to 'too many open files' problem ( #379, reported by @bencebecsy, fixed by @segasai)
+
+
 2.1.4 (2024-06-26)
 ------------------
 - Get rid of npdim option that at some point may have allowed the prior transformation to return higher dimensional vector than the inputs. Note that due to this change, restoring the checkpoint from previous version of the dynesty won't be possible) (issues #456, #457) (original issue reported by @MichaelDAlbrow, fixed by @segasai )
@@ -113,7 +121,7 @@ Bug fix release
 - Warning is emitted if maxcall/maxiter stop the iterations too early ( @segasai )
 - The clustering/K-means for ellipsoid decomposition is now done in scaled space of points divided by stddev along each dimension ( @segasai)
 - Update the initialisation of points in the case where some fraction of prior volume has log(L)=-inf this should increase the accuracy of log(Z) estimates in some cases
-- Fix a rare possible bug where due to numerical instability in uniform sampling a q==0 error could have occured ( @segasai)
+- Fix a rare possible bug where due to numerical instability in uniform sampling a q==0 error could have occurred ( @segasai)
 - Fix a FileExistsError when using check-points on Windows ( #450, reported by @rodleiva, fixed by @segasai )
 
 	    
@@ -123,7 +131,7 @@ Bug fix release
 
 - Fix the restoration of the dynamic sampler from the checkpoint with the pool. Previously after restoring the sampler, the pool was not used. (#438 ; by @segasai)
 - Fix the issue with checkpointing from the dynamic sampler. Previously if one batch took shorter than the checkpoint_every seconds then the checkpoints were  not created (by @segasai)
-- Fix the restoration from checkpoint that could have occassiounaly lead to one skipped point from nested run (by @segasai)
+- Fix the restoration from checkpoint that could have occassionally lead to one skipped point from nested run (by @segasai)
 
 
 2.1.1  (2023-04-16)
@@ -134,7 +142,7 @@ Mostly bug fix release
 - Refactor the bound update code which will lead to more consistent boundary updates (#428 by @segasai )
 - Fix some pathological cases when uniform distribution is sampled with a very low log likelihood values
 - Fix a problem when a very small nlive is used leading to the error (#424 , reported by @frgsimpson)
-- Fix the incorrect update_interval calculation leading to too unfrequent updates of bounds when using dynamic sampler (report by @ajw278, analysis and fix by @segasai)
+- Fix the incorrect update_interval calculation leading to too infrequent updates of bounds when using dynamic sampler (report by @ajw278, analysis and fix by @segasai)
 - If you try to resume a previously finished dynamic run, the warning will be raised and the sampler will exit (previously an error could have occured in this case)
 
 
@@ -192,8 +200,8 @@ All the individual changes are listed below:
 - The Monte-Carlo volume calculations by RadFriends/SupFriends/MultiEllipsoid were inaccurate (fix # 398; #399 ; by @segasai )
 - Setting n_effective for Sampler.run_nested() and DynamicSampler.sample_initial(), and n_effective_init for DynamicSampler.run_nested(), are deprecated ( #379 ; by @edbennett )
 - The slice sampling can now switch to doubling interval expansion algorithm from Neal(2003), if at any point of the sampling the interval was expanded more than 1000 times. It should help slice/rslice sampling of difficult posteriors ( #382 ; by @segasai )
-- The accumulation of statistics using to tune proposal distribution is now more robust when multi-threading/pool is used. Previously statistics from every queue_size call were used and all other were discarded. Now the statistics are accumulated from all the parallel sampling calls. That should help sampling of complex distributions. ( #385 ; by @segasai ) 
-- The .update_proposal() function that updates the states of samplers now has an additional keyword which allows to either just accumulate the statistics from repeated function calls or actual update of the proposal. This was needed to not loose information when queue_size>1 ( #385 ; by @segasai )
+- The accumulation of statistics using to tune proposal distribution is now more robust when multi-threading/pool is used. Previously statistics from every queue_size call were used and all others were discarded. Now the statistics are accumulated from all the parallel sampling calls. That should help sampling of complex distributions. ( #385 ; by @segasai ) 
+- The .update_proposal() function that updates the states of samplers now has an additional keyword which allows to either just accumulate the statistics from repeated function calls or actual update of the proposal. This was needed to not lose information when queue_size>1 ( #385 ; by @segasai )
 - The ellipsoid bounding has been sped up by not using the Cholesky transform , also a check was added/test expanded for possible numerical issues when sampling from multiple ellipsoids potentially causing assert q>0 ( #397 ; by @segasai )
 - The individual samplers now take as input a special Namedtuple SamplerArgument rather than just a tuple ( #400 ; by @segasai ).
 
@@ -228,11 +236,11 @@ Small bug fix release
 1.2.0 (2022-03-31)
 ------------------
 
-This version has multiple changes that should improve stability and speed. The default dynamic sampling behaviour has been changed to focus on the effective number of posterior samples as opposed to KL divergence. The rstagger sampler has been removed and the default choice of the sampler may be different compared to previous releases depending on the dimensionality of the problem. dynesty should now provide 100% reproduceable results if the rstate object is provided. It needs to be a new generation Random Generator (as opposed to numpy.RandomState)
+This version has multiple changes that should improve stability and speed. The default dynamic sampling behaviour has been changed to focus on the effective number of posterior samples as opposed to KL divergence. The rstagger sampler has been removed and the default choice of the sampler may be different compared to previous releases depending on the dimensionality of the problem. dynesty should now provide 100% reproducible results if the rstate object is provided. It needs to be a new generation Random Generator (as opposed to numpy.RandomState)
 
 Most of the changes in the release have been contributed by [Sergey Koposov](https://github.com/segasai) who has joined the dynesty project.
 
-- Saving likelihood. It is now possible to save likelihood calls history during sampling into HDF5 file (this is not compatible with parallel sampling yet). The relevant options are  save_history=False, history_filename=None (#235)
+- Saving likelihood. It is now possible to save likelihood calls history during sampling into HDF5 file (this is not compatible with parallel sampling yet). The relevant options are save_history=False, history_filename=None (#235)
 - add_batch() function now has the mode parameter that allows you to manually chose the logl range for the batch (#328)
 - More testing with code coverage of >90% + validation on test problems
 - Internal refactoring reducing code duplication (saved_run, integral calculations, different samplers etc)

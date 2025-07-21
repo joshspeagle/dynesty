@@ -4,8 +4,9 @@ References and Acknowledgements
 
 **The release paper describing the code corresponding to dynesty 1.0 can be found**
 `here <https://github.com/joshspeagle/dynesty/tree/master/paper/dynesty.pdf>`_.
-We remark that more recent dynesty versions have multiple changes with respect to the paper. Therefore
-please ensure that you cite the paper and the specific version of dynesty you used through `zenodo <https://doi.org/10.5281/zenodo.3348367>`_
+Since recent dynesty versions have significant changes with respect to the paper, unless
+you use the 1.0 version, you must *also* cite dynesty code used through `zenodo <https://doi.org/10.5281/zenodo.3348367>`_
+
 
 A list of papers that you should cite can always be generated directly
 from the `sampler` object by calling::
@@ -116,9 +117,7 @@ Much of the nested sampling error analysis is based on:
     *Properties of Nested Sampling.*
     Biometrika, 97, 741.
 
-The nested sampling algorithms in
-:class:`~dynesty.nestedsamplers.RadFriendsSampler` and
-:class:`~dynesty.nestedsamplers.SupFriendsSampler` 
+The nested sampling algorithms with cubes, balls bounds
 are based on:
 
     `Buchner 2016 <http://adsabs.harvard.edu/abs/2014arXiv1407.5459B>`_.

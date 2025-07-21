@@ -898,7 +898,7 @@ class Sampler:
             for k in [
                     'id', 'u', 'v', 'logl', 'logvol', 'logwt', 'logz',
                     'logzvar', 'h', 'nc', 'boundidx', 'it', 'bounditer',
-                    'scale'
+                    'scale', 'blob'
             ]:
                 del self.saved_run[k][-self.nlive:]
         else:

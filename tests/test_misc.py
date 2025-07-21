@@ -181,7 +181,8 @@ def test_reweight(dyn, ndim):
     sampler.run_nested(print_progress=printing)
     res0 = sampler.results
     res1 = dyutil.reweight_run(res0, L05(res0['samples']))
-    assert np.abs(res1['logz'][-1]) < 3 * res1['logzerr'][-1]
+    assert np.abs(res1['logz'][-1] -
+                  res0['logz'][-1]) < 3 * res1['logzerr'][-1]
 
 
 def test_livepoints():

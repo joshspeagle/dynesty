@@ -6,8 +6,6 @@ from scipy import linalg
 import dynesty.utils as dyutil
 from multiprocessing import Pool
 import itertools
-#from dynesty.dynamicsampler import _SAMPLERS
-#from dynesty.nestedsamplers import MultiEllipsoidSampler
 from utils import get_rstate, get_printing, NullContextManager
 """
 Run a series of basic tests changing various things like

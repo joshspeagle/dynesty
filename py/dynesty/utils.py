@@ -1272,7 +1272,7 @@ def jitter_run(res, rstate=None, approx=False):
     return new_res
 
 
-def compute_integrals(logl=None, logvol=None, reweight=None):
+def compute_integrals(*, logl, logvol, reweight=None):
     """
     Compute weights, logzs and variances using quadratic estimator.
     Returns logwt, logz, logzvar, h
@@ -1286,10 +1286,6 @@ def compute_integrals(logl=None, logvol=None, reweight=None):
     reweight: array (or None)
         (optional) reweighting array to reweight posterior
     """
-    # pylint: disable=invalid-unary-operand-type
-    # Unfortunately pylint doesn't get the asserts
-    assert logl is not None
-    assert logvol is not None
 
     loglstar_pad = np.concatenate([[-1.e300], logl])
 

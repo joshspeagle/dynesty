@@ -134,7 +134,8 @@ def _get_internal_sampler(sampling, ndim, ncdim, periodic, reflective, walks, sl
             sampling = RSliceSampler(ndim=ndim, slices=default_steps['rslice'])
 
     nonbounded = get_nonbounded(ndim, periodic, reflective)
-    sampler_kw = dict(ncdim=ncdim, ndim=ndim, nonbounded=nonbounded, periodic=periodic, reflective=reflective, facc=facc)
+    sampler_kw = dict(ncdim=ncdim, ndim=ndim, nonbounded=nonbounded, periodic=periodic, 
+        reflective=reflective, facc=facc)
     if sampling == 'rslice':
         sampler_kw['slices'] = slices or default_steps['rslice']
         internal_sampler = RSliceSampler(**sampler_kw)
@@ -142,7 +143,7 @@ def _get_internal_sampler(sampling, ndim, ncdim, periodic, reflective, walks, sl
         sampler_kw['slices'] = slices or default_steps['slice']
         internal_sampler = SliceSampler(**sampler_kw)
     elif sampling == 'rwalk':
-        sampler_kw['walks'] = slices or default_steps['rwalk']
+        sampler_kw['walks'] = walks or default_steps['rwalk']
         internal_sampler = RWalkSampler(**sampler_kw)
     elif sampling == 'unif':
         internal_sampler = UniformBoundSampler(**sampler_kw)
@@ -151,6 +152,13 @@ def _get_internal_sampler(sampling, ndim, ncdim, periodic, reflective, walks, sl
         internal_sampler = sampling._new_from_template(sampler_kw)
     else:
         raise ValueError(f'Unsupported Sampler {sampling}')
+    if sampling == 'rwalk' and slices is not None or (
+        sampling in ['rslice', 'slice'] and walks is not None 
+    ):
+            warnings.warn('Specifying slice option while using rwalk sampler or '
+            ' walks option with a slice sampler'
+                      ' does not make sense')
+
     return internal_sampler
 
 

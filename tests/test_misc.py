@@ -207,10 +207,13 @@ def test_livepoints():
 def test_first_update():
     # Test that first_update works
     ndim = 10
-    rstate = get_rstate()
     bigres = {}
     nlive = 50
+    rstate0 = get_rstate()
+
     for i in range(3):
+        rstate = np.random.default_rng(rstate0)
+        # make sure identical rstate
         if i == 0:
             first_update = None
         elif i == 1:

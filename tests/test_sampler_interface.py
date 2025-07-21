@@ -93,8 +93,8 @@ class TestSampler(dysa.InternalSampler):
 
 class Gaussian:
 
-    def __init__(self, corr=.95, prior_win=10):
-        self.ndim = 3
+    def __init__(self, corr=.95, prior_win=10, ndim=3):
+        self.ndim = ndim
         self.mean = np.linspace(-1, 1, self.ndim)
         self.cov = np.identity(self.ndim)  # set covariance to identity matrix
         self.cov[self.cov ==
@@ -157,7 +157,7 @@ def check_results_gau(results, g, rstate, sig=4, logz_tol=None):
                   sig=sig)
 
 
-# try all combinations except
+# try all combinations
 @pytest.mark.parametrize(
     "bound,sample",
     list(
@@ -192,3 +192,44 @@ def test_bounding_sample(bound, sample):
     sampler.run_nested(print_progress=printing)
     check_results_gau(sampler.results, g, rstate)
     print(sampler.citations)
+
+
+# try all combinations
+@pytest.mark.parametrize("sample", ['rwalk', 'slice', 'rslice'])
+@pytest.mark.parametrize("typ", [0, 1])
+def test_walks_slices(sample, typ):
+    # This tests if the walks= slices= options are used
+
+    bound = 'single'
+    g = Gaussian(0.1, ndim=2)
+    res = []
+    for i in range(2):
+        # number of steps loop
+        steps = {0: 10, 1: 20}[i]
+        rstate = get_rstate()
+        if typ == 0:
+            cur_sample = {
+                'rwalk': dysa.RWalkSampler(walks=steps),
+                'slice': dysa.SliceSampler(slices=steps),
+                'rslice': dysa.RSliceSampler(slices=steps),
+            }[sample]
+            kw = {}
+        else:
+            cur_sample = sample
+            kw = {
+                'rwalk': dict(walks=steps),
+                'slice': dict(slices=steps),
+                'rslice': dict(slices=steps),
+            }[sample]
+        sampler = dynesty.NestedSampler(g.loglikelihood,
+                                        g.prior_transform,
+                                        g.ndim,
+                                        nlive=nlive,
+                                        bound=bound,
+                                        sample=cur_sample,
+                                        rstate=rstate,
+                                        **kw)
+        sampler.run_nested(print_progress=printing)
+        res.append(sampler.ncall)
+
+    assert (res[1] > res[0])

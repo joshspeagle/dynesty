@@ -189,6 +189,7 @@ class InternalSampler:
             Whether to update the proposal scale or not (default: False).
         """
         pass
+    @property
     def citations(self):
         return []
 
@@ -533,6 +534,7 @@ class RWalkSampler(InternalSampler):
                                    args.scale, args.prior_transform,
                                    args.loglikelihood, rstate, args.kwargs)
 
+    @property
     def citations(self):
         return [("Skilling (2006)", "projecteuclid.org/euclid.ba/1340370944")]
 

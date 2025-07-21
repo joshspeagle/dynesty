@@ -97,8 +97,7 @@ class InternalSampler:
                 template_kwargs1[k] = v
             else:
                 if template_kwargs1[k] != self.input_kwargs[k]:
-                    print('warning incompatible sampler parameters',
-                          template_kwargs1[k], ' ', self.input_kwargs[k])
+                    warnings.warn(f"Incompatible sampler parameters: {template_kwargs1[k]} vs {self.input_kwargs[k]}")
         return self.__class__(**template_kwargs1)
 
     def prepare_sampler(self,

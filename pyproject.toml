@@ -18,7 +18,7 @@ description = "A dynamic nested sampling package for computing Bayesian posterio
 readme = {file = "README.md", content-type = "text/markdown"}
 authors = [
     {name = "Joshua S Speagle", email = "j.speagle@utoronto.ca"},
-    {name = "Sergey E Koposov", emai = "skoposov@ed.ac.uk"}
+    {name = "Sergey E Koposov", email = "skoposov@ed.ac.uk"}
 ]
 license = {text = "MIT"}
 dependencies = [

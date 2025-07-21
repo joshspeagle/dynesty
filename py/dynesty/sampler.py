@@ -12,8 +12,7 @@ import math
 import copy
 import numpy as np
 from .results import Results, print_fn
-from .sampling import (UniformBoundSampler, RSliceSampler, SliceSampler,
-                       RWalkSampler, UnitCubeSampler, InternalSampler)
+from .sampling import UnitCubeSampler
 from .utils import (get_seed_sequence, get_print_func, progress_integration,
                     IteratorResult, RunRecord, get_neff_from_logwt,
                     compute_integrals, DelayTimer, _LOWL_VAL,
@@ -21,7 +20,7 @@ from .utils import (get_seed_sequence, get_print_func, progress_integration,
 
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
                        SupFriends, Bound, BOUND_LIST)
-from .utils import (get_enlarge_bootstrap, save_sampler, restore_sampler)
+from .utils import (save_sampler, restore_sampler)
 
 __all__ = ["Sampler"]
 

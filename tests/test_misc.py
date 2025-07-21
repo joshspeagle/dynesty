@@ -148,7 +148,7 @@ def test_reweight(dyn, ndim):
     # test reweight_run
     rstate = get_rstate()
 
-    class L:
+    class Lclass:
 
         def __init__(self, s, ndim, width):
             self.s = s
@@ -161,7 +161,7 @@ def test_reweight(dyn, ndim):
             ret = self.norm - 0.5 * np.sum((x / self.s)**2, axis=1)
             return np.squeeze(ret)
 
-    class T:
+    class TClass:
 
         def __init__(self, s):
             self.s = s
@@ -170,17 +170,17 @@ def test_reweight(dyn, ndim):
             return (2 * x - 1) * self.s
 
     width = 10
-    L1 = L(0.1, ndim, width)
-    L05 = L(0.05, ndim, width)
-    T = T(width)
+    L1 = Lclass(0.1, ndim, width)
+    L05 = Lclass(0.05, ndim, width)
+    Transf = TClass(width)
     if dyn:
-        S = dynesty.NestedSampler
+        samp = dynesty.NestedSampler
     else:
-        S = dynesty.DynamicNestedSampler
-    sampler = S(L1, T, ndim, rstate=rstate)
+        samp = dynesty.DynamicNestedSampler
+    sampler = samp(L1, Transf, ndim, rstate=rstate)
     sampler.run_nested(print_progress=printing)
     res0 = sampler.results
-    res1 = dyutil.reweight_run(res0, L05(sampler.results['samples']))
+    res1 = dyutil.reweight_run(res0, L05(res0['samples']))
     assert np.abs(res1['logz'][-1]) < 3 * res1['logzerr'][-1]
 
 

@@ -18,8 +18,7 @@ from .sampler import Sampler, _initialize_live_points
 from .bounding import BOUND_LIST
 from . import bounding
 from .dynamicsampler import DynamicSampler
-from .utils import (LogLikelihood, get_random_generator, get_enlarge_bootstrap,
-                    get_nonbounded)
+from .utils import (LogLikelihood, get_random_generator, get_nonbounded)
 
 __all__ = ["NestedSampler", "DynamicNestedSampler", "_function_wrapper"]
 
@@ -163,6 +162,40 @@ def _get_internal_sampler(sampling, ndim, ncdim, periodic, reflective, walks,
                       ' does not make sense')
 
     return internal_sampler
+
+
+def _get_enlarge_bootstrap(sample, enlarge, bootstrap):
+    """
+    Determine the enlarge, bootstrap for a given run
+    """
+    # we should make it dimension dependent I think...
+    DEFAULT_ENLARGE = 1.25
+    DEFAULT_UNIF_BOOTSTRAP = 5
+    if enlarge is not None and bootstrap is None:
+        # If enlarge is specified and bootstrap is not we just use enlarge
+        # with no nootstrapping
+        assert enlarge >= 1
+        return enlarge, 0
+    elif enlarge is None and bootstrap is not None:
+        # If bootstrap is specified but enlarge is not we just use bootstrap
+        # And if we allow zero bootstrap if we want to force no bootstrap
+        assert ((bootstrap > 1) or (bootstrap == 0))
+        return 1, bootstrap
+    elif enlarge is None and bootstrap is None:
+        # If neither enlarge or bootstrap are specified we are doing
+        # things in auto-mode. I.e. use enlarge unless the uniform
+        # sampler is selected
+        if isinstance(sample, UniformBoundSampler):
+            return 1, DEFAULT_UNIF_BOOTSTRAP
+        else:
+            return DEFAULT_ENLARGE, 0
+    else:
+        # Both enlarge and bootstrap were specified
+        if bootstrap == 0 or enlarge == 1:
+            return enlarge, bootstrap
+        else:
+            raise ValueError('Enlarge and bootstrap together do not make '
+                             'sense unless bootstrap=0 or enlarge = 1')
 
 
 def _parse_pool_queue(pool, queue_size):
@@ -565,7 +598,7 @@ def _common_sampler_init(*,
         ret['cite'] = _get_citations('static', bound, sample)
 
     # Bounding distribution modifications.
-    enlarge, bootstrap = get_enlarge_bootstrap(sample, enlarge, bootstrap)
+    enlarge, bootstrap = _get_enlarge_bootstrap(sample, enlarge, bootstrap)
     ret['bound_enlarge'] = enlarge
     ret['bound_bootstrap'] = bootstrap
 

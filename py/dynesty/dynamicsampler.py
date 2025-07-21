@@ -22,8 +22,8 @@ from .sampler import Sampler, _initialize_live_points
 from .results import Results
 from .utils import (get_seed_sequence, get_print_func, _kld_error,
                     compute_integrals, IteratorResult, IteratorResultShort,
-                    get_enlarge_bootstrap, RunRecord, get_neff_from_logwt,
-                    DelayTimer, save_sampler, restore_sampler)
+                    RunRecord, get_neff_from_logwt, DelayTimer, save_sampler,
+                    restore_sampler)
 
 __all__ = [
     "DynamicSampler",

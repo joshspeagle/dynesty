@@ -117,9 +117,7 @@ Much of the nested sampling error analysis is based on:
     *Properties of Nested Sampling.*
     Biometrika, 97, 741.
 
-The nested sampling algorithms in
-:class:`~dynesty.nestedsamplers.RadFriendsSampler` and
-:class:`~dynesty.nestedsamplers.SupFriendsSampler` 
+The nested sampling algorithms with cubes, balls bounds
 are based on:
 
     `Buchner 2016 <http://adsabs.harvard.edu/abs/2014arXiv1407.5459B>`_.

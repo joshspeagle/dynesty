@@ -6,9 +6,8 @@ from scipy import linalg
 import dynesty.utils as dyutil
 from multiprocessing import Pool
 import itertools
-from dynesty.dynamicsampler import _SAMPLERS
-from dynesty.nestedsamplers import MultiEllipsoidSampler
-from dynesty.sampling import sample_rwalk
+#from dynesty.dynamicsampler import _SAMPLERS
+#from dynesty.nestedsamplers import MultiEllipsoidSampler
 from utils import get_rstate, get_printing, NullContextManager
 """
 Run a series of basic tests changing various things like
@@ -65,69 +64,6 @@ def test_maxcall():
                                            nlive=nlive,
                                            rstate=rstate)
     sampler.run_nested(dlogz_init=1, maxcall=1000, print_progress=printing)
-
-
-# register fake custom sampler
-_SAMPLERS["custom"] = MultiEllipsoidSampler
-
-
-def custom_update(blob, scale, update=True):
-    """A rough version of the update_rwalk method to test custom updates"""
-    if update:
-        accept = blob['accept']
-        reject = blob['reject']
-        facc = (1. * accept) / (accept + reject)
-        target = 0.3
-        ndim = 2
-        scale *= np.exp((facc - target) / ndim / target)
-    return scale
-
-
-# Test custom update/custom sampler
-@pytest.mark.parametrize("bound,sample",
-                         [['multi', sample_rwalk], ['custom', 'rslice']])
-def test_custom(bound, sample):
-    # stress test various boundaries
-    ndim = 2
-    rstate = get_rstate()
-    sampler = dynesty.NestedSampler(
-        loglike,
-        prior_transform,
-        ndim,
-        nlive=nlive,
-        bound=bound,
-        sample=sample,
-        rstate=rstate,
-        update_func=custom_update,
-    )
-    sampler.run_nested(dlogz=0.01, print_progress=printing)
-
-
-def test_n_effective_deprecation():
-    # test deprecation of n_effective and n_effective_init
-    ndim = 2
-    rstate = get_rstate()
-
-    sampler = dynesty.NestedSampler(loglike,
-                                    prior_transform,
-                                    ndim,
-                                    nlive=nlive,
-                                    rstate=rstate)
-    with pytest.deprecated_call():
-        sampler.run_nested(dlogz=1, maxcall=10, n_effective=10)
-
-    sampler = dynesty.DynamicNestedSampler(loglike,
-                                           prior_transform,
-                                           ndim,
-                                           nlive=nlive,
-                                           rstate=rstate)
-
-    sample_generator = sampler.sample_initial(n_effective=10)
-    with pytest.deprecated_call():
-        next(sample_generator)
-
-    with pytest.deprecated_call():
-        sampler.run_nested(dlogz_init=1, maxcall=10, n_effective_init=10)
 
 
 @pytest.mark.parametrize('dynamic,with_pool',
@@ -271,10 +207,13 @@ def test_livepoints():
 def test_first_update():
     # Test that first_update works
     ndim = 10
-    rstate = get_rstate()
     bigres = {}
     nlive = 50
+    rstate0 = get_rstate()
+
     for i in range(3):
+        rstate = np.random.default_rng(rstate0)
+        # make sure identical rstate
         if i == 0:
             first_update = None
         elif i == 1:
@@ -285,11 +224,11 @@ def test_first_update():
                                         prior_transform,
                                         ndim,
                                         nlive=nlive,
+                                        update_interval=100,
                                         first_update=first_update,
                                         rstate=rstate)
         sampler.run_nested(print_progress=printing)
         res = sampler.results
-        print(res.bound)
         bigres[i] = len(res.bound)
     assert (bigres[1] > bigres[0])
     assert (bigres[2] > bigres[0])
@@ -340,23 +279,6 @@ def test_neff():
                        n_effective=10000,
                        print_progress=printing)
     assert sampler.n_effective > 10000
-
-
-def test_oldstop():
-    # test of old stopping function functionality
-    ndim = 2
-    rstate = get_rstate()
-    import dynesty.utils as dyutil
-    stopfn = dyutil.old_stopping_function
-    sampler = dynesty.DynamicNestedSampler(loglike,
-                                           prior_transform,
-                                           ndim,
-                                           nlive=nlive,
-                                           rstate=rstate)
-    sampler.run_nested(dlogz_init=1,
-                       n_effective=None,
-                       stop_function=stopfn,
-                       print_progress=printing)
 
 
 def test_stop_nmc():

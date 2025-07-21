@@ -40,15 +40,6 @@ Baseline Sampler
     :private-members:
     :show-inheritance:
 
-Static Nested Samplers
-======================
-
-.. automodule:: dynesty.nestedsamplers
-    :members:
-    :undoc-members:
-    :private-members:
-    :show-inheritance:
-
 Dynamic Nested Sampler
 ======================
 

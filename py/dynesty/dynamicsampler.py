@@ -18,28 +18,18 @@ import copy
 from enum import Enum
 import numpy as np
 from scipy.special import logsumexp
-from .nestedsamplers import (UnitCubeSampler, SingleEllipsoidSampler,
-                             MultiEllipsoidSampler, RadFriendsSampler,
-                             SupFriendsSampler)
+from .sampler import Sampler, _initialize_live_points
 from .results import Results
 from .utils import (get_seed_sequence, get_print_func, _kld_error,
                     compute_integrals, IteratorResult, IteratorResultShort,
                     get_enlarge_bootstrap, RunRecord, get_neff_from_logwt,
-                    DelayTimer, save_sampler, restore_sampler, _LOWL_VAL)
+                    DelayTimer, save_sampler, restore_sampler)
 
 __all__ = [
     "DynamicSampler",
     "weight_function",
     "stopping_function",
 ]
-
-_SAMPLERS = {
-    'none': UnitCubeSampler,
-    'single': SingleEllipsoidSampler,
-    'multi': MultiEllipsoidSampler,
-    'balls': RadFriendsSampler,
-    'cubes': SupFriendsSampler
-}
 
 
 class DynamicSamplerStatesEnum(Enum):
@@ -181,42 +171,10 @@ def weight_function(results, args=None, return_weights=False):
     return (logl_min, logl_max)
 
 
-def _get_update_interval_ratio(update_interval, sample, bound, ndim, nlive,
-                               slices, walks):
-    """
-    Get the update_interval divided by the number of live points
-    """
-    if update_interval is None:
-        if sample == 'unif':
-            update_interval_frac = 1.5
-        elif sample == 'rwalk':
-            update_interval_frac = 0.15 * walks
-        elif sample == 'slice':
-            update_interval_frac = 0.9 * ndim * slices
-        elif sample == 'rslice':
-            update_interval_frac = 2.0 * slices
-        elif sample == 'hslice':
-            update_interval_frac = 25.0 * slices
-        else:
-            update_interval_frac = np.inf
-            warnings.warn(
-                "No update_interval set with unknown sampling method: "
-                f"'{sample}'. Defaulting to no updates.")
-    elif isinstance(update_interval, float):
-        update_interval_frac = update_interval
-    elif isinstance(update_interval, int):
-        update_interval_frac = update_interval * 1. / nlive
-    else:
-        raise RuntimeError(f'Strange update_interval value {update_interval}')
-    if bound == 'none':
-        update_interval_frac = np.inf
-    return update_interval_frac
-
-
 def stopping_function(results,
                       args=None,
                       rstate=None,
-                      M=None,
+                      mapper=None,
                       return_vals=False):
     """
     The default stopping function utilized by :class:`DynamicSampler`.
@@ -257,7 +215,7 @@ def stopping_function(results,
     rstate : `~numpy.random.Generator`, optional
         `~numpy.random.Generator` instance.
 
-    M : `map` function, optional
+    mapper : `map` function, optional
         An alias to a `map`-like function. This allows users to pass
         functions from pools (e.g., `pool.map`) to compute realizations in
         parallel. By default the standard `map` function is used.
@@ -281,8 +239,8 @@ def stopping_function(results,
     # Initialize values.
     if args is None:
         args = {}
-    if M is None:
-        M = map
+    if mapper is None:
+        mapper = map
 
     # Initialize hyperparameters.
     pfrac = args.get('pfrac', 1.0)
@@ -319,7 +277,7 @@ def stopping_function(results,
         approx_list = [approx for i in range(n_mc)]
         seeds = get_seed_sequence(rstate, n_mc)
         args = zip(rlist, error_list, approx_list, seeds)
-        outputs = list(M(_kld_error, args))
+        outputs = list(mapper(_kld_error, args))
         lnz_arr = np.array([res[1].logz[-1] for res in outputs])
         # Evidence stopping value.
         lnz_std = np.std(lnz_arr)
@@ -338,203 +296,6 @@ def stopping_function(results,
         return stop <= 1., (stop_post, stop_evid, stop)
     else:
         return stop <= 1.
-
-
-def _initialize_live_points(live_points,
-                            prior_transform,
-                            loglikelihood,
-                            M,
-                            nlive=None,
-                            ndim=None,
-                            rstate=None,
-                            blob=False,
-                            use_pool_ptform=None):
-    """
-    Initialize the first set of live points before starting the sampling
-
-    Parameters
-    ----------
-    live_points: tuple of arrays or None
-        This can be either none or
-        tuple of 3 arrays (u, v, logl) or
-        tuple of 4 arrays (u, v, logl, blobs), i.e.
-        points location in cube coordinates,
-        point slocation in original coordinates,
-        logl values and optionally blobs associated
-
-    prior_transform: function
-
-    log_likelihood: function
-
-    M: function
-        The function supporting parallel calls like M(func, list)
-
-    nlive: int
-        Number of live-points
-
-    ndim: int
-        Number of dimensions
-
-    rstate: :class: numpy.random.RandomGenerator
-
-    blob: bool
-        If true we also keep track of blobs returned by likelihood
-
-    use_pool_ptform: bool or None
-        The flag to perform prior transform using multiprocessing pool or not
-
-    Returns
-    -------
-    (live_u, live_v, live_logl, blobs), logvol_init, ncalls : tuple
-        The first tuple consist of:
-        live_u Unit cube coordinates of points
-        live_v Original coordinates.
-        live_logl log-likelihood values of points
-        blobs - Array of blobs associated with logl calls (or None)
-        The other arguments are
-        logvol_init Log(volume) associated with returned points.
-               It will be zero, if all the log(l) values were finite
-        ncalls Integer number of function calls
-    """
-    logvol_init = 0
-    ncalls = 0
-    if live_points is None:
-        # If no live points are provided, propose them by randomly
-        # sampling from the unit cube.
-        n_attempts = 1000
-
-        min_npoints = min(nlive, max(ndim + 1, min(nlive - 20, 100)))
-        # the minimum number points we want with finite logl
-        # we want want at least ndim+1, because we want
-        # to be able to constraint the ellipsoid
-        # Note that if nlive <ndim+ 1 this doesn't really make sense
-        # but we should have warned the user earlier, so they are on their own
-        # And the reason we have max(ndim+1, X ) is that we'd like to get at
-        # least X points as otherwise the poisson estimate of the volume will
-        # be too large.
-        # The reason why X is min(nlive-20, 100) is that we want at least 100
-        # to have reasonable volume accuracy of ~ 10%
-        # and the reason for nlive-20 is because if nlive is 100, we don't want
-        # all points with finite logl, because this leads to issues with
-        # integrals and batch sampling in plateau edge tests
-        # The formula probably should be simplified
-
-        live_u = np.zeros((nlive, ndim))
-        live_v = np.zeros((nlive, ndim))
-        live_logl = np.zeros(nlive)
-        ngoods = 0  # counter for how many finite logl we have found
-        live_blobs = []
-        iattempt = 0
-        while True:
-            iattempt += 1
-
-            # simulate nlive points by uniform sampling
-            cur_live_u = rstate.random(size=(nlive, ndim))
-            if use_pool_ptform:
-                cur_live_v = M(prior_transform, np.asarray(cur_live_u))
-            else:
-                cur_live_v = map(prior_transform, np.asarray(cur_live_u))
-            cur_live_v = np.array(list(cur_live_v))
-            cur_live_logl = loglikelihood.map(np.asarray(cur_live_v))
-            if blob:
-                cur_live_blobs = np.array([_.blob for _ in cur_live_logl])
-            cur_live_logl = np.array([_.val for _ in cur_live_logl])
-            ncalls += nlive
-
-            # Convert all `-np.inf` log-likelihoods to finite large
-            # numbers. Necessary to keep estimators in our sampler from
-            # breaking.
-            finite = np.isfinite(cur_live_logl)
-            not_finite = ~finite
-            neg_infinite = np.isneginf(cur_live_logl)
-            if np.any(not_finite & (~neg_infinite)):
-                raise ValueError("The log-likelihood of live "
-                                 "point is invalid.")
-            cur_live_logl[not_finite] = _LOWL_VAL
-
-            # how many finite logl values we have
-            cur_ngood = finite.sum()
-            if cur_ngood > 0:
-                # append them to our list
-                nextra = min(nlive - ngoods, cur_ngood)
-                assert nextra >= 0
-                cur_ind = np.nonzero(finite)[0][:nextra]
-                live_logl[ngoods:ngoods + nextra] = cur_live_logl[cur_ind]
-                live_u[ngoods:ngoods + nextra] = cur_live_u[cur_ind]
-                live_v[ngoods:ngoods + nextra] = cur_live_v[cur_ind]
-                if blob:
-                    live_blobs.extend(cur_live_blobs[cur_ind])
-                ngoods += nextra
-
-            # Check if we have more than the minimum required number
-            # after that we will stop
-            if ngoods >= min_npoints:
-                # we need to fill the rest with points with
-                # not finite logl
-                nextra = nlive - ngoods
-                if nextra > 0:
-                    cur_ind = np.nonzero(not_finite)[0][:nextra]
-                    assert len(cur_ind) == nextra
-                    live_logl[ngoods:ngoods + nextra] = cur_live_logl[cur_ind]
-                    live_u[ngoods:ngoods + nextra] = cur_live_u[cur_ind]
-                    live_v[ngoods:ngoods + nextra] = cur_live_v[cur_ind]
-                    if blob:
-                        live_blobs.extend(cur_live_blobs[cur_ind])
-                logvol_init = -np.log(iattempt)
-                # The logic is the following:
-                # if we have n live points and we sampled N attempts
-                # and we have k points above LOWL_VAL
-                # then the volume associated with pts above LOWL_VAL
-                # can be estimated as k/(Nn)
-                # the rest of the points have 1/Nn volume per pt
-                # Since we quit with k points above LOWL_VAL and
-                # (n-k)  LOWL points
-                # The volume is k/(Nn) + (n-k)/(Nn) = 1/N
-                break
-            if iattempt == n_attempts:
-                if ngoods == 0:
-                    # If we found nothing after many attempts, raise the alarm.
-                    raise RuntimeError(
-                        f"After {n_attempts} attempts, we cound not "
-                        "find a single point "
-                        "that have a valid log-likelihood! Please "
-                        "check your prior transform and/or "
-                        "log-likelihood.")
-                else:
-                    # If we found nothing after many attempts, raise the alarm.
-                    warnings.warn(f"After {n_attempts} attempts, we cound not "
-                                  f"find at least {min_npoints} points "
-                                  "that have a valid log-likelihood! "
-                                  "The initial sampling is very inefficient!")
-
-    else:
-        # If live points were provided, convert the log-likelihoods and
-        # then run a quick safety check.
-        live_u, live_v, live_logl = live_points[:3]
-        if blob:
-            live_blobs = live_points[3]
-        live_logl = np.asarray(live_logl)
-        for i, logl in enumerate(live_logl):
-            if not np.isfinite(logl):
-                if np.sign(logl) < 0:
-                    live_logl[i] = _LOWL_VAL
-                else:
-                    raise ValueError("The log-likelihood ({0}) of live "
-                                     "point {1} located at u={2} v={3} "
-                                     " is invalid.".format(
-                                         logl, i, live_u[i], live_v[i]))
-        if np.all(live_logl == _LOWL_VAL):
-            raise ValueError("Not a single provided live point has a "
-                             "valid log-likelihood!")
-    if np.ptp(live_logl) == 0:
-        warnings.warn(
-            'All the initial likelihood values are the same. '
-            'You likely have a plateau in the likelihood. '
-            'Nested sampling may not be the best sampler in this case.',
-            RuntimeWarning)
-    if not blob:
-        live_blobs = None
-    return (live_u, live_v, live_logl, live_blobs), logvol_init, ncalls
 
 
 def _configure_batch_sampler(main_sampler,
@@ -608,22 +369,24 @@ def _configure_batch_sampler(main_sampler,
 
     # This will be a list of first points yielded from
     # this batch before we start proper sampling
-    batch_sampler = _SAMPLERS[main_sampler.bounding](
+    batch_sampler = Sampler(
         main_sampler.loglikelihood,
         main_sampler.prior_transform,
         main_sampler.ndim,
         main_sampler.live_init,  # this is not used at all
         # as we replace the starting points
-        main_sampler.method,
-        update_interval,
-        main_sampler.first_update,
-        main_sampler.rstate,
-        main_sampler.queue_size,
-        main_sampler.pool,
-        main_sampler.use_pool,
+        main_sampler.sampling,
+        main_sampler.bounding,
+        bound_update_interval=update_interval,
+        first_bound_update=main_sampler.first_bound_update,
+        rstate=main_sampler.rstate,
+        queue_size=main_sampler.queue_size,
+        pool=main_sampler.pool,
+        use_pool=main_sampler.use_pool,
         ncdim=main_sampler.ncdim,
-        kwargs=main_sampler.kwargs,
-        blob=main_sampler.blob)
+        blob=main_sampler.blob,
+        bound_bootstrap=main_sampler.bound_bootstrap,
+        bound_enlarge=main_sampler.bound_enlarge)
     batch_sampler.save_bounds = save_bounds
     batch_sampler.logl_first_update = main_sampler.sampler.logl_first_update
 
@@ -656,7 +419,7 @@ def _configure_batch_sampler(main_sampler,
              None,
              main_sampler.prior_transform,
              main_sampler.loglikelihood,
-             main_sampler.M,
+             main_sampler.mapper,
              nlive=nlive_new,
              ndim=main_sampler.ndim,
              rstate=main_sampler.rstate,
@@ -685,6 +448,8 @@ def _configure_batch_sampler(main_sampler,
         batch_sampler.update_bound_if_needed(logl_min)
         # Trigger an update of the internal bounding distribution based
         # on the "new" set of live points.
+        # That should force the switch from UnitCube bound to
+        # Proper bound
     else:
         # If the lower bound doesn't encompass all base samples,
         # we need to create a uniform sample from the prior subject
@@ -769,7 +534,7 @@ def _configure_batch_sampler(main_sampler,
         batch_sampler.live_u = live_u
         batch_sampler.live_v = live_v
         batch_sampler.live_logl = live_logl
-        batch_sampler.scale = live_scale
+        batch_sampler.internal_sampler.scale = live_scale
         batch_sampler.live_blobs = live_blobs
 
         batch_sampler.update_bound_if_needed(logl_min)
@@ -876,7 +641,7 @@ class DynamicSampler:
         propose new live points.
 
     method : {`'unif'`, `'rwalk'`,
-        `'slice'`, `'rslice'`, `'hslice'`}, optional
+        `'slice'`, `'rslice'`}, optional
         Method used to sample uniformly within the likelihood constraint,
         conditioned on the provided bounds.
 
@@ -913,35 +678,44 @@ class DynamicSampler:
         A dictionary of additional parameters (described below).
     """
 
-    def __init__(self, loglikelihood, prior_transform, ndim, bound, method,
-                 update_interval_ratio, first_update, rstate, queue_size, pool,
-                 use_pool, ncdim, nlive0, kwargs):
+    def __init__(self,
+                 loglikelihood,
+                 prior_transform,
+                 ndim,
+                 sampling,
+                 bounding,
+                 nlive0=None,
+                 ncdim=None,
+                 rstate=None,
+                 pool=None,
+                 use_pool=None,
+                 queue_size=None,
+                 bound_update_interval_ratio=None,
+                 first_bound_update=None,
+                 bound_bootstrap=None,
+                 bound_enlarge=None,
+                 blob=None,
+                 cite=None):
 
         # distributions
         self.loglikelihood = loglikelihood
         self.prior_transform = prior_transform
         self.ndim = ndim
         self.ncdim = ncdim
-        self.blob = kwargs.get('blob') or False
+        self.blob = blob or False
         # bounding/sampling
-        self.bounding = bound
-        self.method = method
-        self.update_interval_ratio = update_interval_ratio
-        self.first_update = first_update
+        self.bounding = bounding
+        self.sampling = sampling
+        self.bound_update_interval_ratio = bound_update_interval_ratio
+        self.first_bound_update = first_bound_update
 
         # internal sampler object
         self.sampler = None
 
-        # extra arguments
-        self.kwargs = kwargs
+        self.bound_enlarge, self.bound_bootstrap = bound_enlarge, bound_bootstrap
 
-        self.enlarge, self.bootstrap = get_enlarge_bootstrap(
-            method, kwargs.get('enlarge'), kwargs.get('bootstrap'))
-
-        self.walks = self.kwargs.get('walks', 25)
-        self.slices = self.kwargs.get('slices', 3)
-        self.cite = self.kwargs.get('cite')
-        self.custom_update = self.kwargs.get('update_func')
+        # TODO FIX
+        # self.cite = self.kwargs.get('cite')
 
         # random state
         self.rstate = rstate
@@ -950,9 +724,9 @@ class DynamicSampler:
         self.queue_size = queue_size
         self.pool = pool
         if self.pool is None:
-            self.M = map
+            self.mapper = map
         else:
-            self.M = pool.map
+            self.mapper = pool.map
 
         self.use_pool = use_pool  # provided flags for when to use the pool
         self.use_pool_ptform = use_pool.get('prior_transform', True)
@@ -965,7 +739,7 @@ class DynamicSampler:
         self.it = 1  # number of iterations
         self.batch = 0  # number of batches allocated dynamically
         self.ncall = 0  # number of function calls
-        self.bound = []  # initial states used to compute bounds
+        self.bound_list = []  # initial states used to compute bounds
         self.eff = 1.  # sampling efficiency
         self.base = False  # base run complete
         self.nlive0 = nlive0
@@ -992,10 +766,12 @@ class DynamicSampler:
         # preserve the timer betweeen batch calls
         self.live_blobs = None
 
+        self.cite = cite
+
     def __setstate__(self, state):
         self.__dict__ = state
         self.pool = None
-        self.M = map
+        self.mapper = map
 
     def __getstate__(self):
         """Get state information for pickling."""
@@ -1004,7 +780,7 @@ class DynamicSampler:
 
         # deal with pool
         del state['pool']  # remove pool
-        del state['M']  # remove `pool.map` function hook
+        del state['mapper']  # remove `pool.map` function hook
 
         return state
 
@@ -1040,19 +816,18 @@ class DynamicSampler:
         return restore_sampler(fname, pool=pool)
 
     def __get_update_interval(self, update_interval, nlive):
-        if not isinstance(update_interval, int):
-            if isinstance(update_interval, float):
-                cur_update_interval_ratio = update_interval
-            elif update_interval is None:
-                cur_update_interval_ratio = self.update_interval_ratio
-            else:
-                raise RuntimeError(
-                    str.format('Weird update_interval value {}',
-                               update_interval))
-            update_interval = int(
-                max(
-                    min(np.round(cur_update_interval_ratio * nlive),
-                        sys.maxsize), 1))
+        if update_interval is None:
+            cur_update_interval_ratio = self.bound_update_interval_ratio
+        elif isinstance(update_interval, int):
+            cur_update_interval_ratio = update_interval / nlive
+        elif isinstance(update_interval, float):
+            cur_update_interval_ratio = update_interval
+        else:
+            raise RuntimeError(
+                str.format('Weird update_interval value {}', update_interval))
+        update_interval = int(
+            max(min(np.round(cur_update_interval_ratio * nlive), sys.maxsize),
+                1))
         return update_interval
 
     def reset(self):
@@ -1100,7 +875,7 @@ class DynamicSampler:
 
         # Add any saved bounds (and ancillary quantities) to the results.
         if self.sampler.save_bounds:
-            results.append(('bound', copy.deepcopy(self.bound)))
+            results.append(('bound', copy.deepcopy(self.bound_list)))
             results.append(
                 ('bound_iter', np.array(self.saved_run['bounditer'])))
             results.append(
@@ -1133,7 +908,8 @@ class DynamicSampler:
 
         """
 
-        return self.cite
+        # TODO REMOVE
+        return []  ## self.cite
 
     def sample_initial(self,
                        nlive=None,
@@ -1143,9 +919,7 @@ class DynamicSampler:
                        maxcall=None,
                        logl_max=np.inf,
                        dlogz=0.01,
-                       n_effective=np.inf,
                        live_points=None,
-                       save_samples=False,
                        resume=False):
         """
         Generate a series of initial samples from a nested sampling
@@ -1194,9 +968,6 @@ class DynamicSampler:
         logl_max : float, optional
             Iteration will stop when the sampled ln(likelihood) exceeds the
             threshold set by `logl_max`. Default is no bound (`np.inf`).
-
-        n_effective: int, optional
-            This option is deprecated and will be removed in a future release.
 
         live_points: list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
             and optionally list of blobs associated with these likelihood calls
@@ -1261,21 +1032,9 @@ class DynamicSampler:
             current evidence.
 
         """
-
-        # Check for deprecated options
-        if n_effective is not np.inf:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("once")
-                warnings.warn(
-                    "The n_effective option to DynamicSampler.sample_initial "
-                    "is deprecated and will be removed in future releases",
-                    DeprecationWarning)
-
         # Initialize inputs.
-        if maxcall is None:
-            maxcall = sys.maxsize
-        if maxiter is None:
-            maxiter = sys.maxsize
+        maxcall = maxcall or sys.maxsize
+        maxiter = maxiter or sys.maxsize
         nlive = nlive or self.nlive0
         update_interval = self.__get_update_interval(update_interval, nlive)
         if nlive <= 2 * self.ncdim:
@@ -1290,7 +1049,7 @@ class DynamicSampler:
                  live_points,
                  self.prior_transform,
                  self.loglikelihood,
-                 self.M,
+                 self.mapper,
                  nlive=nlive,
                  ndim=self.ndim,
                  rstate=self.rstate,
@@ -1314,28 +1073,35 @@ class DynamicSampler:
             bounding = self.bounding
 
             if first_update is None:
-                first_update = self.first_update
-            self.sampler = _SAMPLERS[bounding](self.loglikelihood,
-                                               self.prior_transform,
-                                               self.ndim,
-                                               self.live_init,
-                                               self.method,
-                                               update_interval,
-                                               first_update,
-                                               self.rstate,
-                                               self.queue_size,
-                                               self.pool,
-                                               self.use_pool,
-                                               ncdim=self.ncdim,
-                                               kwargs=self.kwargs,
-                                               blob=self.blob,
-                                               logvol_init=logvol_init)
-            self.bound = self.sampler.bound
+                first_update = self.first_bound_update
+            if update_interval is None:
+                update_interval = self.bound_update_interval_ratio
+            else:
+                update_interval = self.__get_update_interval(
+                    update_interval, nlive)
+
+            self.sampler = Sampler(self.loglikelihood,
+                                   self.prior_transform,
+                                   self.ndim,
+                                   self.live_init,
+                                   self.sampling,
+                                   bounding,
+                                   bound_update_interval=update_interval,
+                                   first_bound_update=first_update,
+                                   rstate=self.rstate,
+                                   queue_size=self.queue_size,
+                                   pool=self.pool,
+                                   use_pool=self.use_pool,
+                                   ncdim=self.ncdim,
+                                   bound_bootstrap=self.bound_bootstrap,
+                                   bound_enlarge=self.bound_enlarge,
+                                   blob=self.blob,
+                                   logvol_init=logvol_init)
+            self.bound_list = self.sampler.bound_list
             self.internal_state = DynamicSamplerStatesEnum.LIVEPOINTSINIT
             # Run the sampler internally as a generator.
         for it, results in enumerate(
                 self.sampler.sample(maxiter=maxiter,
-                                    save_samples=save_samples,
                                     maxcall=maxcall,
                                     logl_max=logl_max,
                                     dlogz=dlogz,
@@ -1358,7 +1124,7 @@ class DynamicSampler:
                             blob=results.blob,
                             boundidx=results.boundidx,
                             bounditer=results.bounditer,
-                            scale=self.sampler.scale)
+                            scale=self.sampler.internal_sampler.scale)
 
             self.base_run.append(add_info)
             self.saved_run.append(add_info)
@@ -1403,7 +1169,7 @@ class DynamicSampler:
                             n=self.nlive_init - it,
                             boundidx=results.boundidx,
                             bounditer=results.bounditer,
-                            scale=self.sampler.scale)
+                            scale=self.sampler.internal_sampler.scale)
 
             self.base_run.append(add_info)
             self.saved_run.append(add_info)
@@ -1557,7 +1323,7 @@ class DynamicSampler:
             # This is not actually correct, and because of that
             # the bounds from base run or added batches are lost
             # Ideally bounds need to be saved somehow not just overwritten
-            self.bound = self.batch_sampler.bound
+            self.bound_list = self.batch_sampler.bound_list
 
             self.new_logl_min, self.new_logl_max = logl_min, logl_max
             # Reset "new" results.
@@ -1597,7 +1363,6 @@ class DynamicSampler:
                                      logl_max=logl_max,
                                      maxiter=maxiter_left,
                                      maxcall=maxcall_left,
-                                     save_samples=True,
                                      save_bounds=save_bounds,
                                      resume=resume)):
             # Save results.
@@ -1611,7 +1376,7 @@ class DynamicSampler:
                      n=nlive_new,
                      boundidx=results.boundidx,
                      bounditer=results.bounditer,
-                     scale=batch_sampler.scale)
+                     scale=batch_sampler.internal_sampler.scale)
             self.new_run.append(D)
             # Increment relevant counters.
             self.ncall += results.nc
@@ -1660,7 +1425,7 @@ class DynamicSampler:
                      blob=results.blob,
                      boundidx=results.boundidx,
                      bounditer=results.bounditer,
-                     scale=batch_sampler.scale)
+                     scale=batch_sampler.internal_sampler.scale)
             self.new_run.append(D)
 
             # Increment relevant counters.
@@ -1827,7 +1592,6 @@ class DynamicSampler:
                    maxcall_init=None,
                    dlogz_init=0.01,
                    logl_max_init=np.inf,
-                   n_effective_init=np.inf,
                    nlive_batch=None,
                    wt_function=None,
                    wt_kwargs=None,
@@ -1884,13 +1648,6 @@ class DynamicSampler:
         logl_max_init : float, optional
             The baseline run will stop when the sampled ln(likelihood) exceeds
             this threshold. Default is no bound (`np.inf`).
-
-        n_effective_init: int, optional
-            Minimum number of effective posterior samples needed during the
-            baseline run. If the estimated "effective sample size" (ESS)
-            exceeds this number, sampling will terminate.
-            Default is no ESS (`np.inf`).
-            This option is deprecated and will be removed in a future release.
 
         nlive_batch : int, optional
             The number of live points used when adding additional samples
@@ -1988,34 +1745,17 @@ class DynamicSampler:
             the internal state of the sampler
         """
 
-        # Check for deprecated options
-        if n_effective_init is not np.inf:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("once")
-                warnings.warn(
-                    "The n_effective_init option to DynamicSampler.run_nested "
-                    "is deprecated and will be removed in future releases",
-                    DeprecationWarning)
-
         # Initialize values.
-        if maxcall is None:
-            maxcall = sys.maxsize
-        if maxiter is None:
-            maxiter = sys.maxsize
-        if maxiter_batch is None:
-            maxiter_batch = sys.maxsize
-        if maxcall_batch is None:
-            maxcall_batch = sys.maxsize
-        if maxbatch is None:
-            maxbatch = sys.maxsize
-        if maxiter_init is None:
-            maxiter_init = sys.maxsize
-        if maxcall_init is None:
-            maxcall_init = sys.maxsize
-        if wt_function is None:
-            wt_function = weight_function
-        if wt_kwargs is None:
-            wt_kwargs = {}
+        maxcall = sys.maxsize if maxcall is None else maxcall
+        maxiter = sys.maxsize if maxiter is None else maxiter
+        maxiter_batch = sys.maxsize if maxiter_batch is None else maxiter_batch
+        maxcall_batch = sys.maxsize if maxcall_batch is None else maxcall_batch
+        maxbatch = sys.maxsize if maxbatch is None else maxbatch
+        maxiter_init = sys.maxsize if maxiter_init is None else maxiter_init
+        maxcall_init = sys.maxsize if maxcall_init is None else maxcall_init
+        wt_function = wt_function or weight_function
+        wt_kwargs = {} if wt_kwargs is None else wt_kwargs
+
         if stop_function is None:
             default_stop_function = True
             stop_function = stopping_function
@@ -2052,16 +1792,13 @@ This is not supported. No sampling was performed""", RuntimeWarning)
         self.checkpoint_timer = DelayTimer(checkpoint_every)
         try:
             if not self.base:
-                for results in self.sample_initial(
-                        nlive=nlive_init,
-                        dlogz=dlogz_init,
-                        maxcall=maxcall_init,
-                        maxiter=maxiter_init,
-                        logl_max=logl_max_init,
-                        live_points=live_points,
-                        n_effective=n_effective_init,
-                        resume=resume,
-                        save_samples=True):
+                for results in self.sample_initial(nlive=nlive_init,
+                                                   dlogz=dlogz_init,
+                                                   maxcall=maxcall_init,
+                                                   maxiter=maxiter_init,
+                                                   logl_max=logl_max_init,
+                                                   live_points=live_points,
+                                                   resume=resume):
                     if resume:
                         resume = False
                     ncall += results.nc
@@ -2085,13 +1822,13 @@ This is not supported. No sampling was performed""", RuntimeWarning)
                 miter = min(maxiter - niter, maxiter_batch)
                 if mcall > 0 and miter > 0 and use_stop:
                     if self.use_pool_stopfn:
-                        M = self.M
+                        mapper = self.mapper
                     else:
-                        M = map
+                        mapper = map
                     stop, stop_vals = stop_function(res,
                                                     stop_kwargs,
                                                     rstate=self.rstate,
-                                                    M=M,
+                                                    mapper=mapper,
                                                     return_vals=True)
                     stop_val = stop_vals[2]
                 else:
@@ -2235,11 +1972,11 @@ This is not supported. No sampling was performed""", RuntimeWarning)
         """
 
         # Initialize values.
-        maxcall = maxcall or sys.maxsize
-        maxiter = maxiter or sys.maxsize
+        maxcall = sys.maxsize if maxcall is None else maxcall
+        maxiter = sys.maxsize if maxiter is None else maxiter
         wt_function = wt_function or weight_function
         wt_kwargs = wt_kwargs or {}
-        stop_val = stop_val or np.nan
+        stop_val = np.nan if stop_val is None else stop_val
 
         res = self.results
 

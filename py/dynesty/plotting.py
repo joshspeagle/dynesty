@@ -1618,7 +1618,7 @@ def boundplot(results,
         raise ValueError("No bounds were saved in the results!")
     nsamps = len(results['samples'])
 
-    nonbounded = get_nonbounded(bounds[0].n, periodic, reflective)
+    nonbounded = get_nonbounded(bounds[0].ndim, periodic, reflective)
 
     if it is not None:
         if it >= nsamps:
@@ -1739,7 +1739,8 @@ def boundplot(results,
                 raise ValueError("Live point tracking currently not "
                                  "implemented for dynamic sampling results.")
         # Draw samples.
-        psamps = bound.samples(ndraws, live_u, rstate=rstate)
+        bound.ctrs = live_u
+        psamps = bound.samples(ndraws, rstate=rstate)
 
     # Projecting samples to input dimensions and possibly
     # the native model space.
@@ -1938,7 +1939,7 @@ def cornerbound(results,
     if ndim == 1:
         raise ValueError('cornerbound does not work for 1-D posteriors')
 
-    nonbounded = get_nonbounded(bounds[0].n, periodic, reflective)
+    nonbounded = get_nonbounded(bounds[0].ndim, periodic, reflective)
 
     if it is not None:
         if it >= nsamps:
@@ -2059,7 +2060,8 @@ def cornerbound(results,
                 uidx = samples_id[r]
                 live_u[uidx] = samples[r]
         # Draw samples.
-        psamps = bound.samples(ndraws, live_u, rstate=rstate)
+        bound.ctrs = live_u
+        psamps = bound.samples(ndraws, rstate=rstate)
 
     # Projecting samples to input dimensions and possibly
     # the native model space.

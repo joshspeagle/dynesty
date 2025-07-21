@@ -12,18 +12,249 @@ import math
 import copy
 import numpy as np
 from .results import Results, print_fn
-from .bounding import UnitCube
-from .sampling import sample_unif, SamplerArgument
+from .sampling import (UniformBoundSampler, RSliceSampler, SliceSampler,
+                       RWalkSampler, UnitCubeSampler, InternalSampler)
 from .utils import (get_seed_sequence, get_print_func, progress_integration,
                     IteratorResult, RunRecord, get_neff_from_logwt,
-                    compute_integrals, DelayTimer, _LOWL_VAL)
+                    compute_integrals, DelayTimer, _LOWL_VAL,
+                    get_random_generator)
+
+from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
+                       SupFriends, Bound, BOUND_LIST)
+from .utils import (get_enlarge_bootstrap, save_sampler, restore_sampler)
 
 __all__ = ["Sampler"]
+
+
+def _get_bound(bounding, ndim):
+    if isinstance(bounding, str):
+        if bounding not in BOUND_LIST:
+            raise ValueError('Unsupported bounding type')
+    elif isinstance(bounding, Bound):
+        pass
+    else:
+        raise ValueError('Unsupported bounding type')
+
+    if bounding == 'none':
+        bound = UnitCube(ndim)
+    elif bounding == 'single':
+        bound = Ellipsoid(ndim)
+        # this is ellipsoid in the center of the cube that contains
+        # the whole cube
+    elif bounding == 'multi':
+        bound = MultiEllipsoid(ndim)
+        # this is ellipsoid in the center of the cube that contains
+        # the whole cube
+    elif bounding == 'balls':
+        bound = RadFriends(ndim)
+    elif bounding == 'cubes':
+        bound = SupFriends(ndim)
+    else:
+        bound = bounding
+    return bound
+
+
+def _initialize_live_points(live_points,
+                            prior_transform,
+                            loglikelihood,
+                            mapper,
+                            nlive=None,
+                            ndim=None,
+                            rstate=None,
+                            blob=False,
+                            use_pool_ptform=None):
+    """
+    Initialize the first set of live points before starting the sampling
+
+    Parameters
+    ----------
+    live_points: tuple of arrays or None
+        This can be either none or
+        tuple of 3 arrays (u, v, logl) or
+        tuple of 4 arrays (u, v, logl, blobs), i.e.
+        points location in cube coordinates,
+        point slocation in original coordinates,
+        logl values and optionally blobs associated
+
+    prior_transform: function
+
+    log_likelihood: function
+
+    mapper: function
+        The function supporting parallel calls like mapper(func, list)
+
+    nlive: int
+        Number of live-points
+
+    ndim: int
+        Number of dimensions
+
+    rstate: :class: numpy.random.RandomGenerator
+
+    blob: bool
+        If true we also keep track of blobs returned by likelihood
+
+    use_pool_ptform: bool or None
+        The flag to perform prior transform using multiprocessing pool or not
+
+    Returns
+    -------
+    (live_u, live_v, live_logl, blobs), logvol_init, ncalls : tuple
+        The first tuple consist of:
+        live_u Unit cube coordinates of points
+        live_v Original coordinates.
+        live_logl log-likelihood values of points
+        blobs - Array of blobs associated with logl calls (or None)
+        The other arguments are
+        logvol_init Log(volume) associated with returned points.
+               It will be zero, if all the log(l) values were finite
+        ncalls Integer number of function calls
+    """
+    logvol_init = 0
+    ncalls = 0
+    if live_points is None:
+        # If no live points are provided, propose them by randomly
+        # sampling from the unit cube.
+        n_attempts = 1000
+
+        min_npoints = min(nlive, max(ndim + 1, min(nlive - 20, 100)))
+        # the minimum number points we want with finite logl
+        # we want want at least ndim+1, because we want
+        # to be able to constraint the ellipsoid
+        # Note that if nlive <ndim+ 1 this doesn't really make sense
+        # but we should have warned the user earlier, so they are on their own
+        # And the reason we have max(ndim+1, X ) is that we'd like to get at
+        # least X points as otherwise the poisson estimate of the volume will
+        # be too large.
+        # The reason why X is min(nlive-20, 100) is that we want at least 100
+        # to have reasonable volume accuracy of ~ 10%
+        # and the reason for nlive-20 is because if nlive is 100, we don't want
+        # all points with finite logl, because this leads to issues with
+        # integrals and batch sampling in plateau edge tests
+        # The formula probably should be simplified
+
+        live_u = np.zeros((nlive, ndim))
+        live_v = np.zeros((nlive, ndim))
+        live_logl = np.zeros(nlive)
+        ngoods = 0  # counter for how many finite logl we have found
+        live_blobs = []
+        iattempt = 0
+        while True:
+            iattempt += 1
+
+            # simulate nlive points by uniform sampling
+            cur_live_u = rstate.random(size=(nlive, ndim))
+            if use_pool_ptform:
+                cur_live_v = mapper(prior_transform, np.asarray(cur_live_u))
+            else:
+                cur_live_v = map(prior_transform, np.asarray(cur_live_u))
+            cur_live_v = np.array(list(cur_live_v))
+            cur_live_logl = loglikelihood.map(np.asarray(cur_live_v))
+            if blob:
+                cur_live_blobs = np.array([_.blob for _ in cur_live_logl])
+            cur_live_logl = np.array([_.val for _ in cur_live_logl])
+            ncalls += nlive
+
+            # Convert all `-np.inf` log-likelihoods to finite large
+            # numbers. Necessary to keep estimators in our sampler from
+            # breaking.
+            finite = np.isfinite(cur_live_logl)
+            not_finite = ~finite
+            neg_infinite = np.isneginf(cur_live_logl)
+            if np.any(not_finite & (~neg_infinite)):
+                raise ValueError("The log-likelihood of live "
+                                 "point is invalid.")
+            cur_live_logl[not_finite] = _LOWL_VAL
+
+            # how many finite logl values we have
+            cur_ngood = finite.sum()
+            if cur_ngood > 0:
+                # append them to our list
+                nextra = min(nlive - ngoods, cur_ngood)
+                assert nextra >= 0
+                cur_ind = np.nonzero(finite)[0][:nextra]
+                live_logl[ngoods:ngoods + nextra] = cur_live_logl[cur_ind]
+                live_u[ngoods:ngoods + nextra] = cur_live_u[cur_ind]
+                live_v[ngoods:ngoods + nextra] = cur_live_v[cur_ind]
+                if blob:
+                    live_blobs.extend(cur_live_blobs[cur_ind])
+                ngoods += nextra
+
+            # Check if we have more than the minimum required number
+            # after that we will stop
+            if ngoods >= min_npoints:
+                # we need to fill the rest with points with
+                # not finite logl
+                nextra = nlive - ngoods
+                if nextra > 0:
+                    cur_ind = np.nonzero(not_finite)[0][:nextra]
+                    assert len(cur_ind) == nextra
+                    live_logl[ngoods:ngoods + nextra] = cur_live_logl[cur_ind]
+                    live_u[ngoods:ngoods + nextra] = cur_live_u[cur_ind]
+                    live_v[ngoods:ngoods + nextra] = cur_live_v[cur_ind]
+                    if blob:
+                        live_blobs.extend(cur_live_blobs[cur_ind])
+                logvol_init = -np.log(iattempt)
+                # The logic is the following:
+                # if we have n live points and we sampled N attempts
+                # and we have k points above LOWL_VAL
+                # then the volume associated with pts above LOWL_VAL
+                # can be estimated as k/(Nn)
+                # the rest of the points have 1/Nn volume per pt
+                # Since we quit with k points above LOWL_VAL and
+                # (n-k)  LOWL points
+                # The volume is k/(Nn) + (n-k)/(Nn) = 1/N
+                break
+            if iattempt == n_attempts:
+                if ngoods == 0:
+                    # If we found nothing after many attempts, raise the alarm.
+                    raise RuntimeError(
+                        f"After {n_attempts} attempts, we could not "
+                        "find a single point "
+                        "that have a valid log-likelihood! Please "
+                        "check your prior transform and/or "
+                        "log-likelihood.")
+                else:
+                    # If we found nothing after many attempts, raise the alarm.
+                    warnings.warn(f"After {n_attempts} attempts, we cound not "
+                                  f"find at least {min_npoints} points "
+                                  "that have a valid log-likelihood! "
+                                  "The initial sampling is very inefficient!")
+
+    else:
+        # If live points were provided, convert the log-likelihoods and
+        # then run a quick safety check.
+        live_u, live_v, live_logl = live_points[:3]
+        if blob:
+            live_blobs = live_points[3]
+        live_logl = np.asarray(live_logl)
+        for i, logl in enumerate(live_logl):
+            if not np.isfinite(logl):
+                if np.sign(logl) < 0:
+                    live_logl[i] = _LOWL_VAL
+                else:
+                    raise ValueError("The log-likelihood ({0}) of live "
+                                     "point {1} located at u={2} v={3} "
+                                     " is invalid.".format(
+                                         logl, i, live_u[i], live_v[i]))
+        if np.all(live_logl == _LOWL_VAL):
+            raise ValueError("Not a single provided live point has a "
+                             "valid log-likelihood!")
+    if np.ptp(live_logl) == 0:
+        warnings.warn(
+            'All the initial likelihood values are the same. '
+            'You likely have a plateau in the likelihood. '
+            'Nested sampling may not be the best sampler in this case.',
+            RuntimeWarning)
+    if not blob:
+        live_blobs = None
+    return (live_u, live_v, live_logl, live_blobs), logvol_init, ncalls
 
 
 class Sampler:
     """
     The basic sampler object that performs the actual nested sampling.
+    It is used for the initial sampling and also for each batch.
 
     Parameters
     ----------
@@ -38,12 +269,15 @@ class Sampler:
     ndim : int, optional
         Number of parameters accepted by `prior_transform`.
 
-    live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
-        Initial set of "live" points. Contains `live_u`, the coordinates
-        on the unit cube, `live_v`, the transformed variables, and
-        `live_logl`, the associated loglikelihoods.
+    live_points : list of 3 or 4 `~numpy.ndarray`
+        Each with shape (nlive, ndim) for the first three arrays.
+        If `blob=True`, a fourth array of blobs (arbitrary shape) may be included.
 
-    update_interval : int
+    sampling : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`}
+        Sampling Method used to sample uniformly within the likelihood
+        constraint, conditioned on the provided bounds.
+
+    bound_update_interval : int
         Only update the bounding distribution every `update_interval`-th
         likelihood call.
 
@@ -66,6 +300,20 @@ class Sampler:
         A dictionary containing flags indicating where the provided `pool`
         should be used to execute operations in parallel.
 
+    kwargs : dict, optional
+        A dictionary of additional parameters.
+
+    ncdim: int, optional
+        The number of clustering dimensions. The first ncdim dimensions
+        will be sampled using the sampling method, the remaining
+        dimensions will
+        just sample uniformly from the prior distribution.
+        If this is `None` (default), this will default to ndim.
+
+    logvol_init: float, optional
+        The initial log of volume when starting sampling. This is relevant
+        when the log(L) is finite only within a fraction of prior volume.
+
     """
 
     def __init__(self,
@@ -73,21 +321,26 @@ class Sampler:
                  prior_transform,
                  ndim,
                  live_points,
-                 update_interval,
-                 first_update,
-                 rstate,
-                 queue_size,
-                 pool,
-                 use_pool,
-                 ncdim,
-                 logvol_init=0,
-                 blob=False):
+                 sampling,
+                 bounding,
+                 ncdim=None,
+                 rstate=None,
+                 pool=None,
+                 use_pool=None,
+                 queue_size=None,
+                 bound_update_interval=None,
+                 first_bound_update=None,
+                 bound_bootstrap=None,
+                 bound_enlarge=None,
+                 blob=False,
+                 cite=None,
+                 logvol_init=0):
 
         # distributions
         self.loglikelihood = loglikelihood
         self.prior_transform = prior_transform
         self.ndim = ndim
-        self.ncdim = ncdim
+        self.ncdim = ncdim or ndim
         self.blob = blob
         # live points
         self.live_u, self.live_v, self.live_logl = live_points[:3]
@@ -100,32 +353,32 @@ class Sampler:
         self.live_it = np.zeros(self.nlive, dtype=int)
 
         # random state
-        self.rstate = rstate
-
-        # set to none just for qa
-        self.scale = None
-        self.method = None
-        self.kwargs = {}
+        self.rstate = rstate or get_random_generator()
+        self.sampling = sampling
+        # This is the sampler that will be used to sample after we
+        # are done with the unit cube sampling
+        self.internal_sampler_next = sampling
+        self.internal_sampler = UnitCubeSampler(ndim=ndim)
 
         # parallelism
         self.pool = pool  # provided pool
         if self.pool is None:
-            self.M = map
+            self.mapper = map
         else:
-            self.M = pool.map
-        self.use_pool = use_pool  # provided flags for when to use the pool
+            self.mapper = pool.map
+        self.use_pool = use_pool or {
+        }  # provided flags for when to use the pool
         self.use_pool_ptform = use_pool.get('prior_transform', True)
         self.use_pool_logl = use_pool.get('loglikelihood', True)
         self.use_pool_evolve = use_pool.get('propose_point', True)
         self.use_pool_update = use_pool.get('update_bound', True)
+
         if self.use_pool_evolve:
             self.queue_size = queue_size  # size of the queue
         else:
             self.queue_size = 1
         self.queue = []  # proposed live point queue
         self.nqueue = 0  # current size of the queue
-        self.unused = 0  # total number of proposals unused
-        self.used = 0  # total number of proposals used
 
         # sampling
         self.it = 1  # current iteration
@@ -134,53 +387,125 @@ class Sampler:
         self.added_live = False  # whether leftover live points were used
         self.eff = 0.  # overall sampling efficiency
         self.cite = ''  # Default empty
-        self.save_samples = True
         self.save_bounds = True
 
         # bounding updates
-        self.bound_update_interval = update_interval
-        self.first_bound_update_ncall = first_update.get(
+        self.bound_update_interval = bound_update_interval
+        self.first_bound_update_ncall = first_bound_update.get(
             'min_ncall', 2 * self.nlive)
-        self.first_bound_update_eff = first_update.get('min_eff', 10.)
+        self.first_bound_update_eff = first_bound_update.get('min_eff', 10.)
         self.logl_first_update = None
-        self.unit_cube_sampling = True
-        self.bound = [UnitCube(self.ncdim)]  # bounding distributions
-        self.nbound = 1  # total number of unique bounding distributions
         self.ncall_at_last_update = 0
+
+        self.unit_cube_sampling = True
+        self.bound = UnitCube(self.ncdim)
+        self.bound_list = [self.bound]  # bounding distributions
+        self.nbound = 1  # total number of unique bounding distributions
 
         self.logvol_init = logvol_init
 
         self.plateau_mode = False
         self.plateau_counter = None
         self.plateau_logdvol = None
+
         # results
         self.saved_run = RunRecord()
 
+        # self.cite = self.kwargs.get('cite')
+        self.bound_bootstrap = bound_bootstrap
+        self.bound_enlarge = bound_enlarge
+
+        self.bounding = bounding
+        self.bound_next = _get_bound(bounding, ndim)
+        # the reason I do not set it as self.bound
+        # because we start from unit cube
+
+        self.cite = cite
+
     def save(self, fname):
-        raise RuntimeError('Should be overriden')
+        """
+        Save the state of the dynamic sampler in a file
 
-    def propose_point(self, *args):
-        raise RuntimeError('Should be overriden')
+        Parameters
+        ----------
+        fname: string
+            Filename of the save file.
 
-    def evolve_point(self, *args):
-        raise RuntimeError('Should be overriden')
+        """
+        save_sampler(self, fname)
 
-    def update_proposal(self, *args, **kwargs):
-        raise RuntimeError('Should be overriden')
+    @staticmethod
+    def restore(fname, pool=None):
+        """
+        Restore the dynamic sampler from a file.
+        It is assumed that the file was created using .save() method
+        of DynamicNestedSampler or as a result of checkpointing during
+        run_nested()
 
-    def update(self, subset=None):
-        raise RuntimeError('Should be overriden')
+        Parameters
+        ----------
+        fname: string
+            Filename of the save file.
+        pool: object(optional)
+            The multiprocessing pool-like object that supports map()
+            calls that will be used in the restored object.
+
+        """
+        return restore_sampler(fname, pool=pool)
+
+    def propose_live(self, *args):
+        """Return a live point/axes to be used by other sampling methods.
+           If args is not empty, it contains the subset of indices of points to
+           sample from."""
+
+        if len(args) > 0:
+            i = self.rstate.choice(args[0])
+        else:
+            i = self.rstate.integers(self.nlive)
+        u = self.live_u[i, :]
+        ax = self.bound.get_random_axes(self.rstate)
+        u_fit = u[:self.ncdim]
+        if self.bound.need_centers:
+            self.bound.ctrs = self.live_u
+        # Automatically trigger an update if we're not in any ellipsoid.
+        if not self.bound.contains(u_fit):
+            # Update the bounding ellipsoids.
+            self.update_bound_if_needed(-np.inf, force=True)
+            # Check for ellipsoid overlap (again).
+            if not self.bound.contains(u_fit):
+                raise RuntimeError('Update of the ellipsoid failed')
+
+        return u, ax
+
+    def update_bound(self, subset=slice(None)):
+        """Update the bounds using the current set of
+        live points."""
+
+        # Check if we should use the provided pool for updating.
+        if self.use_pool_update:
+            pool = self.pool
+        else:
+            pool = None
+        self.bound.update(self.live_u[subset, :self.ncdim],
+                          rstate=self.rstate,
+                          bootstrap=self.bound_bootstrap,
+                          pool=pool)
+        if self.bound_enlarge != 1.:
+            self.bound.scale_to_logvol(self.bound.logvol +
+                                       np.log(self.bound_enlarge))
+
+        return copy.deepcopy(self.bound)
 
     def __setstate__(self, state):
         self.__dict__ = state
         self.pool = None
-        self.M = map
+        self.mapper = map
 
     def __getstate__(self):
         """Get state information for pickling."""
 
         state = self.__dict__.copy()
-        for k in ['M', 'pool']:
+        for k in ['mapper', 'pool']:
             if k in state:
                 del state[k]
         return state
@@ -188,32 +513,31 @@ class Sampler:
     def reset(self):
         """Re-initialize the sampler."""
 
-        # live points
-        self.live_u = self.rstate.random(size=(self.nlive, self.ndim))
-        if self.use_pool_ptform:
-            # Use the pool to compute the prior transform.
-            self.live_v = np.array(
-                list(self.M(self.prior_transform, np.asarray(self.live_u))))
-        else:
-            # Compute the prior transform using the default `map` function.
-            self.live_v = np.array(
-                list(map(self.prior_transform, np.asarray(self.live_u))))
-        self.live_logl = np.array(
-            [_.val for _ in self.loglikelihood.map(np.asarray(self.live_v))])
-
+        (self.live_u, self.live_v, self.live_logl,
+         self.live_blobs), logvol_init, init_ncalls = _initialize_live_points(
+             None,
+             self.prior_transform,
+             self.loglikelihood,
+             self.mapper,
+             nlive=self.nlive,
+             ndim=self.ndim,
+             rstate=self.rstate,
+             blob=self.blob,
+             use_pool_ptform=self.use_pool_ptform)
+        self.logvol_init = logvol_init
         self.live_bound = np.zeros(self.nlive, dtype=int)
         self.live_it = np.zeros(self.nlive, dtype=int)
 
         # parallelism
         self.queue = []
         self.nqueue = 0
-        self.unused = 0
-        self.used = 0
 
         # sampling
         self.it = 1
-        self.ncall = self.nlive
-        self.bound = [UnitCube(self.ncdim)]
+        self.ncall = init_ncalls
+        self.bound = UnitCube(self.ncdim)
+        self.bound_list = [self.bound]
+        self.internal_sampler = UnitCubeSampler(ndim=self.ndim)
         self.nbound = 1
         self.unit_cube_sampling = True
         self.added_live = False
@@ -238,24 +562,21 @@ class Sampler:
             d[k] = np.array(self.saved_run[k])
 
         # Add all saved samples to the results.
-        if self.save_samples:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                results = [('nlive', self.nlive), ('niter', self.it - 1),
-                           ('ncall', d['nc']), ('eff', self.eff),
-                           ('samples', d['v']), ('blob', d['blob'])]
-                for k in ['id', 'it', 'u']:
-                    results.append(('samples_' + k, d[k]))
-                for k in ['logwt', 'logl', 'logvol', 'logz']:
-                    results.append((k, d[k]))
-                results.append(('logzerr', np.sqrt(d['logzvar'])))
-                results.append(('information', d['h']))
-        else:
-            raise ValueError("You didn't save any samples!")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            results = [('nlive', self.nlive), ('niter', self.it - 1),
+                       ('ncall', d['nc']), ('eff', self.eff),
+                       ('samples', d['v']), ('blob', d['blob'])]
+            for k in ['id', 'it', 'u']:
+                results.append(('samples_' + k, d[k]))
+            for k in ['logwt', 'logl', 'logvol', 'logz']:
+                results.append((k, d[k]))
+            results.append(('logzerr', np.sqrt(d['logzvar'])))
+            results.append(('information', d['h']))
 
         # Add any saved bounds (and ancillary quantities) to the results.
         if self.save_bounds:
-            results.append(('bound', copy.deepcopy(self.bound)))
+            results.append(('bound', copy.deepcopy(self.bound_list)))
             results.append(
                 ('bound_iter', np.array(self.saved_run['bounditer'],
                                         dtype=int)))
@@ -297,12 +618,15 @@ class Sampler:
         The arguments are the loglstar and number of calls
         if force is true we update the bound no matter what
         """
-
         if ncall is None:
             ncall = self.ncall
+        if self.bound_update_interval is None:
+            delta_bound = self.sampler.bound_update_interval * self.nlive
+        else:
+            delta_bound = self.bound_update_interval
+
         call_check_first = (ncall >= self.first_bound_update_ncall)
-        call_check = (ncall >= self.bound_update_interval +
-                      self.ncall_at_last_update)
+        call_check = (ncall >= delta_bound + self.ncall_at_last_update)
         efficiency_check = (self.eff < self.first_bound_update_eff)
         # there are three cases when we update the bound
         # * if we are still using uniform cube sampling and both efficiency is
@@ -324,53 +648,41 @@ class Sampler:
                 subset = self.live_logl > loglstar
             else:
                 subset = slice(None)
-            bound = self.update(subset=subset)
-            if self.save_bounds:
-                self.bound.append(bound)
-            self.nbound += 1
-            self.ncall_at_last_update = ncall
             if self.unit_cube_sampling:
+                # done with unit cube
+                # updating the bound and internal sampler
                 self.unit_cube_sampling = False
                 self.logl_first_update = loglstar
+                self.bound = self.bound_next
+                self.internal_sampler = self.internal_sampler_next
+                # self.bound_next = None
+                # self.internal_sampler_next = None
+            self.update_bound(subset=subset)
+            if self.save_bounds:
+                self.bound_list.append(self.bound)
+            self.nbound += 1
+            self.ncall_at_last_update = ncall
 
     def _fill_queue(self, loglstar):
         """Sequentially add new live point proposals to the queue."""
 
-        # All the samplers should have have a starting point
-        # satisfying a strict logl>loglstar criterion
-        # The slice sampler will just fail if it's not the case
-        # therefore we provide those subsets of points to choose from.
+        args = (np.nonzero(self.live_logl > loglstar)[0], )
+        if len(args[0]) == 0:
+            raise RuntimeError(
+                'No live points are above loglstar. '
+                'Do you have a likelihood plateau ? '
+                'It is also possible that you are trying to sample '
+                'excessively around the very peak of the posterior')
 
-        if self.method != 'unif':
-            args = (np.nonzero(self.live_logl > loglstar)[0], )
-            if len(args[0]) == 0:
-                raise RuntimeError(
-                    'No live points are above loglstar. '
-                    'Do you have a likelihood plateau ? '
-                    'It is also possible that you are trying to sample '
-                    'excessively around the very peak of the posterior')
-        else:
-            args = ()
-        if not self.unit_cube_sampling:
-            # Add/zip arguments to submit to the queue.
-            point_queue = []
-            axes_queue = []
-            # Propose points using the provided sampling/bounding options.
-            evolve_point = self.evolve_point
-            while self.nqueue < self.queue_size:
-                point, axes = self.propose_point(*args)
-                point_queue.append(point)
-                axes_queue.append(axes)
-                self.nqueue += 1
-        else:
-            # Propose/evaluate points directly from the unit cube.
-            point_queue = self.rstate.random(size=(self.queue_size -
-                                                   self.nqueue, self.ndim))
-            axes_queue = np.identity(
-                self.ncdim)[None, :, :] + np.zeros(self.queue_size -
-                                                   self.nqueue)[:, None, None]
-            evolve_point = sample_unif
-            self.nqueue = self.queue_size
+        point_queue = []
+        axes_queue = []
+        # Propose points using the provided sampling/bounding options.
+        while self.nqueue < self.queue_size:
+            point, axes = self.propose_live(*args)
+            # these points are wasted for UniformBoundSampler
+            point_queue.append(point)
+            axes_queue.append(axes)
+            self.nqueue += 1
         if self.queue_size > 1:
             seeds = get_seed_sequence(self.rstate, self.queue_size)
         else:
@@ -378,23 +690,21 @@ class Sampler:
 
         if self.use_pool_evolve:
             # Use the pool to propose ("evolve") a new live point.
-            mapper = self.M
+            mapper = self.mapper
         else:
             # Propose ("evolve") a new live point using the default `map`
             # function.
             mapper = map
-        args = []
-        for i in range(self.queue_size):
-            args.append(
-                SamplerArgument(u=point_queue[i],
-                                loglstar=loglstar,
-                                axes=axes_queue[i],
-                                scale=self.scale,
-                                prior_transform=self.prior_transform,
-                                loglikelihood=self.loglikelihood,
-                                rseed=seeds[i],
-                                kwargs=self.kwargs))
-        self.queue = list(mapper(evolve_point, args))
+
+        args = self.internal_sampler.prepare_sampler(
+            loglstar=loglstar,
+            points=point_queue,
+            axes=axes_queue,
+            seeds=seeds,
+            prior_transform=self.prior_transform,
+            loglikelihood=self.loglikelihood,
+            nested_sampler=self)
+        self.queue = list(mapper(self.internal_sampler.sample, args))
 
     def _get_point_value(self, loglstar):
         """Grab the first live point proposal in the queue."""
@@ -405,7 +715,6 @@ class Sampler:
 
         # Grab the earliest entry.
         u, v, logl, nc, blob = self.queue.pop(0)
-        self.used += 1  # add to the total number of used points
         self.nqueue -= 1
 
         return u, v, logl, nc, blob
@@ -418,17 +727,18 @@ class Sampler:
         ncall_accum = 0
         while True:
             # Get the next point from the queue
-            u, v, logl, nc, blob = self._get_point_value(loglstar)
+            u, v, logl, nc, sampling_info = self._get_point_value(loglstar)
             ncall += nc
             ncall_accum += nc
 
-            if blob is not None and not self.unit_cube_sampling:
+            if sampling_info is not None and not self.unit_cube_sampling:
                 # If our queue is empty, update any tuning parameters
                 # associated
                 # with our proposal (sampling) method.
                 # If it's not empty we are just accumulating the
                 # the history of evaluations
-                self.update_proposal(blob, update=self.nqueue <= 0)
+                self.internal_sampler.tune(sampling_info,
+                                           update=self.nqueue <= 0)
 
             # the reason I'm not using self.ncall is that it's updated at
             # higher level
@@ -537,28 +847,27 @@ class Sampler:
             delta_logz = np.logaddexp(0, loglmax + logvol - logz)
 
             # Save results.
-            if self.save_samples:
-                self.saved_run.append(
-                    dict(
-                        id=idx,
-                        u=ustar,
-                        v=vstar,
-                        logl=loglstar,
-                        logvol=logvol,
-                        logwt=logwt,
-                        logz=logz,
-                        logzvar=logzvar,
-                        h=h,
-                        nc=1,  # this is technically a lie
-                        # as we didn't call the likelihood even once
-                        # however because we lose track of ncs if we start
-                        # from points that are not sampled from unit cube
-                        # it can lead to sum(nc)!=ncall
-                        boundidx=boundidx,
-                        it=point_it,
-                        bounditer=bounditer,
-                        scale=self.scale,
-                        blob=old_blob))
+            self.saved_run.append(
+                dict(
+                    id=idx,
+                    u=ustar,
+                    v=vstar,
+                    logl=loglstar,
+                    logvol=logvol,
+                    logwt=logwt,
+                    logz=logz,
+                    logzvar=logzvar,
+                    h=h,
+                    nc=1,  # this is technically a lie
+                    # as we didn't call the likelihood even once
+                    # however because we lose track of ncs if we start
+                    # from points that are not sampled from unit cube
+                    # it can lead to sum(nc)!=ncall
+                    boundidx=boundidx,
+                    it=point_it,
+                    bounditer=bounditer,
+                    scale=self.internal_sampler.scale,
+                    blob=old_blob))
             self.eff = 100. * (self.it + i) / self.ncall  # efficiency
 
             # Return our new "dead" point and ancillary quantities.
@@ -585,13 +894,12 @@ class Sampler:
 
         if self.added_live:
             self.added_live = False
-            if self.save_samples:
-                for k in [
-                        'id', 'u', 'v', 'logl', 'logvol', 'logwt', 'logz',
-                        'logzvar', 'h', 'nc', 'boundidx', 'it', 'bounditer',
-                        'scale', 'blob'
-                ]:
-                    del self.saved_run[k][-self.nlive:]
+            for k in [
+                    'id', 'u', 'v', 'logl', 'logvol', 'logwt', 'logz',
+                    'logzvar', 'h', 'nc', 'boundidx', 'it', 'bounditer',
+                    'scale', 'blob'
+            ]:
+                del self.saved_run[k][-self.nlive:]
         else:
             raise ValueError("No live points were added to the "
                              "list of samples!")
@@ -604,7 +912,6 @@ class Sampler:
                n_effective=np.inf,
                add_live=True,
                save_bounds=True,
-               save_samples=True,
                resume=False):
         """
         **The main nested sampling loop.** Iteratively replace the worst live
@@ -649,11 +956,6 @@ class Sampler:
         save_bounds : bool, optional
             Whether or not to save past distributions used to bound
             the live points internally. Default is `True`.
-
-        save_samples : bool, optional
-            Whether or not to save past samples from the nested sampling run
-            (along with other ancillary quantities) internally.
-            Default is `True`.
 
         Returns
         -------
@@ -712,7 +1014,6 @@ class Sampler:
             maxcall = sys.maxsize
         if maxiter is None:
             maxiter = sys.maxsize
-        self.save_samples = save_samples
         self.save_bounds = save_bounds
         ncall = 0
         # Check whether we're starting fresh or continuing a previous run.
@@ -798,15 +1099,6 @@ class Sampler:
                 stop_iterations = True
 
             if stop_iterations:
-                if not self.save_samples:
-                    # If dumping past states, save only the required quantities
-                    # TODO I don't quite understand why we do this
-                    add_info = dict(logz=logz,
-                                    logzvar=logzvar,
-                                    h=h,
-                                    logvol=logvol,
-                                    logl=loglstar)
-                    self.saved_run.append(add_info)
                 break
 
             worst = np.argmin(self.live_logl)  # index
@@ -864,22 +1156,21 @@ class Sampler:
                 bounditer = 0
 
             # Save the worst live point. It is now a "dead" point.
-            if self.save_samples:
-                self.saved_run.append(
-                    dict(id=worst,
-                         u=ustar,
-                         v=vstar,
-                         logl=loglstar,
-                         logvol=logvol,
-                         logwt=logwt,
-                         logz=logz,
-                         logzvar=logzvar,
-                         h=h,
-                         nc=nc,
-                         it=worst_it,
-                         bounditer=bounditer,
-                         scale=self.scale,
-                         blob=old_blob))
+            self.saved_run.append(
+                dict(id=worst,
+                     u=ustar,
+                     v=vstar,
+                     logl=loglstar,
+                     logvol=logvol,
+                     logwt=logwt,
+                     logz=logz,
+                     logzvar=logzvar,
+                     h=h,
+                     nc=nc,
+                     it=worst_it,
+                     bounditer=bounditer,
+                     scale=self.internal_sampler.scale,
+                     blob=old_blob))
 
             # Update the live point (previously our "worst" point).
             self.live_u[worst] = u
@@ -1028,7 +1319,6 @@ class Sampler:
                                 dlogz=dlogz,
                                 logl_max=logl_max,
                                 save_bounds=save_bounds,
-                                save_samples=True,
                                 n_effective=n_effective,
                                 resume=resume,
                                 add_live=add_live)):

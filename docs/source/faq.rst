@@ -41,27 +41,27 @@ efficiency of 10%, but that threshold can be adjusted using the
 
 **Is there an easy way to add more samples to an existing set of results?**
 
-Yes! There are actually a bunch of ways to do this. If you have the static
-`NestedSampler` currently initialized, just executing `run_nested()` will start
-adding samples where you left off.If you're instead interested in adding
-more samples to a previous part of the run, the best strategy is to just
-start a new independent run and then "combine" the old and new runs together
+Yes! There are actually a bunch of ways to do this.
+If you have the static `NestedSampler` run, the best strategy is to just
+start a new independent run and then combine the old and new runs together
 into a single (improved) run using the :meth:`~dynesty.utils.merge_runs`
 function.
 
-If you're using the `DynamicNestedSampler`, executing `run_nested` will
-automatically add more dynamically-allocated samples based on your
-target weight function as long as the stopping criteria hasn't been met.
-If you would like to add a new batch of samples manually,
-running `add_batch` will assign a new set of samples.
-You can also specifically add new batch corresponding to a certain likelihood
-range (i.e. corresponding to where your posterior is concentrated).
-Also, if you are primarily interested in the posterior, you can use larger
-values of n_effective parameter of `run_nested` as that will ensure your posterior
-is less noisy.
+If you're using the `DynamicNestedSampler`, you can add as many batches as you want by running `add_batch`. The add_batch have a `auto` mode, or a manual
+mode where you can  add new batch corresponding to a certain likelihood
+range (i.e. corresponding to where your posterior is concentrated for example).
+
+Alternatively, if you are primarily interested in the posterior, you can use larger values of n_effective parameter of `run_nested` as that will ensure your posterior is less noisy.
 Finally, :meth:`~dynesty.utils.merge_runs` also works with results generated
 from Dynamic Nested Sampling, so it is just as easy to set off a new run and
 combine it with your original result.
+
+**I have a very multi-modal posterior, or dynesty cannot find the mode of my posterior. What should I do**
+
+If you have a large number of posterior modes, or a very narrow posterior mode occupying a tiny volume of your posterior, it may be difficult to find it.
+Typically using more live-points will help in those cases, as you have higher chance of discovering the your mode with one of the live-points.
+Also if you have a really large number of modes, you can use `add_batch` functionality with `logl_bounds` of (-inf,inf), to basically do repeated sampling of the posterior. In this case you have a good chance of discovering all the modes in your data.
+
 
 **There are inf values in my lower/upper log-likelihood bounds!
 Should I be concerned?**

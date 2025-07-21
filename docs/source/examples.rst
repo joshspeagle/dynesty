@@ -140,7 +140,7 @@ Linear regression is ubiquitous in research. In this example we'll fit a line
 to data where the error bars have been over/underestimated by some fraction
 of the observed value :math:`f` and need to be decreased/increased.
 Note that this example is taken directly from the ``emcee`` `documentation 
-<http://dan.iel.fm/emcee/current/user/line/>`_.
+<https://emcee.readthedocs.io/en/stable/>`_.
 
 .. image:: ../images/examples_line_001.png
     :align: center

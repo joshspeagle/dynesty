@@ -85,6 +85,25 @@ def test_gaussian():
     assert np.all(res['blob'] == res['samples'])
 
 
+def test_restart():
+    rstate = get_rstate()
+    g = Gaussian()
+    sampler = 'rslice'  # doing this sampler for static
+    # unifor for dynamic
+    sampler = dynesty.NestedSampler(g.loglikelihood_with_blob,
+                                    g.prior_transform,
+                                    g.ndim,
+                                    nlive=nlive,
+                                    rstate=rstate,
+                                    sample=sampler,
+                                    blob=True)
+    sampler.run_nested(print_progress=printing, maxiter=100)
+    sampler.run_nested(print_progress=printing, maxiter=100)
+    res = sampler.results
+    assert res['blob'].shape == (len(res['samples']), 3)
+    assert np.all(res['blob'] == res['samples'])
+
+
 def test_gaussian_livepts():
     # test we can provide starting points while using blobs
     rstate = get_rstate()

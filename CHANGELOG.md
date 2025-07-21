@@ -4,15 +4,25 @@ All notable changes to dynesty will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-
 [Unreleased]
+### Added
+### Changed
+### Fixed
+
+[2.1.5 - 2024-12-17]
+### Fixed
+- Fix the issue with merge_runs when the dynamic runs with different number of batches are merged ( #481 reported by @rodleiva, fixed by @segasai)
+- Fix the issue with leaking file descriptors when using dynesty pool. Can lead to 'too many open files' problem ( #379, reported by @bencebecsy, fixed by @segasai)
+
+[2.1.4 - 2024-06-26]
 ### Added
 
 ### Changed
 - Get rid of npdim option that at some point may have allowed the prior transformation to return higher dimensional vector than the inputs. Note that due to this change, restoring the checkpoint from previous version of the dynesty won't be possible) (issues #456, #457) (original issue reported by @MichaelDAlbrow, fixed by @segasai )
 ### Fixed
-- Fix the way the additional arguments are treated when working with dynesty's pool. Previously those only could have been passed through dynesty.pool.Pool() constructor. Now they can still be provided directly to the sampler (not recommended) (reported by @eteq, fixed by @segasai )
-
+- Fix the way the additional arguments are treated when working with dynesty's pool. Previously those only could have been passed through dynesty.pool.Pool() constructor. Now they can still be provided directly to the sampler (not recommended) ( #464 , reported by @eteq, fixed by @segasai )
+- change the .ptp() method to np.ptp() function as it is deprecated in numpy 2.0 ( #478 , reported and patched by @joezuntz)
+- Fix an error if you use run_nested() several times (i.e. with maxiter option) while using blob=True. ( #475 , reported by @carlosRmelo)
 
 ## [2.1.3] - 2023-10-04
 ### Added

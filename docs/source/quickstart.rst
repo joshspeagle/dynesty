@@ -176,7 +176,7 @@ Live Points
 -----------
 
 Similar to ensemble sampling methods such as 
-`emcee <http://dan.iel.fm/emcee/current/>`_, the behavior of Nested Sampling
+`emcee <https://emcee.readthedocs.io/en/stable/>`_, the behavior of Nested Sampling
 can also be sensitive to the number of live points used. Increasing the number
 of live points leads to smaller changes in the prior volume :math:`\ln X` over
 time. This improves the effective resolution while simultaneously increasing
@@ -295,11 +295,11 @@ the provided bounds which can be passed via the `sample` argument:
 In addition, `dynesty` also supports passing **custom callable functions**
 to the `sample` argument, provided they follow the same format as the
 default sampling functions defined `here
-<https://github.com/joshspeagle/dynesty/blob/master/dynesty/sampling.py>`__.
+<https://github.com/joshspeagle/dynesty/blob/master/py/dynesty/sampling.py>`__.
 These can also be accompanied by custom "update functions" that try to
 adaptively scale proposals to ensure better overall sampling efficiency.
 See `here
-<https://github.com/joshspeagle/dynesty/blob/master/dynesty/nestedsamplers.py>`__
+<https://github.com/joshspeagle/dynesty/blob/master/py/dynesty/nestedsamplers.py>`__
 for examples of some of the functions that are associated with the default
 sampling methods described above.
 
@@ -613,7 +613,7 @@ The numpy blob can return arbitrary 1D numpy arrays. The can be record arrays as
 Running Externally
 ------------------
 
-Similar to `emcee <http://dan.iel.fm/emcee/current/>`_, `sampler` objects in
+Similar to `emcee <https://emcee.readthedocs.io/en/stable/>`_, `sampler` objects in
 ``dynesty`` can also be run externally as a **generator** via the
 :meth:`~dynesty.sampler.Sampler.sample` function. This might look something
 like::

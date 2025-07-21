@@ -1031,6 +1031,11 @@ class Sampler:
         else:
             # Remove live points (if added) from previous run.
             if self.added_live and not resume:
+                warnings.warn(
+                    'Repeatedly running sample() or run_nested() '
+                    '(when not just resuming an existing run is considered '
+                    'deprecated and will be removed in the future',
+                    DeprecationWarning)
                 self._remove_live_points()
 
             # Get final state from previous run.

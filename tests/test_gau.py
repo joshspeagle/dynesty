@@ -171,6 +171,24 @@ def test_gaussian():
     res.summary()
 
 
+def test_merge():
+    rstate = get_rstate()
+    g = Gaussian()
+    sampler1 = dynesty.DynamicNestedSampler(g.loglikelihood,
+                                            g.prior_transform,
+                                            g.ndim,
+                                            nlive=nlive,
+                                            rstate=rstate)
+    sampler1.run_nested(print_progress=printing, maxbatch=1)
+    sampler2 = dynesty.DynamicNestedSampler(g.loglikelihood,
+                                            g.prior_transform,
+                                            g.ndim,
+                                            nlive=nlive,
+                                            rstate=rstate)
+    sampler2.run_nested(print_progress=printing, maxbatch=2)
+    dyfunc.merge_runs((sampler1.results, sampler2.results))
+
+
 def test_generator():
     # Test that we can use the sampler as a generator
     rstate = get_rstate()

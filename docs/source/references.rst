@@ -4,8 +4,9 @@ References and Acknowledgements
 
 **The release paper describing the code corresponding to dynesty 1.0 can be found**
 `here <https://github.com/joshspeagle/dynesty/tree/master/paper/dynesty.pdf>`_.
-We remark that more recent dynesty versions have multiple changes with respect to the paper. Therefore
-please ensure that you cite the paper and the specific version of dynesty you used through `zenodo <https://doi.org/10.5281/zenodo.3348367>`_
+Since recent dynesty versions have significant changes with respect to the paper, unless
+you use the 1.0 version, you must *also* cite dynesty code used through `zenodo <https://doi.org/10.5281/zenodo.3348367>`_
+
 
 A list of papers that you should cite can always be generated directly
 from the `sampler` object by calling::
@@ -85,8 +86,8 @@ put in by `Kyle Barbary <http://kylebarbary.com/>`_ and  `other contributors
 <https://github.com/joshspeagle/dynesty/blob/master/AUTHORS.md>`_.
 
 Much of the API is inspired by the ensemble MCMC package
-`emcee <http://dan.iel.fm/emcee/current/>`_ as well as other work by
-`Daniel Foreman-Mackey <http://dan.iel.fm/>`_.
+`emcee <https://emcee.readthedocs.io/en/stable/>`_ as well as other work by
+`Daniel Foreman-Mackey <http://dfm.io/>`_.
 
 Many of the plotting utilities draw heavily upon Daniel Foreman-Mackey's
 wonderful `corner <http://corner.readthedocs.io>`_ package.

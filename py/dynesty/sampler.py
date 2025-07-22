@@ -270,7 +270,8 @@ class Sampler:
 
     live_points : list of 3 or 4 `~numpy.ndarray`
         Each with shape (nlive, ndim) for the first three arrays.
-        If `blob=True`, a fourth array of blobs (arbitrary shape) may be included.
+        If `blob=True`, a fourth array of blobs (arbitrary shape) may be
+        included.
 
     sampling : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`}
         Sampling Method used to sample uniformly within the likelihood

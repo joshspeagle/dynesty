@@ -90,8 +90,8 @@ class Pool:
     To use the dynesty pool you have to use it with the context manager::
 
         with dynesty.pool.Pool(16, loglike, prior_transform) as pool:
-            dns = DynamicNestedSampler(pool.loglike, pool.prior_transform, ndim,
-                                     pool=pool)
+            dns = DynamicNestedSampler(pool.loglike, pool.prior_transform,
+                                       ndim, pool=pool)
 
     Also note that you have to provide the .loglike/.prior_transform attributes
     from the pool object to the Nested samper rather than your original
@@ -100,14 +100,14 @@ class Pool:
     If your likelihood function takes additional arguments, it is better to
     pass them when creating the pool, rather then to nested sampler::
 
-        with dynesty.pool.Pool(16, loglike, prior_transform, 
+        with dynesty.pool.Pool(16, loglike, prior_transform,
                                             logl_args=(...) ) as pool:
-            dns = DynamicNestedSampler(pool.loglike, pool.prior_transform, ndim,
-                                     pool=pool)
+            dns = DynamicNestedSampler(pool.loglike, pool.prior_transform,
+                                       ndim, pool=pool)
 
     as this way they will not need to be pickled and unpickled every function
     call.
-    
+
     Note though that if you specify logl_args, and ptform_args when  creating
     the Pool *AND* in the sampler those will be concatenated
     """

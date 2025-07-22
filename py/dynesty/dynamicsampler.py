@@ -712,7 +712,8 @@ class DynamicSampler:
         # internal sampler object
         self.sampler = None
 
-        self.bound_enlarge, self.bound_bootstrap = bound_enlarge, bound_bootstrap
+        self.bound_enlarge, self.bound_bootstrap = (bound_enlarge,
+                                                    bound_bootstrap)
 
         # TODO FIX
         # self.cite = self.kwargs.get('cite')
@@ -909,7 +910,7 @@ class DynamicSampler:
         """
 
         # TODO REMOVE
-        return []  ## self.cite
+        return []  # self.cite
 
     def sample_initial(self,
                        nlive=None,

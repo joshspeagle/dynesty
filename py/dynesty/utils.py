@@ -32,8 +32,7 @@ except ImportError:
 __all__ = [
     "unitcheck", "resample_equal", "mean_and_cov", "quantile", "jitter_run",
     "resample_run", "reweight_run", "unravel_run", "merge_runs", "kld_error",
-    "get_enlarge_bootstrap", "LoglOutput", "LogLikelihood", "RunRecord",
-    "DelayTimer"
+    "LoglOutput", "LogLikelihood", "RunRecord", "DelayTimer"
 ]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))

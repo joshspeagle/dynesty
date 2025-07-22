@@ -12,8 +12,7 @@ import warnings
 import traceback
 import numpy as np
 from .sampling import (INTERNAL_SAMPLER_LIST, InternalSampler, RSliceSampler,
-                       UniformBoundSampler, UnitCubeSampler, RWalkSampler,
-                       SliceSampler)
+                       UniformBoundSampler, RWalkSampler, SliceSampler)
 from .sampler import Sampler, _initialize_live_points
 from .bounding import BOUND_LIST
 from . import bounding
@@ -246,8 +245,8 @@ def _get_update_interval_ratio(update_interval, sample, nlive):
         else:
             update_interval_ratio = 1
             warnings.warn(
-                "No update_interval set with unknown sampling method: "
-                f"'. Defaulting to no 1 update per nlive points.")
+                "No update_interval set with unknown sampling method."
+                ". Defaulting to no 1 update per nlive points.")
     elif isinstance(update_interval, float):
         update_interval_ratio = update_interval
     elif isinstance(update_interval, int):

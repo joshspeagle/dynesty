@@ -270,8 +270,7 @@ class Sampler:
 
     live_points : list of 3 or 4 `~numpy.ndarray`
         Each with shape (nlive, ndim) for the first three arrays.
-        If `blob=True`, a fourth array of blobs (arbitrary shape) may be
-        included.
+        If `blob=True`, a fourth array of blobs (arbitrary shape) may be included.
 
     sampling : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`}
         Sampling Method used to sample uniformly within the likelihood
@@ -909,7 +908,6 @@ class Sampler:
                maxcall=None,
                dlogz=0.01,
                logl_max=np.inf,
-               n_effective=np.inf,
                add_live=True,
                save_bounds=True,
                resume=False):
@@ -942,11 +940,6 @@ class Sampler:
         logl_max : float, optional
             Iteration will stop when the sampled ln(likelihood) exceeds the
             threshold set by `logl_max`. Default is no bound (`np.inf`).
-
-        n_effective: int, optional
-            Minimum number of effective posterior samples. If the estimated
-            "effective sample size" (ESS) exceeds this number,
-            sampling will terminate. Default is no ESS (`np.inf`).
 
         add_live : bool, optional
             Whether or not to add the remaining set of live points to
@@ -1074,24 +1067,6 @@ class Sampler:
             if loglstar > logl_max:
                 stop_iterations = True
 
-            # Stopping criterion 5: the number of effective posterior
-            # samples has been achieved.
-            if (n_effective is not None) and not np.isposinf(n_effective):
-                current_n_effective = self.n_effective
-                # TODO This needs to be refactored
-                # here we are adding final live points then checking
-                # if n_effective is large enough then removing them again
-                # this is slow and not a good logic
-                if current_n_effective > n_effective:
-                    if add_live:
-                        self.add_final_live(print_progress=False)
-
-                        # Recompute n_effective after adding live points
-                        current_n_effective = self.n_effective
-                        self._remove_live_points()
-                        self.added_live = False
-                    if current_n_effective > n_effective:
-                        stop_iterations = True
             if np.ptp(self.live_logl) == 0:
                 warnings.warn(
                     'We have reached the plateau in the likelihood we are'
@@ -1213,7 +1188,6 @@ class Sampler:
                    maxcall=None,
                    dlogz=None,
                    logl_max=np.inf,
-                   n_effective=None,
                    add_live=True,
                    print_progress=True,
                    print_func=None,
@@ -1285,14 +1259,6 @@ class Sampler:
             saved in the end of the run irrespective of checkpoint_every.
         """
 
-        # Check for deprecated options
-        if n_effective is not None:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("once")
-                warnings.warn(
-                    "The n_effective option to Sampler.run_nested is "
-                    "deprecated and will be removed in future releases",
-                    DeprecationWarning)
 
         # Define our stopping criteria.
         if dlogz is None:
@@ -1319,7 +1285,6 @@ class Sampler:
                                 dlogz=dlogz,
                                 logl_max=logl_max,
                                 save_bounds=save_bounds,
-                                n_effective=n_effective,
                                 resume=resume,
                                 add_live=add_live)):
                 ncall += results.nc

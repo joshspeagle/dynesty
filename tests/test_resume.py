@@ -63,6 +63,7 @@ def fit_main(fname,
                                                pool=pool,
                                                queue_size=queue_size,
                                                blob=True)
+            kw = dict(n_effective=NEFF0)
         else:
             dns = dynesty.NestedSampler(curlike,
                                         curpt,
@@ -72,11 +73,11 @@ def fit_main(fname,
                                         pool=pool,
                                         queue_size=queue_size,
                                         blob=True)
-            neff = None
+            kw = dict()
         dns.run_nested(checkpoint_file=fname,
                        print_progress=printing,
                        checkpoint_every=checkpoint_every,
-                       n_effective=neff)
+                       **kw)
     return dns
 
 
@@ -91,7 +92,11 @@ def fit_resume(fname, dynamic, prev_logz, pool=None, neff=NEFF0):
         dns = dynesty.NestedSampler.restore(fname, pool=pool)
         neff = None
     print('resuming', file=sys.stderr)
-    dns.run_nested(resume=True, n_effective=neff, print_progress=printing)
+    if dynamic:
+        kw = dict(n_effective=neff)
+    else:
+        kw = dict()
+    dns.run_nested(resume=True, print_progress=printing, **kw)
     # verify that the logz value is *identical*
     if prev_logz is not None:
         assert dns.results['logz'][-1] == prev_logz
@@ -132,14 +137,12 @@ def getlogz(fname, save_every):
     return cache.dt, cache.logz
 
 
-@pytest.mark.parametrize("dynamic,delay_frac,with_pool,dyn_pool",
-                         itertools.chain(
-                             itertools.product([False, True],
-                                               [.2, .5, .75, .9], [False],
-                                               [False]),
-                             itertools.product([False, True], [.5], [True],
-                                               [False]),
-                             [[True, .5, True, True]]))
+@pytest.mark.parametrize(
+    "dynamic,delay_frac,with_pool,dyn_pool",
+    itertools.chain(
+        itertools.product([False, True], [.2, .5, .75, .9], [False], [False]),
+        itertools.product([False, True], [.5], [True], [False]),
+        [[True, .5, True, True]]))
 @pytest.mark.xdist_group(name="resume_group")
 def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
     """

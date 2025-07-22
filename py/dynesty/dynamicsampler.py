@@ -838,7 +838,7 @@ class DynamicSampler:
         self.it = 1
         self.batch = 0
         self.ncall = 0
-        self.bound = []
+        self.bound_list = []
         self.eff = 1.
         self.base = False
 

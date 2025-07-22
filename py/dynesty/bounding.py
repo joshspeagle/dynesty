@@ -919,6 +919,7 @@ class RadFriends(Bound):
         self.am /= rmax**2
         self.axes *= rmax
         self.axes_inv /= rmax
+        self.ctrs = points
 
         # Compute volume.
         detsign, detln = linalg.slogdet(self.am)
@@ -928,7 +929,7 @@ class RadFriends(Bound):
         # Estimate the volume and fractional overlap with the unit cube
         # using Monte Carlo integration.
         if mc_integrate:
-            self.funit = self.monte_carlo_logvol(points,
+            self.funit = self.monte_carlo_logvol(
                                                  return_overlap=True,
                                                  rstate=rstate)[1]
 

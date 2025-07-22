@@ -270,7 +270,8 @@ class Sampler:
 
     live_points : list of 3 or 4 `~numpy.ndarray`
         Each with shape (nlive, ndim) for the first three arrays.
-        If `blob=True`, a fourth array of blobs (arbitrary shape) may be included.
+        If `blob=True`, a fourth array of blobs (arbitrary shape) may be
+        included.
 
     sampling : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`}
         Sampling Method used to sample uniformly within the likelihood
@@ -713,22 +714,30 @@ class Sampler:
             self._fill_queue(loglstar)
 
         # Grab the earliest entry.
-        u, v, logl, nc, blob = self.queue.pop(0)
+        ret = self.queue.pop(0)
         self.nqueue -= 1
 
-        return u, v, logl, nc, blob
+        return ret
 
     def _new_point(self, loglstar):
         """Propose points until a new point that satisfies the log-likelihood
         constraint `loglstar` is found."""
 
         ncall = self.ncall
+        # this is a global counter
+        # we do not update directly the counter inside the class
         ncall_accum = 0
+        sampling_history = []
         while True:
             # Get the next point from the queue
-            u, v, logl, nc, sampling_info = self._get_point_value(loglstar)
-            ncall += nc
-            ncall_accum += nc
+            ret = self._get_point_value(loglstar)
+            logl = ret.logl
+            cur_ncalls = ret.ncalls
+            ncall_accum += cur_ncalls
+            ncall += cur_ncalls
+            u, v = ret.u, ret.v
+            sampling_info = ret.sampling_info
+            sampling_history.extend(ret.sampling_history)
 
             if sampling_info is not None and not self.unit_cube_sampling:
                 # If our queue is empty, update any tuning parameters
@@ -1258,7 +1267,6 @@ class Sampler:
             the internal state of the sampler. The sampler will also be
             saved in the end of the run irrespective of checkpoint_every.
         """
-
 
         # Define our stopping criteria.
         if dlogz is None:

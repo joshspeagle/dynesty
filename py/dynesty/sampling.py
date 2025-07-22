@@ -24,6 +24,12 @@ SamplerArgument = namedtuple('SamplerArgument', [
     'rseed', 'kwargs'
 ])
 
+SamplerHistoryItem = namedtuple('SamplerHistoryItem', ['u', 'v', 'logl'])
+
+SamplerReturn = namedtuple(
+    'SamplerReturn',
+    ['u', 'v', 'logl', 'ncalls', 'sampling_history', 'sampling_info'])
+
 INTERNAL_SAMPLER_LIST = ['rwalk', 'unif', 'rslice', 'slice']
 
 
@@ -302,6 +308,7 @@ class UniformBoundSampler(InternalSampler):
         ntries = 0
         threshold_warning = 10000
         threshold_warned = False
+        sampling_history = []
         while True:
             u = bound.samples(1, rstate=rstate).flatten()
             if not unitcheck(u, nonbounded):
@@ -320,10 +327,16 @@ class UniformBoundSampler(InternalSampler):
                     (u, rstate.uniform(size=(ndim - n_cluster))))
             v = args.prior_transform(np.asarray(u))
             logl = args.loglikelihood(np.asarray(v))
+            sampling_history.append(SamplerHistoryItem(u=u, v=v, logl=logl))
             nc += 1
             if logl > args.loglstar:
                 break
-        return u, v, logl, nc, sampling_info
+        return SamplerReturn(u=u,
+                             v=v,
+                             logl=logl,
+                             ncalls=nc,
+                             sampling_info=sampling_info,
+                             sampling_history=sampling_history)
 
 
 class UnitCubeSampler(InternalSampler):
@@ -409,14 +422,21 @@ class UnitCubeSampler(InternalSampler):
         ndim = args.kwargs.get('ndim')
         nc = 0
         sampling_info = None
+        sampling_history = []
         while True:
             u = rstate.uniform(size=ndim)
             v = args.prior_transform(np.asarray(u))
             logl = args.loglikelihood(np.asarray(v))
+            sampling_history.append(SamplerHistoryItem(u=u, v=v, logl=logl))
             nc += 1
             if logl > args.loglstar:
                 break
-        return u, v, logl, nc, sampling_info
+        return SamplerReturn(u=u,
+                             v=v,
+                             logl=logl,
+                             ncalls=nc,
+                             sampling_info=sampling_info,
+                             sampling_history=sampling_history)
 
 
 class RWalkSampler(InternalSampler):
@@ -638,7 +658,7 @@ class SliceSampler(InternalSampler):
         nc = 0
         nexpand = 0
         ncontract = 0
-
+        sampling_history = []
         # Modifying axes and computing lengths.
         axes = scale * axes.T  # scale based on past tuning
         # Note we are transposing as axes[:,i] corresponds to i-th principal
@@ -659,7 +679,7 @@ class SliceSampler(InternalSampler):
                 (u_prop, v_prop, logl_prop, nc1, nexpand1, ncontract1,
                  expansion_warning) = generic_slice_step(
                      u, axis, nonperiodic, loglstar, loglikelihood,
-                     prior_transform, doubling, rstate)
+                     prior_transform, doubling, sampling_history, rstate)
                 u = u_prop
                 nc += nc1
                 nexpand += nexpand1
@@ -677,7 +697,12 @@ class SliceSampler(InternalSampler):
             'expansion_warning_set': expansion_warning_set
         }
 
-        return u_prop, v_prop, logl_prop, nc, sampling_info
+        return SamplerReturn(u=u_prop,
+                             v=v_prop,
+                             logl=logl_prop,
+                             ncalls=nc,
+                             sampling_info=sampling_info,
+                             sampling_history=sampling_history)
 
     @property
     def citations(self):
@@ -774,7 +799,7 @@ class RSliceSampler(InternalSampler):
         # Periodicity.
         nonperiodic = kwargs.get('nonperiodic', None)
         doubling = kwargs.get('slice_doubling', False)
-
+        sampling_history = []
         # Setup.
         n = len(u)
         assert axes.shape[0] == n
@@ -798,7 +823,7 @@ class RSliceSampler(InternalSampler):
              expansion_warning) = generic_slice_step(u, direction, nonperiodic,
                                                      loglstar, loglikelihood,
                                                      prior_transform, doubling,
-                                                     rstate)
+                                                     sampling_history, rstate)
             u = u_prop
             nc += nc1
             nexpand += nexpand1
@@ -815,7 +840,12 @@ class RSliceSampler(InternalSampler):
             'expansion_warning_set': expansion_warning_set
         }
 
-        return u_prop, v_prop, logl_prop, nc, sampling_info
+        return SamplerReturn(u=u_prop,
+                             v=v_prop,
+                             logl=logl_prop,
+                             ncalls=nc,
+                             sampling_info=sampling_info,
+                             sampling_history=sampling_history)
 
     @property
     def citations(self):
@@ -887,7 +917,7 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
     n = len(u)
     n_cluster = axes.shape[0]
     walks = kwargs['walks']  # number of steps
-
+    sampling_history = []
     naccept = 0
     # Total number of accepted points with L>L*
 
@@ -920,6 +950,8 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
         v_prop = prior_transform(u_prop)
         logl_prop = loglikelihood(v_prop)
         ncall += 1
+        sampling_history.append(
+            SamplerHistoryItem(u=u_prop, v=v_prop, logl=logl_prop))
 
         if logl_prop > loglstar:
             u = u_prop
@@ -937,7 +969,12 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
 
     sampling_info = {'accept': naccept, 'reject': nreject, 'scale': scale}
 
-    return u, v, logl, ncall, sampling_info
+    return SamplerReturn(u=u,
+                         v=v,
+                         logl=logl,
+                         ncalls=ncall,
+                         sampling_info=sampling_info,
+                         sampling_history=sampling_history)
 
 
 def propose_ball_point(u,
@@ -1027,7 +1064,7 @@ def _slice_doubling_accept(x1, F, loglstar, L, R, fL, fR):
 
 
 def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
-                       prior_transform, doubling, rstate):
+                       prior_transform, doubling, sampling_history, rstate):
     """
     Do a slice generic slice sampling step along a specified dimension
 
@@ -1067,7 +1104,10 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
         nonlocal nc
         u_new = u + x * direction
         if unitcheck(u_new, nonperiodic):
-            logl = loglikelihood(prior_transform(u_new))
+            v_new = prior_transform(u_new)
+            logl = loglikelihood(v_new)
+            sampling_history.append(
+                SamplerHistoryItem(u=u_new, v=v_new, logl=logl))
         else:
             logl = -np.inf
         nc += 1

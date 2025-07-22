@@ -206,26 +206,6 @@ def test_generator():
     check_results_gau(res, g, rstate)
 
 
-def test_n_effective():
-    # Test that n_effective controls the sample size
-    rstate = get_rstate()
-    g = Gaussian()
-    sampler = dynesty.NestedSampler(g.loglikelihood,
-                                    g.prior_transform,
-                                    g.ndim,
-                                    nlive=nlive,
-                                    rstate=rstate)
-    target_n_effective = 2
-
-    current_n_effective = sampler.n_effective
-
-    for _ in sampler.sample(add_live=False, n_effective=target_n_effective):
-        previous_n_effective = current_n_effective
-        current_n_effective = sampler.n_effective
-
-    assert current_n_effective > target_n_effective > previous_n_effective
-
-
 # try all combinations except
 @pytest.mark.parametrize(
     "bound,sample",

@@ -528,7 +528,6 @@ def _common_sampler_init(*,
             sample, InternalSampler):
         raise ValueError("Unknown sampling method: '{0}'".format(sample))
 
-    # TODO change this check to deal with new sampler interface
     if ncdim != ndim and (isinstance(sample, SliceSampler)
                           or isinstance(sample, RSliceSampler)):
         raise ValueError('ncdim unsupported for slice sampling')

@@ -861,7 +861,7 @@ class DynamicSampler:
         for k in [
                 'nc', 'v', 'id', 'batch', 'it', 'u', 'n', 'logwt', 'logl',
                 'logvol', 'logz', 'logzvar', 'h', 'batch_nlive',
-                'batch_bounds', 'blob'
+                'batch_logl_bounds', 'blob'
         ]:
             d[k] = np.array(self.saved_run[k])
 
@@ -874,7 +874,7 @@ class DynamicSampler:
                 results.append(('samples_' + k, d[k]))
             for k in [
                     'logwt', 'logl', 'logvol', 'logz', 'batch_nlive',
-                    'batch_bounds', 'blob'
+                    'batch_logl_bounds', 'blob'
             ]:
                 results.append((k, d[k]))
             results.append(('logzerr', np.sqrt(d['logzvar'])))
@@ -1209,7 +1209,7 @@ class DynamicSampler:
                                            dtype=int)  # batch
 
         self.saved_run['batch_nlive'].append(self.nlive_init)  # initial nlive
-        self.saved_run['batch_bounds'].append(
+        self.saved_run['batch_logl_bounds'].append(
             (-np.inf, np.inf))  # initial bounds
 
         self.internal_state = DynamicSamplerStatesEnum.BASE_DONE
@@ -1473,7 +1473,7 @@ class DynamicSampler:
         nnew = len(new_d['n'])
         llmin, llmax = self.new_logl_min, self.new_logl_max
 
-        old_batch_bounds = self.saved_run['batch_bounds']
+        old_batch_logl_bounds = self.saved_run['batch_logl_bounds']
         old_batch_nlive = self.saved_run['batch_nlive']
         # Reset saved results.
         del self.saved_run
@@ -1587,7 +1587,8 @@ class DynamicSampler:
 
         # Saved batch quantities.
         self.saved_run['batch_nlive'] = old_batch_nlive + [(max(new_d['n']))]
-        self.saved_run['batch_bounds'] = old_batch_bounds + [((llmin, llmax))]
+        self.saved_run['batch_logl_bounds'] = old_batch_logl_bounds + [(
+            (llmin, llmax))]
 
     def run_nested(self,
                    nlive_init=None,

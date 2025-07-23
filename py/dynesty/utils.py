@@ -283,7 +283,7 @@ class RunRecord:
                 # these are special since their length
                 # is == the number of batches
                 'batch_nlive',  # number of live points added in batch
-                'batch_bounds'  # loglikelihood bounds used in batch
+                'batch_logl_bounds'  # loglikelihood bounds used in batch
             ])
         for k in keys:
             D[k] = []
@@ -606,7 +606,7 @@ _RESULTS_STRUCTURE = [
      'niter'),
     ('samples_batch', 'array[int]',
      "Tracks the batch during which the samples were proposed", 'niter'),
-    ('batch_bounds', 'array[tuple]',
+    ('batch_logl_bounds', 'array[tuple]',
      "The log-likelihood bounds used to run a batch.", 'nbatch'),
     ('batch_nlive', 'array[int]',
      "The number of live points used for  given batch", 'nbatch'),
@@ -1363,7 +1363,7 @@ def resample_run(res, rstate=None, return_idx=False):
         # Check if the number of live points explicitly changes.
         samples_n = res.samples_n
         samples_batch = res.samples_batch
-        batch_bounds = res.batch_bounds
+        batch_logl_bounds = res.batch_logl_bounds
         added_final_live = True
     else:
         # If the number of live points is constant, compute `samples_n` and
@@ -1380,8 +1380,8 @@ def resample_run(res, rstate=None, return_idx=False):
             raise ValueError("Final number of samples differs from number of "
                              "iterations and number of live points.")
         samples_batch = np.zeros(len(samples_n), dtype=int)
-        batch_bounds = np.array([(-np.inf, np.inf)])
-    batch_llmin = batch_bounds[:, 0]
+        batch_logl_bounds = np.array([(-np.inf, np.inf)])
+    batch_llmin = batch_logl_bounds[:, 0]
     # Identify unique particles that make up each strand.
     ids = np.unique(res.samples_id)
 
@@ -1629,7 +1629,7 @@ def unravel_run(res, print_progress=True):
         # Add on batch information (if available).
         try:
             rdict['samples_batch'] = res.samples_batch[strand]
-            rdict['batch_bounds'] = res.batch_bounds
+            rdict['batch_logl_bounds'] = res.batch_logl_bounds
         except AttributeError:
             pass
 
@@ -1858,15 +1858,15 @@ def _prepare_for_merge(res):
                              "iterations and number of live points in `res1`.")
 
     # Batch information (if available).
-    # note we also check for existance of batch_bounds
+    # note we also check for existance of batch_logl_bounds
     # because unravel_run makes 'static' runs of 1 livepoint
     # but some will have bounds
-    if res.isdynamic() or 'batch_bounds' in res.keys():
+    if res.isdynamic() or 'batch_logl_bounds' in res.keys():
         run_info['batch'] = res.samples_batch
-        run_info['bounds'] = res.batch_bounds
+        run_info['batch_logl_bounds'] = res.batch_logl_bounds
     else:
         run_info['batch'] = np.zeros(nrun, dtype=int)
-        run_info['bounds'] = np.array([(-np.inf, np.inf)])
+        run_info['batch_logl_bounds'] = np.array([(-np.inf, np.inf)])
     return run_nlive, run_info
 
 
@@ -1910,20 +1910,22 @@ def _merge_two(res1, res2, compute_aux=False):
 
     # These are merged batch bounds
     combined_bounds = np.unique(np.concatenate(
-        (base_info['bounds'], new_info['bounds'])),
+        (base_info['batch_logl_bounds'], new_info['batch_logl_bounds'])),
                                 axis=0)
     # Here we try to find where the new bounds are in the combined bounds
     new_bound_map = {}
     base_bound_map = {}
-    for i in range(len(new_info['bounds'])):
+    for i in range(len(new_info['batch_logl_bounds'])):
         new_bound_map[i] = np.where(
-            np.all(new_info['bounds'][i] == combined_bounds, axis=1))[0][0]
-    for i in range(len(base_info['bounds'])):
+            np.all(new_info['batch_logl_bounds'][i] == combined_bounds,
+                   axis=1))[0][0]
+    for i in range(len(base_info['batch_logl_bounds'])):
         base_bound_map[i] = np.where(
-            np.all(base_info['bounds'][i] == combined_bounds, axis=1))[0][0]
+            np.all(base_info['batch_logl_bounds'][i] == combined_bounds,
+                   axis=1))[0][0]
 
-    base_lowedge = np.min(base_info['bounds'][base_info['batch']])
-    new_lowedge = np.min(new_info['bounds'][new_info['batch']])
+    base_lowedge = np.min(base_info['batch_logl_bounds'][base_info['batch']])
+    new_lowedge = np.min(new_info['batch_logl_bounds'][new_info['batch']])
 
     # Iteratively walk through both set of samples to simulate
     # a combined run.
@@ -2021,7 +2023,7 @@ def _merge_two(res1, res2, compute_aux=False):
              samples=np.asarray(combined_info['v']),
              logl=np.asarray(combined_info['logl']),
              logvol=np.asarray(combined_info['logvol']),
-             batch_bounds=np.asarray(combined_bounds),
+             batch_logl_bounds=np.asarray(combined_bounds),
              blob=np.asarray(combined_info['blob']))
 
     for curk in ['id', 'it', 'n', 'u', 'batch']:

@@ -553,7 +553,7 @@ class Sampler:
         d = {}
         for k in [
                 'nc', 'v', 'id', 'it', 'u', 'logwt', 'logl', 'logvol', 'logz',
-                'logzvar', 'h', 'blob'
+                'logzvar', 'h', 'blob', 'proposal_stats'
         ]:
             d[k] = np.array(self.saved_run[k])
 
@@ -901,7 +901,7 @@ class Sampler:
             for k in [
                     'id', 'u', 'v', 'logl', 'logvol', 'logwt', 'logz',
                     'logzvar', 'h', 'nc', 'boundidx', 'it', 'bounditer',
-                    'scale', 'blob'
+                    'scale', 'blob', 'proposal_stats'
             ]:
                 del self.saved_run[k][-self.nlive:]
         else:

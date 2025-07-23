@@ -364,6 +364,7 @@ def _configure_batch_sampler(main_sampler,
     saved_logvol = np.array(main_sampler.saved_run['logvol'])
     saved_scale = np.array(main_sampler.saved_run['scale'])
     saved_blobs = np.array(main_sampler.saved_run['blob'])
+    saved_proposal_stats = np.array(main_sampler.saved_run['proposal_stats'])
     first_points = []
 
     # This will be a list of first points yielded from
@@ -535,7 +536,7 @@ def _configure_batch_sampler(main_sampler,
         batch_sampler.live_logl = live_logl
         batch_sampler.internal_sampler.scale = live_scale
         batch_sampler.live_blobs = live_blobs
-
+        batch_sampler.live_proposal_stats = [None] * cur_nlive
         batch_sampler.update_bound_if_needed(logl_min)
         # Trigger an update of the internal bounding distribution based
         # on the "new" set of live points.
@@ -551,12 +552,14 @@ def _configure_batch_sampler(main_sampler,
             live_blobs = []
         else:
             live_blobs = None
+        live_proposal_stats = [None] * nlive_new
 
         # Sample a new batch of `nlive_new` live points using the
         # internal sampler given the `logl_min` constraint.
         for i in range(nlive_new):
             newpt = batch_sampler._new_point(logl_min)
-            (live_u[i], live_v[i], live_logl[i], live_nc[i]) = newpt
+            (live_u[i], live_v[i], live_logl[i], live_nc[i],
+             live_proposal_stats[i]) = newpt
             if main_sampler.blob:
                 blob = newpt[2].blob
                 live_blobs.append(blob)

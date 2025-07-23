@@ -43,7 +43,6 @@ class DynamicSamplerStatesEnum(Enum):
     INBASEADDLIVE = 7  # during addition of livepoints in the
     INBATCHADDLIVE = 8  # during addition of livepoints in the
     RUN_DONE = 9  # The run has ended
-    # end of the base run
 
 
 def compute_weights(results):
@@ -742,7 +741,6 @@ class DynamicSampler:
         self.ncall = 0  # number of function calls
         self.bound_list = []  # initial states used to compute bounds
         self.eff = 1.  # sampling efficiency
-        self.base = False  # base run complete
         self.nlive0 = nlive0
         self.internal_state = DynamicSamplerStatesEnum.INIT
 
@@ -1214,7 +1212,6 @@ class DynamicSampler:
         self.saved_run['batch_bounds'].append(
             (-np.inf, np.inf))  # initial bounds
 
-        self.base = True  # baseline run complete
         self.internal_state = DynamicSamplerStatesEnum.BASE_DONE
 
     def sample_batch(self,
@@ -1788,16 +1785,40 @@ class DynamicSampler:
         maxcall_init = min(maxcall_init, maxcall)  # set max calls
         maxiter_init = min(maxiter_init, maxiter)  # set max iterations
 
-        if resume and self.internal_state == DynamicSamplerStatesEnum.RUN_DONE:
-            warnings.warn(
-                """You tried to resume the run that has ended successfully.
-This is not supported. No sampling was performed""", RuntimeWarning)
-            return
+        # run_nested can only be run in 3 cases
+        # * resuming interrupted run
+        # * starting a new run from fresh object
+        # * running longer after the previously finished run (i.e. add batches)
+        if resume:
+            if self.internal_state == DynamicSamplerStatesEnum.RUN_DONE:
+                warnings.warn(
+                    "You tried to resume the run that has ended successfully."
+                    "This is not supported. No sampling was performed",
+                    RuntimeWarning)
+                return
+        else:
+            if self.internal_state not in [
+                    DynamicSamplerStatesEnum.INIT,
+                    DynamicSamplerStatesEnum.RUN_DONE
+            ]:
+                warnings.warn(
+                    "You tried to run_nested() again from unclear sampler "
+                    "state. This is not supported. "
+                    "No sampling was performed.", RuntimeWarning)
+                return
+
         # Baseline run.
         pbar, print_func = get_print_func(print_func, print_progress)
         self.checkpoint_timer = DelayTimer(checkpoint_every)
         try:
-            if not self.base:
+            # the init should be the first default stage, all other ones
+            # are possible if we are resuming
+            if self.internal_state in [
+                    DynamicSamplerStatesEnum.INIT,
+                    DynamicSamplerStatesEnum.LIVEPOINTSINIT,
+                    DynamicSamplerStatesEnum.INBASE,
+                    DynamicSamplerStatesEnum.INBASEADDLIVE,
+            ]:
                 for results in self.sample_initial(nlive=nlive_init,
                                                    dlogz=dlogz_init,
                                                    maxcall=maxcall_init,

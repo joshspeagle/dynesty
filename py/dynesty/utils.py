@@ -275,7 +275,8 @@ class RunRecord:
             'n',  # number of live points interior to dead point
             'bounditer',  # active bound at a specific iteration
             'scale',  # scale factor at each iteration
-            'blob'  # blobs output by the log-likelihood
+            'blob',  # blobs output by the log-likelihood
+            'proposal_stats'  # information from the inner sampler 
         ]
         if dynamic:
             keys.extend([

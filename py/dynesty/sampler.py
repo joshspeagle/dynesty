@@ -225,7 +225,7 @@ def _initialize_live_points(live_points,
         # then run a quick safety check.
         live_u, live_v, live_logl = live_points[:3]
         if blob:
-            live_blobs = live_points[3]
+            live_blobs = live_points[4]
         live_logl = np.asarray(live_logl)
         for i, logl in enumerate(live_logl):
             if not np.isfinite(logl):
@@ -345,7 +345,7 @@ class Sampler:
         # live points
         self.live_u, self.live_v, self.live_logl = live_points[:3]
         if blob:
-            self.live_blobs = live_points[3]
+            self.live_blobs = live_points[4]
         else:
             self.live_blobs = None
         self.nlive = len(self.live_u)
@@ -760,7 +760,7 @@ class Sampler:
             if logl > loglstar:
                 break
 
-        return u, v, logl, ncall_accum
+        return u, v, logl, ncall_accum, ret.proposal_stats
 
     def add_live_points(self):
         """Add the remaining set of live points to the current set of dead
@@ -1121,7 +1121,7 @@ class Sampler:
             # Sample a new live point from within the likelihood constraint
             # `logl > loglstar` using the bounding distribution and sampling
             # method from our sampler.
-            u, v, logl, nc = self._new_point(loglstar_new)
+            u, v, logl, nc, proposal_stats = self._new_point(loglstar_new)
             ncall += nc
             self.ncall += nc
             if self.blob:
@@ -1154,7 +1154,8 @@ class Sampler:
                      it=worst_it,
                      bounditer=bounditer,
                      scale=self.internal_sampler.scale,
-                     blob=old_blob))
+                     blob=old_blob,
+                     proposal_stats=proposal_stats))
 
             # Update the live point (previously our "worst" point).
             self.live_u[worst] = u

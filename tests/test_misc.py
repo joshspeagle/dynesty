@@ -64,8 +64,8 @@ def test_maxcall():
     sampler.run_nested(dlogz_init=1, maxcall=1000, print_progress=printing)
 
 
-@pytest.mark.parametrize('dynamic,with_pool',
-                         itertools.product([True, False], [True, False]))
+@pytest.mark.parametrize('dynamic', [True, False])
+@pytest.mark.parametrize('with_pool', [True, False])
 def test_pickle(dynamic, with_pool):
     # test of pickling functionality
     ndim = 2
@@ -501,7 +501,7 @@ def test_maxiter_batch():
             # I am finding the the first iteration with the batch
             # [-inf, something]. Then I'm setting maxiter to be just above
             # that iteration
-            b1 = np.where(~np.isfinite(dres2.batch_bounds[:, 0]))[0][1]
+            b1 = np.where(~np.isfinite(dres2.batch_logl_bounds[:, 0]))[0][1]
             maxiter = np.min(
                 np.array(dsampler2.saved_run['it'])[
                     dsampler2.saved_run['batch'] == b1]) + nlive // 2
@@ -603,7 +603,8 @@ def test_verify_batch():
                                     1].min() > d0.results['samples_it'].max()
     # checke that the iterations are set correctly
     assert d1.ncall > d0.ncall
-    assert len(d1.results.batch_bounds) > len(d0.results.batch_bounds)
+    assert len(d1.results.batch_logl_bounds) > len(
+        d0.results.batch_logl_bounds)
 
 
 @pytest.mark.parametrize('dynamic', [False, True])

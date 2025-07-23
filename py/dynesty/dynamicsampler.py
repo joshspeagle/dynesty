@@ -43,7 +43,6 @@ class DynamicSamplerStatesEnum(Enum):
     INBASEADDLIVE = 7  # during addition of livepoints in the
     INBATCHADDLIVE = 8  # during addition of livepoints in the
     RUN_DONE = 9  # The run has ended
-    # end of the base run
 
 
 def compute_weights(results):
@@ -716,7 +715,7 @@ class DynamicSampler:
                                                     bound_bootstrap)
 
         # TODO FIX
-        # self.cite = self.kwargs.get('cite')
+        self.cite = cite
 
         # random state
         self.rstate = rstate
@@ -742,7 +741,6 @@ class DynamicSampler:
         self.ncall = 0  # number of function calls
         self.bound_list = []  # initial states used to compute bounds
         self.eff = 1.  # sampling efficiency
-        self.base = False  # base run complete
         self.nlive0 = nlive0
         self.internal_state = DynamicSamplerStatesEnum.INIT
 
@@ -835,17 +833,25 @@ class DynamicSampler:
         """Re-initialize the sampler."""
 
         # sampling
-        self.it = 1
-        self.batch = 0
-        self.ncall = 0
-        self.bound_list = []
-        self.eff = 1.
-        self.base = False
-
-        self.saved_run = RunRecord(dynamic=True)
-        self.base_run = RunRecord(dynamic=True)
-        self.new_run = None
-        self.new_logl_min, self.new_logl_max = -np.inf, np.inf
+        DynamicSampler.__init__(
+            self,
+            self.loglikelihood,
+            self.prior_transform,
+            self.ndim,
+            self.sampling,
+            self.bounding,
+            nlive0=self.nlive0,
+            ncdim=self.ncdim,
+            rstate=self.rstate,
+            pool=self.pool,
+            use_pool=self.use_pool,
+            queue_size=self.queue_size,
+            bound_update_interval_ratio=self.bound_update_interval_ratio,
+            first_bound_update=self.first_bound_update,
+            bound_bootstrap=self.bound_bootstrap,
+            bound_enlarge=self.bound_enlarge,
+            blob=self.blob,
+            cite=self.cite)
 
     @property
     def results(self):
@@ -855,7 +861,7 @@ class DynamicSampler:
         for k in [
                 'nc', 'v', 'id', 'batch', 'it', 'u', 'n', 'logwt', 'logl',
                 'logvol', 'logz', 'logzvar', 'h', 'batch_nlive',
-                'batch_bounds', 'blob'
+                'batch_logl_bounds', 'blob'
         ]:
             d[k] = np.array(self.saved_run[k])
 
@@ -868,7 +874,7 @@ class DynamicSampler:
                 results.append(('samples_' + k, d[k]))
             for k in [
                     'logwt', 'logl', 'logvol', 'logz', 'batch_nlive',
-                    'batch_bounds', 'blob'
+                    'batch_logl_bounds', 'blob'
             ]:
                 results.append((k, d[k]))
             results.append(('logzerr', np.sqrt(d['logzvar'])))
@@ -1042,9 +1048,6 @@ class DynamicSampler:
             warnings.warn("Beware: `nlive_init <= 2 * ndim`!")
 
         if not resume:
-            # Reset saved results to avoid any possible conflicts.
-            self.reset()
-
             (self.live_u, self.live_v, self.live_logl,
              blobs), logvol_init, init_ncalls = _initialize_live_points(
                  live_points,
@@ -1206,10 +1209,9 @@ class DynamicSampler:
                                            dtype=int)  # batch
 
         self.saved_run['batch_nlive'].append(self.nlive_init)  # initial nlive
-        self.saved_run['batch_bounds'].append(
+        self.saved_run['batch_logl_bounds'].append(
             (-np.inf, np.inf))  # initial bounds
 
-        self.base = True  # baseline run complete
         self.internal_state = DynamicSamplerStatesEnum.BASE_DONE
 
     def sample_batch(self,
@@ -1471,7 +1473,7 @@ class DynamicSampler:
         nnew = len(new_d['n'])
         llmin, llmax = self.new_logl_min, self.new_logl_max
 
-        old_batch_bounds = self.saved_run['batch_bounds']
+        old_batch_logl_bounds = self.saved_run['batch_logl_bounds']
         old_batch_nlive = self.saved_run['batch_nlive']
         # Reset saved results.
         del self.saved_run
@@ -1585,7 +1587,8 @@ class DynamicSampler:
 
         # Saved batch quantities.
         self.saved_run['batch_nlive'] = old_batch_nlive + [(max(new_d['n']))]
-        self.saved_run['batch_bounds'] = old_batch_bounds + [((llmin, llmax))]
+        self.saved_run['batch_logl_bounds'] = old_batch_logl_bounds + [(
+            (llmin, llmax))]
 
     def run_nested(self,
                    nlive_init=None,
@@ -1783,16 +1786,40 @@ class DynamicSampler:
         maxcall_init = min(maxcall_init, maxcall)  # set max calls
         maxiter_init = min(maxiter_init, maxiter)  # set max iterations
 
-        if resume and self.internal_state == DynamicSamplerStatesEnum.RUN_DONE:
-            warnings.warn(
-                """You tried to resume the run that has ended successfully.
-This is not supported. No sampling was performed""", RuntimeWarning)
-            return
+        # run_nested can only be run in 3 cases
+        # * resuming interrupted run
+        # * starting a new run from fresh object
+        # * running longer after the previously finished run (i.e. add batches)
+        if resume:
+            if self.internal_state == DynamicSamplerStatesEnum.RUN_DONE:
+                warnings.warn(
+                    "You tried to resume the run that has ended successfully."
+                    "This is not supported. No sampling was performed",
+                    RuntimeWarning)
+                return
+        else:
+            if self.internal_state not in [
+                    DynamicSamplerStatesEnum.INIT,
+                    DynamicSamplerStatesEnum.RUN_DONE
+            ]:
+                warnings.warn(
+                    "You tried to run_nested() again from unclear sampler "
+                    "state. This is not supported. "
+                    "No sampling was performed.", RuntimeWarning)
+                return
+
         # Baseline run.
         pbar, print_func = get_print_func(print_func, print_progress)
         self.checkpoint_timer = DelayTimer(checkpoint_every)
         try:
-            if not self.base:
+            # the init should be the first default stage, all other ones
+            # are possible if we are resuming
+            if self.internal_state in [
+                    DynamicSamplerStatesEnum.INIT,
+                    DynamicSamplerStatesEnum.LIVEPOINTSINIT,
+                    DynamicSamplerStatesEnum.INBASE,
+                    DynamicSamplerStatesEnum.INBASEADDLIVE,
+            ]:
                 for results in self.sample_initial(nlive=nlive_init,
                                                    dlogz=dlogz_init,
                                                    maxcall=maxcall_init,

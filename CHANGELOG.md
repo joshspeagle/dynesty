@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Remove custom update_func
 - Remove hslice
 - Remove 'user-defined' proposal distribution
+- Change internal attribute from batch_bounds to batch_logl_bounds
 ### Fixed
 
 [2.1.5 - 2024-12-17]

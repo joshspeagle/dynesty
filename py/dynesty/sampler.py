@@ -736,16 +736,16 @@ class Sampler:
             ncall_accum += cur_ncalls
             ncall += cur_ncalls
             u, v = ret.u, ret.v
-            sampling_info = ret.sampling_info
+            tuning_info = ret.tuning_info
             sampling_history.extend(ret.sampling_history)
 
-            if sampling_info is not None and not self.unit_cube_sampling:
+            if tuning_info is not None and not self.unit_cube_sampling:
                 # If our queue is empty, update any tuning parameters
                 # associated
                 # with our proposal (sampling) method.
                 # If it's not empty we are just accumulating the
                 # the history of evaluations
-                self.internal_sampler.tune(sampling_info,
+                self.internal_sampler.tune(tuning_info,
                                            update=self.nqueue <= 0)
 
             # the reason I'm not using self.ncall is that it's updated at

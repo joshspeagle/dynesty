@@ -716,7 +716,7 @@ class DynamicSampler:
                                                     bound_bootstrap)
 
         # TODO FIX
-        # self.cite = self.kwargs.get('cite')
+        self.cite = cite
 
         # random state
         self.rstate = rstate
@@ -835,17 +835,25 @@ class DynamicSampler:
         """Re-initialize the sampler."""
 
         # sampling
-        self.it = 1
-        self.batch = 0
-        self.ncall = 0
-        self.bound_list = []
-        self.eff = 1.
-        self.base = False
-
-        self.saved_run = RunRecord(dynamic=True)
-        self.base_run = RunRecord(dynamic=True)
-        self.new_run = None
-        self.new_logl_min, self.new_logl_max = -np.inf, np.inf
+        DynamicSampler.__init__(
+            self,
+            self.loglikelihood,
+            self.prior_transform,
+            self.ndim,
+            self.sampling,
+            self.bounding,
+            nlive0=self.nlive0,
+            ncdim=self.ncdim,
+            rstate=self.rstate,
+            pool=self.pool,
+            use_pool=self.use_pool,
+            queue_size=self.queue_size,
+            bound_update_interval_ratio=self.bound_update_interval_ratio,
+            first_bound_update=self.first_bound_update,
+            bound_bootstrap=self.bound_bootstrap,
+            bound_enlarge=self.bound_enlarge,
+            blob=self.blob,
+            cite=self.cite)
 
     @property
     def results(self):
@@ -1042,9 +1050,6 @@ class DynamicSampler:
             warnings.warn("Beware: `nlive_init <= 2 * ndim`!")
 
         if not resume:
-            # Reset saved results to avoid any possible conflicts.
-            self.reset()
-
             (self.live_u, self.live_v, self.live_logl,
              blobs), logvol_init, init_ncalls = _initialize_live_points(
                  live_points,

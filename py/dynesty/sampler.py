@@ -270,7 +270,8 @@ class Sampler:
 
     live_points : list of 3 or 4 `~numpy.ndarray`
         Each with shape (nlive, ndim) for the first three arrays.
-        If `blob=True`, a fourth array of blobs (arbitrary shape) may be included.
+        If `blob=True`, a fourth array of blobs (arbitrary shape) may be
+        included.
 
     sampling : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`}
         Sampling Method used to sample uniformly within the likelihood
@@ -390,6 +391,7 @@ class Sampler:
 
         # bounding updates
         self.bound_update_interval = bound_update_interval
+        self.first_bound_update = first_bound_update
         self.first_bound_update_ncall = first_bound_update.get(
             'min_ncall', 2 * self.nlive)
         self.first_bound_update_eff = first_bound_update.get('min_eff', 10.)
@@ -512,41 +514,36 @@ class Sampler:
     def reset(self):
         """Re-initialize the sampler."""
 
-        (self.live_u, self.live_v, self.live_logl,
-         self.live_blobs), logvol_init, init_ncalls = _initialize_live_points(
-             None,
-             self.prior_transform,
-             self.loglikelihood,
-             self.mapper,
-             nlive=self.nlive,
-             ndim=self.ndim,
-             rstate=self.rstate,
-             blob=self.blob,
-             use_pool_ptform=self.use_pool_ptform)
-        self.logvol_init = logvol_init
-        self.live_bound = np.zeros(self.nlive, dtype=int)
-        self.live_it = np.zeros(self.nlive, dtype=int)
+        # (self.live_u, self.live_v, self.live_logl, self.live_blobs)
+        live_points, logvol_init, init_ncalls = _initialize_live_points(
+            None,
+            self.prior_transform,
+            self.loglikelihood,
+            self.mapper,
+            nlive=self.nlive,
+            ndim=self.ndim,
+            rstate=self.rstate,
+            blob=self.blob,
+            use_pool_ptform=self.use_pool_ptform)
 
-        # parallelism
-        self.queue = []
-        self.nqueue = 0
-
-        # sampling
-        self.it = 1
-        self.ncall = init_ncalls
-        self.bound = UnitCube(self.ncdim)
-        self.bound_list = [self.bound]
-        self.internal_sampler = UnitCubeSampler(ndim=self.ndim)
-        self.nbound = 1
-        self.unit_cube_sampling = True
-        self.added_live = False
-
-        self.plateau_mode = False
-        self.plateau_counter = None
-        self.plateau_logdvol = None
-
-        # results
-        self.saved_run = RunRecord()
+        self.__init__(self.loglikelihood,
+                      self.prior_transform,
+                      self.ndim,
+                      live_points,
+                      self.sampling,
+                      self.bounding,
+                      ncdim=self.ncdim,
+                      rstate=self.rstate,
+                      pool=self.pool,
+                      use_pool=self.use_pool,
+                      queue_size=self.queue_size,
+                      bound_update_interval=self.bound_update_interval,
+                      first_bound_update=self.first_bound_update,
+                      bound_bootstrap=self.bound_bootstrap,
+                      bound_enlarge=self.bound_enlarge,
+                      blob=self.blob,
+                      cite=self.cite,
+                      logvol_init=logvol_init)
 
     @property
     def results(self):
@@ -1258,7 +1255,6 @@ class Sampler:
             the internal state of the sampler. The sampler will also be
             saved in the end of the run irrespective of checkpoint_every.
         """
-
 
         # Define our stopping criteria.
         if dlogz is None:

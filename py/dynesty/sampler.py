@@ -225,7 +225,7 @@ def _initialize_live_points(live_points,
         # then run a quick safety check.
         live_u, live_v, live_logl = live_points[:3]
         if blob:
-            live_blobs = live_points[4]
+            live_blobs = live_points[3]
         live_logl = np.asarray(live_logl)
         for i, logl in enumerate(live_logl):
             if not np.isfinite(logl):
@@ -345,7 +345,7 @@ class Sampler:
         # live points
         self.live_u, self.live_v, self.live_logl = live_points[:3]
         if blob:
-            self.live_blobs = live_points[4]
+            self.live_blobs = live_points[3]
         else:
             self.live_blobs = None
         self.nlive = len(self.live_u)

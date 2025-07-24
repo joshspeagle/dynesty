@@ -562,13 +562,14 @@ class Sampler:
             warnings.simplefilter("ignore")
             results = [('nlive', self.nlive), ('niter', self.it - 1),
                        ('ncall', d['nc']), ('eff', self.eff),
-                       ('samples', d['v']), ('blob', d['blob'])]
+                       ('samples', d['v']), ('blob', d['blob']), ('proposal_stats', d['proposal_stats'])]
             for k in ['id', 'it', 'u']:
                 results.append(('samples_' + k, d[k]))
             for k in ['logwt', 'logl', 'logvol', 'logz']:
                 results.append((k, d[k]))
             results.append(('logzerr', np.sqrt(d['logzvar'])))
             results.append(('information', d['h']))
+            print(f"DEBUG: d['proposal_stats'] in Sampler.results: {d['proposal_stats']}")
 
         # Add any saved bounds (and ancillary quantities) to the results.
         if self.save_bounds:
@@ -871,7 +872,8 @@ class Sampler:
                     it=point_it,
                     bounditer=bounditer,
                     scale=self.internal_sampler.scale,
-                    blob=old_blob))
+                    blob=old_blob,
+                    proposal_stats=None))
             self.eff = 100. * (self.it + i) / self.ncall  # efficiency
 
             # Return our new "dead" point and ancillary quantities.
@@ -890,7 +892,8 @@ class Sampler:
                                  boundidx=boundidx,
                                  bounditer=bounditer,
                                  eff=self.eff,
-                                 delta_logz=delta_logz)
+                                 delta_logz=delta_logz,
+                                 proposal_stats=None)
 
     def _remove_live_points(self):
         """Remove the final set of live points if they were
@@ -1187,7 +1190,8 @@ class Sampler:
                                  boundidx=boundidx,
                                  bounditer=bounditer,
                                  eff=self.eff,
-                                 delta_logz=delta_logz)
+                                 delta_logz=delta_logz,
+                                 proposal_stats=proposal_stats)
 
     def run_nested(self,
                    maxiter=None,

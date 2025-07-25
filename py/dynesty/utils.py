@@ -649,6 +649,9 @@ class Results:
             assert k in Results._ALLOWED, k
             self._keys.append(k)
             setattr(self, k, copy.copy(v))
+        if 'proposal_stats' not in self._keys:
+            self._keys.append('proposal_stats')
+            setattr(self, 'proposal_stats', None)
         required_keys = ['samples_u', 'samples_id', 'logl', 'samples']
         # TODO I need to add here logz, logzerr
         # but that requires ensuring that merge_runs always computes logz

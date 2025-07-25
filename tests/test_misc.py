@@ -342,7 +342,7 @@ def test_deterministic(ndim):
         results.append(res)
 
     for k in results[0].keys():
-        if k == 'blob':
+        if k in ['blob', 'proposal_stats']:
             continue
         val0 = results[0][k]
         val1 = results[1][k]

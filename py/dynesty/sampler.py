@@ -553,7 +553,7 @@ class Sampler:
         d = {}
         for k in [
                 'nc', 'v', 'id', 'it', 'u', 'logwt', 'logl', 'logvol', 'logz',
-                'logzvar', 'h', 'blob'
+                'logzvar', 'h', 'blob', 'proposal_stats'
         ]:
             d[k] = np.array(self.saved_run[k])
 
@@ -562,13 +562,14 @@ class Sampler:
             warnings.simplefilter("ignore")
             results = [('nlive', self.nlive), ('niter', self.it - 1),
                        ('ncall', d['nc']), ('eff', self.eff),
-                       ('samples', d['v']), ('blob', d['blob'])]
+                       ('samples', d['v']), ('blob', d['blob']), ('proposal_stats', d['proposal_stats'])]
             for k in ['id', 'it', 'u']:
                 results.append(('samples_' + k, d[k]))
             for k in ['logwt', 'logl', 'logvol', 'logz']:
                 results.append((k, d[k]))
             results.append(('logzerr', np.sqrt(d['logzvar'])))
             results.append(('information', d['h']))
+            print(f"DEBUG: d['proposal_stats'] in Sampler.results: {d['proposal_stats']}")
 
         # Add any saved bounds (and ancillary quantities) to the results.
         if self.save_bounds:
@@ -710,30 +711,38 @@ class Sampler:
             self._fill_queue(loglstar)
 
         # Grab the earliest entry.
-        u, v, logl, nc, blob = self.queue.pop(0)
+        ret = self.queue.pop(0)
         self.nqueue -= 1
 
-        return u, v, logl, nc, blob
+        return ret
 
     def _new_point(self, loglstar):
         """Propose points until a new point that satisfies the log-likelihood
         constraint `loglstar` is found."""
 
         ncall = self.ncall
+        # this is a global counter
+        # we do not update directly the counter inside the class
         ncall_accum = 0
+        sampling_history = []
         while True:
             # Get the next point from the queue
-            u, v, logl, nc, sampling_info = self._get_point_value(loglstar)
-            ncall += nc
-            ncall_accum += nc
+            ret = self._get_point_value(loglstar)
+            logl = ret.logl
+            cur_ncalls = ret.ncalls
+            ncall_accum += cur_ncalls
+            ncall += cur_ncalls
+            u, v = ret.u, ret.v
+            tuning_info = ret.tuning_info
+            sampling_history.extend(ret.sampling_history)
 
-            if sampling_info is not None and not self.unit_cube_sampling:
+            if tuning_info is not None and not self.unit_cube_sampling:
                 # If our queue is empty, update any tuning parameters
                 # associated
                 # with our proposal (sampling) method.
                 # If it's not empty we are just accumulating the
                 # the history of evaluations
-                self.internal_sampler.tune(sampling_info,
+                self.internal_sampler.tune(tuning_info,
                                            update=self.nqueue <= 0)
 
             # the reason I'm not using self.ncall is that it's updated at
@@ -748,7 +757,7 @@ class Sampler:
             if logl > loglstar:
                 break
 
-        return u, v, logl, ncall_accum
+        return u, v, logl, ncall_accum, ret.proposal_stats
 
     def add_live_points(self):
         """Add the remaining set of live points to the current set of dead
@@ -863,7 +872,8 @@ class Sampler:
                     it=point_it,
                     bounditer=bounditer,
                     scale=self.internal_sampler.scale,
-                    blob=old_blob))
+                    blob=old_blob,
+                    proposal_stats=None))
             self.eff = 100. * (self.it + i) / self.ncall  # efficiency
 
             # Return our new "dead" point and ancillary quantities.
@@ -882,7 +892,8 @@ class Sampler:
                                  boundidx=boundidx,
                                  bounditer=bounditer,
                                  eff=self.eff,
-                                 delta_logz=delta_logz)
+                                 delta_logz=delta_logz,
+                                 proposal_stats=None)
 
     def _remove_live_points(self):
         """Remove the final set of live points if they were
@@ -893,7 +904,7 @@ class Sampler:
             for k in [
                     'id', 'u', 'v', 'logl', 'logvol', 'logwt', 'logz',
                     'logzvar', 'h', 'nc', 'boundidx', 'it', 'bounditer',
-                    'scale', 'blob'
+                    'scale', 'blob', 'proposal_stats'
             ]:
                 del self.saved_run[k][-self.nlive:]
         else:
@@ -1109,7 +1120,7 @@ class Sampler:
             # Sample a new live point from within the likelihood constraint
             # `logl > loglstar` using the bounding distribution and sampling
             # method from our sampler.
-            u, v, logl, nc = self._new_point(loglstar_new)
+            u, v, logl, nc, proposal_stats = self._new_point(loglstar_new)
             ncall += nc
             self.ncall += nc
             if self.blob:
@@ -1142,7 +1153,8 @@ class Sampler:
                      it=worst_it,
                      bounditer=bounditer,
                      scale=self.internal_sampler.scale,
-                     blob=old_blob))
+                     blob=old_blob,
+                     proposal_stats=proposal_stats))
 
             # Update the live point (previously our "worst" point).
             self.live_u[worst] = u
@@ -1178,7 +1190,8 @@ class Sampler:
                                  boundidx=boundidx,
                                  bounditer=bounditer,
                                  eff=self.eff,
-                                 delta_logz=delta_logz)
+                                 delta_logz=delta_logz,
+                                 proposal_stats=proposal_stats)
 
     def run_nested(self,
                    maxiter=None,

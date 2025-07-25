@@ -24,6 +24,13 @@ SamplerArgument = namedtuple('SamplerArgument', [
     'rseed', 'kwargs'
 ])
 
+SamplerHistoryItem = namedtuple('SamplerHistoryItem', ['u', 'v', 'logl'])
+
+SamplerReturn = namedtuple('SamplerReturn', [
+    'u', 'v', 'logl', 'ncalls', 'sampling_history', 'tuning_info',
+    'proposal_stats'
+])
+
 INTERNAL_SAMPLER_LIST = ['rwalk', 'unif', 'rslice', 'slice']
 
 
@@ -172,12 +179,12 @@ class InternalSampler:
             Ln(likelihood) of the final proposed point.
         nc : int
             Number of function calls used to generate the sample.
-        sampling_info : dict
+        tuning_info : dict
             Collection of ancillary quantities used to tune :data:`scale`.
         """
         pass
 
-    def tune(self, sampling_info, update=False):
+    def tune(self, tuning_info, update=False):
         """
 
         Accumulate sampling info and optionally update the proposal scale and
@@ -185,7 +192,7 @@ class InternalSampler:
 
         Parameters
         ----------
-        sampling_info : dict
+        tuning_info : dict
             Dictionary containing the sampling information.
         update : bool
             Whether to update the proposal scale or not (default: False).
@@ -284,7 +291,7 @@ class UniformBoundSampler(InternalSampler):
         nc : int
             Number of function calls used to generate the sample.
 
-        sampling_info : dict
+        tuning_info : dict
             Collection of ancillary quantities used to tune :data:`scale`.
 
         """
@@ -296,12 +303,13 @@ class UniformBoundSampler(InternalSampler):
         n_cluster = args.kwargs.get('n_cluster')
         ndim = args.kwargs['ndim']
         nc = 0
-        sampling_info = None
+        tuning_info = None
         if nonbounded is not None:
             nonbounded = nonbounded[:n_cluster]
         ntries = 0
         threshold_warning = 10000
         threshold_warned = False
+        sampling_history = []
         while True:
             u = bound.samples(1, rstate=rstate).flatten()
             if not unitcheck(u, nonbounded):
@@ -320,10 +328,17 @@ class UniformBoundSampler(InternalSampler):
                     (u, rstate.uniform(size=(ndim - n_cluster))))
             v = args.prior_transform(np.asarray(u))
             logl = args.loglikelihood(np.asarray(v))
+            sampling_history.append(SamplerHistoryItem(u=u, v=v, logl=logl))
             nc += 1
             if logl > args.loglstar:
                 break
-        return u, v, logl, nc, sampling_info
+        return SamplerReturn(u=u,
+                             v=v,
+                             logl=logl,
+                             ncalls=nc,
+                             tuning_info=tuning_info,
+                             sampling_history=sampling_history,
+                             proposal_stats={'n_proposals': ntries})
 
 
 class UnitCubeSampler(InternalSampler):
@@ -399,7 +414,7 @@ class UnitCubeSampler(InternalSampler):
         nc : int
             Number of function calls used to generate the sample.
 
-        sampling_info : dict
+        tuning_info : dict
             Collection of ancillary quantities used to tune :data:`scale`.
 
         """
@@ -408,15 +423,23 @@ class UnitCubeSampler(InternalSampler):
         rstate = get_random_generator(args.rseed)
         ndim = args.kwargs.get('ndim')
         nc = 0
-        sampling_info = None
+        tuning_info = None
+        sampling_history = []
         while True:
             u = rstate.uniform(size=ndim)
             v = args.prior_transform(np.asarray(u))
             logl = args.loglikelihood(np.asarray(v))
+            sampling_history.append(SamplerHistoryItem(u=u, v=v, logl=logl))
             nc += 1
             if logl > args.loglstar:
                 break
-        return u, v, logl, nc, sampling_info
+        return SamplerReturn(u=u,
+                             v=v,
+                             logl=logl,
+                             ncalls=nc,
+                             tuning_info=tuning_info,
+                             sampling_history=sampling_history,
+                             proposal_stats=dict(n_proposals=nc))
 
 
 class RWalkSampler(InternalSampler):
@@ -427,7 +450,7 @@ class RWalkSampler(InternalSampler):
         walks = max(2, kwargs.get('walks', 25))
         self.facc = kwargs.get('facc', 0.5)
         self.facc = min(1., max(1. / walks, self.facc))
-        self.rwalk_history = {'naccept': 0, 'nreject': 0}
+        self.rwalk_history = {'n_accept': 0, 'n_reject': 0}
         self.ncdim = kwargs.get('ncdim')
         # Since the sample is a static method, it's crucial
         # to put relevant information into kwargs which is then passed to
@@ -435,7 +458,7 @@ class RWalkSampler(InternalSampler):
         self.sampler_kwargs['walks'] = walks
         self.sampler_kwargs['ncdim'] = self.ncdim
 
-    def tune(self, sampling_info, update=True):
+    def tune(self, tuning_info, update=True):
         """Update the random walk proposal scale based on the current
         number of accepted/rejected steps.
         For rwalk the scale is important because it
@@ -446,13 +469,13 @@ class RWalkSampler(InternalSampler):
         The keyword update determines if we are just accumulating the number
         of steps or actually adjusting the scale
         """
-        self.scale = sampling_info['scale']
+        self.scale = tuning_info['scale']
         hist = self.rwalk_history
-        hist['naccept'] += sampling_info['accept']
-        hist['nreject'] += sampling_info['reject']
+        hist['n_accept'] += tuning_info['accept']
+        hist['n_reject'] += tuning_info['reject']
         if not update:
             return
-        accept, reject = hist['naccept'], hist['nreject']
+        accept, reject = hist['n_accept'], hist['n_reject']
         facc = (1. * accept) / (accept + reject)
         # Here we are now trying to solve the Eqn
         # f0 = F(s) where F is the function
@@ -467,8 +490,8 @@ class RWalkSampler(InternalSampler):
         # See also Robbins-Munro recursion which we don't follow
         # here because our coefficients a_k do not obey \sum a_k^2 = \infty
         self.scale *= math.exp((facc - self.facc) / self.ncdim / self.facc)
-        hist['naccept'] = 0
-        hist['nreject'] = 0
+        hist['n_accept'] = 0
+        hist['n_reject'] = 0
 
     @property
     def update_bound_interval_ratio(self):
@@ -527,7 +550,7 @@ class RWalkSampler(InternalSampler):
         nc : int
             Number of function calls used to generate the sample.
 
-        sampling_info : dict
+        tuning_info : dict
             Collection of ancillary quantities used to tune :data:`scale`.
 
         """
@@ -549,7 +572,7 @@ class SliceSampler(InternalSampler):
         super().__init__(**kwargs)
         # Initialize slice parameters.
         slices = kwargs.get('slices', 5)
-        self.slice_history = {'ncontract': 0, 'nexpand': 0}
+        self.slice_history = {'n_contract': 0, 'n_expand': 0}
 
         self.sampler_kwargs['slices'] = slices
         # Since the sample is a static method, it's crucial
@@ -618,7 +641,7 @@ class SliceSampler(InternalSampler):
         nc : int
             Number of function calls used to generate the sample.
 
-        sampling_info : dict
+        tuning_info : dict
             Collection of ancillary quantities used to tune :data:`scale`.
 
         """
@@ -636,9 +659,9 @@ class SliceSampler(InternalSampler):
         assert axes.shape[0] == n
         slices = kwargs['slices']  # number of slices
         nc = 0
-        nexpand = 0
-        ncontract = 0
-
+        n_expand = 0
+        n_contract = 0
+        sampling_history = []
         # Modifying axes and computing lengths.
         axes = scale * axes.T  # scale based on past tuning
         # Note we are transposing as axes[:,i] corresponds to i-th principal
@@ -656,14 +679,14 @@ class SliceSampler(InternalSampler):
 
                 # Select axis.
                 axis = axes[idx]
-                (u_prop, v_prop, logl_prop, nc1, nexpand1, ncontract1,
+                (u_prop, v_prop, logl_prop, nc1, n_expand1, n_contract1,
                  expansion_warning) = generic_slice_step(
                      u, axis, nonperiodic, loglstar, loglikelihood,
-                     prior_transform, doubling, rstate)
+                     prior_transform, doubling, sampling_history, rstate)
                 u = u_prop
                 nc += nc1
-                nexpand += nexpand1
-                ncontract += ncontract1
+                n_expand += n_expand1
+                n_contract += n_contract1
                 if expansion_warning and not doubling:
                     # if we expanded the interval by more than
                     # the threshold we set the warning and enable doubling
@@ -671,13 +694,20 @@ class SliceSampler(InternalSampler):
                     doubling = True
                     warnings.warn('Enabling doubling strategy of slice '
                                   'sampling from Neal(2003)')
-        sampling_info = {
-            'nexpand': nexpand,
-            'ncontract': ncontract,
+        tuning_info = {
+            'n_expand': n_expand,
+            'n_contract': n_contract,
             'expansion_warning_set': expansion_warning_set
         }
 
-        return u_prop, v_prop, logl_prop, nc, sampling_info
+        return SamplerReturn(u=u_prop,
+                             v=v_prop,
+                             logl=logl_prop,
+                             ncalls=nc,
+                             tuning_info=tuning_info,
+                             sampling_history=sampling_history,
+                             proposal_stats=dict(n_expand=n_expand,
+                                                 n_contract=n_contract))
 
     @property
     def citations(self):
@@ -694,7 +724,7 @@ class RSliceSampler(InternalSampler):
         super().__init__(**kwargs)
         # Initialize slice parameters.
         slices = kwargs.get('slices', 5)
-        self.slice_history = {'ncontract': 0, 'nexpand': 0}
+        self.slice_history = {'n_contract': 0, 'n_expand': 0}
 
         self.sampler_kwargs['slices'] = slices
         # Since the sample is a static method, it's crucial
@@ -761,7 +791,7 @@ class RSliceSampler(InternalSampler):
         nc : int
             Number of function calls used to generate the sample.
 
-        sampling_info : dict
+        tuning_info : dict
             Collection of ancillary quantities used to tune :data:`scale`.
 
         """
@@ -774,14 +804,14 @@ class RSliceSampler(InternalSampler):
         # Periodicity.
         nonperiodic = kwargs.get('nonperiodic', None)
         doubling = kwargs.get('slice_doubling', False)
-
+        sampling_history = []
         # Setup.
         n = len(u)
         assert axes.shape[0] == n
         slices = kwargs['slices']  # number of slices
         nc = 0
-        nexpand = 0
-        ncontract = 0
+        n_expand = 0
+        n_contract = 0
         expansion_warning_set = False
 
         # Slice sampling loop.
@@ -794,28 +824,35 @@ class RSliceSampler(InternalSampler):
             # Transform and scale based on past tuning.
             direction = np.dot(axes, drhat) * scale
 
-            (u_prop, v_prop, logl_prop, nc1, nexpand1, ncontract1,
+            (u_prop, v_prop, logl_prop, nc1, n_expand1, n_contract1,
              expansion_warning) = generic_slice_step(u, direction, nonperiodic,
                                                      loglstar, loglikelihood,
                                                      prior_transform, doubling,
-                                                     rstate)
+                                                     sampling_history, rstate)
             u = u_prop
             nc += nc1
-            nexpand += nexpand1
-            ncontract += ncontract1
+            n_expand += n_expand1
+            n_contract += n_contract1
             if expansion_warning and not doubling:
                 doubling = True
                 expansion_warning_set = True
                 warnings.warn('Enabling doubling strategy of slice '
                               'sampling from Neal(2003)')
 
-        sampling_info = {
-            'nexpand': nexpand,
-            'ncontract': ncontract,
+        tuning_info = {
+            'n_expand': n_expand,
+            'n_contract': n_contract,
             'expansion_warning_set': expansion_warning_set
         }
 
-        return u_prop, v_prop, logl_prop, nc, sampling_info
+        return SamplerReturn(u=u_prop,
+                             v=v_prop,
+                             logl=logl_prop,
+                             ncalls=nc,
+                             tuning_info=tuning_info,
+                             sampling_history=sampling_history,
+                             proposal_stats=dict(n_expand=n_expand,
+                                                 n_contract=n_contract))
 
     @property
     def citations(self):
@@ -873,7 +910,7 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
     nc : int
         Number of function calls used to generate the sample.
 
-    sampling_info : dict
+    tuning_info : dict
         Collection of ancillary quantities used to tune :data:`scale`.
 
     """
@@ -887,11 +924,11 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
     n = len(u)
     n_cluster = axes.shape[0]
     walks = kwargs['walks']  # number of steps
-
-    naccept = 0
+    sampling_history = []
+    n_accept = 0
     # Total number of accepted points with L>L*
 
-    nreject = 0
+    n_reject = 0
     # Total number of points proposed to within the ellipsoid and cube
     # but rejected due to L<=L* condition
 
@@ -912,7 +949,7 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
                                           reflective=reflective,
                                           nonbounded=nonbounded)
         if fail:
-            nreject += 1
+            n_reject += 1
             ncall += 1
             continue
 
@@ -920,24 +957,33 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
         v_prop = prior_transform(u_prop)
         logl_prop = loglikelihood(v_prop)
         ncall += 1
+        sampling_history.append(
+            SamplerHistoryItem(u=u_prop, v=v_prop, logl=logl_prop))
 
         if logl_prop > loglstar:
             u = u_prop
             v = v_prop
             logl = logl_prop
-            naccept += 1
+            n_accept += 1
         else:
-            nreject += 1
-    if naccept == 0:
+            n_reject += 1
+    if n_accept == 0:
         # Technically we can find out the likelihood value
         # stored somewhere
         # But I'm currently recomputing it
         v = prior_transform(u)
         logl = loglikelihood(v)
 
-    sampling_info = {'accept': naccept, 'reject': nreject, 'scale': scale}
+    tuning_info = {'accept': n_accept, 'reject': n_reject, 'scale': scale}
 
-    return u, v, logl, ncall, sampling_info
+    return SamplerReturn(u=u,
+                         v=v,
+                         logl=logl,
+                         ncalls=ncall,
+                         tuning_info=tuning_info,
+                         sampling_history=sampling_history,
+                         proposal_stats=dict(n_accept=n_accept,
+                                             n_reject=n_reject))
 
 
 def propose_ball_point(u,
@@ -1027,7 +1073,7 @@ def _slice_doubling_accept(x1, F, loglstar, L, R, fL, fR):
 
 
 def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
-                       prior_transform, doubling, rstate):
+                       prior_transform, doubling, sampling_history, rstate):
     """
     Do a slice generic slice sampling step along a specified dimension
 
@@ -1047,8 +1093,8 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
     rstate: random state
 
     """
-    nc, nexpand, ncontract = 0, 0, 0
-    nexpand_threshold = 1000  # Threshold for warning the user
+    nc, n_expand, n_contract = 0, 0, 0
+    n_expand_threshold = 1000  # Threshold for warning the user
     n = len(u)
     rand0 = rstate.random()  # initial scale/offset
     dirlen = linalg.norm(direction)
@@ -1067,7 +1113,10 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
         nonlocal nc
         u_new = u + x * direction
         if unitcheck(u_new, nonperiodic):
-            logl = loglikelihood(prior_transform(u_new))
+            v_new = prior_transform(u_new)
+            logl = loglikelihood(v_new)
+            sampling_history.append(
+                SamplerHistoryItem(u=u_new, v=v_new, logl=logl))
         else:
             logl = -np.inf
         nc += 1
@@ -1085,15 +1134,15 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
         while logl_l > loglstar:
             nstep_l -= 1
             logl_l = F(nstep_l)[1]
-            nexpand += 1
+            n_expand += 1
         while logl_r > loglstar:
             nstep_r += 1
             logl_r = F(nstep_r)[1]
-            nexpand += 1
-        if nexpand > nexpand_threshold:
+            n_expand += 1
+        if n_expand > n_expand_threshold:
             expansion_warning = True
             warnings.warn('The slice sample interval was expanded more '
-                          f'than {nexpand_threshold} times')
+                          f'than {n_expand_threshold} times')
 
     else:
         # "Stepping out" the left and right bounds.
@@ -1106,7 +1155,7 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
             else:
                 nstep_r += (nstep_r - nstep_l)
                 logl_r = F(nstep_r)[1]
-            nexpand += K
+            n_expand += K
             K *= 2
         L = nstep_l
         R = nstep_r
@@ -1123,7 +1172,7 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
         # Propose new position.
         nstep_prop = nstep_l + rstate.random() * nstep_hat  # scale from left
         u_prop, logl_prop = F(nstep_prop)
-        ncontract += 1
+        n_contract += 1
 
         # If we succeed, move to the new position.
         # note that if we are using doubling mode we accept only
@@ -1153,10 +1202,11 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
                                    f"logl_prop: {logl_prop}\n"
                                    f"direction: {direction}\n")
     v_prop = prior_transform(u_prop)
-    return u_prop, v_prop, logl_prop, nc, nexpand, ncontract, expansion_warning
+    return (u_prop, v_prop, logl_prop, nc, n_expand, n_contract,
+            expansion_warning)
 
 
-def tune_slice(sampler, sampling_info, update=True):
+def tune_slice(sampler, tuning_info, update=True):
     """Update the slice proposal scale based on the relative
     size of the slices compared to our initial guess.
     For slice sampling the scale is only 'advisory' in the sense that
@@ -1171,19 +1221,19 @@ def tune_slice(sampler, sampling_info, update=True):
     # and https://github.com/joshspeagle/dynesty/issues/260
     hist = sampler.slice_history
 
-    hist['nexpand'] += sampling_info['nexpand']
-    hist['ncontract'] += sampling_info['ncontract']
-    if sampling_info['expansion_warning_set']:
+    hist['n_expand'] += tuning_info['n_expand']
+    hist['n_contract'] += tuning_info['n_contract']
+    if tuning_info['expansion_warning_set']:
         sampler.sampler_kwargs['slice_doubling'] = True
     if not update:
         return
-    nexpand, ncontract = max(hist['nexpand'], 1), hist['ncontract']
-    mult = (nexpand * 2. / (nexpand + ncontract))
+    n_expand, n_contract = max(hist['n_expand'], 1), hist['n_contract']
+    mult = (n_expand * 2. / (n_expand + n_contract))
     # avoid drastic updates to the scale factor limiting to factor
     # of two
     mult = np.clip(mult, 0.5, 2)
     # Remember I can't apply the rule that scale < cube diagonal
     # because scale is multiplied by axes
     sampler.scale = sampler.scale * mult
-    hist['nexpand'] = 0
-    hist['ncontract'] = 0
+    hist['n_expand'] = 0
+    hist['n_contract'] = 0

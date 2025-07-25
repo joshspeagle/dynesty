@@ -40,12 +40,12 @@ SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 IteratorResult = namedtuple('IteratorResult', [
     'worst', 'ustar', 'vstar', 'loglstar', 'logvol', 'logwt', 'logz',
     'logzvar', 'h', 'nc', 'worst_it', 'boundidx', 'bounditer', 'eff',
-    'delta_logz', 'blob'
+    'delta_logz', 'blob', 'proposal_stats'
 ])
 
 IteratorResultShort = namedtuple('IteratorResultShort', [
     'worst', 'ustar', 'vstar', 'loglstar', 'nc', 'worst_it', 'boundidx',
-    'bounditer', 'eff'
+    'bounditer', 'eff', 'proposal_stats'
 ])
 
 _LOWL_VAL = -1e300
@@ -275,7 +275,8 @@ class RunRecord:
             'n',  # number of live points interior to dead point
             'bounditer',  # active bound at a specific iteration
             'scale',  # scale factor at each iteration
-            'blob'  # blobs output by the log-likelihood
+            'blob',  # blobs output by the log-likelihood
+            'proposal_stats'  # information from the inner sampler 
         ]
         if dynamic:
             keys.extend([
@@ -612,7 +613,9 @@ _RESULTS_STRUCTURE = [
      "The number of live points used for  given batch", 'nbatch'),
     ('scale', 'array[float]', "Scalar scale applied for proposals", 'niter'),
     ('blob', 'array[]',
-     'The auxiliary blobs computed by the log-likelihood function', 'niter')
+     'The auxiliary blobs computed by the log-likelihood function', 'niter'),
+    ('proposal_stats', 'array[]',
+     'Information from the inner sampler', 'niter')
 ]
 
 
@@ -646,6 +649,9 @@ class Results:
             assert k in Results._ALLOWED, k
             self._keys.append(k)
             setattr(self, k, copy.copy(v))
+        if 'proposal_stats' not in self._keys:
+            self._keys.append('proposal_stats')
+            setattr(self, 'proposal_stats', None)
         required_keys = ['samples_u', 'samples_id', 'logl', 'samples']
         # TODO I need to add here logz, logzerr
         # but that requires ensuring that merge_runs always computes logz
@@ -1839,7 +1845,8 @@ def _prepare_for_merge(res):
                     logl=res.logl,
                     nc=res.ncall,
                     it=res.samples_it,
-                    blob=res.blob)
+                    blob=res.blob,
+                    proposal_stats=res.proposal_stats)
     nrun = len(run_info['id'])
 
     # Number of live points throughout the run.
@@ -1904,7 +1911,7 @@ def _merge_two(res1, res2, compute_aux=False):
     combined_info = dict()
     for curk in [
             'id', 'u', 'v', 'logl', 'logvol', 'logwt', 'logz', 'logzvar', 'h',
-            'nc', 'it', 'n', 'batch', 'blob'
+            'nc', 'it', 'n', 'batch', 'blob', 'proposal_stats'
     ]:
         combined_info[curk] = []
 

@@ -12,7 +12,7 @@ import warnings
 import numpy as np
 from numpy import linalg
 import math
-from .utils import unitcheck, apply_reflect, get_random_generator
+from .utils import unitcheck, apply_reflect, get_random_generator, SamplerHistoryItem
 from .bounding import randsphere
 
 __all__ = [
@@ -24,7 +24,6 @@ SamplerArgument = namedtuple('SamplerArgument', [
     'rseed', 'kwargs'
 ])
 
-SamplerHistoryItem = namedtuple('SamplerHistoryItem', ['u', 'v', 'logl'])
 
 SamplerReturn = namedtuple('SamplerReturn', [
     'u', 'v', 'logl', 'ncalls', 'sampling_history', 'tuning_info',

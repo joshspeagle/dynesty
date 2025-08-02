@@ -12,7 +12,7 @@ import math
 import copy
 import numpy as np
 from .results import Results, print_fn
-from .sampling import UnitCubeSampler
+from .sampling import UnitCubeSampler, SamplerHistoryItem
 from .utils import (get_seed_sequence, get_print_func, progress_integration,
                     IteratorResult, RunRecord, get_neff_from_logwt,
                     compute_integrals, DelayTimer, _LOWL_VAL,
@@ -151,6 +151,16 @@ def _initialize_live_points(live_points,
             cur_live_logl = loglikelihood.map(np.asarray(cur_live_v))
             if blob:
                 cur_live_blobs = np.array([_.blob for _ in cur_live_logl])
+            
+            # Create sampling history entries for initial live point evaluations
+            if loglikelihood.save_evaluation_history:
+                sampling_history = []
+                for i in range(len(cur_live_u)):
+                    # Create LoglOutput objects if needed for consistency
+                    logl_val = cur_live_logl[i].val if hasattr(cur_live_logl[i], 'val') else cur_live_logl[i]
+                    sampling_history.append(SamplerHistoryItem(u=cur_live_u[i], v=cur_live_v[i], logl=logl_val))
+                loglikelihood.append_evaluation_history(sampling_history)
+            
             cur_live_logl = np.array([_.val for _ in cur_live_logl])
             ncalls += nlive
 
@@ -735,6 +745,10 @@ class Sampler:
             u, v = ret.u, ret.v
             tuning_info = ret.tuning_info
             sampling_history.extend(ret.sampling_history)
+            
+            # Save sampling history to centralized storage if enabled
+            if self.loglikelihood.save_evaluation_history:
+                self.loglikelihood.append_evaluation_history(ret.sampling_history, logl)
 
             if tuning_info is not None and not self.unit_cube_sampling:
                 # If our queue is empty, update any tuning parameters
@@ -1339,7 +1353,7 @@ class Sampler:
         finally:
             if pbar is not None:
                 pbar.close()
-            self.loglikelihood.history_save()
+            self.loglikelihood.finalize_history()
 
     def add_final_live(self, print_progress=True, print_func=None):
         """

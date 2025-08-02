@@ -19,6 +19,9 @@ import pickle as pickle_module
 import numpy as np
 from scipy.special import logsumexp
 from ._version import __version__ as DYNESTY_VERSION
+
+# Define SamplerHistoryItem here to avoid circular imports
+SamplerHistoryItem = namedtuple('SamplerHistoryItem', ['u', 'v', 'logl'])
 try:
     import tqdm
 except ImportError:
@@ -126,7 +129,8 @@ class LogLikelihood:
                  pool=None,
                  save=False,
                  history_filename=None,
-                 blob=False):
+                 blob=False,
+                 save_evaluation_history=False):
         """ Initialize the object.
 
         Parameters
@@ -143,6 +147,8 @@ class LogLikelihood:
         blob: boolean
             if True we expect the logl output to be a tuple of logl value and
             a blob, otherwise it'll be logl value only
+        save_evaluation_history: bool
+            if True, evaluation history (intermediate points) will also be saved
         """
         self.loglikelihood = loglikelihood
         self.pool = pool
@@ -154,6 +160,11 @@ class LogLikelihood:
         self.ndim = ndim
         self.failed_save = False
         self.blob = blob
+        self.save_evaluation_history = save_evaluation_history
+        
+        # Evaluation history storage
+        self.evaluation_history = []
+        
         if save:
             self.history_init()
 
@@ -204,12 +215,23 @@ class LogLikelihood:
             raise RuntimeError(
                 'h5py module is required for saving history of calls')
         self.history_counter = 0
+        self.evaluation_history_counter = 0
         try:
             with h5py.File(self.history_filename, mode='w') as fp:
+                # Likelihood evaluation history (final accepted points)
                 fp.create_dataset('param', (self.save_every, self.ndim),
                                   maxshape=(None, self.ndim))
                 fp.create_dataset('logl', (self.save_every, ),
                                   maxshape=(None, ))
+                
+                # Evaluation history (all intermediate points during sampling)
+                if self.save_evaluation_history:
+                    fp.create_dataset('evaluation_u', (self.save_every, self.ndim),
+                                      maxshape=(None, self.ndim))
+                    fp.create_dataset('evaluation_v', (self.save_every, self.ndim),
+                                      maxshape=(None, self.ndim))
+                    fp.create_dataset('evaluation_logl', (self.save_every, ),
+                                      maxshape=(None, ))
         except OSError:
             print('Failed to initialize history file')
             raise
@@ -225,18 +247,72 @@ class LogLikelihood:
         try:
             with h5py.File(self.history_filename, mode='a') as fp:
                 # pylint: disable=no-member
+                # Save likelihood evaluation history
                 nadd = len(self.history_logl)
-                fp['param'].resize(self.history_counter + nadd, axis=0)
-                fp['logl'].resize(self.history_counter + nadd, axis=0)
-                fp['param'][-nadd:, :] = np.array(self.history_pars)
-                fp['logl'][-nadd:] = np.array(self.history_logl)
-                self.history_pars = []
-                self.history_logl = []
-                self.history_counter += nadd
+                if nadd > 0:
+                    fp['param'].resize(self.history_counter + nadd, axis=0)
+                    fp['logl'].resize(self.history_counter + nadd, axis=0)
+                    fp['param'][-nadd:, :] = np.array(self.history_pars)
+                    fp['logl'][-nadd:] = np.array(self.history_logl)
+                    self.history_pars = []
+                    self.history_logl = []
+                    self.history_counter += nadd
+                
+                # Save evaluation history
+                if self.save_evaluation_history:
+                    nadd_evaluation = len(self.evaluation_history)
+                    if nadd_evaluation > 0:
+                        fp['evaluation_u'].resize(self.evaluation_history_counter + nadd_evaluation, axis=0)
+                        fp['evaluation_v'].resize(self.evaluation_history_counter + nadd_evaluation, axis=0)
+                        fp['evaluation_logl'].resize(self.evaluation_history_counter + nadd_evaluation, axis=0)
+                        
+                        # Extract data from SamplerHistoryItem objects
+                        evaluation_u_array = np.array([item.u for item in self.evaluation_history])
+                        evaluation_v_array = np.array([item.v for item in self.evaluation_history])
+                        evaluation_logl_array = np.array([float(item.logl) if hasattr(item.logl, 'val') else item.logl 
+                                                        for item in self.evaluation_history])
+                        
+                        fp['evaluation_u'][-nadd_evaluation:, :] = evaluation_u_array
+                        fp['evaluation_v'][-nadd_evaluation:, :] = evaluation_v_array
+                        fp['evaluation_logl'][-nadd_evaluation:] = evaluation_logl_array
+                        
+                        self.evaluation_history = []
+                        self.evaluation_history_counter += nadd_evaluation
+                        
         except OSError:
             warnings.warn(
                 'Failed to save history of evaluations. Will not try again.')
             self.failed_save = True
+
+    def append_evaluation_history(self, evaluation_history, accepted_point_logl=None):
+        """
+        Append evaluation history from samplers to the centralized storage.
+        
+        Parameters
+        ----------
+        evaluation_history : list of SamplerHistoryItem
+            The evaluation history from a sampler
+        accepted_point_logl : float, optional
+            Unused parameter, kept for compatibility
+        """
+        if not self.save_evaluation_history or not self.save:
+            return
+                           
+        # Simply extend the list with SamplerHistoryItem objects
+        self.evaluation_history.extend(evaluation_history)
+        
+        # Save if buffer is getting large
+        if len(self.evaluation_history) > self.save_every:
+            self.history_save()
+
+    def finalize_history(self):
+        """
+        Finalize and save any remaining history data to file.
+        Call this at the end of sampling to ensure all data is saved.
+        """
+        if self.save and (len(self.history_logl) > 0 or 
+                         (self.save_evaluation_history and len(self.evaluation_history) > 0)):
+            self.history_save()
 
     def __getstate__(self):
         """Get state information for pickling."""

@@ -572,17 +572,16 @@ def _configure_batch_sampler(main_sampler,
             # Return live points in generator format.
             # these won't be saved but just used for printing
             first_points.append(
-                IteratorResultShort(
-                    worst=-i - 1,
-                    ustar=live_u[i],
-                    vstar=live_v[i],
-                    loglstar=live_logl[i],
-                    nc=live_nc[i],
-                    worst_it=live_it[i] + main_sampler.it,
-                    boundidx=live_bound[i],
-                    bounditer=live_bound[i],
-                    eff=main_sampler.eff,
-                    proposal_stats=live_proposal_stats[i]))
+                IteratorResultShort(worst=-i - 1,
+                                    ustar=live_u[i],
+                                    vstar=live_v[i],
+                                    loglstar=live_logl[i],
+                                    nc=live_nc[i],
+                                    worst_it=live_it[i] + main_sampler.it,
+                                    boundidx=live_bound[i],
+                                    bounditer=live_bound[i],
+                                    eff=main_sampler.eff,
+                                    proposal_stats=live_proposal_stats[i]))
     niter += nlive_new
     # Overwrite the previous set of live points in our internal sampler
     # with the new batch of points we just generated.
@@ -883,7 +882,6 @@ class DynamicSampler:
                 results.append((k, d[k]))
             results.append(('logzerr', np.sqrt(d['logzvar'])))
             results.append(('information', d['h']))
-            print(f"DEBUG: d['proposal_stats'] in DynamicSampler.results: {d['proposal_stats']}")
 
         # Add any saved bounds (and ancillary quantities) to the results.
         if self.sampler.save_bounds:
@@ -2072,23 +2070,24 @@ class DynamicSampler:
                         niter += 1
 
                     # Reorganize results.
-                    results = IteratorResult(worst=cur_results.worst,
-                                             ustar=cur_results.ustar,
-                                             vstar=cur_results.vstar,
-                                             loglstar=cur_results.loglstar,
-                                             blob=None,
-                                             logvol=np.nan,
-                                             logwt=np.nan,
-                                             logz=logz,
-                                             logzvar=logzvar,
-                                             h=np.nan,
-                                             nc=cur_results.nc,
-                                             worst_it=cur_results.worst_it,
-                                             boundidx=cur_results.boundidx,
-                                             bounditer=cur_results.bounditer,
-                                             eff=cur_results.eff,
-                                             delta_logz=np.nan,
-                                             proposal_stats=cur_results.proposal_stats)
+                    results = IteratorResult(
+                        worst=cur_results.worst,
+                        ustar=cur_results.ustar,
+                        vstar=cur_results.vstar,
+                        loglstar=cur_results.loglstar,
+                        blob=None,
+                        logvol=np.nan,
+                        logwt=np.nan,
+                        logz=logz,
+                        logzvar=logzvar,
+                        h=np.nan,
+                        nc=cur_results.nc,
+                        worst_it=cur_results.worst_it,
+                        boundidx=cur_results.boundidx,
+                        bounditer=cur_results.bounditer,
+                        eff=cur_results.eff,
+                        delta_logz=np.nan,
+                        proposal_stats=cur_results.proposal_stats)
 
                     # Print progress.
                     if print_progress:

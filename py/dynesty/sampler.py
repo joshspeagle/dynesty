@@ -562,14 +562,14 @@ class Sampler:
             warnings.simplefilter("ignore")
             results = [('nlive', self.nlive), ('niter', self.it - 1),
                        ('ncall', d['nc']), ('eff', self.eff),
-                       ('samples', d['v']), ('blob', d['blob']), ('proposal_stats', d['proposal_stats'])]
+                       ('samples', d['v']), ('blob', d['blob']),
+                       ('proposal_stats', d['proposal_stats'])]
             for k in ['id', 'it', 'u']:
                 results.append(('samples_' + k, d[k]))
             for k in ['logwt', 'logl', 'logvol', 'logz']:
                 results.append((k, d[k]))
             results.append(('logzerr', np.sqrt(d['logzvar'])))
             results.append(('information', d['h']))
-            print(f"DEBUG: d['proposal_stats'] in Sampler.results: {d['proposal_stats']}")
 
         # Add any saved bounds (and ancillary quantities) to the results.
         if self.save_bounds:

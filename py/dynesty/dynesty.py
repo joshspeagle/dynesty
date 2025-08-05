@@ -509,7 +509,6 @@ def _common_sampler_init(*,
                          update_interval=None,
                          dynamic=False):
     ret = {}
-    sampler_kwargs = {}
 
     ncdim = ncdim or ndim
     ret['ncdim'] = ncdim
@@ -575,17 +574,18 @@ def _common_sampler_init(*,
     save_history = save_history or False
     save_evaluation_history = save_evaluation_history or False
     blob = blob or False
-    loglikelihood_wrap = LogLikelihood(_function_wrapper(loglikelihood,
-                                                         logl_args,
-                                                         logl_kwargs,
-                                                         name='loglikelihood'),
-                                       ndim,
-                                       pool=pool_logl,
-                                       history_filename=history_filename
-                                       or 'dynesty_logl_history.h5',
-                                       save=save_history,
-                                       blob=blob,
-                                       save_evaluation_history=save_evaluation_history)
+    default_logl_history_name = 'dynesty_logl_history.h5'
+    loglikelihood_wrap = LogLikelihood(
+        _function_wrapper(loglikelihood,
+                          logl_args,
+                          logl_kwargs,
+                          name='loglikelihood'),
+        ndim,
+        pool=pool_logl,
+        history_filename=history_filename or default_logl_history_name,
+        save=save_history,
+        blob=blob,
+        save_evaluation_history=save_evaluation_history)
     ret['loglikelihood_wrap'] = loglikelihood_wrap
 
     update_interval_ratio = _get_update_interval_ratio(update_interval, sample,
@@ -603,7 +603,7 @@ def _common_sampler_init(*,
     ret['bound_enlarge'] = enlarge
     ret['bound_bootstrap'] = bootstrap
 
-    return ret, sampler_kwargs
+    return ret
 
 
 class NestedSampler(Sampler):
@@ -643,7 +643,7 @@ class NestedSampler(Sampler):
                 history_filename=None,
                 save_evaluation_history=False):
 
-        params, sampler_kwargs = _common_sampler_init(
+        params = _common_sampler_init(
             nlive=nlive,
             ndim=ndim,
             ncdim=ncdim,
@@ -754,7 +754,7 @@ class DynamicNestedSampler(DynamicSampler):
                  history_filename=None,
                  save_evaluation_history=False):
 
-        params, sampler_kwargs = _common_sampler_init(
+        params = _common_sampler_init(
             nlive=nlive,
             ndim=ndim,
             ncdim=ncdim,

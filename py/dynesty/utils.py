@@ -161,10 +161,10 @@ class LogLikelihood:
         self.failed_save = False
         self.blob = blob
         self.save_evaluation_history = save_evaluation_history
-        
+
         # Evaluation history storage
         self.evaluation_history = []
-        
+
         if save:
             self.history_init()
 
@@ -223,12 +223,14 @@ class LogLikelihood:
                                   maxshape=(None, self.ndim))
                 fp.create_dataset('logl', (self.save_every, ),
                                   maxshape=(None, ))
-                
+
                 # Evaluation history (all intermediate points during sampling)
                 if self.save_evaluation_history:
-                    fp.create_dataset('evaluation_u', (self.save_every, self.ndim),
+                    fp.create_dataset('evaluation_u',
+                                      (self.save_every, self.ndim),
                                       maxshape=(None, self.ndim))
-                    fp.create_dataset('evaluation_v', (self.save_every, self.ndim),
+                    fp.create_dataset('evaluation_v',
+                                      (self.save_every, self.ndim),
                                       maxshape=(None, self.ndim))
                     fp.create_dataset('evaluation_logl', (self.save_every, ),
                                       maxshape=(None, ))
@@ -257,34 +259,48 @@ class LogLikelihood:
                     self.history_pars = []
                     self.history_logl = []
                     self.history_counter += nadd
-                
+
                 # Save evaluation history
                 if self.save_evaluation_history:
                     nadd_evaluation = len(self.evaluation_history)
                     if nadd_evaluation > 0:
-                        fp['evaluation_u'].resize(self.evaluation_history_counter + nadd_evaluation, axis=0)
-                        fp['evaluation_v'].resize(self.evaluation_history_counter + nadd_evaluation, axis=0)
-                        fp['evaluation_logl'].resize(self.evaluation_history_counter + nadd_evaluation, axis=0)
-                        
+                        fp['evaluation_u'].resize(
+                            self.evaluation_history_counter + nadd_evaluation,
+                            axis=0)
+                        fp['evaluation_v'].resize(
+                            self.evaluation_history_counter + nadd_evaluation,
+                            axis=0)
+                        fp['evaluation_logl'].resize(
+                            self.evaluation_history_counter + nadd_evaluation,
+                            axis=0)
+
                         # Extract data from SamplerHistoryItem objects
-                        evaluation_u_array = np.array([item.u for item in self.evaluation_history])
-                        evaluation_v_array = np.array([item.v for item in self.evaluation_history])
-                        evaluation_logl_array = np.array([float(item.logl) if hasattr(item.logl, 'val') else item.logl 
-                                                        for item in self.evaluation_history])
-                        
-                        fp['evaluation_u'][-nadd_evaluation:, :] = evaluation_u_array
-                        fp['evaluation_v'][-nadd_evaluation:, :] = evaluation_v_array
-                        fp['evaluation_logl'][-nadd_evaluation:] = evaluation_logl_array
-                        
+                        evaluation_u_array = np.array(
+                            [item.u for item in self.evaluation_history])
+                        evaluation_v_array = np.array(
+                            [item.v for item in self.evaluation_history])
+                        evaluation_logl_array = np.array([
+                            float(item.logl)
+                            if hasattr(item.logl, 'val') else item.logl
+                            for item in self.evaluation_history
+                        ])
+
+                        fp['evaluation_u'][
+                            -nadd_evaluation:, :] = evaluation_u_array
+                        fp['evaluation_v'][
+                            -nadd_evaluation:, :] = evaluation_v_array
+                        fp['evaluation_logl'][
+                            -nadd_evaluation:] = evaluation_logl_array
+
                         self.evaluation_history = []
                         self.evaluation_history_counter += nadd_evaluation
-                        
+
         except OSError:
             warnings.warn(
                 'Failed to save history of evaluations. Will not try again.')
             self.failed_save = True
 
-    def append_evaluation_history(self, evaluation_history, accepted_point_logl=None):
+    def append_evaluation_history(self, evaluation_history):
         """
         Append evaluation history from samplers to the centralized storage.
         
@@ -297,10 +313,10 @@ class LogLikelihood:
         """
         if not self.save_evaluation_history or not self.save:
             return
-                           
+
         # Simply extend the list with SamplerHistoryItem objects
         self.evaluation_history.extend(evaluation_history)
-        
+
         # Save if buffer is getting large
         if len(self.evaluation_history) > self.save_every:
             self.history_save()
@@ -310,8 +326,9 @@ class LogLikelihood:
         Finalize and save any remaining history data to file.
         Call this at the end of sampling to ensure all data is saved.
         """
-        if self.save and (len(self.history_logl) > 0 or 
-                         (self.save_evaluation_history and len(self.evaluation_history) > 0)):
+        if self.save and (len(self.history_logl) > 0 or
+                          (self.save_evaluation_history
+                           and len(self.evaluation_history) > 0)):
             self.history_save()
 
     def __getstate__(self):
@@ -690,8 +707,8 @@ _RESULTS_STRUCTURE = [
     ('scale', 'array[float]', "Scalar scale applied for proposals", 'niter'),
     ('blob', 'array[]',
      'The auxiliary blobs computed by the log-likelihood function', 'niter'),
-    ('proposal_stats', 'array[]',
-     'Information from the inner sampler', 'niter')
+    ('proposal_stats', 'array[]', 'Information from the inner sampler',
+     'niter')
 ]
 
 

@@ -748,7 +748,7 @@ class Sampler:
             
             # Save sampling history to centralized storage if enabled
             if self.loglikelihood.save_evaluation_history:
-                self.loglikelihood.append_evaluation_history(ret.sampling_history, logl)
+                self.loglikelihood.append_evaluation_history(ret.sampling_history)
 
             if tuning_info is not None and not self.unit_cube_sampling:
                 # If our queue is empty, update any tuning parameters

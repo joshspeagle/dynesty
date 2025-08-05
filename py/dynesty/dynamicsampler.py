@@ -364,7 +364,8 @@ def _configure_batch_sampler(main_sampler,
     saved_logvol = np.array(main_sampler.saved_run['logvol'])
     saved_scale = np.array(main_sampler.saved_run['scale'])
     saved_blobs = np.array(main_sampler.saved_run['blob'])
-    saved_proposal_stats = np.array(main_sampler.saved_run['proposal_stats'])
+    # saved_proposal_stats = np.array(main_sampler.saved_run['proposal_stats'])
+    # this is not really used
     first_points = []
 
     # This will be a list of first points yielded from

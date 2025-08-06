@@ -44,7 +44,7 @@ def test_saving(dopool, maxiter):
                                         prior_transform,
                                         ndim,
                                         nlive=nlive,
-                                        save_history=True,
+                                        save_evaluation_history=True,
                                         history_filename=fname,
                                         rstate=rstate,
                                         **kw)

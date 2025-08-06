@@ -425,7 +425,8 @@ def _configure_batch_sampler(main_sampler,
              ndim=main_sampler.ndim,
              rstate=main_sampler.rstate,
              blob=main_sampler.blob,
-             use_pool_ptform=main_sampler.use_pool_ptform)
+             use_pool_ptform=main_sampler.use_pool_ptform,
+             use_pool_logl=main_sampler.use_pool_logl)
         live_bound = np.zeros(nlive_new, dtype=int)
         live_it = np.zeros(nlive_new, dtype=int)
         live_nc = np.ones(nlive_new, dtype=int)
@@ -1062,7 +1063,8 @@ class DynamicSampler:
                  ndim=self.ndim,
                  rstate=self.rstate,
                  blob=self.blob,
-                 use_pool_ptform=self.use_pool_ptform)
+                 use_pool_ptform=self.use_pool_ptform,
+                 use_pool_logl=self.use_pool_logl)
             if self.blob:
                 self.live_blobs = blobs
             else:

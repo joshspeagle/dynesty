@@ -61,7 +61,8 @@ def _initialize_live_points(live_points,
                             ndim=None,
                             rstate=None,
                             blob=False,
-                            use_pool_ptform=None):
+                            use_pool_ptform=None,
+                            use_pool_logl=None):
     """
     Initialize the first set of live points before starting the sampling
 
@@ -141,39 +142,40 @@ def _initialize_live_points(live_points,
         while True:
             iattempt += 1
 
-            # simulate nlive points by uniform sampling
+            # Generate nlive points by uniform sampling (similar to original)
             cur_live_u = rstate.random(size=(nlive, ndim))
+
             if use_pool_ptform:
                 cur_live_v = mapper(prior_transform, np.asarray(cur_live_u))
             else:
                 cur_live_v = map(prior_transform, np.asarray(cur_live_u))
             cur_live_v = np.array(list(cur_live_v))
-            cur_live_logl = loglikelihood.map(np.asarray(cur_live_v))
+            if use_pool_logl:
+                cur_live_logl = list(
+                    mapper(loglikelihood, np.asarray(cur_live_v)))
+            else:
+                cur_live_logl = list(map(loglikelihood,
+                                         np.asarray(cur_live_v)))
             if blob:
                 cur_live_blobs = np.array([_.blob for _ in cur_live_logl])
-            
-            # Create sampling history entries for initial live point evaluations
-            if loglikelihood.save_evaluation_history:
-                sampling_history = []
-                for i in range(len(cur_live_u)):
-                    # Create LoglOutput objects if needed for consistency
-                    logl_val = cur_live_logl[i].val if hasattr(cur_live_logl[i], 'val') else cur_live_logl[i]
-                    sampling_history.append(SamplerHistoryItem(u=cur_live_u[i], v=cur_live_v[i], logl=logl_val))
-                loglikelihood.append_evaluation_history(sampling_history)
-            
             cur_live_logl = np.array([_.val for _ in cur_live_logl])
-            ncalls += nlive
+            # Add evaluation history entries for initialization
+            if loglikelihood.save_evaluation_history:
+                evaluation_history = []
+                for i in range(len(cur_live_u)):
+                    evaluation_history.append(
+                        SamplerHistoryItem(u=cur_live_u[i],
+                                           v=cur_live_v[i],
+                                           logl=cur_live_logl[i]))
+                loglikelihood.append_evaluation_history(evaluation_history)
 
-            # Convert all `-np.inf` log-likelihoods to finite large
-            # numbers. Necessary to keep estimators in our sampler from
-            # breaking.
+            ncalls += nlive
             finite = np.isfinite(cur_live_logl)
             not_finite = ~finite
             neg_infinite = np.isneginf(cur_live_logl)
             if np.any(not_finite & (~neg_infinite)):
                 raise ValueError("The log-likelihood of live "
                                  "point is invalid.")
-            cur_live_logl[not_finite] = _LOWL_VAL
 
             # how many finite logl values we have
             cur_ngood = finite.sum()
@@ -194,6 +196,7 @@ def _initialize_live_points(live_points,
             if ngoods >= min_npoints:
                 # we need to fill the rest with points with
                 # not finite logl
+                cur_live_logl[not_finite] = _LOWL_VAL
                 nextra = nlive - ngoods
                 if nextra > 0:
                     cur_ind = np.nonzero(not_finite)[0][:nextra]
@@ -534,7 +537,8 @@ class Sampler:
             ndim=self.ndim,
             rstate=self.rstate,
             blob=self.blob,
-            use_pool_ptform=self.use_pool_ptform)
+            use_pool_ptform=self.use_pool_ptform,
+            use_pool_logl=self.use_pool_logl)
 
         self.__init__(self.loglikelihood,
                       self.prior_transform,
@@ -734,7 +738,7 @@ class Sampler:
         # this is a global counter
         # we do not update directly the counter inside the class
         ncall_accum = 0
-        sampling_history = []
+        evaluation_history = []
         while True:
             # Get the next point from the queue
             ret = self._get_point_value(loglstar)
@@ -744,11 +748,12 @@ class Sampler:
             ncall += cur_ncalls
             u, v = ret.u, ret.v
             tuning_info = ret.tuning_info
-            sampling_history.extend(ret.sampling_history)
-            
+            evaluation_history.extend(ret.evaluation_history)
+
             # Save sampling history to centralized storage if enabled
             if self.loglikelihood.save_evaluation_history:
-                self.loglikelihood.append_evaluation_history(ret.sampling_history)
+                self.loglikelihood.append_evaluation_history(
+                    ret.evaluation_history)
 
             if tuning_info is not None and not self.unit_cube_sampling:
                 # If our queue is empty, update any tuning parameters

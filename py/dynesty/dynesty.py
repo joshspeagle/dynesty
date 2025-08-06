@@ -503,7 +503,6 @@ def _common_sampler_init(*,
                          use_pool=None,
                          pool=None,
                          queue_size=None,
-                         save_history=None,
                          history_filename=None,
                          save_evaluation_history=None,
                          update_interval=None,
@@ -563,15 +562,10 @@ def _common_sampler_init(*,
     ret['mapper'] = mapper
     ret['queue_size'] = queue_size
     ret['pool'] = pool
-    if use_pool.get('loglikelihood', True):
-        pool_logl = pool
-    else:
-        pool_logl = None
 
     # Log-likelihood.
     logl_args = logl_args or []
     logl_kwargs = logl_kwargs or {}
-    save_history = save_history or False
     save_evaluation_history = save_evaluation_history or False
     blob = blob or False
     default_logl_history_name = 'dynesty_logl_history.h5'
@@ -581,9 +575,7 @@ def _common_sampler_init(*,
                           logl_kwargs,
                           name='loglikelihood'),
         ndim,
-        pool=pool_logl,
         history_filename=history_filename or default_logl_history_name,
-        save=save_history,
         blob=blob,
         save_evaluation_history=save_evaluation_history)
     ret['loglikelihood_wrap'] = loglikelihood_wrap
@@ -612,36 +604,37 @@ class NestedSampler(Sampler):
     It inherits all the methods of the dynesty.sampler.Sampler.
     """
 
-    def __new__(cls,
-                loglikelihood,
-                prior_transform,
-                ndim,
-                nlive=500,
-                bound='multi',
-                sample='auto',
-                periodic=None,
-                reflective=None,
-                update_interval=None,
-                first_update=None,
-                rstate=None,
-                queue_size=None,
-                pool=None,
-                use_pool=None,
-                live_points=None,
-                logl_args=None,
-                logl_kwargs=None,
-                ptform_args=None,
-                ptform_kwargs=None,
-                enlarge=None,
-                bootstrap=None,
-                walks=None,
-                facc=0.5,
-                slices=None,
-                ncdim=None,
-                blob=False,
-                save_history=False,
-                history_filename=None,
-                save_evaluation_history=False):
+    def __new__(
+        cls,
+        loglikelihood,
+        prior_transform,
+        ndim,
+        nlive=500,
+        bound='multi',
+        sample='auto',
+        periodic=None,
+        reflective=None,
+        update_interval=None,
+        first_update=None,
+        rstate=None,
+        queue_size=None,
+        pool=None,
+        use_pool=None,
+        live_points=None,
+        logl_args=None,
+        logl_kwargs=None,
+        ptform_args=None,
+        ptform_kwargs=None,
+        enlarge=None,
+        bootstrap=None,
+        walks=None,
+        facc=0.5,
+        slices=None,
+        ncdim=None,
+        blob=False,
+        save_evaluation_history=False,
+        history_filename=None,
+    ):
 
         params = _common_sampler_init(
             nlive=nlive,
@@ -668,7 +661,6 @@ class NestedSampler(Sampler):
             use_pool=use_pool,
             pool=pool,
             queue_size=queue_size,
-            save_history=save_history,
             history_filename=history_filename,
             save_evaluation_history=save_evaluation_history,
             update_interval=update_interval,
@@ -688,7 +680,8 @@ class NestedSampler(Sampler):
             ndim=ndim,
             rstate=params['rstate'],
             blob=blob,
-            use_pool_ptform=params['use_pool'].get('prior_transform', True))
+            use_pool_ptform=params['use_pool'].get('prior_transform', True),
+            use_pool_logl=params['use_pool'].get('loglikelihood', True))
 
         # Initialize our nested sampler.
         sampler = super().__new__(Sampler)
@@ -750,7 +743,6 @@ class DynamicNestedSampler(DynamicSampler):
                  slices=None,
                  ncdim=None,
                  blob=False,
-                 save_history=False,
                  history_filename=None,
                  save_evaluation_history=False):
 
@@ -779,7 +771,6 @@ class DynamicNestedSampler(DynamicSampler):
             use_pool=use_pool,
             pool=pool,
             queue_size=queue_size,
-            save_history=save_history,
             history_filename=history_filename,
             save_evaluation_history=save_evaluation_history,
             update_interval=update_interval,

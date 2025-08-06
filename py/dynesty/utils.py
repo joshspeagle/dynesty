@@ -126,10 +126,8 @@ class LogLikelihood:
     def __init__(self,
                  loglikelihood,
                  ndim,
-                 pool=None,
-                 save=False,
-                 history_filename=None,
                  blob=False,
+                 history_filename=None,
                  save_evaluation_history=False):
         """ Initialize the object.
 
@@ -138,93 +136,48 @@ class LogLikelihood:
         loglikelihood: function
         ndim: int
             Dimensionality
-        pool: Pool (optional)
-            Any kind of pool capable of performing map()
-        save: bool
-            if True the function evaluations will be saved in the hdf5 file
         history_filename: string
             The filename where the history will go
         blob: boolean
             if True we expect the logl output to be a tuple of logl value and
             a blob, otherwise it'll be logl value only
         save_evaluation_history: bool
-            if True, evaluation history (intermediate points) will also be saved
+            if True, evaluation history (intermediate points) will also be
+            saved.
+            This automatically enables basic history saving.
         """
         self.loglikelihood = loglikelihood
-        self.pool = pool
-        self.history_pars = []
-        self.history_logl = []
         self.save_every = 10000
-        self.save = save
+        # If save_evaluation_history is True, we need basic saving enabled too
+        self.save_evaluation_history = save_evaluation_history
         self.history_filename = history_filename
         self.ndim = ndim
         self.failed_save = False
         self.blob = blob
-        self.save_evaluation_history = save_evaluation_history
 
-        # Evaluation history storage
+        # Unified evaluation history storage - all evaluations go here
         self.evaluation_history = []
+        self.evaluation_history_counter = 0
 
-        if save:
+        if self.save_evaluation_history:
             self.history_init()
-
-    def map(self, pars):
-        """
-        Evaluate the likelihood function on the list of vectors
-        The pool is used if it was provided when the object was created
-
-        Returns
-        -------
-        ret: The list of LoglOutput objects
-        """
-        if self.pool is None:
-            ret = list([
-                LoglOutput(_, self.blob) for _ in map(self.loglikelihood, pars)
-            ])
-        else:
-            ret = [
-                LoglOutput(_, self.blob)
-                for _ in self.pool.map(self.loglikelihood, pars)
-            ]
-        if self.save:
-            self.history_append([_.val for _ in ret], pars)
-        return ret
 
     def __call__(self, x):
         """
         Evaluate the likelihood f-n once
         """
         ret = LoglOutput(self.loglikelihood(x), self.blob)
-        if self.save:
-            self.history_append([ret.val], [x])
         return ret
-
-    def history_append(self, logls, pars):
-        """
-        Append to the internal history the list of loglikelihood values
-        And points
-        """
-        self.history_logl.extend(logls)
-        self.history_pars.extend(pars)
-        if len(self.history_logl) > self.save_every:
-            self.history_save()
 
     def history_init(self):
         """ Initialize the hdf5 storage of evaluations """
         if h5py is None:
             raise RuntimeError(
                 'h5py module is required for saving history of calls')
-        self.history_counter = 0
         self.evaluation_history_counter = 0
         try:
             with h5py.File(self.history_filename, mode='w') as fp:
-                # Likelihood evaluation history (final accepted points)
-                fp.create_dataset('param', (self.save_every, self.ndim),
-                                  maxshape=(None, self.ndim))
-                fp.create_dataset('logl', (self.save_every, ),
-                                  maxshape=(None, ))
-
-                # Evaluation history (all intermediate points during sampling)
+                # Unified evaluation history - all evaluations in one place
                 if self.save_evaluation_history:
                     fp.create_dataset('evaluation_u',
                                       (self.save_every, self.ndim),
@@ -242,58 +195,46 @@ class LogLikelihood:
         """
         Save the actual history from an internal buffer into the file
         """
-        if self.failed_save or not self.save:
+        if self.failed_save or not self.save_evaluation_history:
             # if failed to save before, do not try again
             # also quickly return if saving is not needed
             return
         try:
             with h5py.File(self.history_filename, mode='a') as fp:
                 # pylint: disable=no-member
-                # Save likelihood evaluation history
-                nadd = len(self.history_logl)
-                if nadd > 0:
-                    fp['param'].resize(self.history_counter + nadd, axis=0)
-                    fp['logl'].resize(self.history_counter + nadd, axis=0)
-                    fp['param'][-nadd:, :] = np.array(self.history_pars)
-                    fp['logl'][-nadd:] = np.array(self.history_logl)
-                    self.history_pars = []
-                    self.history_logl = []
-                    self.history_counter += nadd
+                # Save unified evaluation history
+                nadd_evaluation = len(self.evaluation_history)
+                if nadd_evaluation > 0:
+                    fp['evaluation_u'].resize(self.evaluation_history_counter +
+                                              nadd_evaluation,
+                                              axis=0)
+                    fp['evaluation_v'].resize(self.evaluation_history_counter +
+                                              nadd_evaluation,
+                                              axis=0)
+                    fp['evaluation_logl'].resize(
+                        self.evaluation_history_counter + nadd_evaluation,
+                        axis=0)
 
-                # Save evaluation history
-                if self.save_evaluation_history:
-                    nadd_evaluation = len(self.evaluation_history)
-                    if nadd_evaluation > 0:
-                        fp['evaluation_u'].resize(
-                            self.evaluation_history_counter + nadd_evaluation,
-                            axis=0)
-                        fp['evaluation_v'].resize(
-                            self.evaluation_history_counter + nadd_evaluation,
-                            axis=0)
-                        fp['evaluation_logl'].resize(
-                            self.evaluation_history_counter + nadd_evaluation,
-                            axis=0)
+                    # Extract data from SamplerHistoryItem objects
+                    evaluation_u_array = np.array(
+                        [item.u for item in self.evaluation_history])
+                    evaluation_v_array = np.array(
+                        [item.v for item in self.evaluation_history])
+                    evaluation_logl_array = np.array([
+                        float(item.logl)
+                        if hasattr(item.logl, 'val') else item.logl
+                        for item in self.evaluation_history
+                    ])
 
-                        # Extract data from SamplerHistoryItem objects
-                        evaluation_u_array = np.array(
-                            [item.u for item in self.evaluation_history])
-                        evaluation_v_array = np.array(
-                            [item.v for item in self.evaluation_history])
-                        evaluation_logl_array = np.array([
-                            float(item.logl)
-                            if hasattr(item.logl, 'val') else item.logl
-                            for item in self.evaluation_history
-                        ])
+                    fp['evaluation_u'][
+                        -nadd_evaluation:, :] = evaluation_u_array
+                    fp['evaluation_v'][
+                        -nadd_evaluation:, :] = evaluation_v_array
+                    fp['evaluation_logl'][
+                        -nadd_evaluation:] = evaluation_logl_array
 
-                        fp['evaluation_u'][
-                            -nadd_evaluation:, :] = evaluation_u_array
-                        fp['evaluation_v'][
-                            -nadd_evaluation:, :] = evaluation_v_array
-                        fp['evaluation_logl'][
-                            -nadd_evaluation:] = evaluation_logl_array
-
-                        self.evaluation_history = []
-                        self.evaluation_history_counter += nadd_evaluation
+                    self.evaluation_history = []
+                    self.evaluation_history_counter += nadd_evaluation
 
         except OSError:
             warnings.warn(
@@ -303,15 +244,14 @@ class LogLikelihood:
     def append_evaluation_history(self, evaluation_history):
         """
         Append evaluation history from samplers to the centralized storage.
-        
+        This method is called by samplers to add their evaluation history.
+
         Parameters
         ----------
         evaluation_history : list of SamplerHistoryItem
             The evaluation history from a sampler
-        accepted_point_logl : float, optional
-            Unused parameter, kept for compatibility
         """
-        if not self.save_evaluation_history or not self.save:
+        if not self.save_evaluation_history:
             return
 
         # Simply extend the list with SamplerHistoryItem objects
@@ -326,16 +266,14 @@ class LogLikelihood:
         Finalize and save any remaining history data to file.
         Call this at the end of sampling to ensure all data is saved.
         """
-        if self.save and (len(self.history_logl) > 0 or
-                          (self.save_evaluation_history
-                           and len(self.evaluation_history) > 0)):
+        if self.save_evaluation_history and len(self.evaluation_history) > 0:
             self.history_save()
 
     def __getstate__(self):
         """Get state information for pickling."""
         state = self.__dict__.copy()
-        if 'pool' in state:
-            del state['pool']
+        state[
+            'save_evaluation_history'] = False  # disable saving when pickling
         return state
 
 
@@ -369,7 +307,7 @@ class RunRecord:
             'bounditer',  # active bound at a specific iteration
             'scale',  # scale factor at each iteration
             'blob',  # blobs output by the log-likelihood
-            'proposal_stats'  # information from the inner sampler 
+            'proposal_stats'  # information from the inner sampler
         ]
         if dynamic:
             keys.extend([
@@ -2230,7 +2168,6 @@ def restore_sampler(fname, pool=None):
     for cursamp in samplers:
         cursamp.mapper = mapper
         cursamp.pool = pool
-        cursamp.loglikelihood.pool = pool
     return sampler
 
 

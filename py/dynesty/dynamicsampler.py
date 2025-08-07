@@ -364,6 +364,8 @@ def _configure_batch_sampler(main_sampler,
     saved_logvol = np.array(main_sampler.saved_run['logvol'])
     saved_scale = np.array(main_sampler.saved_run['scale'])
     saved_blobs = np.array(main_sampler.saved_run['blob'])
+    # saved_proposal_stats = np.array(main_sampler.saved_run['proposal_stats'])
+    # this is not really used
     first_points = []
 
     # This will be a list of first points yielded from
@@ -423,7 +425,8 @@ def _configure_batch_sampler(main_sampler,
              ndim=main_sampler.ndim,
              rstate=main_sampler.rstate,
              blob=main_sampler.blob,
-             use_pool_ptform=main_sampler.use_pool_ptform)
+             use_pool_ptform=main_sampler.use_pool_ptform,
+             use_pool_logl=main_sampler.use_pool_logl)
         live_bound = np.zeros(nlive_new, dtype=int)
         live_it = np.zeros(nlive_new, dtype=int)
         live_nc = np.ones(nlive_new, dtype=int)
@@ -443,7 +446,8 @@ def _configure_batch_sampler(main_sampler,
                                     worst_it=live_it[i] + main_sampler.it,
                                     boundidx=0,
                                     bounditer=0,
-                                    eff=main_sampler.eff))
+                                    eff=main_sampler.eff,
+                                    proposal_stats=None))
         batch_sampler.update_bound_if_needed(logl_min)
         # Trigger an update of the internal bounding distribution based
         # on the "new" set of live points.
@@ -535,7 +539,7 @@ def _configure_batch_sampler(main_sampler,
         batch_sampler.live_logl = live_logl
         batch_sampler.internal_sampler.scale = live_scale
         batch_sampler.live_blobs = live_blobs
-
+        batch_sampler.live_proposal_stats = [None] * cur_nlive
         batch_sampler.update_bound_if_needed(logl_min)
         # Trigger an update of the internal bounding distribution based
         # on the "new" set of live points.
@@ -551,12 +555,14 @@ def _configure_batch_sampler(main_sampler,
             live_blobs = []
         else:
             live_blobs = None
+        live_proposal_stats = [None] * nlive_new
 
         # Sample a new batch of `nlive_new` live points using the
         # internal sampler given the `logl_min` constraint.
         for i in range(nlive_new):
             newpt = batch_sampler._new_point(logl_min)
-            (live_u[i], live_v[i], live_logl[i], live_nc[i]) = newpt
+            (live_u[i], live_v[i], live_logl[i], live_nc[i],
+             live_proposal_stats[i]) = newpt
             if main_sampler.blob:
                 blob = newpt[2].blob
                 live_blobs.append(blob)
@@ -568,17 +574,16 @@ def _configure_batch_sampler(main_sampler,
             # Return live points in generator format.
             # these won't be saved but just used for printing
             first_points.append(
-                IteratorResultShort(
-                    worst=-i - 1,
-                    ustar=live_u[i],
-                    vstar=live_v[i],
-                    loglstar=live_logl[i],
-                    nc=live_nc[i],
-                    worst_it=live_it[i] + main_sampler.it,
-                    boundidx=live_bound[i],
-                    bounditer=live_bound[i],
-                    eff=main_sampler.eff,
-                ))
+                IteratorResultShort(worst=-i - 1,
+                                    ustar=live_u[i],
+                                    vstar=live_v[i],
+                                    loglstar=live_logl[i],
+                                    nc=live_nc[i],
+                                    worst_it=live_it[i] + main_sampler.it,
+                                    boundidx=live_bound[i],
+                                    bounditer=live_bound[i],
+                                    eff=main_sampler.eff,
+                                    proposal_stats=live_proposal_stats[i]))
     niter += nlive_new
     # Overwrite the previous set of live points in our internal sampler
     # with the new batch of points we just generated.
@@ -861,7 +866,7 @@ class DynamicSampler:
         for k in [
                 'nc', 'v', 'id', 'batch', 'it', 'u', 'n', 'logwt', 'logl',
                 'logvol', 'logz', 'logzvar', 'h', 'batch_nlive',
-                'batch_logl_bounds', 'blob'
+                'batch_logl_bounds', 'blob', 'proposal_stats'
         ]:
             d[k] = np.array(self.saved_run[k])
 
@@ -874,7 +879,7 @@ class DynamicSampler:
                 results.append(('samples_' + k, d[k]))
             for k in [
                     'logwt', 'logl', 'logvol', 'logz', 'batch_nlive',
-                    'batch_logl_bounds', 'blob'
+                    'batch_logl_bounds', 'blob', 'proposal_stats'
             ]:
                 results.append((k, d[k]))
             results.append(('logzerr', np.sqrt(d['logzvar'])))
@@ -1058,7 +1063,8 @@ class DynamicSampler:
                  ndim=self.ndim,
                  rstate=self.rstate,
                  blob=self.blob,
-                 use_pool_ptform=self.use_pool_ptform)
+                 use_pool_ptform=self.use_pool_ptform,
+                 use_pool_logl=self.use_pool_logl)
             if self.blob:
                 self.live_blobs = blobs
             else:
@@ -1128,7 +1134,8 @@ class DynamicSampler:
                             blob=results.blob,
                             boundidx=results.boundidx,
                             bounditer=results.bounditer,
-                            scale=self.sampler.internal_sampler.scale)
+                            scale=self.sampler.internal_sampler.scale,
+                            proposal_stats=results.proposal_stats)
 
             self.base_run.append(add_info)
             self.saved_run.append(add_info)
@@ -1153,7 +1160,8 @@ class DynamicSampler:
                                  boundidx=results.boundidx,
                                  bounditer=results.bounditer,
                                  eff=self.eff,
-                                 delta_logz=results.delta_logz)
+                                 delta_logz=results.delta_logz,
+                                 proposal_stats=results.proposal_stats)
         self.internal_state = DynamicSamplerStatesEnum.INBASEADDLIVE
         for it, results in enumerate(self.sampler.add_live_points()):
             # Grab results.
@@ -1173,7 +1181,8 @@ class DynamicSampler:
                             n=self.nlive_init - it,
                             boundidx=results.boundidx,
                             bounditer=results.bounditer,
-                            scale=self.sampler.internal_sampler.scale)
+                            scale=self.sampler.internal_sampler.scale,
+                            proposal_stats=None)
 
             self.base_run.append(add_info)
             self.saved_run.append(add_info)
@@ -1196,7 +1205,8 @@ class DynamicSampler:
                                  boundidx=results.boundidx,
                                  bounditer=results.bounditer,
                                  eff=self.eff,
-                                 delta_logz=results.delta_logz)
+                                 delta_logz=results.delta_logz,
+                                 proposal_stats=None)
         new_vals = {}
         (new_vals['logwt'], new_vals['logz'], new_vals['logzvar'],
          new_vals['h']) = compute_integrals(logl=self.saved_run['logl'],
@@ -1379,7 +1389,8 @@ class DynamicSampler:
                      n=nlive_new,
                      boundidx=results.boundidx,
                      bounditer=results.bounditer,
-                     scale=batch_sampler.internal_sampler.scale)
+                     scale=batch_sampler.internal_sampler.scale,
+                     proposal_stats=results.proposal_stats)
             self.new_run.append(D)
             # Increment relevant counters.
             self.ncall += results.nc
@@ -1399,7 +1410,8 @@ class DynamicSampler:
                                       worst_it=results.worst_it + it0,
                                       boundidx=results.boundidx,
                                       bounditer=results.bounditer,
-                                      eff=self.eff)
+                                      eff=self.eff,
+                                      proposal_stats=results.proposal_stats)
         if iterated_batch and results.loglstar < logl_max and np.isfinite(
                 logl_max) and maxiter_left > 0 and maxcall_left > 0:
             warnings.warn('Warning. The maximum likelihood not reached '
@@ -1428,7 +1440,8 @@ class DynamicSampler:
                      blob=results.blob,
                      boundidx=results.boundidx,
                      bounditer=results.bounditer,
-                     scale=batch_sampler.internal_sampler.scale)
+                     scale=batch_sampler.internal_sampler.scale,
+                     proposal_stats=None)
             self.new_run.append(D)
 
             # Increment relevant counters.
@@ -1443,7 +1456,8 @@ class DynamicSampler:
                                       worst_it=results.worst_it + it0,
                                       boundidx=results.boundidx,
                                       bounditer=results.bounditer,
-                                      eff=self.eff)
+                                      eff=self.eff,
+                                      proposal_stats=None)
         del self.batch_sampler
         self.batch_sampler = None
 
@@ -1461,7 +1475,7 @@ class DynamicSampler:
 
         for k in [
                 'id', 'u', 'v', 'logl', 'nc', 'boundidx', 'it', 'bounditer',
-                'n', 'scale', 'blob', 'logvol'
+                'n', 'scale', 'blob', 'logvol', 'proposal_stats'
         ]:
             saved_d[k] = np.array(self.saved_run[k])
             new_d[k] = np.array(self.new_run[k])
@@ -1513,7 +1527,7 @@ class DynamicSampler:
 
             for k in [
                     'id', 'u', 'v', 'logl', 'nc', 'boundidx', 'it',
-                    'bounditer', 'scale', 'blob'
+                    'bounditer', 'scale', 'blob', 'proposal_stats'
             ]:
                 add_info[k] = add_source[k][add_idx]
             self.saved_run.append(add_info)
@@ -2059,22 +2073,24 @@ class DynamicSampler:
                         niter += 1
 
                     # Reorganize results.
-                    results = IteratorResult(worst=cur_results.worst,
-                                             ustar=cur_results.ustar,
-                                             vstar=cur_results.vstar,
-                                             loglstar=cur_results.loglstar,
-                                             blob=None,
-                                             logvol=np.nan,
-                                             logwt=np.nan,
-                                             logz=logz,
-                                             logzvar=logzvar,
-                                             h=np.nan,
-                                             nc=cur_results.nc,
-                                             worst_it=cur_results.worst_it,
-                                             boundidx=cur_results.boundidx,
-                                             bounditer=cur_results.bounditer,
-                                             eff=cur_results.eff,
-                                             delta_logz=np.nan)
+                    results = IteratorResult(
+                        worst=cur_results.worst,
+                        ustar=cur_results.ustar,
+                        vstar=cur_results.vstar,
+                        loglstar=cur_results.loglstar,
+                        blob=None,
+                        logvol=np.nan,
+                        logwt=np.nan,
+                        logz=logz,
+                        logzvar=logzvar,
+                        h=np.nan,
+                        nc=cur_results.nc,
+                        worst_it=cur_results.worst_it,
+                        boundidx=cur_results.boundidx,
+                        bounditer=cur_results.bounditer,
+                        eff=cur_results.eff,
+                        delta_logz=np.nan,
+                        proposal_stats=cur_results.proposal_stats)
 
                     # Print progress.
                     if print_progress:

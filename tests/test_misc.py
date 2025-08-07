@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 import dynesty
 import pickle
+import os
 from scipy import linalg
 import dynesty.utils as dyutil
 from multiprocessing import Pool
@@ -342,7 +343,7 @@ def test_deterministic(ndim):
         results.append(res)
 
     for k in results[0].keys():
-        if k == 'blob':
+        if k in ['blob', 'proposal_stats']:
             continue
         val0 = results[0][k]
         val1 = results[1][k]
@@ -723,3 +724,148 @@ def test_doubling_slice():
                                  sample='rslice',
                                  rstate=rstate)
     samp.run_nested(print_progress=printing)
+
+
+def test_sampling_history_completeness():
+    """Test that evaluation history length equals ncalls when enabled."""
+    import tempfile
+    import h5py
+
+    ndim = 2
+    rstate = get_rstate()
+
+    # Create temporary file for history
+    with tempfile.NamedTemporaryFile(suffix='.h5', delete=False) as tmp:
+        history_filename = tmp.name
+
+    try:
+        # Run sampler with sampling history enabled
+        sampler = dynesty.NestedSampler(
+            loglike,
+            prior_transform,
+            ndim,
+            nlive=50,  # Small nlive for quick test
+            save_evaluation_history=True,
+            history_filename=history_filename,
+            rstate=rstate)
+
+        sampler.run_nested(dlogz=0.1, print_progress=printing, maxiter=500)
+
+        # Check that history file was created and contains expected data
+        assert os.path.exists(history_filename), "History file was not created"
+
+        # Read the history file and verify completeness
+        with h5py.File(history_filename, 'r') as f:
+            # Check that evaluation history datasets exist
+            assert 'evaluation_u' in f, "sampling_u dataset not found in history file"
+            assert 'evaluation_v' in f, "sampling_v dataset not found in history file"
+            assert 'evaluation_logl' in f, "sampling_logl dataset not found in history file"
+
+            # Check that sampling_accepted is not present (removed per requirements)
+            assert 'sampling_accepted' not in f, "sampling_accepted should not be present in history file"
+
+            # Get the length of evaluation history
+            evaluation_history_length = len(f['evaluation_logl'])
+
+            # The evaluation history should contain all likelihood evaluations (including initial live points)
+            ncalls = sampler.ncall
+
+            # Verify completeness: evaluation history length should equal total ncalls
+            assert evaluation_history_length == ncalls, \
+                f"Evaluation history incomplete: {evaluation_history_length} entries but {ncalls} likelihood calls"
+
+            # Additional checks: all arrays should have same length
+            assert len(
+                f['evaluation_u']
+            ) == evaluation_history_length, "sampling_u length mismatch"
+            assert len(
+                f['evaluation_v']
+            ) == evaluation_history_length, "sampling_v length mismatch"
+
+            # Check data integrity: no NaN values
+            assert not np.any(np.isnan(
+                f['evaluation_logl'][:])), "sampling_logl contains NaN values"
+            assert not np.any(np.isnan(
+                f['evaluation_u'][:])), "sampling_u contains NaN values"
+            assert not np.any(np.isnan(
+                f['evaluation_v'][:])), "sampling_v contains NaN values"
+
+    finally:
+        # Clean up temporary file
+        try:
+            os.unlink(history_filename)
+        except FileNotFoundError:
+            pass
+
+
+def test_dynamic_sampling_history_completeness():
+    """Test that evaluation history length equals ncalls when enabled for dynamic sampler."""
+    import tempfile
+    import h5py
+
+    ndim = 2
+    rstate = get_rstate()
+
+    # Create temporary file for history
+    with tempfile.NamedTemporaryFile(suffix='.h5', delete=False) as tmp:
+        history_filename = tmp.name
+
+    try:
+        # Run dynamic sampler with sampling history enabled
+        sampler = dynesty.DynamicNestedSampler(
+            loglike,
+            prior_transform,
+            ndim,
+            save_evaluation_history=True,
+            history_filename=history_filename,
+            rstate=rstate)
+
+        sampler.run_nested(dlogz_init=0.1,
+                           print_progress=printing,
+                           maxiter=500)
+
+        # Check that history file was created and contains expected data
+        assert os.path.exists(history_filename), "History file was not created"
+
+        # Read the history file and verify completeness
+        with h5py.File(history_filename, 'r') as f:
+            # Check that evaluation history datasets exist
+            assert 'evaluation_u' in f, "sampling_u dataset not found in history file"
+            assert 'evaluation_v' in f, "sampling_v dataset not found in history file"
+            assert 'evaluation_logl' in f, "sampling_logl dataset not found in history file"
+
+            # Check that sampling_accepted is not present (removed per requirements)
+            assert 'sampling_accepted' not in f, "sampling_accepted should not be present in history file"
+
+            # Get the length of evaluation history
+            evaluation_history_length = len(f['evaluation_logl'])
+
+            # The evaluation history should contain all likelihood evaluations (including initial live points)
+            ncalls = sampler.ncall
+
+            # Verify completeness: evaluation history length should equal total ncalls
+            assert evaluation_history_length == ncalls, \
+                f"Dynamic sampler evaluation history incomplete: {evaluation_history_length} entries but {ncalls} likelihood calls"
+
+            # Additional checks: all arrays should have same length
+            assert len(
+                f['evaluation_u']
+            ) == evaluation_history_length, "sampling_u length mismatch"
+            assert len(
+                f['evaluation_v']
+            ) == evaluation_history_length, "sampling_v length mismatch"
+
+            # Check data integrity: no NaN values
+            assert not np.any(np.isnan(
+                f['evaluation_logl'][:])), "sampling_logl contains NaN values"
+            assert not np.any(np.isnan(
+                f['evaluation_u'][:])), "sampling_u contains NaN values"
+            assert not np.any(np.isnan(
+                f['evaluation_v'][:])), "sampling_v contains NaN values"
+
+    finally:
+        # Clean up temporary file
+        try:
+            os.unlink(history_filename)
+        except FileNotFoundError:
+            pass

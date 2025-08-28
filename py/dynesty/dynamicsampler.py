@@ -920,8 +920,7 @@ class DynamicSampler:
 
         """
 
-        # TODO REMOVE
-        return []  # self.cite
+        return self.cite
 
     def sample_initial(self,
                        nlive=None,

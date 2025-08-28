@@ -13,18 +13,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - New InternalSampler interface. Now you can create subclasses of
   dynesty.internal_samplers.InternalSampler() to create custom samplers
   you can also provide samplers directly to NestedSampler calls, i.e.
-  'NestedSampler(sample=RWalkSampler(walks=4))'
+  'ns= NestedSampler(logl, prior, sample=RWalkSampler(walks=4))'
 - Now the results object has proposal_stats information from the samplers with information such as n_accept, n_reject
-- Now you can preserve *all* functions calls locations and values throughout the sampling using save_evaluation_history
+- Now all the likelihood functions calls values executed throughout the sampling can be saved using save_evaluation_history option
 
 
 ### Changed
+- Dramatically faster sampling with uniform sampler when using parallelization
+- Migrate to pyproject.toml installation
 - Remove n_effective option from static sampler run_nested
-- Remove custom update_func
-- Remove hslice sampler
+- Remove custom update_func removed in favour of new sampler interfaace
 - Remove 'user-defined' proposal distribution
+- Remove hslice sampler
 - Change internal attribute from batch_bounds to batch_logl_bounds
 - various iterators when you use sampler don't return a tuple of things, but instead an Iterator object. You can use attributes to fetch things from it
+- rename various interal attributes and methods for consistency
 
 ### Fixed
 

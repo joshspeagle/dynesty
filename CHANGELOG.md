@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 [3.0.0 - Unreleased]
 ### Added
 - New InternalSampler interface. Now you can create subclasses of
-  dynesty.sampling.InternalSampler() to create custom samplers
+  dynesty.internal_samplers.InternalSampler() to create custom samplers
   you can also provide samplers directly to NestedSampler calls, i.e.
   'NestedSampler(sample=RWalkSampler(walks=4))'
 - Now the results object has proposal_stats information from the samplers with information such as n_accept, n_reject

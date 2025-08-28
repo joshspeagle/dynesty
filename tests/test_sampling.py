@@ -1,6 +1,6 @@
 import numpy as np
 import scipy.integrate
-import dynesty.sampling as ds
+import dynesty.internal_samplers as ds
 from utils import get_rstate
 
 

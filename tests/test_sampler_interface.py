@@ -5,7 +5,7 @@ import numpy.testing as npt
 import itertools
 
 from utils import get_rstate, get_printing
-import dynesty.sampling as dysa
+import dynesty.internal_samplers as dysa
 import dynesty  # noqa
 from dynesty import utils as dyfunc  # noqa
 """

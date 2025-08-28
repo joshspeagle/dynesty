@@ -25,7 +25,7 @@ Bounding
 Sampling
 ========
 
-.. automodule:: dynesty.sampling
+.. automodule:: dynesty.internal_samplers
     :members:
     :undoc-members:
     :private-members:

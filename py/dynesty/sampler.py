@@ -12,7 +12,7 @@ import math
 import copy
 import numpy as np
 from .results import Results, print_fn
-from .sampling import UnitCubeSampler, SamplerHistoryItem
+from .internal_samplers import UnitCubeSampler, SamplerHistoryItem
 from .utils import (get_seed_sequence, get_print_func, progress_integration,
                     IteratorResult, RunRecord, get_neff_from_logwt,
                     compute_integrals, DelayTimer, _LOWL_VAL,

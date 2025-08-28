@@ -11,7 +11,7 @@ import sys
 import warnings
 import traceback
 import numpy as np
-from .sampling import (INTERNAL_SAMPLER_LIST, InternalSampler, RSliceSampler,
+from .internal_samplers import (INTERNAL_SAMPLER_LIST, InternalSampler, RSliceSampler,
                        UniformBoundSampler, RWalkSampler, SliceSampler)
 from .sampler import Sampler, _initialize_live_points
 from .bounding import BOUND_LIST

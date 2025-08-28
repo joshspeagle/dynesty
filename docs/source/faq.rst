@@ -456,7 +456,7 @@ pools can have issues passing variables to/from members or executing tasks
 (a)synchronously depending on the setup.
 
 Second, check if your pool has issues pickling some types of functions 
-or evaluating some of the functions in :mod:`~dynesty.sampling`. In general,
+or evaluating some of the functions in :mod:`~dynesty.internal_samplers`. In general,
 nested functions require more advanced pickling (e.g., ``dill``), 
 which is not enabled with some pools by default.
 

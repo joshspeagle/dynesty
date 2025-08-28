@@ -12,7 +12,8 @@ import warnings
 import numpy as np
 from numpy import linalg
 import math
-from .utils import unitcheck, apply_reflect, get_random_generator, SamplerHistoryItem
+from .utils import (unitcheck, apply_reflect, get_random_generator,
+                    SamplerHistoryItem)
 from .bounding import randsphere
 
 __all__ = [
@@ -23,7 +24,6 @@ SamplerArgument = namedtuple('SamplerArgument', [
     'u', 'loglstar', 'axes', 'scale', 'prior_transform', 'loglikelihood',
     'rseed', 'kwargs'
 ])
-
 
 SamplerReturn = namedtuple('SamplerReturn', [
     'u', 'v', 'logl', 'ncalls', 'evaluation_history', 'tuning_info',
@@ -827,7 +827,8 @@ class RSliceSampler(InternalSampler):
              expansion_warning) = generic_slice_step(u, direction, nonperiodic,
                                                      loglstar, loglikelihood,
                                                      prior_transform, doubling,
-                                                     evaluation_history, rstate)
+                                                     evaluation_history,
+                                                     rstate)
             u = u_prop
             nc += nc1
             n_expand += n_expand1

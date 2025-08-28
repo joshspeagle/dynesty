@@ -929,8 +929,7 @@ class RadFriends(Bound):
         # Estimate the volume and fractional overlap with the unit cube
         # using Monte Carlo integration.
         if mc_integrate:
-            self.funit = self.monte_carlo_logvol(
-                                                 return_overlap=True,
+            self.funit = self.monte_carlo_logvol(return_overlap=True,
                                                  rstate=rstate)[1]
 
     def _get_covariance_from_all_points(self, points):

@@ -140,7 +140,7 @@ define the :meth:`loglikelihood` and :meth:`prior_transform` functions::
     # Define our 3-D correlated multivariate normal log-likelihood.
     C = np.identity(ndim)
     C[C==0] = 0.95
-    Cinv = linalg.inv(C)
+    Cinv = np.linalg.inv(C)
     lnorm = -0.5 * (np.log(2 * np.pi) * ndim +
                     np.log(np.linalg.det(C)))
 
@@ -452,7 +452,7 @@ of parallelizing is using a dynesty provided pool (which is a thin wrapper aroun
 python's multiprocessing pool)::
 
     with Pool(10, loglike, ptform) as pool:
-        sampler = NestedSampler(pool.loglikehood, pool.prior_transform,
+        sampler = NestedSampler(pool.loglikelihood, pool.prior_transform,
 	                        ndim, pool = pool)
 	sampler.run_nested()
 
@@ -470,7 +470,7 @@ pickling of those arguments::
                                     logl_kwargs=logl_kwargs,
 				    ptform_args=ptform_args,
 				    ptform_kwargs=ptform_kwargs) as pool:
-        sampler = NestedSampler(pool.loglikehood, pool.prior_transform,
+        sampler = NestedSampler(pool.loglikelihood, pool.prior_transform,
 	                        ndim, pool = pool)
 	sampler.run_nested()
 

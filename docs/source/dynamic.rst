@@ -40,7 +40,7 @@ We can illustrate this directly using the same example from
     # Define our 3-D correlated multivariate normal log-likelihood.
     C = np.identity(ndim)
     C[C==0] = 0.95
-    Cinv = linalg.inv(C)
+    Cinv = np.linalg.inv(C)
     lnorm = -0.5 * (np.log(2 * np.pi) * ndim +
                     np.log(np.linalg.det(C)))
 

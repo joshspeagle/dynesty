@@ -28,8 +28,8 @@ can be difficult to probe with simple random-walk MCMC methods.
 ``dynesty`` supports three tiers of sampling techniques: uniform sampling for
 low dimensional problems, random walks for low-to-moderate dimensional
 problems, and slice sampling for high-dimensional problems. The performance
-of our three slice sampling algorithms is shown below with `'slice'` in blue,
-`'rslice'` in orange, and `'hslice'` in green:
+of our slice sampling algorithms is shown below with `'slice'` in blue
+and `'rslice'` in orange:
 
 .. image:: ../images/examples_25d_001.png
     :align: center
@@ -54,11 +54,6 @@ Out::
              -0.00461723  0.00210266 -0.00553831 -0.0342508  -0.04259448 
              -0.03088255  0.00615101 -0.00708561 -0.01839912 -0.01779207]
 
-    hslice: [-0.00770402 -0.02471443 -0.042487   -0.01095513 -0.03419283 
-             -0.01587577 -0.0073069  -0.01633131 -0.01914578 -0.02243197 
-             -0.01922804 -0.03532052 -0.0229837  -0.02118347 -0.00624797 
-             -0.02247772 -0.02899336 -0.02943324 -0.02318504 -0.02445557 
-             -0.02455501 -0.00661906 -0.029969   -0.01755215 -0.01973601]
 
     Variance:
 
@@ -74,11 +69,6 @@ Out::
              1.03568037 1.01749501 0.98945627 0.99539522 0.98519908
              0.97363697 0.99418089 0.99500449 0.92339752 0.9456492 ]
 
-    hslice: [0.99093439 1.00783986 1.00908646 0.98642076 1.02137535 
-             1.00685834 0.98783381 1.02676786 1.021385   1.00869302
-             0.96427675 0.96278338 0.98425856 1.00001262 1.00796364 
-             1.01546776 1.01142401 1.01775994 0.99990323 1.00081825 
-             1.00426292 1.00153755 0.99376306 0.99011333 0.98264584]
 
 Eggbox
 ======
@@ -235,10 +225,9 @@ theoretical value:
 200-D Normal
 ============
 
-We examine the impact of gradients for sampling from high-dimensional
+We examine the impact of sampling methods for high-dimensional
 problems using a 200-D iid normal distribution with an associated
-200-D iid normal prior. With Hamiltonian slice sampling (`'hslice'`), we find
-we are able to recover the appropriate evidence:
+200-D iid normal prior. We find we are able to recover the appropriate evidence:
 
 .. image:: ../images/examples_200d_001.png
     :align: center

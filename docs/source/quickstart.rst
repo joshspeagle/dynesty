@@ -290,7 +290,6 @@ the provided bounds which can be passed via the `sample` argument:
 
 * **random slice sampling** away from a current live point (`'rslice'`), and
 
-* **"Hamiltonian" slice sampling** away from a current live point (`'hslice'`).
 
 In addition, `dynesty` also supports passing **custom callable functions**
 to the `sample` argument, provided they follow the same format as the
@@ -314,18 +313,10 @@ uses the following logic:
   since random walks are more robust to underestimated bounding
   distributions in higher dimensions,
 
-* If :math:`D > 20` and a gradient is not provided,
-  `'rslice'` is chosen since non-rejection sampling
+* If :math:`D > 20`, `'rslice'` is chosen since non-rejection sampling
   methods scale in polynomial (rather than exponential) time as the
   dimensionality increases.
 
-* If :math:`D > 20` and a gradient *is* provided, `'hslice'` is chosen
-  to take advantage of Hamiltonian dynamics, which scale better than `'rslice'`
-  as the dimensionality increases.
-
-Note that `'hslice'`, while using gradients, is substantially less efficient
-(and in general less reliable) than other gradient-based approaches such
-as Hamiltonian Monte Carlo. As such, **use them at your own risk.**
 
 One benefit to using random walks or slice sampling is that they require many
 fewer live points to adapt to structure in higher dimensions (since they only
@@ -668,92 +659,6 @@ shown below::
 This process works with :ref:`Dynamic Nested Sampling` as well. See
 :ref:`Unraveling/Merging Runs` for additional details.
 
-Sampling with Gradients
------------------------
-
-As mentioned in :ref:`Sampling Options`,
-``dynesty`` can utilize log-likelihood gradients :math:`\nabla \ln \mathcal{L}`
-by proposing new samples using Hamiltonian dynamics
-(often referred to as **reflective slice sampling**). However, because
-sampling in ``dynesty`` occurs on the *unit cube* (:math:`\mathbf{u}`) rather
-than in the target space of our original variables (:math:`\mathbf{x}`),
-these gradients have to be defined with respect to :math:`\mathbf{u}` rather
-than :math:`\mathbf{x}` even though they are evaluated at :math:`\mathbf{x}`.
-This requires computing the Jacobian matrix
-:math:`\mathbf{J}` from :math:`\mathbf{x}` to :math:`\mathbf{u}`.
-
-While this Jacobian might seem difficult to derive, it can be shown that
-given independent priors on each parameter
-
-.. math::
-
-    \pi(\mathbf{x}) = \prod_i \pi_i(x_i)
-
-where :math:`\pi_i(x_i)` is the prior for the i-th parameter :math:`x_i`
-that the Jacobian is diagonal where each diagonal element is simply
-
-.. math::
-
-    J_ii = 1 / \pi_i(x_i)
-
-By default, ``dynesty`` assumes that any gradient you pass in
-**already has the appropriate Jacobian applied**. If not, you can tell
-``dynesty`` to numerically estimate the Jacobian by setting
-`compute_jac=True`.
-
-For the simple 3-D multivariate normal likelihood and uniform prior
-from [-10, 10) used in :ref:`Crash Course`, sampling with gradients
-would look something like::
-
-    import numpy as np
-    import dynesty
-
-    # Define the dimensionality of our problem.
-    ndim = 3
-
-    # Define our 3-D correlated multivariate normal log-likelihood.
-    C = np.identity(ndim)
-    C[C==0] = 0.95
-    Cinv = linalg.inv(C)
-    lnorm = -0.5 * (np.log(2 * np.pi) * ndim +
-                    np.log(np.linalg.det(C)))
-
-    def loglike(x):
-        return -0.5 * np.dot(x, np.dot(Cinv, x)) + lnorm
-
-    # Define our uniform prior via the prior transform.
-    def ptform(u):
-        return 20. * u - 10.
-
-    # Define our gradient with and without the Jacobian applied.
-    def grad_x(x):
-        return -np.dot(Cinv, x)  # without Jacobian
-
-    def grad_u(x):
-        return -np.dot(Cinv, x) * 20.  # with Jacobian for uniform [-10, 10)
-
-    # Sample with `grad_u` (including Jacobian).
-    sampler = dynesty.NestedSampler(loglike, ptform, ndim, sample='hslice',
-                                    gradient=grad_u)
-    sampler.run_nested()
-    results_with_jac = sampler.results
-
-    # Sample with `grad_x` (compute Jacobian numerically).
-    sampler = dynesty.NestedSampler(loglike, ptform, ndim, sample='hslice',
-                                    gradient=grad_x, compute_jac=True)
-    sampler.run_nested()
-    results_without_jac = sampler.results
-
-For other independent priors discussed in :ref:`Prior Transforms`,
-we can use the built-in
-`functions <https://docs.scipy.org/doc/scipy/reference/stats.html>`_
-in `scipy.stats`, which include a **probability density function (pdf)** that
-is exactly our desired :math:`\pi_i(v_i)` function. These then enable us to
-compute and apply the (diagonal) Jacobian matrix directly.
-In more complex cases such as the simple hierarchical model in
-:ref:`Example: Conditional priors`, however, we may need to resort to
-estimating the Jacobian numerically to deal with the expected
-off-diagonal terms.
 
 Results
 =======

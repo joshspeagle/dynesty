@@ -26,8 +26,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Remove 'user-defined' proposal distribution
 - Remove hslice sampler
 - Change internal attribute from batch_bounds to batch_logl_bounds
-- various iterators when you use sampler don't return a tuple of things, but instead an Iterator object. You can use attributes to fetch things from it
-- rename various interal attributes and methods for consistency
+- Change diffeent iterators in the sampler to not return a tuple of things, but instead an special Iterator  object. You can use attributes to fetch things from it.
+- Rename various interal attributes and methods for consistency.
 
 ### Fixed
 

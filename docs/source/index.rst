@@ -98,6 +98,19 @@ Changelog
 .. image:: ../images/logo.gif
     :align: center
 
+	    	    
+3.0.0 (2025-09-XX)
+------------------
+Major release
+
+- Major refactor of the code that makes it easier to add new samplers.
+- You can now provide samplers as classes as arguments NestedSampler(sample=RWalkSampler(walks=44))
+- Major speedup of the uniform sampler when sampling in parallel
+- Convergence statistics are saved for each iteration that can help diagnose issues
+- You can now save the function evaluation history for all function calls throughout the sampling, even when doing it in parallel
+
+
+
 2.1.5 (2024-12-17)
 ------------------
 Bug fix release

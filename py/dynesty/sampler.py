@@ -1256,12 +1256,6 @@ class Sampler:
             Iteration will stop when the sampled ln(likelihood) exceeds the
             threshold set by `logl_max`. Default is no bound (`np.inf`).
 
-        n_effective: int, optional
-            Minimum number of effective posterior samples. If the estimated
-            "effective sample size" (ESS) exceeds this number,
-            sampling will terminate. Default is no ESS (`np.inf`).
-            This option is deprecated and will be removed in a future release.
-
         add_live : bool, optional
             Whether or not to add the remaining set of live points to
             the list of samples at the end of each run. Default is `True`.

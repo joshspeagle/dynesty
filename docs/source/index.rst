@@ -24,10 +24,11 @@ Installation
 ============
 
 ``dynesty`` is compatible with Python 3.6+. It requires
-``numpy`` (for arithmetic), 
-``scipy`` (for special functions), 
-``matplotlib`` (for plotting), and 
-While not required, ``tqdm`` also allows for a nice progress bar.
+``numpy`` (for arithmetic),
+``scipy`` (for special functions), and
+``matplotlib`` (for plotting).
+While not required, ``tqdm`` allows for a nice progress bar, and
+``h5py`` enables saving likelihood evaluation history.
 
 Installing the most recent stable version of the package is as easy as::
 
@@ -36,7 +37,7 @@ Installing the most recent stable version of the package is as easy as::
 Alternately, for users who might want newer development versions, it can also
 be installed directly from a local copy of the repository by running::
 
-    python setup.py install
+    pip install .
 
 Citations
 =========

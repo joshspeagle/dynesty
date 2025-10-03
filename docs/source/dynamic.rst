@@ -528,23 +528,23 @@ Out::
                              'samples_u', 'samples_it', 'logl', 'logzerr', 
                              'eff', 'logwt']
 
-    Dynamic Nested Sampling: ['niter', 'samples_n', 'batch_bounds',
-                              'information', 'samples_id', 'batch_nlive', 
-                              'bound_iter', 'logz', 'bound', 'ncall', 
+    Dynamic Nested Sampling: ['niter', 'samples_n', 'batch_logl_bounds',
+                              'information', 'samples_id', 'batch_nlive',
+                              'bound_iter', 'logz', 'bound', 'ncall',
                               'samples_bound', 'logvol', 'logwt', 'samples',
                               'samples_batch', 'samples_u', 'samples_it',
                               'logl', 'logzerr', 'eff', 'scale']
 
 The differences between these are:
 
-* `samples_n` (replaces `nlive`): records the number of live points at a 
+* `samples_n` (replaces `nlive`): records the number of live points at a
   given iteration.
 
 * `samples_batch`: index of the batch the points were sampled from.
 
 * `batch_nlive`: tracks the number of live points added in a given batch.
 
-* `batch_bounds`: the log-likelihood bounds used to allocate samples in a
+* `batch_logl_bounds`: the log-likelihood bounds used to allocate samples in a
   given batch.
 
 Let's now examine two edge cases by changing the arguments passed to the weight

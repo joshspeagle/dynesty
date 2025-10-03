@@ -274,6 +274,17 @@ directly, however, we can instead pass an integer::
 This now specifies that we will update our bounds after `600` function
 calls.
 
+Starting in version 3.0, you can also pass bounding instances directly for
+fine-grained control over bounding parameters, similar to samplers::
+
+    from dynesty.bounding import Ellipsoid
+
+    custom_bound = Ellipsoid(ndim)
+    sampler = NestedSampler(loglike, ptform, ndim, bound=custom_bound)
+
+You can create custom bounding strategies by subclassing
+:class:`~dynesty.bounding.Bound`. See the :ref:`API` documentation for details.
+
 See :ref:`Top-Level Interface` for more information.
 
 Sampling Options
@@ -288,19 +299,22 @@ the provided bounds which can be passed via the `sample` argument:
 
 * **multivariate slice sampling** away from a current live point (`'slice'`),
 
-* **random slice sampling** away from a current live point (`'rslice'`), and
+* **random slice sampling** away from a current live point (`'rslice'`).
 
 
-In addition, `dynesty` also supports passing **custom callable functions**
-to the `sample` argument, provided they follow the same format as the
-default sampling functions defined `here
-<https://github.com/joshspeagle/dynesty/blob/master/py/dynesty/sampling.py>`__.
-These can also be accompanied by custom "update functions" that try to
-adaptively scale proposals to ensure better overall sampling efficiency.
-See `here
-<https://github.com/joshspeagle/dynesty/blob/master/py/dynesty/nestedsamplers.py>`__
-for examples of some of the functions that are associated with the default
-sampling methods described above.
+Starting in version 3.0, you can also pass **sampler instances** directly to
+the `sample` argument for fine-grained control over sampler parameters.
+For example, to use random walks with a specific number of walks::
+
+    from dynesty.internal_samplers import RWalkSampler
+
+    sampler = NestedSampler(loglike, ptform, ndim,
+                           sample=RWalkSampler(walks=25))
+
+You can also create fully custom samplers by subclassing
+:class:`~dynesty.internal_samplers.InternalSampler`. See the
+:ref:`API` documentation for details on available sampler classes
+and their parameters.
 
 By default, `dynesty` automatically picks a sampling method
 based on the dimensionality of the problem via the `'auto'` argument, which
@@ -333,6 +347,46 @@ This might look something like::
     NestedSampler(loglike, ptform, ndim, bound='multi', sample='slice')
 
 See :ref:`Top-Level Interface` for additional information.
+
+Custom Sampler Instances (New in 3.0)
+--------------------------------------
+
+Starting in version 3.0, you can pass sampler instances directly to gain
+fine-grained control over sampler parameters. The available sampler classes
+are:
+
+* :class:`~dynesty.internal_samplers.UniformBoundSampler` - uniform sampling
+  within bounds
+* :class:`~dynesty.internal_samplers.RWalkSampler` - random walk sampling
+* :class:`~dynesty.internal_samplers.SliceSampler` - multivariate slice sampling
+* :class:`~dynesty.internal_samplers.RSliceSampler` - random slice sampling
+
+For example, to use random walks with 50 steps instead of the default::
+
+    from dynesty.internal_samplers import RWalkSampler
+
+    sampler = NestedSampler(loglike, ptform, ndim,
+                           sample=RWalkSampler(walks=50))
+
+Or to use slice sampling with more slices::
+
+    from dynesty.internal_samplers import SliceSampler
+
+    sampler = NestedSampler(loglike, ptform, ndim,
+                           sample=SliceSampler(slices=10))
+
+You can also create entirely custom samplers by subclassing
+:class:`~dynesty.internal_samplers.InternalSampler`. Your custom sampler
+needs to implement:
+
+* `__init__()`: Initialize sampler parameters
+* `prepare_sampler()`: Prepare arguments for sampling
+* `sample()`: A static method that performs the actual sampling
+* `tune()`: Update sampler parameters based on acceptance statistics
+* `citations`: A property returning citation information
+
+See the :ref:`API` documentation for full details on the
+:class:`~dynesty.internal_samplers.InternalSampler` interface.
 
 Early-Time Behavior
 -------------------
@@ -480,6 +534,30 @@ again to the sampler.
 If you specify logl_args, and ptform_args when creating the Pool *AND* in the sampler
 those will be concatenated.
 
+Saving Likelihood Evaluation History (New in 3.0)
+--------------------------------------------------
+
+Starting in version 3.0, you can save all likelihood function evaluations to
+an HDF5 file for detailed analysis and debugging. This works even when using
+parallel sampling::
+
+    sampler = NestedSampler(loglike, ptform, ndim,
+                           save_evaluation_history=True,
+                           history_filename='likelihood_evaluations.h5')
+    sampler.run_nested()
+
+The HDF5 file will contain datasets with all evaluated points in both the
+unit cube (`evaluation_u`) and parameter space (`evaluation_v`), along with
+their corresponding log-likelihood values (`evaluation_logl`). This can be
+useful for visualizing the sampling behavior and diagnosing potential issues.
+
+You can read the saved data using::
+
+    import h5py
+
+    with h5py.File('likelihood_evaluations.h5', 'r') as f:
+        eval_v = f['evaluation_v'][:]
+        eval_logl = f['evaluation_logl'][:]
 
 Running Internally
 ------------------
@@ -498,12 +576,13 @@ real time. The stopping criteria can be any combination of:
 
 * a fixed number of likelihood calls (`maxcall`),
 
-* a maximum log-likelihood `(logl_max`),
+* a maximum log-likelihood `(logl_max`), and
 
-* a specified :math:`\Delta \ln \hat{\mathcal{Z}}_i` tolerance (`dlogz`), and
+* a specified :math:`\Delta \ln \hat{\mathcal{Z}}_i` tolerance (`dlogz`).
 
-* a specified Effective Sample Size
-  (`ESS <https://en.wikipedia.org/wiki/Effective_sample_size>`_) (`n_effective`).
+Note: the Effective Sample Size (`ESS <https://en.wikipedia.org/wiki/Effective_sample_size>`_)
+stopping criterion (`n_effective`) is available for :ref:`Dynamic Nested Sampling`
+but was removed from the static `NestedSampler` in version 3.0.
 
 For instance, running one of the examples above would produce output like:
 
@@ -628,6 +707,17 @@ as opposed to::
 This can be extremely useful if you would like to manipulate the results
 in real-time, generate plots, save intermediate outputs, etc.
 
+Note: Starting in version 3.0, the iterator returns an `IteratorResult` object
+instead of a tuple. You can access iteration information using attributes::
+
+    for res in sampler.sample(dlogz=0.5):
+        # Access attributes directly
+        print(f"logz: {res.logz}, ncall: {res.ncall}, eff: {res.eff}")
+
+The available attributes include `worst`, `ustar`, `vstar`, `loglstar`, `logvol`,
+`logwt`, `logz`, `logzvar`, `h`, `nc`, `worst_it`, `boundidx`, `bounditer`,
+`eff`, `delta_logz`, and `blob` (if using blobs).
+
 Combining Runs
 --------------
 
@@ -739,10 +829,13 @@ included in `Results` are listed below:
 
 * `logz`: the cumulative evidence at each iteration (sample),
 
-* `logzerr`: the estimated error (standard deviation) on `logz`, and
+* `logzerr`: the estimated error (standard deviation) on `logz`,
 
 * `information`: the estimated "information" (see :ref:`Priors in
-  Nested Sampling`) at each iteration (sample).
+  Nested Sampling`) at each iteration (sample), and
+
+* `proposal_stats`: statistics from the internal sampler including acceptance
+  and rejection counts and tuning information (new in version 3.0).
 
 If the bounding distributions are also saved (the default behavior), then the
 following quantities are also provided:

@@ -18,7 +18,8 @@ printing = get_printing()
 
 
 class Box(db.Bound):
-    """                                                                                                                               Dummy bounding class
+    """
+    Dummy bounding class
     """
 
     def __init__(self, ndim):

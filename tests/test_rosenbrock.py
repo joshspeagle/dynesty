@@ -79,7 +79,7 @@ def domany(sample='rslice', nlive=500, niter=100, nthreads=1):
     start = True
     rstate = get_rstate()
     seed = rstate.integers(int(1e9))
-    with (mp.Pool(nthreads) if nthreads > 1 else NullContextManager()) as pool:
+    with (mp.get_context('spawn').Pool(nthreads) if nthreads > 1 else NullContextManager()) as pool:
         Cs = []
         for i in range(niter):
             if nthreads > 1:

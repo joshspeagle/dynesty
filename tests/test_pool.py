@@ -183,7 +183,8 @@ def test_pool_samplers(sample):
     # this is to test how the samplers are dealing with queue_size>1
     rstate = get_rstate()
 
-    with mp.Pool(2) as pool:
+    ctx = mp.get_context('spawn')
+    with ctx.Pool(2) as pool:
         sampler = dynesty.NestedSampler(loglike_gau,
                                         prior_transform_gau,
                                         ndim,
@@ -210,7 +211,8 @@ def test_usepool(func):
         use_pool[k] = False
     use_pool[func] = True
 
-    with mp.Pool(2) as pool:
+    ctx = mp.get_context('spawn')
+    with ctx.Pool(2) as pool:
         sampler = dynesty.DynamicNestedSampler(loglike_gau,
                                                prior_transform_gau,
                                                ndim,

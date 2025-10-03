@@ -105,7 +105,8 @@ def do_gaussians(sample='rslice',
     """
     Run many tests
     """
-    with mp.Pool(nthreads) as pool:
+    ctx = mp.get_context('spawn')
+    with ctx.Pool(nthreads) as pool:
         res = []
         ndims = np.arange(ndim_min, ndim_max + 1)
         for ndim in ndims:

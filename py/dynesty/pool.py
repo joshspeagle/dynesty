@@ -138,7 +138,8 @@ class Pool:
         initargs = (self.loglike_0, self.prior_transform_0, self.logl_args
                     or (), self.logl_kwargs or {}, self.ptform_args
                     or (), self.ptform_kwargs or {})
-        self.pool = mp.Pool(self.njobs, initializer, initargs)
+        ctx = mp.get_context('spawn')
+        self.pool = ctx.Pool(self.njobs, initializer, initargs)
         initializer(*initargs)
         # running this in the master process seems to help with
         # restoration of the sampler ( #403)

@@ -48,7 +48,7 @@ def fit_main(fname,
     """
     ndim = 2
     with (NullContextManager() if npool is None else (dynesty.pool.Pool(
-            npool, like, ptform) if dyn_pool else mp.Pool(npool))) as pool:
+            npool, like, ptform) if dyn_pool else mp.get_context('spawn').Pool(npool))) as pool:
         queue_size = 100 if npool is not None else None
         if dyn_pool:
             curlike, curpt = pool.loglike, pool.prior_transform
@@ -180,7 +180,7 @@ def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
 
             with (NullContextManager() if npool is None else
                   (dynesty.pool.Pool(npool, like, ptform)
-                   if dyn_pool else mp.Pool(npool))) as pool:
+                   if dyn_pool else mp.get_context('spawn').Pool(npool))) as pool:
                 blob = fit_resume(fname, dynamic, curlogz, pool=pool)
                 if with_pool:
                     # the expectation is we ran in 2 pids before

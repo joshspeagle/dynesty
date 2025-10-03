@@ -101,16 +101,6 @@ class Gaussian:
 
         return ret
 
-    # gradient (no jacobian)
-    def grad_x(self, x):
-        """Multivariate normal log-likelihood gradient."""
-        return -np.dot(self.cov_inv, (x - self.mean))
-
-    # gradient (with jacobian)
-    def grad_u(self, x):
-        """Multivariate normal log-likelihood gradient."""
-        return -np.dot(self.cov_inv, x - self.mean) * 2 * self.prior_win
-
 
 def check_results_gau(results, g, rstate, sig=4, logz_tol=None):
     if logz_tol is None:

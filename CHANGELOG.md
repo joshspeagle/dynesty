@@ -8,15 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 ### Changed
 ### Fixed
-[3.0.0 - Unreleased]
+[3.0.0 - 2025-10-03]
 ### Added
 - New InternalSampler interface. Now you can create subclasses of
   dynesty.internal_samplers.InternalSampler() to create custom samplers
   you can also provide samplers directly to NestedSampler calls, i.e.
   'ns= NestedSampler(logl, prior, sample=RWalkSampler(walks=4))'
 - Now the results object has proposal_stats information from the samplers with information such as n_accept, n_reject
-- Now all the likelihood functions calls values executed throughout the sampling can be saved using save_evaluation_history option
-
+- Now all the likelihood functions calls values executed throughout the sampling can be saved using save_evaluation_history option even when using parallel sampling
+- New Bound interface. That allows one to implement different bounding strategies than are in standard dynesty
 
 ### Changed
 - Dramatically faster sampling with uniform sampler when using parallelization
@@ -26,10 +26,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Remove 'user-defined' proposal distribution
 - Remove hslice sampler
 - Change internal attribute from batch_bounds to batch_logl_bounds
-- Change diffeent iterators in the sampler to not return a tuple of things, but instead an special Iterator  object. You can use attributes to fetch things from it.
+- Change different iterators in the sampler to not return a tuple of things, but instead an special Iterator  object. You can use attributes to fetch things from it.
 - Rename various interal attributes and methods for consistency.
 
 ### Fixed
+- The uniform sampling when using a parallel pool should be substantially faster. Previously the parallel sampling did not help much with uniform sampling.
 
 [2.1.5 - 2024-12-17]
 ### Fixed

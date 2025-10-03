@@ -42,10 +42,16 @@ def fit_main(fname,
              checkpoint_every=0.01,
              npool=None,
              dyn_pool=False,
-             neff=NEFF0):
+             neff=NEFF0,
+             ready_file=None):
     """
     Fit while checkpointing
     """
+    # Signal that we're ready (for spawn context timing)
+    if ready_file is not None:
+        with open(ready_file, 'w') as f:
+            f.write(str(time.time()))
+
     ndim = 2
     with (NullContextManager() if npool is None else (dynesty.pool.Pool(
             npool, like, ptform) if dyn_pool else mp.get_context('spawn').Pool(npool))) as pool:
@@ -162,12 +168,28 @@ def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
     curdt, curlogz = [_[dynamic, with_pool] for _ in [cache_dt, cache_logz]]
     save_every = min(save_every, curdt / 10)
     curdt *= delay_frac
+
+    # For spawn context, we need to account for startup time
+    ready_file = fname + '.ready'
+
     try:
-        fit_proc = mp.Process(target=fit_main,
-                              args=(fname, dynamic, save_every, npool,
-                                    dyn_pool))
+        # Always use spawn context to match actual usage
+        fit_proc = mp.get_context('spawn').Process(target=fit_main,
+                                                    args=(fname, dynamic, save_every, npool,
+                                                          dyn_pool, NEFF0, ready_file))
+        start_time = time.time()
         fit_proc.start()
-        res = fit_proc.join(curdt)
+
+        # Wait for spawn process to be ready before starting timer
+        while not os.path.exists(ready_file):
+            time.sleep(0.01)
+            if time.time() - start_time > 5:  # Safety timeout
+                raise RuntimeError("Process failed to start")
+        # Account for startup time in the timeout
+        startup_time = time.time() - start_time
+        actual_timeout = curdt + startup_time
+
+        res = fit_proc.join(actual_timeout)
         # proceed to terminate after curdt seconds
         if res is None:
             print('terminating', file=sys.stderr)
@@ -200,6 +222,10 @@ def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
             pass
         try:
             os.unlink(fname + '.tmp')
+        except:  # noqa
+            pass
+        try:
+            os.unlink(ready_file)
         except:  # noqa
             pass
 

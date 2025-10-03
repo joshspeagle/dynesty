@@ -45,6 +45,35 @@ BOUND_LIST = ['none', 'single', 'multi', 'balls', 'cubes']
 # these are the exitsing bounds implemented here
 
 
+def _slogdet_checked(matrix):
+    """
+    Compute the log-determinant and check that it's positive.
+
+    Parameters
+    ----------
+    matrix : array_like
+        Matrix to compute determinant for.
+
+    Returns
+    -------
+    detln : float
+        Natural log of the absolute value of the determinant.
+
+    Raises
+    ------
+    ValueError
+        If the determinant is not positive.
+    """
+    detsign, detln = linalg.slogdet(matrix)
+    if detsign <= 0:
+        raise ValueError(
+            f"Invalid ellipsoid: covariance matrix has non-positive determinant "
+            f"(sign={detsign}). This may indicate degenerate live points or "
+            f"numerical instability. Matrix shape: {matrix.shape}"
+        )
+    return detln
+
+
 class Bound:
     """
     This is is master class for the all the bounds listing
@@ -729,8 +758,7 @@ class RadFriends(Bound):
         self.axes = lalg.sqrtm(self.cov)
         self.axes_inv = lalg.pinvh(self.axes)
 
-        detsign, detln = linalg.slogdet(self.am)
-        assert detsign > 0
+        detln = _slogdet_checked(self.am)
         self.logvol = logvol_prefactor(self.ndim) - 0.5 * detln
         self.funit = 1
         self.ctrs = []  # placeholder
@@ -922,8 +950,7 @@ class RadFriends(Bound):
         self.ctrs = points
 
         # Compute volume.
-        detsign, detln = linalg.slogdet(self.am)
-        assert detsign > 0
+        detln = _slogdet_checked(self.am)
         self.logvol = (logvol_prefactor(self.ndim) - 0.5 * detln)
 
         # Estimate the volume and fractional overlap with the unit cube
@@ -997,8 +1024,7 @@ class SupFriends(Bound):
         self.axes = lalg.sqrtm(self.cov)
         self.axes_inv = lalg.pinvh(self.axes)
 
-        detsign, detln = linalg.slogdet(self.am)
-        assert detsign > 0
+        detln = _slogdet_checked(self.am)
         self.logvol = self.ndim * np.log(2.) - 0.5 * detln
         self.funit = 1
         self.ctrs = []
@@ -1190,8 +1216,7 @@ class SupFriends(Bound):
         self.axes *= hsmax
         self.axes_inv /= hsmax
 
-        detsign, detln = linalg.slogdet(self.am)
-        assert detsign > 0
+        detln = _slogdet_checked(self.am)
         self.logvol = (self.ndim * np.log(2.) - 0.5 * detln)
 
         # Estimate the volume and fractional overlap with the unit cube

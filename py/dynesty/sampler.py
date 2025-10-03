@@ -228,7 +228,7 @@ def _initialize_live_points(live_points,
                         "log-likelihood.")
                 else:
                     # If we found nothing after many attempts, raise the alarm.
-                    warnings.warn(f"After {n_attempts} attempts, we cound not "
+                    warnings.warn(f"After {n_attempts} attempts, we could not "
                                   f"find at least {min_npoints} points "
                                   "that have a valid log-likelihood! "
                                   "The initial sampling is very inefficient!")

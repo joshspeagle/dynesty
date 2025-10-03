@@ -660,7 +660,7 @@ def traceplot(results,
         try:
             ids = connect_highlight[0]
             ids = connect_highlight
-        except:
+        except Exception:
             ids = rstate.choice(uid, size=connect_highlight, replace=False)
 
     # Determine plotting bounds for marginalized 1-D posteriors.
@@ -1015,7 +1015,7 @@ def cornerpoints(results,
         for j, y in enumerate(samples[:-1]):
             try:
                 ax = axes[i, j]
-            except:
+            except Exception:
                 ax = axes
             # Setup axes.
             if span is not None:
@@ -1682,7 +1682,7 @@ def boundplot(results,
                 r = -(nlive + i)
                 uidx = samples_id[r]
                 live_u[uidx] = samples[r]
-        except:
+        except Exception:
             # In the dynamic sampling case, we will show the live points used
             # during the batch associated with a particular iteration/bound.
             batch = results['samples_batch'][it]  # select batch
@@ -1735,7 +1735,7 @@ def boundplot(results,
                     r = -(nlive + i)
                     uidx = samples_id[r]
                     live_u[uidx] = samples[r]
-            except:
+            except Exception:
                 raise ValueError("Live point tracking currently not "
                                  "implemented for dynamic sampling results.")
         # Draw samples.
@@ -2003,7 +2003,7 @@ def cornerbound(results,
                 r = -(nlive + i)
                 uidx = samples_id[r]
                 live_u[uidx] = samples[r]
-        except:
+        except Exception:
             # In the dynamic sampling case, we will show the live points used
             # during the batch associated with a particular iteration/bound.
             if it is not None:
@@ -2314,7 +2314,7 @@ def _hist2d(x,
     for i, v0 in enumerate(levels):
         try:
             V[i] = Hflat[sm <= v0][-1]
-        except:
+        except Exception:
             V[i] = Hflat[0]
     V.sort()
     m = (np.diff(V) == 0)

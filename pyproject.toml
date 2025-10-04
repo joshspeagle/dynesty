@@ -1,6 +1,5 @@
 [build-system]
-requires-python = ">= 3.8"
-requires = ["setuptools>=61.0", "setuptools-scm"]
+requires = ["setuptools>=80", "setuptools-scm[simple]>=8"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
@@ -9,14 +8,12 @@ include-package-data = true
 [tool.setuptools.packages.find]
 where = ["py"]
 
-# [tool.setuptools.dynamic]
-# version = {attr = "dynesty._version.__version__"}
 [tool.setuptools_scm]
-write_to = "py/dynesty/_version.py"
 
 [project]
 dynamic = ["version"]
 name = "dynesty"
+requires-python = ">= 3.8"
 description = "A dynamic nested sampling package for computing Bayesian posteriors and evidences."
 readme = {file = "README.md", content-type = "text/markdown"}
 authors = [

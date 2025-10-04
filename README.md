@@ -22,7 +22,7 @@ pip install dynesty
 ```
 The current (less stable) development version can be installed by running
 ```
-pip install ./
+pip install .
 ```
 from inside the repository.
 

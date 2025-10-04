@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 ### Changed
 ### Fixed
+
 [3.0.0 - 2025-10-03]
 ### Added
 - New InternalSampler interface. Now you can create subclasses of

@@ -20,7 +20,7 @@ authors = [
     {name = "Sergey E Koposov", email = "skoposov@ed.ac.uk"},
     {name = "Joshua S Speagle", email = "j.speagle@utoronto.ca"}
 ]
-license = {text = "MIT"}
+license = "MIT"
 dependencies = [
     "numpy>=1.17.0",
     "scipy>=1.4.0",
@@ -33,7 +33,6 @@ keywords = [
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
-    "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Programming Language :: Python",
     "Operating System :: OS Independent",

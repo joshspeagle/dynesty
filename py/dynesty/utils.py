@@ -386,7 +386,7 @@ def _update_tqdm_eta_from_dlogz(pbar, niter, delta_logz, dlogz):
 
     state = getattr(pbar, "_dynesty_eta_state", None)
     if state is None:
-        state = {"history": []}
+        state = {"history": [], 'last_slope': None}
         setattr(pbar, "_dynesty_eta_state", state)
 
     history = state["history"]
@@ -410,9 +410,13 @@ def _update_tqdm_eta_from_dlogz(pbar, niter, delta_logz, dlogz):
 
     slope = np.polyfit(xvals, yvals, 1)[0]
     if slope >= -1e-8:
-        pbar.total = None
-        return
-
+        if state['last_slope'] is None:
+            pbar.total = None
+            return
+        else:
+            slope = state['last_slope']
+    else:
+        state['last_slope'] = slope
     rem_iters = (np.log(dlogz) - np.log(delta_logz)) / slope
     if not np.isfinite(rem_iters) or rem_iters <= 0:
         return

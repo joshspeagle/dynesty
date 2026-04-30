@@ -48,7 +48,7 @@ IteratorResult = namedtuple('IteratorResult', [
 
 IteratorResultShort = namedtuple('IteratorResultShort', [
     'worst', 'ustar', 'vstar', 'loglstar', 'nc', 'worst_it', 'boundidx',
-    'bounditer', 'eff', 'proposal_stats'
+    'bounditer', 'eff', 'delta_logz', 'proposal_stats'
 ])
 
 _LOWL_VAL = -1e300
@@ -377,17 +377,56 @@ PrintFnArgs = namedtuple('PrintFnArgs',
                          ['niter', 'short_str', 'mid_str', 'long_str'])
 
 
-def _update_tqdm_eta_from_dlogz(pbar, niter, delta_logz, dlogz):
+def _update_tqdm_eta_from_dlogz(pbar,
+                                niter,
+                                delta_logz,
+                                dlogz,
+                                nbatch=None,
+                                loglstar=None,
+                                logl_min=-np.inf,
+                                logl_max=np.inf):
     """Update ``pbar.total`` so tqdm can show its native ETA."""
+    state = getattr(pbar, "_dynesty_eta_state", None)
+    if state is None:
+        state = {}
+        setattr(pbar, "_dynesty_eta_state", state)
+
+    # Dynamic batches: estimate completion from progress within [logl_min,logl_max]
+    # only when both bounds are finite; otherwise fall back to dlogz trend.
+    if (nbatch is not None and np.isfinite(loglstar) and np.isfinite(logl_min)
+            and np.isfinite(logl_max) and (logl_max > logl_min)):
+        if state.get("mode") != "batch" or state.get("batch") != nbatch:
+            state.clear()
+            state["mode"] = "batch"
+            state["batch"] = nbatch
+            state["batch_start_iter"] = niter
+
+        prog = (loglstar - logl_min) / (logl_max - logl_min)
+        prog = float(np.clip(prog, 0.0, 0.999))
+
+        if prog <= 1e-3:
+            pbar.total = None
+            return
+
+        done = max(niter - state["batch_start_iter"], 1)
+        rem_iters = done * (1.0 - prog) / prog
+        if np.isfinite(rem_iters) and rem_iters > 0:
+            pbar.total = max(niter + int(np.ceil(rem_iters)), pbar.n + 1)
+        else:
+            pbar.total = None
+        return
+
+    # Static runs (or dynamic when bounds are not finite): use dlogz trend.
     if dlogz is None or not np.isfinite(dlogz) or dlogz <= 0:
         return
     if not np.isfinite(delta_logz) or delta_logz <= dlogz or delta_logz <= 0:
         return
 
-    state = getattr(pbar, "_dynesty_eta_state", None)
-    if state is None:
-        state = {"history": [], 'last_slope': None}
-        setattr(pbar, "_dynesty_eta_state", state)
+    if state.get("mode") != "dlogz":
+        state.clear()
+        state["mode"] = "dlogz"
+        state["history"] = []
+        state["last_slope"] = None
 
     history = state["history"]
     history.append((niter, delta_logz))
@@ -410,13 +449,12 @@ def _update_tqdm_eta_from_dlogz(pbar, niter, delta_logz, dlogz):
 
     slope = np.polyfit(xvals, yvals, 1)[0]
     if slope >= -1e-8:
-        if state['last_slope'] is None:
+        if state["last_slope"] is None:
             pbar.total = None
             return
-        else:
-            slope = state['last_slope']
+        slope = state["last_slope"]
     else:
-        state['last_slope'] = slope
+        state["last_slope"] = slope
     rem_iters = (np.log(dlogz) - np.log(delta_logz)) / slope
     if not np.isfinite(rem_iters) or rem_iters <= 0:
         return
@@ -562,7 +600,9 @@ def get_print_fn_args(results,
     long_str.append("logz: {:6.3f} +/- {:6.3f}".format(logz, logzerr))
     short_str.append("logz: {:6.1f}+/-{:.1f}".format(logz, logzerr))
     mid_str = list(short_str)
-    if dlogz is not None:
+    show_dlogz = (dlogz is not None and
+                  (nbatch is None or nbatch == 0 or stop_val is None))
+    if show_dlogz:
         long_str.append("dlogz: {:6.3f} > {:6.3f}".format(delta_logz, dlogz))
         mid_str.append("dlogz: {:6.1f}>{:6.1f}".format(delta_logz, dlogz))
     else:
@@ -598,7 +638,14 @@ def print_fn_tqdm(pbar,
                                 logl_min=logl_min,
                                 logl_max=logl_max)
 
-    _update_tqdm_eta_from_dlogz(pbar, fn_args.niter, results.delta_logz, dlogz)
+    _update_tqdm_eta_from_dlogz(pbar,
+                                fn_args.niter,
+                                results.delta_logz,
+                                dlogz,
+                                nbatch=nbatch,
+                                loglstar=results.loglstar,
+                                logl_min=logl_min,
+                                logl_max=logl_max)
     pbar.set_postfix_str(" | ".join(fn_args.long_str), refresh=False)
     pbar.update(fn_args.niter - pbar.n)
 

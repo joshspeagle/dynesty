@@ -189,9 +189,9 @@ def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
         startup_time = time.time() - start_time
         actual_timeout = curdt + startup_time
 
-        res = fit_proc.join(actual_timeout)
-        # proceed to terminate after curdt seconds
-        if res is None:
+        fit_proc.join(actual_timeout)
+        # Proceed to terminate only if the process did not finish in time.
+        if fit_proc.is_alive():
             print('terminating', file=sys.stderr)
             fit_proc.terminate()
             if np.allclose(delay_frac, .2) and not os.path.exists(fname):
@@ -214,7 +214,7 @@ def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
                 # I allow 1 in order to allow cases where the
                 # sampling is done before interruption
         else:
-            assert res == 0
+            assert fit_proc.exitcode == 0
     finally:
         try:
             os.unlink(fname)

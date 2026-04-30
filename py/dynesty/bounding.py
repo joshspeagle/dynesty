@@ -69,8 +69,7 @@ def _slogdet_checked(matrix):
         raise ValueError(
             f"Invalid ellipsoid: covariance matrix has non-positive determinant "
             f"(sign={detsign}). This may indicate degenerate live points or "
-            f"numerical instability. Matrix shape: {matrix.shape}"
-        )
+            f"numerical instability. Matrix shape: {matrix.shape}")
     return detln
 
 

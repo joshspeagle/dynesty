@@ -42,8 +42,8 @@ def test_bounds(bound, sample):
                                     sample=sample,
                                     rstate=rstate)
     sampler.run_nested(dlogz=0.01, print_progress=printing)
-    assert (abs(LOGZ_TRUTH - sampler.results.logz[-1]) <
-            5. * sampler.results.logzerr[-1])
+    assert (abs(LOGZ_TRUTH - sampler.results.logz[-1])
+            < 5. * sampler.results.logzerr[-1])
 
 
 def test_ellipsoids_bootstrap():
@@ -59,5 +59,5 @@ def test_ellipsoids_bootstrap():
                                     bootstrap=5,
                                     rstate=rstate)
     sampler.run_nested(dlogz=0.01, print_progress=printing)
-    assert (abs(LOGZ_TRUTH - sampler.results.logz[-1]) <
-            5. * sampler.results.logzerr[-1])
+    assert (abs(LOGZ_TRUTH - sampler.results.logz[-1])
+            < 5. * sampler.results.logzerr[-1])

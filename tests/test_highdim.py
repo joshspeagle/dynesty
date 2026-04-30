@@ -127,10 +127,9 @@ def do_gaussians(sample='rslice',
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("ndim,sample",
-                         list(
-                             itertools.product([10, 30],
-                                               ['rslice', 'rwalk', 'unif'])))
+@pytest.mark.parametrize(
+    "ndim,sample",
+    list(itertools.product([10, 30], ['rslice', 'rwalk', 'unif'])))
 def test_run(ndim, sample):
     """
     Run the Gaussian likelihood test

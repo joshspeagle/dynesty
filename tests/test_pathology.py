@@ -26,9 +26,9 @@ def prior_transform(x):
     return x * 2 - 1
 
 
-@pytest.mark.parametrize("dynamic,bound,sample",
-                         itertools.product([False, True], ['multi'],
-                                           ['unif', 'rslice', 'rwalk']))
+@pytest.mark.parametrize(
+    "dynamic,bound,sample",
+    itertools.product([False, True], ['multi'], ['unif', 'rslice', 'rwalk']))
 def test_pathology(dynamic, bound, sample):
     ndim = 2
     rstate = get_rstate()

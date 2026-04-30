@@ -37,6 +37,6 @@ def test_dyn():
                                            nlive=nlive,
                                            rstate=rstate)
     sampler.run_nested(dlogz_init=1, print_progress=printing)
-    assert (abs(LOGZ_TRUTH - sampler.results.logz[-1]) <
-            THRESHOLD * sampler.results.logzerr[-1])
+    assert (abs(LOGZ_TRUTH - sampler.results.logz[-1])
+            < THRESHOLD * sampler.results.logzerr[-1])
     print(sampler.citations)

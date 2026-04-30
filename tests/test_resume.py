@@ -53,8 +53,9 @@ def fit_main(fname,
             f.write(str(time.time()))
 
     ndim = 2
-    with (NullContextManager() if npool is None else (dynesty.pool.Pool(
-            npool, like, ptform) if dyn_pool else mp.get_context('spawn').Pool(npool))) as pool:
+    with (NullContextManager() if npool is None else
+          (dynesty.pool.Pool(npool, like, ptform)
+           if dyn_pool else mp.get_context('spawn').Pool(npool))) as pool:
         queue_size = 100 if npool is not None else None
         if dyn_pool:
             curlike, curpt = pool.loglike, pool.prior_transform
@@ -174,9 +175,10 @@ def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
 
     try:
         # Always use spawn context to match actual usage
-        fit_proc = mp.get_context('spawn').Process(target=fit_main,
-                                                    args=(fname, dynamic, save_every, npool,
-                                                          dyn_pool, NEFF0, ready_file))
+        fit_proc = mp.get_context('spawn').Process(
+            target=fit_main,
+            args=(fname, dynamic, save_every, npool, dyn_pool, NEFF0,
+                  ready_file))
         start_time = time.time()
         fit_proc.start()
 
@@ -201,8 +203,8 @@ def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
                 return
 
             with (NullContextManager() if npool is None else
-                  (dynesty.pool.Pool(npool, like, ptform)
-                   if dyn_pool else mp.get_context('spawn').Pool(npool))) as pool:
+                  (dynesty.pool.Pool(npool, like, ptform) if dyn_pool else
+                   mp.get_context('spawn').Pool(npool))) as pool:
                 blob = fit_resume(fname, dynamic, curlogz, pool=pool)
                 if with_pool:
                     # the expectation is we ran in 2 pids before

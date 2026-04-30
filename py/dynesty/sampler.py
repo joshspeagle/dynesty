@@ -245,10 +245,9 @@ def _initialize_live_points(live_points,
                 if np.sign(logl) < 0:
                     live_logl[i] = _LOWL_VAL
                 else:
-                    raise ValueError("The log-likelihood ({0}) of live "
-                                     "point {1} located at u={2} v={3} "
-                                     " is invalid.".format(
-                                         logl, i, live_u[i], live_v[i]))
+                    raise ValueError(
+                        f"The log-likelihood ({logl}) of live point {i} "
+                        f"located at u={live_u[i]} v={live_v[i]} is invalid.")
         if np.all(live_logl == _LOWL_VAL):
             raise ValueError("Not a single provided live point has a "
                              "valid log-likelihood!")

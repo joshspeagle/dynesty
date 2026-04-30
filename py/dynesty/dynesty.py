@@ -527,7 +527,7 @@ def _common_sampler_init(*,
     # Custom sampler
     if sample not in INTERNAL_SAMPLER_LIST and not isinstance(
             sample, InternalSampler):
-        raise ValueError("Unknown sampling method: '{0}'".format(sample))
+        raise ValueError(f"Unknown sampling method: '{sample}'")
 
     if ncdim != ndim and (isinstance(sample, SliceSampler)
                           or isinstance(sample, RSliceSampler)):

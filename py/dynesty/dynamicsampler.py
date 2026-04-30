@@ -1558,7 +1558,7 @@ class DynamicSampler:
             # Save the number of live points and expected ln(volume).
             if (not plateau_mode and i != len(nlive_array) - 1
                     and logl_array[i] == logl_array[i + 1]):
-                plateau_mask = (logl_array[i:] == cur_logl)
+                plateau_mask = logl_array[i:] == cur_logl
                 nplateau = plateau_mask.sum()
                 if nplateau > 1:
                     # the number of live points should not change throughout

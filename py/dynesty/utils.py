@@ -1469,7 +1469,7 @@ def resample_run(res, rstate=None, return_idx=False):
         samp_n = np.zeros(nsamps, dtype=int)
         uidxs, uidxs_n = np.unique(live_idx, return_counts=True)
         for uidx, uidx_n in zip(uidxs, uidxs_n):
-            sel = (res.samples_id == uidx)  # selection flag
+            sel = res.samples_id == uidx  # selection flag
             sbatch = samples_batch[sel][0]  # corresponding batch ID
             lower = batch_llmin[sbatch]  # lower bound
             upper = max(res.logl[sel])  # upper bound
@@ -1480,7 +1480,7 @@ def resample_run(res, rstate=None, return_idx=False):
 
             # At the endpoint, divide up the final set of points into `uidx_n`
             # (roughly) equal chunks and have live points decrease across them.
-            endsel = (logl == upper)
+            endsel = logl == upper
             endsel_n = np.count_nonzero(endsel)
             chunk = endsel_n / uidx_n  # define our chunk
             counters = np.array(np.arange(endsel_n) / chunk, dtype=int)
@@ -1618,7 +1618,7 @@ def unravel_run(res, print_progress=True):
     nstrands = len(np.unique(idxs))
     for counter, idx in enumerate(np.unique(idxs)):
         # Select strand `idx`.
-        strand = (idxs == idx)
+        strand = idxs == idx
         nsamps = sum(strand)
         logl = res.logl[strand]
 
@@ -2031,7 +2031,7 @@ def _merge_two(res1, res2, compute_aux=False):
     for i, (curl, nlive) in enumerate(zip(logl_array, nlive_array)):
         # Save the number of live points and expected ln(volume).
         if not plateau_mode:
-            plateau_mask = (logl_array[i:] == curl)
+            plateau_mask = logl_array[i:] == curl
             nplateau = plateau_mask.sum()
             if nplateau > 1:
                 # the number of live points should not change throughout

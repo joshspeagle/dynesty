@@ -724,7 +724,7 @@ def traceplot(results,
         if connect:
             # Add lines highlighting specific particle paths.
             for j in ids:
-                sel = (samples_id[::thin] == j)
+                sel = samples_id[::thin] == j
                 ax.plot(-logvol[::thin][sel],
                         x[::thin][sel],
                         color=connect_color,
@@ -2317,7 +2317,7 @@ def _hist2d(x,
         except Exception:
             V[i] = Hflat[0]
     V.sort()
-    m = (np.diff(V) == 0)
+    m = np.diff(V) == 0
     if np.any(m) and plot_contours:
         logging.warning("Too few points to create valid contours.")
     if np.all(m):
@@ -2325,7 +2325,7 @@ def _hist2d(x,
     else:
         while np.any(m):
             V[np.where(m)[0][0]] *= 1.0 - 1e-4
-            m = (np.diff(V) == 0)
+            m = np.diff(V) == 0
         V.sort()
 
     # Compute the bin centers.

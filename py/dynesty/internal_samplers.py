@@ -1124,7 +1124,7 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
 
     # asymmetric step size on the left/right (see Neal 2003)
     nstep_l = -rand0
-    nstep_r = (1 - rand0)
+    nstep_r = 1 - rand0
 
     logl_l = F(nstep_l)[1]
     logl_r = F(nstep_r)[1]
@@ -1228,7 +1228,7 @@ def tune_slice(sampler, tuning_info, update=True):
     if not update:
         return
     n_expand, n_contract = max(hist['n_expand'], 1), hist['n_contract']
-    mult = (n_expand * 2. / (n_expand + n_contract))
+    mult = n_expand * 2. / (n_expand + n_contract)
     # avoid drastic updates to the scale factor limiting to factor
     # of two
     mult = np.clip(mult, 0.5, 2)

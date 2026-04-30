@@ -636,9 +636,9 @@ class Sampler:
         else:
             delta_bound = self.bound_update_interval
 
-        call_check_first = (ncall >= self.first_bound_update_ncall)
-        call_check = (ncall >= delta_bound + self.ncall_at_last_update)
-        efficiency_check = (self.eff < self.first_bound_update_eff)
+        call_check_first = ncall >= self.first_bound_update_ncall
+        call_check = ncall >= delta_bound + self.ncall_at_last_update
+        efficiency_check = self.eff < self.first_bound_update_eff
         # there are three cases when we update the bound
         # * if we are still using uniform cube sampling and both efficiency is
         # lower than the threshold and the number of calls is larger than the

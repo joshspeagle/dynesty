@@ -377,6 +377,49 @@ PrintFnArgs = namedtuple('PrintFnArgs',
                          ['niter', 'short_str', 'mid_str', 'long_str'])
 
 
+def _update_tqdm_eta_from_dlogz(pbar, niter, delta_logz, dlogz):
+    """Update ``pbar.total`` so tqdm can show its native ETA."""
+    if dlogz is None or not np.isfinite(dlogz) or dlogz <= 0:
+        return
+    if not np.isfinite(delta_logz) or delta_logz <= dlogz or delta_logz <= 0:
+        return
+
+    state = getattr(pbar, "_dynesty_eta_state", None)
+    if state is None:
+        state = {"history": []}
+        setattr(pbar, "_dynesty_eta_state", state)
+
+    history = state["history"]
+    history.append((niter, delta_logz))
+    if len(history) > 10:
+        history.pop(0)
+
+    if len(history) < 3:
+        return
+
+    points = np.asarray(history, dtype=float)
+    xvals = points[:, 0]
+    dvals = points[:, 1]
+    good = np.isfinite(dvals) & (dvals > 0)
+    if np.count_nonzero(good) < 3:
+        return
+    xvals = xvals[good]
+    yvals = np.log(dvals[good])
+    if np.allclose(xvals, xvals[0]):
+        return
+
+    slope = np.polyfit(xvals, yvals, 1)[0]
+    if slope >= -1e-8:
+        pbar.total = None
+        return
+
+    rem_iters = (np.log(dlogz) - np.log(delta_logz)) / slope
+    if not np.isfinite(rem_iters) or rem_iters <= 0:
+        return
+
+    pbar.total = max(niter + int(np.ceil(rem_iters)), pbar.n + 1)
+
+
 def print_fn(results,
              niter,
              ncall,
@@ -551,6 +594,7 @@ def print_fn_tqdm(pbar,
                                 logl_min=logl_min,
                                 logl_max=logl_max)
 
+    _update_tqdm_eta_from_dlogz(pbar, fn_args.niter, results.delta_logz, dlogz)
     pbar.set_postfix_str(" | ".join(fn_args.long_str), refresh=False)
     pbar.update(fn_args.niter - pbar.n)
 

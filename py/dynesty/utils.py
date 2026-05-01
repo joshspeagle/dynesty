@@ -940,13 +940,13 @@ def get_nonbounded(ndim, periodic, reflective):
     return nonbounded
 
 
-def get_print_func(print_func, print_progress):
+def get_print_func(print_func, print_progress, initial=0):
     pbar = None
     if print_func is None:
         if tqdm is None or not print_progress:
             print_func = print_fn
         else:
-            pbar = tqdm.tqdm()
+            pbar = tqdm.tqdm(initial=max(int(initial), 0))
             print_func = partial(print_fn, pbar=pbar)
     return pbar, print_func
 

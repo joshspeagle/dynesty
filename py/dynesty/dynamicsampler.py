@@ -1826,7 +1826,9 @@ class DynamicSampler:
                 return
 
         # Baseline run.
-        pbar, print_func = get_print_func(print_func, print_progress)
+        pbar, print_func = get_print_func(print_func,
+                                          print_progress,
+                                          initial=self.it - 1)
         self.checkpoint_timer = DelayTimer(checkpoint_every)
         try:
             # the init should be the first default stage, all other ones

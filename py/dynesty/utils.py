@@ -35,7 +35,8 @@ except ImportError:
 __all__ = [
     "unitcheck", "resample_equal", "mean_and_cov", "quantile", "jitter_run",
     "resample_run", "reweight_run", "unravel_run", "merge_runs", "kld_error",
-    "LoglOutput", "LogLikelihood", "RunRecord", "DelayTimer"
+    "compute_insertion_indices", "LoglOutput", "LogLikelihood", "RunRecord",
+    "DelayTimer"
 ]
 
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
@@ -1134,6 +1135,193 @@ def _get_nsamps_samples_n(res):
             raise ValueError("Final number of samples differs from number of "
                              "iterations and number of live points.")
     return nsamps, samples_n
+
+
+def _compute_insertion_indices_static(res, strict=True):
+    """
+    Compute insertion indices for a static nested-sampling run.
+
+    The insertion index at iteration ``k`` is the number of live points with
+    likelihood below the newly accepted point inserted at that iteration.
+
+    The reconstruction uses two saved per-sample fields:
+
+    - ``samples_id``: live-point lineage/slot label.
+      In static runs, when a point with ID ``j`` dies, the replacement point
+      keeps that same ID ``j``.
+    - ``samples_it``: proposal iteration of each point.
+      ``samples_it == 0`` are initial live points; ``samples_it == k`` means
+      the point was inserted at iteration ``k``.
+
+    Parameters
+    ----------
+    res : :class:`~dynesty.results.Results`
+        Results object from a static nested-sampling run.
+    strict : bool, optional
+        If ``True``, raise an error when exact reconstruction is impossible.
+        For static runs this typically requires final live points to be
+        present (i.e. ``len(res.logl) == res.niter + res.nlive``).
+
+    Returns
+    -------
+    insertion : `~numpy.ndarray`
+        Array of insertion indices of length ``res.niter``.
+
+    """
+    if res.isdynamic():
+        raise ValueError('Insertion-index recovery here only supports static '
+                         'nested sampling results.')
+
+    niter = int(res.niter)
+    nlive = int(res.nlive)
+    ids = np.asarray(res.samples_id, dtype=int)
+    its = np.asarray(res.samples_it, dtype=int)
+    logl = np.asarray(res.logl, dtype=float)
+
+    nsamps = len(logl)
+    if nsamps not in [niter, niter + nlive]:
+        raise ValueError('Inconsistent static results: len(logl) must equal '
+                         'niter or niter+nlive.')
+
+    if nsamps == niter and strict:
+        raise ValueError('Exact insertion-index reconstruction requires final '
+                         'live points to be included in results.')
+
+    # Build map (live-point id, proposal iteration) -> sample logl.
+    proposed_logl = {}
+    for pid, pit, ll in zip(ids, its, logl):
+        key = (int(pid), int(pit))
+        if key in proposed_logl and not np.isclose(proposed_logl[key], ll):
+            raise ValueError('Duplicate (samples_id, samples_it) entries have '
+                             'inconsistent logl values.')
+        proposed_logl[key] = float(ll)
+
+    # Live set before iteration 1 is points proposed at iteration 0.
+    active = {}
+    init_mask = its == 0
+    for pid, ll in zip(ids[init_mask], logl[init_mask]):
+        pid = int(pid)
+        if pid in active and not np.isclose(active[pid], ll):
+            raise ValueError('Inconsistent initial live-point records for a '
+                             'shared samples_id.')
+        active[pid] = float(ll)
+
+    if len(active) != nlive:
+        msg = (f'Only {len(active)} initial live points recovered but '
+               f'nlive={nlive}. Full reconstruction typically needs '
+               'final live points in results.')
+        if strict:
+            raise ValueError(msg)
+        out = np.full(niter, np.nan)
+        return out
+
+    dead_ids = ids[:niter]
+    insertion = np.empty(niter, dtype=float)
+    for k in range(1, niter + 1):
+        dead_id = int(dead_ids[k - 1])
+        key_new = (dead_id, k)
+        if key_new not in proposed_logl:
+            if strict:
+                raise ValueError('Missing replacement point for iteration '
+                                 f'{k} (samples_id={dead_id}, '
+                                 f'samples_it={k}).')
+            insertion[k - 1:] = np.nan
+            break
+
+        new_logl = proposed_logl[key_new]
+        live_logl = np.fromiter(active.values(), dtype=float)
+        # Insertion index convention: strict rank among current live points.
+        insertion[k - 1] = np.sum(live_logl < new_logl)
+
+        active[dead_id] = new_logl
+
+    return insertion
+
+
+def compute_insertion_indices(res, strict=True):
+    """
+    Compute insertion indices aligned with all samples in ``res``.
+
+    For static runs, returns an array of length ``len(res.logl)`` where the
+    first ``res.niter`` entries correspond to insertion indices for dead
+    points and any remaining entries (final added live points) are ``NaN``.
+
+    For dynamic runs, computes insertion indices separately for each batch
+    (including the base run as batch 0) and writes them back into a single
+    array aligned with ``res.logl``. Within each batch, indices are computed
+    in the batch-local static sense.
+
+    Notes on key fields:
+
+    - ``samples_id`` tracks live-point lineage within each static-style run.
+      In dynamic results, IDs are unique globally, but each batch is still
+      internally static-like.
+    - ``samples_it`` stores proposal iteration. In dynamic runs this is a
+      global iteration counter, so each batch is rebased to start at 0 before
+      static reconstruction.
+
+    Parameters
+    ----------
+    res : :class:`~dynesty.results.Results`
+        Results object from a static or dynamic run.
+    strict : bool, optional
+        If ``True``, raise when exact reconstruction is impossible.
+        If ``False``, missing portions are returned as ``NaN``.
+
+    Returns
+    -------
+    insertion_all : `~numpy.ndarray`
+        Array of insertion indices aligned with ``res.logl``.
+
+    """
+    nsamps = len(res.logl)
+    insertion_all = np.full(nsamps, np.nan)
+
+    if not res.isdynamic():
+        ins = _compute_insertion_indices_static(res, strict=strict)
+        insertion_all[:len(ins)] = ins
+        return insertion_all
+
+    # Dynamic case: process each batch independently as a static-like run.
+    batches = np.unique(res.samples_batch)
+    for batch_id in batches:
+        sel = (res.samples_batch == batch_id)
+        idx = np.nonzero(sel)[0]
+        nsamp_batch = len(idx)
+        nlive_batch = int(res.batch_nlive[int(batch_id)])
+        niter_batch = nsamp_batch - nlive_batch
+        if niter_batch < 0:
+            raise ValueError(
+                f'Batch {batch_id} has fewer samples ({nsamp_batch}) than '
+                f'nlive ({nlive_batch}).')
+
+        # Rebase iterations so the batch-local run starts at 0.
+        samples_it_local = np.asarray(res.samples_it[sel], dtype=int)
+        if len(samples_it_local) > 0:
+            samples_it_local = samples_it_local - samples_it_local.min()
+
+        static_like = Results(
+            dict(nlive=nlive_batch,
+                 niter=niter_batch,
+                 ncall=res.ncall[sel],
+                 eff=float(100. * nsamp_batch / np.sum(res.ncall[sel])),
+                 samples=res.samples[sel],
+                 samples_id=res.samples_id[sel],
+                 samples_it=samples_it_local,
+                 samples_u=res.samples_u[sel],
+                 blob=res.blob[sel],
+                 logwt=res.logwt[sel],
+                 logl=res.logl[sel],
+                 logvol=res.logvol[sel],
+                 logz=res.logz[sel],
+                 logzerr=res.logzerr[sel],
+                 information=res.information[sel]))
+
+        ins_batch = _compute_insertion_indices_static(static_like,
+                                                      strict=strict)
+        insertion_all[idx[:len(ins_batch)]] = ins_batch
+
+    return insertion_all
 
 
 def _find_decrease(samples_n):

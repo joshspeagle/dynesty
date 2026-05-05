@@ -654,7 +654,8 @@ If you used the pool in the sampler and you want to use the pool after restoring
     # resume
     sampler.run_nested(resume=True)
 
-You should be careful when restoring the sampler on machine with different number of CPUs when using a pool. The queue_size parameter will be restored as it was saved rather than based on how many CPUs your Pool has.
+You should be careful when restoring the sampler on machine with different number of CPUs when using a pool.
+We will try to update the queue_size based on what is the pool size.
 
 The checkpointing may be helpful if you are running dynesty on HPC with a queue system that has a limit on a wall-time that your jobs can run.
 There is a however an important reminder that should *NOT* use checkpointing for persistence. I.e. if you want to save the results of the sampling, you should save samples, weights or the results object, rather than the whole nested sampling object (as checkpointing does). The reason for this is that the checkpoint files are not guaranteed to be compatible between dynesty versions (even minor ones).

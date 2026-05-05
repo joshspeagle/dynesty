@@ -178,7 +178,7 @@ def test_pool_args2():
         terminator(pool)
 
 
-@pytest.mark.parametrize('sample', ['slice', 'rwalk', 'rslice'])
+@pytest.mark.parametrize('sample', ['slice', 'rwalk', 'rslice', 'unif'])
 def test_pool_samplers(sample):
     # this is to test how the samplers are dealing with queue_size>1
     rstate = get_rstate()
@@ -223,3 +223,22 @@ def test_usepool(func):
                                                queue_size=100)
         sampler.run_nested(maxiter=10000, print_progress=printing)
         terminator(pool)
+
+
+@pytest.mark.parametrize('queue_size', [None, 2])
+def test_pool_queue_size(queue_size):
+    # this is to test how the samplers are dealing with specified
+    # or unspecified queue_size
+    rstate = get_rstate()
+
+    ctx = mp.get_context('spawn')
+    with ctx.Pool(2) as pool:
+        sampler = dynesty.NestedSampler(loglike_gau,
+                                        prior_transform_gau,
+                                        ndim,
+                                        nlive=nlive,
+                                        sample='rslice',
+                                        pool=pool,
+                                        queue_size=queue_size,
+                                        rstate=rstate)
+        sampler.run_nested(print_progress=printing, dlogz=10)

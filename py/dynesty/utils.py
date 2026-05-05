@@ -2147,7 +2147,7 @@ def restore_sampler(fname, pool=None):
             f'does not match the current dynesty version'
             f'({DYNESTY_VERSION}). That is *NOT* guaranteed to work')
     if pool is not None:
-        queue_size_old = getattr(sampler, 'queue_size')
+        queue_size_old = getattr(sampler, 'queue_size', None)
         try:
             # we first try to get the new queue_size
             # that may fail if the pool has no information about the size
@@ -2227,14 +2227,15 @@ def _parse_pool_queue(pool, queue_size):
     if queue_size is not None and queue_size < 1:
         raise ValueError("The queue must contain at least one element!")
     if pool is None:
-        if queue_size > 1:
+        if queue_size is not None and queue_size > 1:
             raise ValueError("`queue_size > 1` but no `pool` provided.")
         mapper = map
         queue_size = 1
     elif pool is not None:
         mapper = pool.map
         if queue_size is None:
-            queue_size = getattr(pool, '_processes') or getattr(pool, 'size')
+            queue_size = getattr(pool, '_processes', None) or getattr(
+                pool, 'size', None)
             if queue_size is None:
                 raise ValueError(
                     "Cannot initialize `queue_size` because "

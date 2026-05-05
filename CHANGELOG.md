@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 ### Changed
 - When restoring the sampler with the pool, try to use an updated value of queue_size based on pool size
+- Use chunksize=1 for dynesty pool as that is better behaved for queue_size>nthreads and unequal duration of function evaluations
 ### Fixed
 
 [3.0.0 - 2025-10-04]

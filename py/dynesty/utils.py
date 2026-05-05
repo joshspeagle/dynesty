@@ -2146,21 +2146,21 @@ def restore_sampler(fname, pool=None):
             f'The dynesty version in the checkpoint file ({save_ver})'
             f'does not match the current dynesty version'
             f'({DYNESTY_VERSION}). That is *NOT* guaranteed to work')
-    if pool is not None:
-        queue_size_old = getattr(sampler, 'queue_size', None)
-        try:
-            # we first try to get the new queue_size
-            # that may fail if the pool has no information about the size
-            mapper, queue_size_new = _parse_pool_queue(pool, None)
-        except ValueError:
-            # if first failed we are using the new queue_size
-            mapper, queue_size_new = _parse_pool_queue(pool, queue_size_old)
 
-        if queue_size_new is not None and queue_size_new > queue_size_old:
-            warnings.warn(
-                f'Restoring the sampler with queue_size {queue_size_old}')
-    else:
-        mapper = map
+    queue_size_old = getattr(sampler, 'queue_size', None)
+    try:
+        # we first try to get the new queue_size
+        # that may fail if the pool has no information about the size
+        mapper, queue_size_new = _parse_pool_queue(pool, None)
+    except ValueError:
+        # if first failed we are using the old queue_size
+        mapper, queue_size_new = _parse_pool_queue(pool, queue_size_old)
+
+    if queue_size_new != queue_size_old and queue_size_old != 1:
+        warnings.warn(
+            f'Restoring the sampler with queue_size {queue_size_old}')
+        queue_size_new = queue_size_old
+
     if hasattr(sampler, 'sampler'):
         # This is the case of the dynamic sampler
         # this is better be written as isinstanceof()
@@ -2179,6 +2179,7 @@ def restore_sampler(fname, pool=None):
     for cursamp in samplers:
         cursamp.mapper = mapper
         cursamp.pool = pool
+        cursamp.queue_size = queue_size_new
     return sampler
 
 

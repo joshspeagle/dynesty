@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 [Unreleased]
 ### Added
 ### Changed
+- When restoring the sampler with the pool, try to use an updated value of queue_size based on pool size
 ### Fixed
 
 [3.0.0 - 2025-10-04]

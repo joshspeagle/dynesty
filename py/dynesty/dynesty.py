@@ -18,7 +18,8 @@ from .sampler import Sampler, _initialize_live_points
 from .bounding import BOUND_LIST
 from . import bounding
 from .dynamicsampler import DynamicSampler
-from .utils import (LogLikelihood, get_random_generator, get_nonbounded)
+from .utils import (LogLikelihood, get_random_generator, get_nonbounded,
+                    _parse_pool_queue)
 
 __all__ = ["NestedSampler", "DynamicNestedSampler", "_function_wrapper"]
 
@@ -197,32 +198,6 @@ def _get_enlarge_bootstrap(sample, enlarge, bootstrap):
         else:
             raise ValueError('Enlarge and bootstrap together do not make '
                              'sense unless bootstrap=0 or enlarge = 1')
-
-
-def _parse_pool_queue(pool, queue_size):
-    """
-    Common functionality of interpretign the pool and queue_size
-    arguments to Dynamic and static nested samplers
-    """
-    if queue_size is not None and queue_size < 1:
-        raise ValueError("The queue must contain at least one element!")
-    elif (queue_size == 1) or (pool is None and queue_size is None):
-        mapper = map
-        queue_size = 1
-    elif pool is not None:
-        mapper = pool.map
-        if queue_size is None:
-            try:
-                queue_size = pool.size
-            except AttributeError as e:
-                raise ValueError("Cannot initialize `queue_size` because "
-                                 "`pool.size` has not been provided. Please"
-                                 "define `pool.size` or specify `queue_size` "
-                                 "explicitly.") from e
-    else:
-        raise ValueError("`queue_size > 1` but no `pool` provided.")
-
-    return mapper, queue_size
 
 
 def _check_first_update(first_update):

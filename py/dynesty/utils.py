@@ -2241,10 +2241,22 @@ def restore_sampler(fname, pool=None):
             f'The dynesty version in the checkpoint file ({save_ver})'
             f'does not match the current dynesty version'
             f'({DYNESTY_VERSION}). That is *NOT* guaranteed to work')
-    if pool is not None:
-        mapper = pool.map
-    else:
-        mapper = map
+
+    queue_size_old = getattr(sampler, 'queue_size', None)
+    assert queue_size_old is not None  # I don't think it could ever happen
+    try:
+        # we first try to get the new queue_size
+        # that may fail if the pool has no information about the size
+        mapper, queue_size_new = _parse_pool_queue(pool, None)
+    except ValueError:
+        # if first failed we are using the old queue_size
+        mapper, queue_size_new = _parse_pool_queue(pool, queue_size_old)
+
+    if queue_size_new != queue_size_old and queue_size_old != 1:
+        warnings.warn(
+            f'Restoring the sampler with queue_size {queue_size_old}')
+        queue_size_new = queue_size_old
+
     if hasattr(sampler, 'sampler'):
         # This is the case of the dynamic sampler
         # this is better be written as isinstanceof()
@@ -2263,6 +2275,7 @@ def restore_sampler(fname, pool=None):
     for cursamp in samplers:
         cursamp.mapper = mapper
         cursamp.pool = pool
+        cursamp.queue_size = queue_size_new
     return sampler
 
 
@@ -2301,3 +2314,29 @@ def save_sampler(sampler, fname):
         except:  # noqa
             pass
         raise
+
+
+def _parse_pool_queue(pool, queue_size):
+    """
+    Common functionality of interpreting the pool and queue_size
+    arguments to Dynamic and static nested samplers
+    """
+    if queue_size is not None and queue_size < 1:
+        raise ValueError("The queue must contain at least one element!")
+    if pool is None:
+        if queue_size is not None and queue_size > 1:
+            raise ValueError("`queue_size > 1` but no `pool` provided.")
+        mapper = map
+        queue_size = 1
+    elif pool is not None:
+        mapper = pool.map
+        if queue_size is None:
+            queue_size = getattr(pool, '_processes', None) or getattr(
+                pool, 'size', None)
+            if queue_size is None:
+                raise ValueError(
+                    "Cannot initialize `queue_size` because "
+                    "`pool.size` or `pool._processes` has not been provided. "
+                    "Please define `pool.size` or specify `queue_size` "
+                    "explicitly.")
+    return mapper, queue_size

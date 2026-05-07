@@ -2148,6 +2148,7 @@ def restore_sampler(fname, pool=None):
             f'({DYNESTY_VERSION}). That is *NOT* guaranteed to work')
 
     queue_size_old = getattr(sampler, 'queue_size', None)
+    assert queue_size_old is not None  # I don't think it could ever happen
     try:
         # we first try to get the new queue_size
         # that may fail if the pool has no information about the size
@@ -2240,7 +2241,7 @@ def _parse_pool_queue(pool, queue_size):
             if queue_size is None:
                 raise ValueError(
                     "Cannot initialize `queue_size` because "
-                    "`pool.size` or pool._processes has not been provided. "
-                    "Please `define `pool.size` or specify `queue_size` "
+                    "`pool.size` or `pool._processes` has not been provided. "
+                    "Please define `pool.size` or specify `queue_size` "
                     "explicitly.")
     return mapper, queue_size

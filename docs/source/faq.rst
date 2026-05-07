@@ -434,7 +434,7 @@ it's likely that I might not be able to help all that much.
 
 **How to decide on the number of processes in a pool and how to set queue_size**
 
-Assuming that you decided on the number of live-points K that you want to use and that the likelihood evaluation is not very quick, you should use as many processes as you can up to around K. The queue_size should be equal the number of processes. If you are using the the number of processes that M is smaller than K, you may want to use  :math:`M=K//2` or :math:`M=K//3` i.e integer fractions. So if you are using 1024 live-points all powers of two up to 1024 would be good choice for the number of processes.
+Assuming that you decided on the number of live-points K that you want to use and that the likelihood evaluation is not very quick, you should use as many processes as you can up to around K. The queue_size should be equal the number of processes. If you are using the the number of processes that M is smaller than K, you may want to use  :math:`M=K//2` or :math:`M=K//3` i.e integer fractions. So if you are using 1024 live-points all powers of two up to 1024 would be good choice for the number of processes. If you have likelihood functions that take highly variable amount of time to evaluate, you may benefit from using the queue_size that is significantly larger than the number CPUs (but queue_size should be always < K)
 
 
 **I would like to run dynesty across multiple nodes on a cluster. How do I do that ?**

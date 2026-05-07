@@ -232,6 +232,77 @@ def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
             pass
 
 
+@pytest.mark.parametrize(
+    "delay_frac",
+    [.2, .5, .75, .9],
+)
+@pytest.mark.xdist_group(name="resume_group")
+def test_resume_queue_size(delay_frac):
+    """
+    Test we can interrupt and resume nested runs
+    Note that I used xdist_group here in order to guarantee that if all the
+    tests are run in parallel, this one is executed in one thread because
+    I want to only use one getlogz() call.
+    """
+    fname = get_fname(inspect.currentframe().f_code.co_name)
+
+    save_every = 1
+    cache_dt, cache_logz = getlogz(fname, save_every)
+    npool = 2
+    curdt, curlogz = [_[False, True] for _ in [cache_dt, cache_logz]]
+    save_every = min(save_every, curdt / 10)
+    curdt *= delay_frac
+
+    # For spawn context, we need to account for startup time
+    ready_file = fname + '.ready'
+
+    try:
+        # Always use spawn context to match actual usage
+        fit_proc = mp.get_context('spawn').Process(
+            target=fit_main,
+            args=(fname, False, save_every, npool, False, NEFF0, ready_file))
+        start_time = time.time()
+        fit_proc.start()
+
+        # Wait for spawn process to be ready before starting timer
+        while not os.path.exists(ready_file):
+            time.sleep(0.01)
+            if time.time() - start_time > 5:  # Safety timeout
+                raise RuntimeError("Process failed to start")
+        # Account for startup time in the timeout
+        startup_time = time.time() - start_time
+        actual_timeout = curdt + startup_time
+
+        fit_proc.join(actual_timeout)
+        # Proceed to terminate only if the process did not finish in time.
+        if fit_proc.is_alive():
+            print('terminating', file=sys.stderr)
+            fit_proc.terminate()
+            if np.allclose(delay_frac, .2) and not os.path.exists(fname):
+                warnings.warn(
+                    "The checkpoint file was not created I'm skipping the test"
+                )
+                return
+
+            with mp.get_context('spawn').Pool(npool + 1) as pool:
+                fit_resume(fname, False, curlogz, pool=pool)
+        else:
+            assert fit_proc.exitcode == 0
+    finally:
+        try:
+            os.unlink(fname)
+        except:  # noqa
+            pass
+        try:
+            os.unlink(fname + '.tmp')
+        except:  # noqa
+            pass
+        try:
+            os.unlink(ready_file)
+        except:  # noqa
+            pass
+
+
 @pytest.mark.parametrize("dynamic", [False, True])
 def test_save(dynamic):
     """

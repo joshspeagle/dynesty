@@ -154,7 +154,7 @@ class Pool:
         F: function
         x: iterable
         """
-        return self.pool.map(F, x)
+        return self.pool.map(F, x, chunksize=1)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         try:

@@ -48,7 +48,7 @@ IteratorResult = namedtuple('IteratorResult', [
 
 IteratorResultShort = namedtuple('IteratorResultShort', [
     'worst', 'ustar', 'vstar', 'loglstar', 'nc', 'worst_it', 'boundidx',
-    'bounditer', 'eff', 'proposal_stats'
+    'bounditer', 'eff', 'delta_logz', 'proposal_stats'
 ])
 
 _LOWL_VAL = -1e300
@@ -377,7 +377,93 @@ PrintFnArgs = namedtuple('PrintFnArgs',
                          ['niter', 'short_str', 'mid_str', 'long_str'])
 
 
-def print_fn(results,
+def _update_tqdm_eta_from_dlogz(pbar,
+                                niter,
+                                delta_logz,
+                                dlogz,
+                                nbatch=None,
+                                loglstar=None,
+                                logl_min=-np.inf,
+                                logl_max=np.inf):
+    """Update ``pbar.total`` so tqdm can show its native ETA."""
+    state = getattr(pbar, "_dynesty_eta_state", None)
+    if state is None:
+        state = {}
+        setattr(pbar, "_dynesty_eta_state", state)
+
+    # Dynamic batches: estimate completion from progress
+    # within [logl_min,logl_max]
+    # only when both bounds are finite; otherwise fall back to dlogz trend.
+    if (nbatch is not None and np.isfinite(loglstar) and np.isfinite(logl_min)
+            and np.isfinite(logl_max) and (logl_max > logl_min)):
+        if state.get("mode") != "batch" or state.get("batch") != nbatch:
+            state.clear()
+            state["mode"] = "batch"
+            state["batch"] = nbatch
+            state["batch_start_iter"] = niter
+
+        prog = (loglstar - logl_min) / (logl_max - logl_min)
+        prog = float(np.clip(prog, 0.0, 0.999))
+
+        if prog <= 1e-3:
+            pbar.total = None
+            return
+
+        done = max(niter - state["batch_start_iter"], 1)
+        rem_iters = done * (1.0 - prog) / prog
+        if np.isfinite(rem_iters) and rem_iters > 0:
+            pbar.total = max(niter + int(np.ceil(rem_iters)), pbar.n + 1)
+        else:
+            pbar.total = None
+        return
+
+    # Static runs (or dynamic when bounds are not finite): use dlogz trend.
+    if dlogz is None or not np.isfinite(dlogz) or dlogz <= 0:
+        return
+    if not np.isfinite(delta_logz) or delta_logz <= dlogz or delta_logz <= 0:
+        return
+
+    if state.get("mode") != "dlogz":
+        state.clear()
+        state["mode"] = "dlogz"
+        state["history"] = []
+        state["last_slope"] = None
+
+    history = state["history"]
+    history.append((niter, delta_logz))
+    if len(history) > 10:
+        history.pop(0)
+
+    if len(history) < 3:
+        return
+
+    points = np.asarray(history, dtype=float)
+    xvals = points[:, 0]
+    dvals = points[:, 1]
+    good = np.isfinite(dvals) & (dvals > 0)
+    if np.count_nonzero(good) < 3:
+        return
+    xvals = xvals[good]
+    yvals = np.log(dvals[good])
+    if np.allclose(xvals, xvals[0]):
+        return
+
+    slope = np.polyfit(xvals, yvals, 1)[0]
+    if slope >= -1e-8:
+        if state["last_slope"] is None:
+            pbar.total = None
+            return
+        slope = state["last_slope"]
+    else:
+        state["last_slope"] = slope
+    rem_iters = (np.log(dlogz) - np.log(delta_logz)) / slope
+    if not np.isfinite(rem_iters) or rem_iters <= 0:
+        return
+
+    pbar.total = max(niter + int(np.ceil(rem_iters)), pbar.n + 1)
+
+
+def print_fn(itresult,
              niter,
              ncall,
              add_live_it=None,
@@ -393,24 +479,9 @@ def print_fn(results,
     Parameters
     ----------
 
-    results : tuple
-        Collection of variables output from the current state of the sampler.
-        Currently includes:
-        (1) particle index,
-        (2) unit cube position,
-        (3) parameter position,
-        (4) ln(likelihood),
-        (5) ln(volume),
-        (6) ln(weight),
-        (7) ln(evidence),
-        (8) Var[ln(evidence)],
-        (9) information,
-        (10) number of (current) function calls,
-        (11) iteration when the point was originally proposed,
-        (12) index of the bounding object originally proposed from,
-        (13) index of the bounding object active at a given iteration,
-        (14) cumulative efficiency, and
-        (15) estimated remaining ln(evidence).
+    itresult : IteratorResult or IteratorResultShort
+        Single iterator output record from the sampler loop that is used
+        for progress/status printing.
 
     niter : int
         The current iteration of the sampler.
@@ -443,7 +514,7 @@ def print_fn(results,
 
     """
     if pbar is None:
-        print_fn_fallback(results,
+        print_fn_fallback(itresult,
                           niter,
                           ncall,
                           add_live_it=add_live_it,
@@ -454,7 +525,7 @@ def print_fn(results,
                           logl_max=logl_max)
     else:
         print_fn_tqdm(pbar,
-                      results,
+                      itresult,
                       niter,
                       ncall,
                       add_live_it=add_live_it,
@@ -465,7 +536,7 @@ def print_fn(results,
                       logl_max=logl_max)
 
 
-def get_print_fn_args(results,
+def get_print_fn_args(itresult,
                       niter,
                       ncall,
                       add_live_it=None,
@@ -474,53 +545,69 @@ def get_print_fn_args(results,
                       nbatch=None,
                       logl_min=-np.inf,
                       logl_max=np.inf):
-    # Extract results at the current iteration.
-    loglstar = results.loglstar
-    logz = results.logz
-    logzvar = results.logzvar
-    delta_logz = results.delta_logz
-    bounditer = results.bounditer
-    nc = results.nc
-    eff = results.eff
+    """
+    Build preformatted status strings for progress printing.
 
-    # Adjusting outputs for printing.
-    if delta_logz > 1e6:
-        delta_logz = np.inf
-    if logzvar >= 0. and logzvar <= 1e6:
-        logzerr = np.sqrt(logzvar)
-    else:
-        logzerr = np.nan
-    if logz <= -1e6:
-        logz = -np.inf
-    if loglstar <= -1e6:
-        loglstar = -np.inf
+    Parameters
+    ----------
+    itresult : IteratorResult or IteratorResultShort
+        Single iterator output record from the sampler loop.
+    """
+    loglstar_val = itresult.loglstar
+    logz_val = itresult.logz
+    delta_logz_val = itresult.delta_logz
+    logzvar = itresult.logzvar
 
-    # Constructing output.
-    long_str = []
-    # long_str.append("iter: {:d}".format(niter))
-    if add_live_it is not None:
-        long_str.append("+{:d}".format(add_live_it))
+    loglstar = -np.inf if loglstar_val <= -1e6 else loglstar_val
+    logz = -np.inf if logz_val <= -1e6 else logz_val
+    delta_logz = np.inf if delta_logz_val > 1e6 else delta_logz_val
+    logzerr = np.sqrt(logzvar) if 0. <= logzvar <= 1e6 else np.nan
+
+    long_str = [f"+{add_live_it:d}"] if add_live_it is not None else []
     short_str = list(long_str)
     if nbatch is not None:
-        long_str.append("batch: {:d}".format(nbatch))
-    long_str.append("bound: {:d}".format(bounditer))
-    long_str.append("nc: {:d}".format(nc))
-    long_str.append("ncall: {:d}".format(ncall))
-    long_str.append("eff(%): {:6.3f}".format(eff))
-    short_str.append(long_str[-1])
-    long_str.append("loglstar: {:6.3f} < {:6.3f} < {:6.3f}".format(
-        logl_min, loglstar, logl_max))
-    short_str.append("logl*: {:6.1f}<{:6.1f}<{:6.1f}".format(
-        logl_min, loglstar, logl_max))
-    long_str.append("logz: {:6.3f} +/- {:6.3f}".format(logz, logzerr))
-    short_str.append("logz: {:6.1f}+/-{:.1f}".format(logz, logzerr))
-    mid_str = list(short_str)
-    if dlogz is not None:
-        long_str.append("dlogz: {:6.3f} > {:6.3f}".format(delta_logz, dlogz))
-        mid_str.append("dlogz: {:6.1f}>{:6.1f}".format(delta_logz, dlogz))
+        long_str.append(f"batch: {nbatch:d}")
+    long_str.extend([
+        f"bound: {itresult.bounditer:d}",
+        f"nc: {itresult.nc:d}",
+        f"ncall: {ncall:d}",
+    ])
+    eff_str = f"eff(%): {itresult.eff:6.3f}"
+    long_str.append(eff_str)
+    short_str.append(eff_str)
+
+    finite_logl_min = np.isfinite(logl_min)
+    finite_logl_max = np.isfinite(logl_max)
+    if finite_logl_min:
+        long_logl = f"loglstar: {logl_min:6.3f} < {loglstar:6.3f}"
+        short_logl = f"logl*: {logl_min:6.1f}<{loglstar:6.1f}"
     else:
-        long_str.append("stop: {:6.3f}".format(stop_val))
-        mid_str.append("stop: {:6.3f}".format(stop_val))
+        long_logl = f"loglstar: {loglstar:6.3f}"
+        short_logl = f"logl*: {loglstar:6.1f}"
+    if finite_logl_max:
+        long_logl += f" < {logl_max:6.3f}"
+        short_logl += f"<{logl_max:6.1f}"
+    long_str.append(long_logl)
+    short_str.append(short_logl)
+
+    long_logz = f"logz: {logz:6.3f}"
+    short_logz = f"logz: {logz:6.1f}"
+    if not np.isnan(logzerr):
+        long_logz += f" +/- {logzerr:6.3f}"
+        short_logz += f"+/-{logzerr:.1f}"
+    long_str.append(long_logz)
+    short_str.append(short_logz)
+
+    show_dlogz = (dlogz is not None
+                  and (nbatch is None or nbatch == 0 or stop_val is None))
+    if show_dlogz:
+        long_tail = f"dlogz: {delta_logz:6.3f} > {dlogz:6.3f}"
+        mid_tail = f"dlogz: {delta_logz:6.1f}>{dlogz:6.1f}"
+    else:
+        long_tail = f"stop: {stop_val:6.3f}"
+        mid_tail = f"stop: {stop_val:6.3f}"
+    long_str.append(long_tail)
+    mid_str = short_str + [mid_tail]
 
     return PrintFnArgs(niter=niter,
                        short_str=short_str,
@@ -529,7 +616,7 @@ def get_print_fn_args(results,
 
 
 def print_fn_tqdm(pbar,
-                  results,
+                  itresult,
                   niter,
                   ncall,
                   add_live_it=None,
@@ -541,7 +628,7 @@ def print_fn_tqdm(pbar,
     """
     This is a function that does the status printing using tqdm module
     """
-    fn_args = get_print_fn_args(results,
+    fn_args = get_print_fn_args(itresult,
                                 niter,
                                 ncall,
                                 add_live_it=add_live_it,
@@ -551,11 +638,19 @@ def print_fn_tqdm(pbar,
                                 logl_min=logl_min,
                                 logl_max=logl_max)
 
+    _update_tqdm_eta_from_dlogz(pbar,
+                                fn_args.niter,
+                                itresult.delta_logz,
+                                dlogz,
+                                nbatch=nbatch,
+                                loglstar=itresult.loglstar,
+                                logl_min=logl_min,
+                                logl_max=logl_max)
     pbar.set_postfix_str(" | ".join(fn_args.long_str), refresh=False)
     pbar.update(fn_args.niter - pbar.n)
 
 
-def print_fn_fallback(results,
+def print_fn_fallback(itresult,
                       niter,
                       ncall,
                       add_live_it=None,
@@ -568,7 +663,7 @@ def print_fn_fallback(results,
     This is a function that does the status printing using just
     standard printing into the console
     """
-    fn_args = get_print_fn_args(results,
+    fn_args = get_print_fn_args(itresult,
                                 niter,
                                 ncall,
                                 add_live_it=add_live_it,
@@ -845,13 +940,13 @@ def get_nonbounded(ndim, periodic, reflective):
     return nonbounded
 
 
-def get_print_func(print_func, print_progress):
+def get_print_func(print_func, print_progress, initial=0):
     pbar = None
     if print_func is None:
         if tqdm is None or not print_progress:
             print_func = print_fn
         else:
-            pbar = tqdm.tqdm()
+            pbar = tqdm.tqdm(initial=max(int(initial), 0))
             print_func = partial(print_fn, pbar=pbar)
     return pbar, print_func
 

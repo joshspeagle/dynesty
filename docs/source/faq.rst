@@ -261,6 +261,11 @@ with (3) a large number of varying live points can make the stopping criteria
 difficult to evaluate quickly. See 
 :ref:`Nested Sampling Errors` for additional details.
 
+**When fitting, the estimated time of sampling varies a lot from iteration to
+iteration**
+
+This is normal. There is no way to accurately know how many iterations of nested sampling will be needed and how long it will take. The estimate of total time is particularly uncertaintain in the beginning of the sampling. The time can also jump significantly every time a new location of the in the posterior with a particularly high log(l) value is discovered.
+
 
 Live Point Questions
 --------------------

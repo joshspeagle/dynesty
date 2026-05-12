@@ -1295,7 +1295,9 @@ class Sampler:
             return
 
         # Run the main nested sampling loop.
-        pbar, print_func = get_print_func(print_func, print_progress)
+        pbar, print_func = get_print_func(print_func,
+                                          print_progress,
+                                          initial=self.it - 1)
         if checkpoint_file is not None:
             timer = DelayTimer(checkpoint_every)
         try:

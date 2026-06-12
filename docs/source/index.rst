@@ -62,7 +62,7 @@ Returns the following list of papers that should be cited::
     Code and Methods:
     ================
     Speagle (2020): https://ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S
-    Koposov et al. (2022): https://doi.org/10.5281/zenodo.3348367
+    Koposov et al. (2024): https://doi.org/10.5281/zenodo.3348367
 
     Nested Sampling:
     ===============

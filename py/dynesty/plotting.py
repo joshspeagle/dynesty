@@ -53,14 +53,14 @@ def rotate_ticks(ax, xy):
         lab.set_rotation(45)
 
 
-def plot_thruth(ax,
-                truths,
-                truth_color,
-                truth_kwargs,
-                vertical=None,
-                horizontal=None):
+def plot_truth(ax,
+               truths,
+               truth_color,
+               truth_kwargs,
+               vertical=None,
+               horizontal=None):
     """
-Plot the thruth line (horizontal or vertical).
+Plot the truth line (horizontal or vertical).
 truths can be None or one value or a list
 """
     if vertical:
@@ -165,7 +165,7 @@ def runplot(results,
         A reference value for the evidence that will be overplotted on the
         evidence subplot if provided.
 
-    truth_color : str or iterable with shape (ndim,), optional
+    truth_color : str, optional
         A `~matplotlib`-style color used when plotting :data:`lnz_truth`.
         Default is `'red'`.
 
@@ -177,11 +177,11 @@ def runplot(results,
         Maximum number of ticks allowed for the x axis. Default is `8`.
 
     max_y_ticks : int, optional
-        Maximum number of ticks allowed for the y axis. Default is `4`.
+        Maximum number of ticks allowed for the y axis. Default is `3`.
 
     use_math_text : bool, optional
         Whether the axis tick labels for very large/small exponents should be
-        displayed as powers of 10 rather than using `e`. Default is `False`.
+        displayed as powers of 10 rather than using `e`. Default is `True`.
 
     mark_final_live : bool, optional
         Whether to indicate the final addition of recycled live points
@@ -557,9 +557,8 @@ def traceplot(results,
         marginalized 1-D posteriors as solid horizontal/vertical lines.
         Individual values can be exempt using `None`. Default is `None`.
 
-    truth_color : str or iterable with shape (ndim,), optional
-        A `~matplotlib`-style color (either a single color or a different
-        value for each subplot) used when plotting `truths`.
+    truth_color : str, optional
+        A `~matplotlib`-style color used when plotting `truths`.
         Default is `'red'`.
 
     truth_kwargs : dict, optional
@@ -605,7 +604,6 @@ def traceplot(results,
     trace_kwargs['edgecolors'] = trace_kwargs.get('edgecolors', None)
     truth_kwargs['linestyle'] = truth_kwargs.get('linestyle', 'solid')
     truth_kwargs['linewidth'] = truth_kwargs.get('linewidth', 2)
-    rstate = get_random_generator()
     # Extract weighted samples.
     samples = results['samples']
     logvol = results['logvol']
@@ -731,11 +729,11 @@ def traceplot(results,
                         **connect_kwargs)
         # Add truth value(s).
         if truths is not None:
-            plot_thruth(ax,
-                        truths[i],
-                        truth_color,
-                        truth_kwargs,
-                        horizontal=True)
+            plot_truth(ax,
+                       truths[i],
+                       truth_color,
+                       truth_kwargs,
+                       horizontal=True)
 
         # Plot marginalized 1-D posterior.
 
@@ -794,11 +792,7 @@ def traceplot(results,
                 print(labels[i], list(zip(quantiles, qs)))
         # Add truth value(s).
         if truths is not None:
-            plot_thruth(ax,
-                        truths[i],
-                        truth_color,
-                        truth_kwargs,
-                        vertical=True)
+            plot_truth(ax, truths[i], truth_color, truth_kwargs, vertical=True)
         # Set titles.
         if show_titles:
             title = None
@@ -896,9 +890,8 @@ def cornerpoints(results,
         marginalized 1-D posteriors as solid horizontal/vertical lines.
         Individual values can be exempt using `None`. Default is `None`.
 
-    truth_color : str or iterable with shape (ndim,), optional
-        A `~matplotlib`-style color (either a single color or a different
-        value for each subplot) used when plotting `truths`.
+    truth_color : str, optional
+        A `~matplotlib`-style color used when plotting `truths`.
         Default is `'red'`.
 
     truth_kwargs : dict, optional
@@ -1067,16 +1060,16 @@ def cornerpoints(results,
                        **plot_kwargs)
             # Add truth values
             if truths is not None:
-                plot_thruth(ax,
-                            truths[j],
-                            truth_color,
-                            truth_kwargs,
-                            vertical=True)
-                plot_thruth(ax,
-                            truths[i + 1],
-                            truth_color,
-                            truth_kwargs,
-                            horizontal=True)
+                plot_truth(ax,
+                           truths[j],
+                           truth_color,
+                           truth_kwargs,
+                           vertical=True)
+                plot_truth(ax,
+                           truths[i + 1],
+                           truth_color,
+                           truth_kwargs,
+                           horizontal=True)
 
     return (fig, axes)
 
@@ -1133,9 +1126,8 @@ def cornerplot(results,
         posteriors as vertical dashed lines. Default is `[0.025, 0.5, 0.975]`
         (spanning the 95%/2-sigma credible interval).
 
-    color : str or iterable with shape (ndim,), optional
-        A `~matplotlib`-style color (either a single color or a different
-        value for each subplot) used when plotting the histograms.
+    color : str, optional
+        A `~matplotlib`-style color used when plotting the histograms.
         Default is `'black'`.
 
     smooth : float or iterable with shape (ndim,), optional
@@ -1189,9 +1181,8 @@ def cornerplot(results,
         marginalized 1-D posteriors as solid horizontal/vertical lines.
         Individual values can be exempt using `None`. Default is `None`.
 
-    truth_color : str or iterable with shape (ndim,), optional
-        A `~matplotlib`-style color (either a single color or a different
-        value for each subplot) used when plotting `truths`.
+    truth_color : str, optional
+        A `~matplotlib`-style color used when plotting `truths`.
         Default is `'red'`.
 
     truth_kwargs : dict, optional
@@ -1376,11 +1367,7 @@ def cornerplot(results,
                 print(labels[i], list(zip(quantiles, qs)))
         # Add truth value(s).
         if truths is not None:
-            plot_thruth(ax,
-                        truths[i],
-                        truth_color,
-                        truth_kwargs,
-                        vertical=True)
+            plot_truth(ax, truths[i], truth_color, truth_kwargs, vertical=True)
         # Set titles.
         if show_titles:
             title = None
@@ -1458,16 +1445,16 @@ def cornerplot(results,
                     **hist2d_kwargs)
             # Add truth values
             if truths is not None:
-                plot_thruth(ax,
-                            truths[j],
-                            truth_color,
-                            truth_kwargs,
-                            vertical=True)
-                plot_thruth(ax,
-                            truths[i],
-                            truth_color,
-                            truth_kwargs,
-                            horizontal=True)
+                plot_truth(ax,
+                           truths[j],
+                           truth_color,
+                           truth_kwargs,
+                           vertical=True)
+                plot_truth(ax,
+                           truths[i],
+                           truth_color,
+                           truth_kwargs,
+                           horizontal=True)
 
     return (fig, axes)
 

@@ -284,3 +284,16 @@ def test_number_clusters():
     E = db.bounding_ellipsoids(xs)
 
     assert np.abs(len(E.ells) * 1. / ncens - 1) < THRESHOLD
+
+
+@pytest.mark.parametrize("cls", [db.RadFriends, db.SupFriends])
+def test_friends_update_mc_integrate(cls):
+    # regression test for the mc_integrate code path of
+    # RadFriends/SupFriends update() which used to crash for SupFriends
+    rstate = get_rstate()
+    ndim = 3
+    points = rstate.uniform(0.4, 0.6, size=(50, ndim))
+    bnd = cls(ndim)
+    bnd.update(points, rstate=rstate, mc_integrate=True)
+    assert np.isfinite(bnd.funit)
+    assert 0 <= bnd.funit <= 1

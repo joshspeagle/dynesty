@@ -795,7 +795,8 @@ class Results:
         self._initialized = True
 
     def __copy__(self):
-        # this will be a deep copy
+        # asdict() copies every attribute value, so this copies
+        # all the numpy arrays as well
         return Results(self.asdict().items())
 
     def copy(self):
@@ -1186,12 +1187,15 @@ def quantile(x, q, weights=None):
         weights = np.atleast_1d(weights)
         if len(x) != len(weights):
             raise ValueError("Dimension mismatch: len(weights) != len(x).")
+        if len(x) == 1:
+            # With a single sample, every quantile equals that sample.
+            return np.full(len(q), x[0])
         idx = np.argsort(x)  # sort samples
         sw = weights[idx]  # sort weights
         cdf = np.cumsum(sw)[:-1]  # compute CDF
         cdf /= cdf[-1]  # normalize CDF
         cdf = np.append(0, cdf)  # ensure proper span
-        quantiles = np.interp(q, cdf, x[idx]).tolist()
+        quantiles = np.interp(q, cdf, x[idx])
         return quantiles
 
 
@@ -1434,7 +1438,7 @@ def progress_integration(loglstar, loglstar_new, logz, logzvar, logvol,
     This is the calculation of weights and logz/var estimates one step at the
     time.
     Importantly the calculation of H is somewhat different from
-    compute_integrals as incomplete integrals of H() of require knowing Z
+    compute_integrals as incomplete integrals of H() require knowing Z
 
     Return logwt, logz, logzvar, h
     """
@@ -1704,7 +1708,7 @@ def unravel_run(res, print_progress=True):
     except AttributeError:
         pass
 
-    if (np.diff(res.logl) == 0).sum() == 0:
+    if (np.diff(res.logl) == 0).sum() > 0:
         warnings.warn('The likelihood seem to have plateaus. '
                       'The unraveling such runs may be inaccurate')
 
@@ -1944,7 +1948,7 @@ def kld_error(res,
         new_res, samp_idx = resample_run(res, rstate=rstate, return_idx=True)
         logp2 = logp2[samp_idx]  # re-order our original results to match
     else:
-        raise ValueError("Input `'error'` option '{error}' is not valid.")
+        raise ValueError(f"Input `'error'` option '{error}' is not valid.")
 
     # Define our new importance weights.
     logp1 = new_res['logwt'] - new_res['logz'][-1]

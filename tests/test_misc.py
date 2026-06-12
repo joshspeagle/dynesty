@@ -3,6 +3,7 @@ import pytest
 import dynesty
 import pickle
 import os
+import warnings
 from scipy import linalg
 import dynesty.utils as dyutil
 from multiprocessing import Pool
@@ -131,7 +132,10 @@ def test_unravel():
                                     nlive=nlive,
                                     rstate=rstate)
     sampler.run_nested(print_progress=printing)
-    dyutil.unravel_run(sampler.results)
+    with warnings.catch_warnings():
+        # a run without likelihood plateaus must not warn about plateaus
+        warnings.simplefilter('error', UserWarning)
+        dyutil.unravel_run(sampler.results)
 
     sampler = dynesty.DynamicNestedSampler(loglike,
                                            prior_transform,
@@ -675,6 +679,24 @@ def test_quantile():
     dyutil.quantile(rstate.normal(size=10), 0.5, weights=whts)
     with pytest.raises(Exception):
         dyutil.quantile(rstate.normal(size=10), 0.5, weights=np.ones(9))
+    # equal weights must match the unweighted quantiles
+    xs = rstate.normal(size=101)
+    qs = [0.1, 0.5, 0.9]
+    assert np.allclose(dyutil.quantile(xs, qs, weights=np.ones(101)),
+                       dyutil.quantile(xs, qs))
+    # a single weighted sample is a valid edge case
+    assert np.allclose(dyutil.quantile(np.array([3.]), qs, weights=[1.]), 3.)
+
+
+def test_slices_validation():
+    # the number of slices must be a positive integer
+    from dynesty.internal_samplers import SliceSampler, RSliceSampler
+    for cls in [SliceSampler, RSliceSampler]:
+        with pytest.raises(ValueError):
+            cls(ndim=2, slices=0)
+        with pytest.raises(ValueError):
+            cls(ndim=2, slices=-1)
+        cls(ndim=2, slices=1)
 
 
 class Like3:

@@ -11,7 +11,7 @@ A rudimentary test that ncdim parameter works
 """
 
 nlive = 500
-printing = get_printing
+printing = get_printing()
 
 
 def bootstrap_tol(results, rstate):

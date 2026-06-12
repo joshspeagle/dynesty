@@ -142,13 +142,16 @@ def _get_internal_sampler(sampling, ndim, ncdim, periodic, reflective, walks,
                       reflective=reflective,
                       facc=facc)
     if sampling == 'rslice':
-        sampler_kw['slices'] = slices or default_steps['rslice']
+        sampler_kw['slices'] = (slices if slices is not None else
+                                default_steps['rslice'])
         internal_sampler = RSliceSampler(**sampler_kw)
     elif sampling == 'slice':
-        sampler_kw['slices'] = slices or default_steps['slice']
+        sampler_kw['slices'] = (slices if slices is not None else
+                                default_steps['slice'])
         internal_sampler = SliceSampler(**sampler_kw)
     elif sampling == 'rwalk':
-        sampler_kw['walks'] = walks or default_steps['rwalk']
+        sampler_kw['walks'] = (walks if walks is not None else
+                               default_steps['rwalk'])
         internal_sampler = RWalkSampler(**sampler_kw)
     elif sampling == 'unif':
         internal_sampler = UniformBoundSampler(**sampler_kw)

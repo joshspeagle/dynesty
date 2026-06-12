@@ -571,6 +571,9 @@ class SliceSampler(InternalSampler):
         super().__init__(**kwargs)
         # Initialize slice parameters.
         slices = kwargs.get('slices', 5)
+        if slices < 1:
+            raise ValueError(f'The number of slices must be >= 1 '
+                             f'(got {slices})')
         self.slice_history = {'n_contract': 0, 'n_expand': 0}
 
         self.sampler_kwargs['slices'] = slices
@@ -650,8 +653,10 @@ class SliceSampler(InternalSampler):
          kwargs) = (args.u, args.loglstar, args.axes, args.scale,
                     args.prior_transform, args.loglikelihood, args.kwargs)
         rstate = get_random_generator(args.rseed)
-        # Periodicity.
-        nonperiodic = kwargs.get('nonperiodic', None)
+        # Note: slice sampling treats the unit cube boundaries as hard
+        # walls (no periodic wrapping or reflection is applied), so
+        # proposals outside the cube are rejected by shrinking the slice.
+        nonperiodic = None
         doubling = kwargs.get('slice_doubling', False)
         # Setup.
         n = len(u)
@@ -723,6 +728,9 @@ class RSliceSampler(InternalSampler):
         super().__init__(**kwargs)
         # Initialize slice parameters.
         slices = kwargs.get('slices', 5)
+        if slices < 1:
+            raise ValueError(f'The number of slices must be >= 1 '
+                             f'(got {slices})')
         self.slice_history = {'n_contract': 0, 'n_expand': 0}
 
         self.sampler_kwargs['slices'] = slices
@@ -800,8 +808,10 @@ class RSliceSampler(InternalSampler):
          kwargs) = (args.u, args.loglstar, args.axes, args.scale,
                     args.prior_transform, args.loglikelihood, args.kwargs)
         rstate = get_random_generator(args.rseed)
-        # Periodicity.
-        nonperiodic = kwargs.get('nonperiodic', None)
+        # Note: slice sampling treats the unit cube boundaries as hard
+        # walls (no periodic wrapping or reflection is applied), so
+        # proposals outside the cube are rejected by shrinking the slice.
+        nonperiodic = None
         doubling = kwargs.get('slice_doubling', False)
         evaluation_history = []
         # Setup.

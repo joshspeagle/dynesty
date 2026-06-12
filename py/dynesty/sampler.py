@@ -290,10 +290,10 @@ class Sampler:
         constraint, conditioned on the provided bounds.
 
     bound_update_interval : int
-        Only update the bounding distribution every `update_interval`-th
-        likelihood call.
+        Only update the bounding distribution every
+        `bound_update_interval`-th likelihood call.
 
-    first_update : dict
+    first_bound_update : dict
         A dictionary containing parameters governing when the sampler should
         first update the bounding distribution from the unit cube to the one
         specified by the user.
@@ -403,6 +403,7 @@ class Sampler:
 
         # bounding updates
         self.bound_update_interval = bound_update_interval
+        first_bound_update = first_bound_update or {}
         self.first_bound_update = first_bound_update
         self.first_bound_update_ncall = first_bound_update.get(
             'min_ncall', 2 * self.nlive)
@@ -631,7 +632,8 @@ class Sampler:
         if ncall is None:
             ncall = self.ncall
         if self.bound_update_interval is None:
-            delta_bound = self.sampler.bound_update_interval * self.nlive
+            delta_bound = (self.internal_sampler.update_bound_interval_ratio *
+                           self.nlive)
         else:
             delta_bound = self.bound_update_interval
 
@@ -1075,7 +1077,7 @@ class Sampler:
             # exceeds `maxiter`.
             # Stopping criterion 2: current number of `loglikelihood`
             # calls exceeds `maxcall`.
-            if it > maxiter or ncall > maxcall:
+            if it >= maxiter or ncall > maxcall:
                 stop_iterations = True
                 if dlogz is not None and delta_logz > 10 * dlogz:
                     warnings.warn('The sampling was stopped short due to'

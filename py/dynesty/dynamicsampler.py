@@ -1085,11 +1085,8 @@ class DynamicSampler:
 
             if first_update is None:
                 first_update = self.first_bound_update
-            if update_interval is None:
-                update_interval = self.bound_update_interval_ratio
-            else:
-                update_interval = self.__get_update_interval(
-                    update_interval, nlive)
+            # `update_interval` was already normalized to an integer number
+            # of likelihood calls by `__get_update_interval` above.
 
             self.sampler = Sampler(self.loglikelihood,
                                    self.prior_transform,

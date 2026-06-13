@@ -471,7 +471,7 @@ Similarly to static nested sampler, the dynamic sampler supports periodic check-
 And to restore::
 
     # initialize the sampler
-    sampler = NestedSampler.restore('dynesty.save', pool =mypool)
+    sampler = DynamicNestedSampler.restore('dynesty.save', pool=pool)
     # resume
     sampler.run_nested(resume=True)
 

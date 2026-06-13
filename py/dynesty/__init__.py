@@ -6,13 +6,7 @@ The main functionality of dynesty is performed by the
 dynesty.NestedSampler and dynesty.DynamicNestedSampler
 classes
 """
-from importlib.metadata import version, PackageNotFoundError
-
-try:
-    __version__ = version("dynesty")
-except PackageNotFoundError:
-    # package is not installed
-    pass
+from ._version import __version__  # noqa: F401
 
 from .dynesty import NestedSampler, DynamicNestedSampler
 from . import bounding

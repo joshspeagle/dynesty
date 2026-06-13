@@ -20,7 +20,7 @@ This list will by default include the following papers:
 
 * Code:
   `Speagle (2020) <https://ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S/abstract>`_
-  and `Koposov et al. (2025) <https://doi.org/10.5281/zenodo.3348367>`_
+  and `Koposov et al. (2024) <https://doi.org/10.5281/zenodo.3348367>`_
   
 * Nested Sampling:
   `Skilling (2004) <http://ui.adsabs.harvard.edu/abs/2004AIPC..735..395S>`_

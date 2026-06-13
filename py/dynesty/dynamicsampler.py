@@ -23,7 +23,7 @@ from .results import Results
 from .utils import (get_seed_sequence, get_print_func, _kld_error,
                     compute_integrals, IteratorResult, IteratorResultShort,
                     RunRecord, get_neff_from_logwt, DelayTimer, save_sampler,
-                    restore_sampler)
+                    restore_sampler, _close_progress)
 
 __all__ = [
     "DynamicSampler",
@@ -735,12 +735,12 @@ class DynamicSampler:
         else:
             self.mapper = pool.map
 
-        self.use_pool = use_pool  # provided flags for when to use the pool
-        self.use_pool_ptform = use_pool.get('prior_transform', True)
-        self.use_pool_logl = use_pool.get('loglikelihood', True)
-        self.use_pool_evolve = use_pool.get('propose_point', True)
-        self.use_pool_update = use_pool.get('update_bound', True)
-        self.use_pool_stopfn = use_pool.get('stop_function', True)
+        self.use_pool = use_pool or {}  # flags for when to use the pool
+        self.use_pool_ptform = self.use_pool.get('prior_transform', True)
+        self.use_pool_logl = self.use_pool.get('loglikelihood', True)
+        self.use_pool_evolve = self.use_pool.get('propose_point', True)
+        self.use_pool_update = self.use_pool.get('update_bound', True)
+        self.use_pool_stopfn = self.use_pool.get('stop_function', True)
 
         # sampling details
         self.it = 1  # number of iterations
@@ -1085,11 +1085,8 @@ class DynamicSampler:
 
             if first_update is None:
                 first_update = self.first_bound_update
-            if update_interval is None:
-                update_interval = self.bound_update_interval_ratio
-            else:
-                update_interval = self.__get_update_interval(
-                    update_interval, nlive)
+            # `update_interval` was already normalized to an integer number
+            # of likelihood calls by `__get_update_interval` above.
 
             self.sampler = Sampler(self.loglikelihood,
                                    self.prior_transform,
@@ -1923,9 +1920,7 @@ class DynamicSampler:
                 # the timing
                 self.save(checkpoint_file)
         finally:
-            if pbar is not None:
-                pbar.close()
-            self.loglikelihood.history_save()
+            _close_progress(pbar, self.loglikelihood)
 
     def add_batch(self,
                   nlive=500,
@@ -2117,9 +2112,7 @@ class DynamicSampler:
                         # the end
                         self.save(checkpoint_file)
             finally:
-                if pbar is not None:
-                    pbar.close()
-                self.loglikelihood.history_save()
+                _close_progress(pbar, self.loglikelihood)
 
             # Combine batch with previous runs.
             self.combine_runs()

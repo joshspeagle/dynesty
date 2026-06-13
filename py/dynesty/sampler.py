@@ -16,7 +16,7 @@ from .internal_samplers import UnitCubeSampler, SamplerHistoryItem
 from .utils import (get_seed_sequence, get_print_func, progress_integration,
                     IteratorResult, RunRecord, get_neff_from_logwt,
                     compute_integrals, DelayTimer, _LOWL_VAL,
-                    get_random_generator)
+                    get_random_generator, _close_progress)
 
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
                        SupFriends, Bound, BOUND_LIST)
@@ -290,10 +290,10 @@ class Sampler:
         constraint, conditioned on the provided bounds.
 
     bound_update_interval : int
-        Only update the bounding distribution every `update_interval`-th
-        likelihood call.
+        Only update the bounding distribution every
+        `bound_update_interval`-th likelihood call.
 
-    first_update : dict
+    first_bound_update : dict
         A dictionary containing parameters governing when the sampler should
         first update the bounding distribution from the unit cube to the one
         specified by the user.
@@ -380,10 +380,10 @@ class Sampler:
             self.mapper = pool.map
         self.use_pool = use_pool or {
         }  # provided flags for when to use the pool
-        self.use_pool_ptform = use_pool.get('prior_transform', True)
-        self.use_pool_logl = use_pool.get('loglikelihood', True)
-        self.use_pool_evolve = use_pool.get('propose_point', True)
-        self.use_pool_update = use_pool.get('update_bound', True)
+        self.use_pool_ptform = self.use_pool.get('prior_transform', True)
+        self.use_pool_logl = self.use_pool.get('loglikelihood', True)
+        self.use_pool_evolve = self.use_pool.get('propose_point', True)
+        self.use_pool_update = self.use_pool.get('update_bound', True)
 
         if self.use_pool_evolve:
             self.queue_size = queue_size  # size of the queue
@@ -403,6 +403,7 @@ class Sampler:
 
         # bounding updates
         self.bound_update_interval = bound_update_interval
+        first_bound_update = first_bound_update or {}
         self.first_bound_update = first_bound_update
         self.first_bound_update_ncall = first_bound_update.get(
             'min_ncall', 2 * self.nlive)
@@ -631,7 +632,8 @@ class Sampler:
         if ncall is None:
             ncall = self.ncall
         if self.bound_update_interval is None:
-            delta_bound = self.sampler.bound_update_interval * self.nlive
+            delta_bound = (self.internal_sampler.update_bound_interval_ratio *
+                           self.nlive)
         else:
             delta_bound = self.bound_update_interval
 
@@ -1075,7 +1077,7 @@ class Sampler:
             # exceeds `maxiter`.
             # Stopping criterion 2: current number of `loglikelihood`
             # calls exceeds `maxcall`.
-            if it > maxiter or ncall > maxcall:
+            if it >= maxiter or ncall > maxcall:
                 stop_iterations = True
                 if dlogz is not None and delta_logz > 10 * dlogz:
                     warnings.warn('The sampling was stopped short due to'
@@ -1351,9 +1353,7 @@ class Sampler:
                 self.save(checkpoint_file)
 
         finally:
-            if pbar is not None:
-                pbar.close()
-            self.loglikelihood.finalize_history()
+            _close_progress(pbar, self.loglikelihood)
 
     def add_final_live(self, print_progress=True, print_func=None):
         """
@@ -1391,5 +1391,4 @@ class Sampler:
                                add_live_it=i + 1,
                                dlogz=0.01)
         finally:
-            if pbar is not None:
-                pbar.close()
+            _close_progress(pbar)

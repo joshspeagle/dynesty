@@ -52,6 +52,35 @@ def test_periodic(sampler, dynamic):
             < thresh * dns.results['logzerr'][-1])
 
 
+@pytest.mark.parametrize("sample", ['slice', 'rslice'])
+def test_periodic_seam(sample):
+    # A periodic posterior whose mode sits *on* the wrap seam (x0 = 0 == 1).
+    # The slice samplers must wrap across the boundary to sample it correctly;
+    # we check the recovered ln(evidence) against the analytic value.
+    from scipy.special import i0
+    kappa, sigma = 1.0, 0.1
+
+    def seam_loglike(x):
+        return kappa * np.cos(2 * np.pi * x[0]) - 0.5 * (
+            (x[1] - 0.5) / sigma)**2
+
+    def unit_ptform(u):
+        return u
+
+    logz_true = np.log(i0(kappa)) + np.log(sigma) + 0.5 * np.log(2 * np.pi)
+    rstate = get_rstate()
+    sampler = dynesty.NestedSampler(seam_loglike,
+                                    unit_ptform,
+                                    2,
+                                    nlive=200,
+                                    periodic=[0],
+                                    sample=sample,
+                                    rstate=rstate)
+    sampler.run_nested(dlogz=0.05, print_progress=printing)
+    res = sampler.results
+    assert np.abs(res.logz[-1] - logz_true) < 5 * res.logzerr[-1]
+
+
 def test_error():
     rstate = get_rstate()
     with pytest.raises(ValueError):

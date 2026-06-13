@@ -157,7 +157,7 @@ Initialization
 Nested Sampling in `dynesty` is done via a particular `sampler`
 object that is initialized from the :ref:`Top-Level Interface`. To start,
 let's use :meth:`~dynesty.dynesty.NestedSampler` to initialize a particular
-sampler from `~dynesty.nestedsamplers`. There are only 3 required arguments: 
+sampler. There are only 3 required arguments:
 a log-likelihood function (`loglike`), a prior transform function (`ptform`),
 and the number of dimensions taken by the loglikelihood (`ndim`). 
 
@@ -200,9 +200,9 @@ this.
 
 The number of live points can be specified upon initialization via the 
 `nlive` argument. For example, if we want to run with 1000 live points rather
-than the default 250, we would use::
+than the default 500, we would use::
 
-    NestedSampler(loglike, ptform, ndim, nlive=1500)
+    NestedSampler(loglike, ptform, ndim, nlive=1000)
 
 Bounding Options
 ----------------

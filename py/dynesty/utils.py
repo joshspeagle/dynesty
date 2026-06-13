@@ -18,7 +18,7 @@ import pickle as pickle_module
 # To allow replacing of the pickler
 import numpy as np
 from scipy.special import logsumexp
-from . import __version__ as DYNESTY_VERSION
+from ._version import __version__ as DYNESTY_VERSION
 
 # Define SamplerHistoryItem here to avoid circular imports
 SamplerHistoryItem = namedtuple('SamplerHistoryItem', ['u', 'v', 'logl'])
@@ -179,14 +179,20 @@ class LogLikelihood:
             with h5py.File(self.history_filename, mode='w') as fp:
                 # Unified evaluation history - all evaluations in one place
                 if self.save_evaluation_history:
+                    # Datasets are float32 ('f4'), which has been the implicit
+                    # default; we now pass it explicitly as required by newer
+                    # versions of h5py.
                     fp.create_dataset('evaluation_u',
                                       (self.save_every, self.ndim),
-                                      maxshape=(None, self.ndim))
+                                      maxshape=(None, self.ndim),
+                                      dtype='f4')
                     fp.create_dataset('evaluation_v',
                                       (self.save_every, self.ndim),
-                                      maxshape=(None, self.ndim))
+                                      maxshape=(None, self.ndim),
+                                      dtype='f4')
                     fp.create_dataset('evaluation_logl', (self.save_every, ),
-                                      maxshape=(None, ))
+                                      maxshape=(None, ),
+                                      dtype='f4')
         except OSError:
             print('Failed to initialize history file')
             raise
@@ -795,7 +801,8 @@ class Results:
         self._initialized = True
 
     def __copy__(self):
-        # this will be a deep copy
+        # asdict() copies every attribute value, so this copies
+        # all the numpy arrays as well
         return Results(self.asdict().items())
 
     def copy(self):
@@ -1186,12 +1193,15 @@ def quantile(x, q, weights=None):
         weights = np.atleast_1d(weights)
         if len(x) != len(weights):
             raise ValueError("Dimension mismatch: len(weights) != len(x).")
+        if len(x) == 1:
+            # With a single sample, every quantile equals that sample.
+            return np.full(len(q), x[0])
         idx = np.argsort(x)  # sort samples
         sw = weights[idx]  # sort weights
         cdf = np.cumsum(sw)[:-1]  # compute CDF
         cdf /= cdf[-1]  # normalize CDF
         cdf = np.append(0, cdf)  # ensure proper span
-        quantiles = np.interp(q, cdf, x[idx]).tolist()
+        quantiles = np.interp(q, cdf, x[idx])
         return quantiles
 
 
@@ -1434,7 +1444,7 @@ def progress_integration(loglstar, loglstar_new, logz, logzvar, logvol,
     This is the calculation of weights and logz/var estimates one step at the
     time.
     Importantly the calculation of H is somewhat different from
-    compute_integrals as incomplete integrals of H() of require knowing Z
+    compute_integrals as incomplete integrals of H() require knowing Z
 
     Return logwt, logz, logzvar, h
     """
@@ -1704,9 +1714,9 @@ def unravel_run(res, print_progress=True):
     except AttributeError:
         pass
 
-    if (np.diff(res.logl) == 0).sum() == 0:
-        warnings.warn('The likelihood seem to have plateaus. '
-                      'The unraveling such runs may be inaccurate')
+    if (np.diff(res.logl) == 0).sum() > 0:
+        warnings.warn('The likelihood seems to have plateaus. '
+                      'Unraveling such runs may be inaccurate')
 
     # Recreate the nested sampling run for each strand.
     new_res = []
@@ -1870,8 +1880,10 @@ def check_result_static(res):
     nlive = max(samples_n)
     niter = res.niter
     standard_run = False
+    recycled = False
 
-    # Check if we have a constant number of live points.
+    # Check if we have a constant number of live points (i.e. a static run
+    # where the final live points were *not* recycled).
     if samples_n.size == niter and np.all(samples_n == nlive):
         standard_run = True
 
@@ -1880,12 +1892,16 @@ def check_result_static(res):
     nlive_test = np.minimum(np.arange(niter, 0, -1), nlive)
     if samples_n.size == niter and np.all(samples_n == nlive_test):
         standard_run = True
+        recycled = True
     # If the number of live points is consistent with a standard nested
     # sampling run, slightly modify the format to keep with previous usage.
     if standard_run:
         resdict = res.asdict()
         resdict['nlive'] = nlive
-        resdict['niter'] = niter - nlive
+        # For a native static run the reported `niter` excludes the recycled
+        # live points (`nsamps == niter + nlive`), so subtract them only when
+        # such a tail is actually present.
+        resdict['niter'] = niter - nlive if recycled else niter
         res = Results(resdict)
     return res
 
@@ -1944,7 +1960,7 @@ def kld_error(res,
         new_res, samp_idx = resample_run(res, rstate=rstate, return_idx=True)
         logp2 = logp2[samp_idx]  # re-order our original results to match
     else:
-        raise ValueError("Input `'error'` option '{error}' is not valid.")
+        raise ValueError(f"Input `'error'` option '{error}' is not valid.")
 
     # Define our new importance weights.
     logp1 = new_res['logwt'] - new_res['logz'][-1]
@@ -2314,6 +2330,18 @@ def save_sampler(sampler, fname):
         except:  # noqa
             pass
         raise
+
+
+def _close_progress(pbar, loglikelihood=None):
+    """
+    Tidy up at the end of a sampling loop: close the progress bar (if any)
+    and, when a ``loglikelihood`` is provided, flush any buffered evaluation
+    history to disk. Shared by the static and dynamic sampler run loops.
+    """
+    if pbar is not None:
+        pbar.close()
+    if loglikelihood is not None:
+        loglikelihood.finalize_history()
 
 
 def _parse_pool_queue(pool, queue_size):

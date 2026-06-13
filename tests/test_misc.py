@@ -3,6 +3,7 @@ import pytest
 import dynesty
 import pickle
 import os
+import warnings
 from scipy import linalg
 import dynesty.utils as dyutil
 from multiprocessing import Pool
@@ -131,7 +132,10 @@ def test_unravel():
                                     nlive=nlive,
                                     rstate=rstate)
     sampler.run_nested(print_progress=printing)
-    dyutil.unravel_run(sampler.results)
+    with warnings.catch_warnings():
+        # a run without likelihood plateaus must not warn about plateaus
+        warnings.simplefilter('error', UserWarning)
+        dyutil.unravel_run(sampler.results)
 
     sampler = dynesty.DynamicNestedSampler(loglike,
                                            prior_transform,
@@ -675,6 +679,100 @@ def test_quantile():
     dyutil.quantile(rstate.normal(size=10), 0.5, weights=whts)
     with pytest.raises(Exception):
         dyutil.quantile(rstate.normal(size=10), 0.5, weights=np.ones(9))
+    # equal weights must match the unweighted quantiles
+    xs = rstate.normal(size=101)
+    qs = [0.1, 0.5, 0.9]
+    assert np.allclose(dyutil.quantile(xs, qs, weights=np.ones(101)),
+                       dyutil.quantile(xs, qs))
+    # a single weighted sample is a valid edge case
+    assert np.allclose(dyutil.quantile(np.array([3.]), qs, weights=[1.]), 3.)
+
+
+def test_slices_validation():
+    # the number of slices must be a positive integer
+    from dynesty.internal_samplers import SliceSampler, RSliceSampler
+    for cls in [SliceSampler, RSliceSampler]:
+        for bad in [0, -1, None, 1.5]:
+            with pytest.raises(ValueError):
+                cls(ndim=2, slices=bad)
+        cls(ndim=2, slices=1)
+
+
+def test_auto_sampler_honors_steps():
+    # `sample='auto'` must honour a user-supplied walks/slices count rather
+    # than silently using the default, and warn when the chosen sampler
+    # ignores the option.
+    from dynesty.dynesty import _get_internal_sampler
+    s = _get_internal_sampler('auto',
+                              15,
+                              15,
+                              None,
+                              None,
+                              walks=99,
+                              slices=None,
+                              facc=0.5)
+    assert s.sampler_kwargs['walks'] == 99
+    s = _get_internal_sampler('auto',
+                              25,
+                              25,
+                              None,
+                              None,
+                              walks=None,
+                              slices=7,
+                              facc=0.5)
+    assert s.sampler_kwargs['slices'] == 7
+    # auto resolves to the uniform sampler for low ndim, which ignores walks
+    with pytest.warns(UserWarning):
+        _get_internal_sampler('auto',
+                              5,
+                              5,
+                              None,
+                              None,
+                              walks=10,
+                              slices=None,
+                              facc=0.5)
+
+
+def _make_dynamic_resdict(samples_n):
+    # minimal dynamic-style Results dict with given per-iteration live counts
+    from dynesty.results import Results
+    n = len(samples_n)
+    logl = np.sort(np.cumsum(np.abs(get_rstate().normal(size=n))))
+    d = dict(niter=n,
+             ncall=np.ones(n, dtype=int),
+             samples_n=np.asarray(samples_n),
+             samples_id=np.arange(n),
+             samples_it=np.arange(n),
+             samples_u=np.zeros((n, 2)),
+             samples=np.zeros((n, 2)),
+             logl=logl,
+             logvol=-np.arange(n, dtype=float),
+             logwt=np.zeros(n),
+             logz=np.linspace(-10, 0, n),
+             logzerr=np.ones(n),
+             information=np.zeros(n))
+    return Results(d)
+
+
+def test_check_result_static():
+    # A run with a constant number of live points and no recycled tail must
+    # be recognised as static with niter == nsamps (no spurious subtraction
+    # of nlive), while a run with a recycled decreasing tail keeps
+    # niter == nsamps - nlive.
+    nlive = 5
+    res_const = _make_dynamic_resdict([nlive] * 20)
+    out_const = dyutil.check_result_static(res_const)
+    assert not out_const.isdynamic()
+    assert out_const.nlive == nlive
+    assert out_const.niter == 20
+    dyutil._get_nsamps_samples_n(out_const)  # must stay self-consistent
+
+    res_recyc = _make_dynamic_resdict([nlive] * 15 + list(range(nlive, 0, -1)))
+    out_recyc = dyutil.check_result_static(res_recyc)
+    assert not out_recyc.isdynamic()
+    assert out_recyc.nlive == nlive
+    assert out_recyc.niter == 20 - nlive
+    dyutil._get_nsamps_samples_n(out_recyc)
 
 
 class Like3:

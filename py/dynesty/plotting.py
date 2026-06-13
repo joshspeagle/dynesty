@@ -53,14 +53,30 @@ def rotate_ticks(ax, xy):
         lab.set_rotation(45)
 
 
-def plot_thruth(ax,
-                truths,
-                truth_color,
-                truth_kwargs,
-                vertical=None,
-                horizontal=None):
+def _default_labels(ndim, dims=None):
     """
-Plot the thruth line (horizontal or vertical).
+    Build default ``$x_{i}$`` axis labels.
+
+    When ``dims`` is provided (i.e. only a subset of dimensions is being
+    plotted) the labels reflect the *original* dimension indices rather than
+    being renumbered from 1. For example ``dims=[2, 5]`` yields
+    ``['$x_{3}$', '$x_{6}$']``.
+    """
+    if dims is None:
+        idxs = range(ndim)
+    else:
+        idxs = dims
+    return [r"$x_{" + str(i + 1) + "}$" for i in idxs]
+
+
+def plot_truth(ax,
+               truths,
+               truth_color,
+               truth_kwargs,
+               vertical=None,
+               horizontal=None):
+    """
+Plot the truth line (horizontal or vertical).
 truths can be None or one value or a list
 """
     if vertical:
@@ -165,7 +181,7 @@ def runplot(results,
         A reference value for the evidence that will be overplotted on the
         evidence subplot if provided.
 
-    truth_color : str or iterable with shape (ndim,), optional
+    truth_color : str, optional
         A `~matplotlib`-style color used when plotting :data:`lnz_truth`.
         Default is `'red'`.
 
@@ -177,11 +193,11 @@ def runplot(results,
         Maximum number of ticks allowed for the x axis. Default is `8`.
 
     max_y_ticks : int, optional
-        Maximum number of ticks allowed for the y axis. Default is `4`.
+        Maximum number of ticks allowed for the y axis. Default is `3`.
 
     use_math_text : bool, optional
         Whether the axis tick labels for very large/small exponents should be
-        displayed as powers of 10 rather than using `e`. Default is `False`.
+        displayed as powers of 10 rather than using `e`. Default is `True`.
 
     mark_final_live : bool, optional
         Whether to indicate the final addition of recycled live points
@@ -374,15 +390,17 @@ def runplot(results,
                                     color=c,
                                     alpha=0.2)
 
-        # Mark addition of final live points.
+        # Mark addition of final live points. These are fixed-style
+        # reference lines, so we do not forward `plot_kwargs` (which is meant
+        # for the data curves) onto them.
         if mark_final_live:
             ax.axvline(-logvol[live_idx],
                        color=c,
                        ls="dashed",
                        lw=2,
-                       **plot_kwargs)
+                       alpha=0.7)
             if i == 0:
-                ax.axhline(live_idx, color=c, ls="dashed", lw=2, **plot_kwargs)
+                ax.axhline(live_idx, color=c, ls="dashed", lw=2, alpha=0.7)
         # Add truth value(s).
         if i == 3 and lnz_truth is not None:
             if logplot:
@@ -557,9 +575,8 @@ def traceplot(results,
         marginalized 1-D posteriors as solid horizontal/vertical lines.
         Individual values can be exempt using `None`. Default is `None`.
 
-    truth_color : str or iterable with shape (ndim,), optional
-        A `~matplotlib`-style color (either a single color or a different
-        value for each subplot) used when plotting `truths`.
+    truth_color : str, optional
+        A `~matplotlib`-style color used when plotting `truths`.
         Default is `'red'`.
 
     truth_kwargs : dict, optional
@@ -605,7 +622,6 @@ def traceplot(results,
     trace_kwargs['edgecolors'] = trace_kwargs.get('edgecolors', None)
     truth_kwargs['linestyle'] = truth_kwargs.get('linestyle', 'solid')
     truth_kwargs['linewidth'] = truth_kwargs.get('linewidth', 2)
-    rstate = get_random_generator()
     # Extract weighted samples.
     samples = results['samples']
     logvol = results['logvol']
@@ -673,7 +689,7 @@ def traceplot(results,
 
     # Setting up labels.
     if labels is None:
-        labels = [r"$x_{" + str(i + 1) + "}$" for i in range(ndim)]
+        labels = _default_labels(ndim, dims)
 
     # Setting up smoothing.
     if isinstance(smooth, (int_type, float_type)):
@@ -731,11 +747,11 @@ def traceplot(results,
                         **connect_kwargs)
         # Add truth value(s).
         if truths is not None:
-            plot_thruth(ax,
-                        truths[i],
-                        truth_color,
-                        truth_kwargs,
-                        horizontal=True)
+            plot_truth(ax,
+                       truths[i],
+                       truth_color,
+                       truth_kwargs,
+                       horizontal=True)
 
         # Plot marginalized 1-D posterior.
 
@@ -794,11 +810,7 @@ def traceplot(results,
                 print(labels[i], list(zip(quantiles, qs)))
         # Add truth value(s).
         if truths is not None:
-            plot_thruth(ax,
-                        truths[i],
-                        truth_color,
-                        truth_kwargs,
-                        vertical=True)
+            plot_truth(ax, truths[i], truth_color, truth_kwargs, vertical=True)
         # Set titles.
         if show_titles:
             title = None
@@ -896,9 +908,8 @@ def cornerpoints(results,
         marginalized 1-D posteriors as solid horizontal/vertical lines.
         Individual values can be exempt using `None`. Default is `None`.
 
-    truth_color : str or iterable with shape (ndim,), optional
-        A `~matplotlib`-style color (either a single color or a different
-        value for each subplot) used when plotting `truths`.
+    truth_color : str, optional
+        A `~matplotlib`-style color used when plotting `truths`.
         Default is `'red'`.
 
     truth_kwargs : dict, optional
@@ -983,7 +994,7 @@ def cornerpoints(results,
 
     # Set labels
     if labels is None:
-        labels = [r"$x_{" + str(i + 1) + "}$" for i in range(ndim)]
+        labels = _default_labels(ndim, dims)
 
     # Set colormap.
     if color is None:
@@ -1067,16 +1078,16 @@ def cornerpoints(results,
                        **plot_kwargs)
             # Add truth values
             if truths is not None:
-                plot_thruth(ax,
-                            truths[j],
-                            truth_color,
-                            truth_kwargs,
-                            vertical=True)
-                plot_thruth(ax,
-                            truths[i + 1],
-                            truth_color,
-                            truth_kwargs,
-                            horizontal=True)
+                plot_truth(ax,
+                           truths[j],
+                           truth_color,
+                           truth_kwargs,
+                           vertical=True)
+                plot_truth(ax,
+                           truths[i + 1],
+                           truth_color,
+                           truth_kwargs,
+                           horizontal=True)
 
     return (fig, axes)
 
@@ -1133,9 +1144,8 @@ def cornerplot(results,
         posteriors as vertical dashed lines. Default is `[0.025, 0.5, 0.975]`
         (spanning the 95%/2-sigma credible interval).
 
-    color : str or iterable with shape (ndim,), optional
-        A `~matplotlib`-style color (either a single color or a different
-        value for each subplot) used when plotting the histograms.
+    color : str, optional
+        A `~matplotlib`-style color used when plotting the histograms.
         Default is `'black'`.
 
     smooth : float or iterable with shape (ndim,), optional
@@ -1189,9 +1199,8 @@ def cornerplot(results,
         marginalized 1-D posteriors as solid horizontal/vertical lines.
         Individual values can be exempt using `None`. Default is `None`.
 
-    truth_color : str or iterable with shape (ndim,), optional
-        A `~matplotlib`-style color (either a single color or a different
-        value for each subplot) used when plotting `truths`.
+    truth_color : str, optional
+        A `~matplotlib`-style color used when plotting `truths`.
         Default is `'red'`.
 
     truth_kwargs : dict, optional
@@ -1283,7 +1292,7 @@ def cornerplot(results,
 
     # Set labels
     if labels is None:
-        labels = [r"$x_{" + str(i + 1) + "}$" for i in range(ndim)]
+        labels = _default_labels(ndim, dims)
 
     # Setting up smoothing.
     if isinstance(smooth, (int_type, float_type)):
@@ -1376,11 +1385,7 @@ def cornerplot(results,
                 print(labels[i], list(zip(quantiles, qs)))
         # Add truth value(s).
         if truths is not None:
-            plot_thruth(ax,
-                        truths[i],
-                        truth_color,
-                        truth_kwargs,
-                        vertical=True)
+            plot_truth(ax, truths[i], truth_color, truth_kwargs, vertical=True)
         # Set titles.
         if show_titles:
             title = None
@@ -1458,16 +1463,16 @@ def cornerplot(results,
                     **hist2d_kwargs)
             # Add truth values
             if truths is not None:
-                plot_thruth(ax,
-                            truths[j],
-                            truth_color,
-                            truth_kwargs,
-                            vertical=True)
-                plot_thruth(ax,
-                            truths[i],
-                            truth_color,
-                            truth_kwargs,
-                            horizontal=True)
+                plot_truth(ax,
+                           truths[j],
+                           truth_color,
+                           truth_kwargs,
+                           vertical=True)
+                plot_truth(ax,
+                           truths[i],
+                           truth_color,
+                           truth_kwargs,
+                           horizontal=True)
 
     return (fig, axes)
 
@@ -2087,7 +2092,7 @@ def cornerbound(results,
 
     # Set labels.
     if labels is None:
-        labels = [r"$x_{" + str(i + 1) + "}$" for i in range(ndim)]
+        labels = _default_labels(ndim, dims)
 
     # Setup axis layout (from `corner.py`).
     factor = 2.0  # size of side of one panel

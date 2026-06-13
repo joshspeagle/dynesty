@@ -2326,6 +2326,18 @@ def save_sampler(sampler, fname):
         raise
 
 
+def _close_progress(pbar, loglikelihood=None):
+    """
+    Tidy up at the end of a sampling loop: close the progress bar (if any)
+    and, when a ``loglikelihood`` is provided, flush any buffered evaluation
+    history to disk. Shared by the static and dynamic sampler run loops.
+    """
+    if pbar is not None:
+        pbar.close()
+    if loglikelihood is not None:
+        loglikelihood.finalize_history()
+
+
 def _parse_pool_queue(pool, queue_size):
     """
     Common functionality of interpreting the pool and queue_size

@@ -212,9 +212,15 @@ def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
                     nexpected = 4
                 else:
                     nexpected = 2
-                assert (len(np.unique(blob)) in [1, nexpected])
-                # I allow 1 in order to allow cases where the
-                # sampling is done before interruption
+                # The number of distinct worker PIDs in the saved samples
+                # depends on when the interruption landed: an early interrupt
+                # (common under heavy CI load) can mean only a subset of the
+                # before/after pool workers contributed saved evaluations, so
+                # anything from 1 up to `nexpected` is valid. Seeing more than
+                # `nexpected` would indicate spurious extra pools/workers.
+                # Resume correctness itself is checked by the evidence
+                # comparison inside `fit_resume`.
+                assert 1 <= len(np.unique(blob)) <= nexpected
         else:
             assert fit_proc.exitcode == 0
     finally:

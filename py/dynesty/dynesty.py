@@ -126,13 +126,16 @@ Sampling Method:\n===============
 def _get_internal_sampler(sampling, ndim, ncdim, periodic, reflective, walks,
                           slices, facc):
     default_steps = {'rwalk': ndim + 20, 'slice': 3, 'rslice': 3 + ndim}
+    # Resolve 'auto' to a concrete sampler *name* first, so that the regular
+    # branches below build it (and honour any user-supplied `walks`/`slices`)
+    # rather than instantiating a sampler with the default step counts.
     if sampling == 'auto':
         if ndim < 10:
-            sampling = UniformBoundSampler(ndim=ndim)
+            sampling = 'unif'
         elif 10 <= ndim <= 20:
-            sampling = RWalkSampler(ndim=ndim, walks=default_steps['rwalk'])
+            sampling = 'rwalk'
         else:
-            sampling = RSliceSampler(ndim=ndim, slices=default_steps['rslice'])
+            sampling = 'rslice'
 
     nonbounded = get_nonbounded(ndim, periodic, reflective)
     sampler_kw = dict(ncdim=ncdim,
@@ -160,11 +163,13 @@ def _get_internal_sampler(sampling, ndim, ncdim, periodic, reflective, walks,
         internal_sampler = sampling._new_from_template(sampler_kw)
     else:
         raise ValueError(f'Unsupported Sampler {sampling}')
-    if sampling == 'rwalk' and slices is not None or (
-            sampling in ['rslice', 'slice'] and walks is not None):
-        warnings.warn('Specifying slice option while using rwalk sampler or '
-                      ' walks option with a slice sampler'
-                      ' does not make sense')
+    # Warn if a step-count option was supplied that the chosen sampler ignores.
+    ignores_walks = sampling in ['rslice', 'slice', 'unif']
+    ignores_slices = sampling in ['rwalk', 'unif']
+    if (ignores_walks and walks is not None) or (ignores_slices
+                                                 and slices is not None):
+        warnings.warn('The supplied `walks`/`slices` option does not apply to '
+                      f"the '{sampling}' sampler and will be ignored.")
 
     return internal_sampler
 

@@ -653,10 +653,11 @@ class SliceSampler(InternalSampler):
          kwargs) = (args.u, args.loglstar, args.axes, args.scale,
                     args.prior_transform, args.loglikelihood, args.kwargs)
         rstate = get_random_generator(args.rseed)
-        # Note: slice sampling treats the unit cube boundaries as hard
-        # walls (no periodic wrapping or reflection is applied), so
-        # proposals outside the cube are rejected by shrinking the slice.
-        nonperiodic = None
+        # Boundary conditions. Periodic/reflective dimensions wrap around;
+        # the remaining (`nonbounded`) dimensions act as hard unit-cube walls.
+        nonbounded = kwargs.get('nonbounded')
+        periodic = kwargs.get('periodic')
+        reflective = kwargs.get('reflective')
         doubling = kwargs.get('slice_doubling', False)
         # Setup.
         n = len(u)
@@ -685,8 +686,9 @@ class SliceSampler(InternalSampler):
                 axis = axes[idx]
                 (u_prop, v_prop, logl_prop, nc1, n_expand1, n_contract1,
                  expansion_warning) = generic_slice_step(
-                     u, axis, nonperiodic, loglstar, loglikelihood,
-                     prior_transform, doubling, evaluation_history, rstate)
+                     u, axis, nonbounded, periodic, reflective, loglstar,
+                     loglikelihood, prior_transform, doubling,
+                     evaluation_history, rstate)
                 u = u_prop
                 nc += nc1
                 n_expand += n_expand1
@@ -808,10 +810,11 @@ class RSliceSampler(InternalSampler):
          kwargs) = (args.u, args.loglstar, args.axes, args.scale,
                     args.prior_transform, args.loglikelihood, args.kwargs)
         rstate = get_random_generator(args.rseed)
-        # Note: slice sampling treats the unit cube boundaries as hard
-        # walls (no periodic wrapping or reflection is applied), so
-        # proposals outside the cube are rejected by shrinking the slice.
-        nonperiodic = None
+        # Boundary conditions. Periodic/reflective dimensions wrap around;
+        # the remaining (`nonbounded`) dimensions act as hard unit-cube walls.
+        nonbounded = kwargs.get('nonbounded')
+        periodic = kwargs.get('periodic')
+        reflective = kwargs.get('reflective')
         doubling = kwargs.get('slice_doubling', False)
         evaluation_history = []
         # Setup.
@@ -833,12 +836,11 @@ class RSliceSampler(InternalSampler):
             # Transform and scale based on past tuning.
             direction = np.dot(axes, drhat) * scale
 
-            (u_prop, v_prop, logl_prop, nc1, n_expand1, n_contract1,
-             expansion_warning) = generic_slice_step(u, direction, nonperiodic,
-                                                     loglstar, loglikelihood,
-                                                     prior_transform, doubling,
-                                                     evaluation_history,
-                                                     rstate)
+            (u_prop, v_prop, logl_prop, nc1, n_expand1,
+             n_contract1, expansion_warning) = generic_slice_step(
+                 u, direction, nonbounded, periodic, reflective, loglstar,
+                 loglikelihood, prior_transform, doubling, evaluation_history,
+                 rstate)
             u = u_prop
             nc += nc1
             n_expand += n_expand1
@@ -1082,8 +1084,9 @@ def _slice_doubling_accept(x1, F, loglstar, L, R, fL, fR):
     return True
 
 
-def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
-                       prior_transform, doubling, evaluation_history, rstate):
+def generic_slice_step(u, direction, nonbounded, periodic, reflective,
+                       loglstar, loglikelihood, prior_transform, doubling,
+                       evaluation_history, rstate):
     """
     Do a slice generic slice sampling step along a specified dimension
 
@@ -1094,8 +1097,13 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
         It MUST satisfy the logl>loglstar criterion
     direction: ndarray (ndim sized)
         Step direction vector
-    nonperiodic: ndarray(bool)
-        mask for nonperiodic variables
+    nonbounded: ndarray(bool) or None
+        Mask of dimensions with hard unit-cube boundaries (i.e. neither
+        periodic nor reflective). ``None`` means every dimension is bounded.
+    periodic: ndarray(int) or None
+        Indices of dimensions with periodic boundary conditions.
+    reflective: ndarray(int) or None
+        Indices of dimensions with reflective boundary conditions.
     loglstar: float
         the critical value of logl, so that new logl must be >loglstar
     loglikelihood: function
@@ -1117,12 +1125,27 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
         dirnorm = 1
     direction = direction / dirnorm
 
+    # Cap on how far the interval may be expanded on each side. Moving a full
+    # cube diagonal (sqrt(n)) from any interior point is guaranteed to leave
+    # the unit cube, so for hard-walled dimensions this cap is never reached
+    # before the likelihood drops to -inf. With periodic/reflective wrapping
+    # the line never leaves the cube, so a (nearly) flat direction could
+    # otherwise expand the interval forever; the cap guarantees we still
+    # bracket at least one full period and terminate.
+    x_cap = np.sqrt(n) / max(dirlen / dirnorm, 1e-300)
+
     #  The function that evaluates the logl at the location of
     # u0 + x*direction0
     def F(x):
         nonlocal nc
         u_new = u + x * direction
-        if unitcheck(u_new, nonperiodic):
+        # Apply periodic/reflective boundary conditions so that these
+        # dimensions wrap around (rather than acting as hard walls).
+        if periodic is not None:
+            u_new[periodic] = np.mod(u_new[periodic], 1)
+        if reflective is not None:
+            u_new[reflective] = apply_reflect(u_new[reflective])
+        if unitcheck(u_new, nonbounded):
             v_new = prior_transform(u_new)
             logl = loglikelihood(v_new)
             evaluation_history.append(
@@ -1140,12 +1163,12 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
     logl_r = F(nstep_r)[1]
     expansion_warning = False
     if not doubling:
-        # "Stepping out" the left and right bounds.
-        while logl_l > loglstar:
+        # "Stepping out" the left and right bounds (bounded by `x_cap`).
+        while logl_l > loglstar and nstep_l > -x_cap:
             nstep_l -= 1
             logl_l = F(nstep_l)[1]
             n_expand += 1
-        while logl_r > loglstar:
+        while logl_r > loglstar and nstep_r < x_cap:
             nstep_r += 1
             logl_r = F(nstep_r)[1]
             n_expand += 1
@@ -1155,9 +1178,10 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
                           f'than {n_expand_threshold} times')
 
     else:
-        # "Stepping out" the left and right bounds.
+        # "Stepping out" the left and right bounds (bounded by `x_cap`).
         K = 1
-        while (logl_l > loglstar or logl_r > loglstar):
+        while ((logl_l > loglstar or logl_r > loglstar)
+               and (nstep_r - nstep_l) < 2 * x_cap):
             V = rstate.random()
             if V < 0.5:
                 nstep_l -= (nstep_r - nstep_l)

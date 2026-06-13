@@ -699,6 +699,41 @@ def test_slices_validation():
         cls(ndim=2, slices=1)
 
 
+def test_auto_sampler_honors_steps():
+    # `sample='auto'` must honour a user-supplied walks/slices count rather
+    # than silently using the default, and warn when the chosen sampler
+    # ignores the option.
+    from dynesty.dynesty import _get_internal_sampler
+    s = _get_internal_sampler('auto',
+                              15,
+                              15,
+                              None,
+                              None,
+                              walks=99,
+                              slices=None,
+                              facc=0.5)
+    assert s.sampler_kwargs['walks'] == 99
+    s = _get_internal_sampler('auto',
+                              25,
+                              25,
+                              None,
+                              None,
+                              walks=None,
+                              slices=7,
+                              facc=0.5)
+    assert s.sampler_kwargs['slices'] == 7
+    # auto resolves to the uniform sampler for low ndim, which ignores walks
+    with pytest.warns(UserWarning):
+        _get_internal_sampler('auto',
+                              5,
+                              5,
+                              None,
+                              None,
+                              walks=10,
+                              slices=None,
+                              facc=0.5)
+
+
 def _make_dynamic_resdict(samples_n):
     # minimal dynamic-style Results dict with given per-iteration live counts
     from dynesty.results import Results

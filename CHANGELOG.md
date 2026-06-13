@@ -6,7 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 [Unreleased]
 ### Added
+- The `slice` and `rslice` samplers now respect `periodic` and `reflective`
+  boundary conditions (previously they treated every dimension as a hard
+  unit-cube wall), improving sampling of posteriors whose modes lie on or near
+  a boundary.
 ### Changed
+- `sample='auto'` now honors an explicitly supplied `walks`/`slices` count
+  instead of silently using the default, and warns when a step-count option
+  does not apply to the chosen sampler.
 - Show the ETA and expected number of iterations when sampling.
 - When restoring the sampler with the pool, use an updated value of `queue_size` based on the pool size
 - Use `chunksize=1` for the dynesty pool, as that is better behaved for `queue_size > nthreads` and unequal durations of function evaluations
@@ -20,6 +27,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - `run_nested(maxiter=N)` now performs at most `N` iterations (previously one extra iteration was performed).
 - Slice samplers now raise a clear `ValueError` when constructed with `slices < 1` instead of failing cryptically during sampling.
 - Fix the formatting of the error message for an invalid `error` option in `dynesty.utils.kld_error`.
+- Fix `dynesty.utils.check_result_static` which subtracted `nlive` from `niter` even for runs without a recycled live-point tail.
+- Corner/trace plots auto-generated axis labels now reflect the original dimension indices when only a subset of dimensions is plotted via `dims=...`.
+- `runplot` no longer forwards the data-curve `plot_kwargs` onto the fixed-style dashed final-live reference lines.
+- Resolve the cyclic imports between `dynesty.utils` and the package `__init__` by moving the version lookup into a leaf `dynesty._version` module.
 - Multiple documentation fixes: the default number of live points (500) in the quickstart guide, the checkpoint restore example for the dynamic sampler, citation years, and several incorrect docstring defaults in the plotting module.
 
 [3.0.0 - 2025-10-04]

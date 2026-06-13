@@ -179,14 +179,20 @@ class LogLikelihood:
             with h5py.File(self.history_filename, mode='w') as fp:
                 # Unified evaluation history - all evaluations in one place
                 if self.save_evaluation_history:
+                    # Datasets are float32 ('f4'), which has been the implicit
+                    # default; we now pass it explicitly as required by newer
+                    # versions of h5py.
                     fp.create_dataset('evaluation_u',
                                       (self.save_every, self.ndim),
-                                      maxshape=(None, self.ndim))
+                                      maxshape=(None, self.ndim),
+                                      dtype='f4')
                     fp.create_dataset('evaluation_v',
                                       (self.save_every, self.ndim),
-                                      maxshape=(None, self.ndim))
+                                      maxshape=(None, self.ndim),
+                                      dtype='f4')
                     fp.create_dataset('evaluation_logl', (self.save_every, ),
-                                      maxshape=(None, ))
+                                      maxshape=(None, ),
+                                      dtype='f4')
         except OSError:
             print('Failed to initialize history file')
             raise

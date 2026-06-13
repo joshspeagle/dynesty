@@ -692,10 +692,9 @@ def test_slices_validation():
     # the number of slices must be a positive integer
     from dynesty.internal_samplers import SliceSampler, RSliceSampler
     for cls in [SliceSampler, RSliceSampler]:
-        with pytest.raises(ValueError):
-            cls(ndim=2, slices=0)
-        with pytest.raises(ValueError):
-            cls(ndim=2, slices=-1)
+        for bad in [0, -1, None, 1.5]:
+            with pytest.raises(ValueError):
+                cls(ndim=2, slices=bad)
         cls(ndim=2, slices=1)
 
 

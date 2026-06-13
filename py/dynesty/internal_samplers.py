@@ -571,9 +571,9 @@ class SliceSampler(InternalSampler):
         super().__init__(**kwargs)
         # Initialize slice parameters.
         slices = kwargs.get('slices', 5)
-        if slices < 1:
-            raise ValueError(f'The number of slices must be >= 1 '
-                             f'(got {slices})')
+        if not isinstance(slices, (int, np.integer)) or slices < 1:
+            raise ValueError('The number of slices must be a positive '
+                             f'integer (got {slices!r})')
         self.slice_history = {'n_contract': 0, 'n_expand': 0}
 
         self.sampler_kwargs['slices'] = slices
@@ -730,9 +730,9 @@ class RSliceSampler(InternalSampler):
         super().__init__(**kwargs)
         # Initialize slice parameters.
         slices = kwargs.get('slices', 5)
-        if slices < 1:
-            raise ValueError(f'The number of slices must be >= 1 '
-                             f'(got {slices})')
+        if not isinstance(slices, (int, np.integer)) or slices < 1:
+            raise ValueError('The number of slices must be a positive '
+                             f'integer (got {slices!r})')
         self.slice_history = {'n_contract': 0, 'n_expand': 0}
 
         self.sampler_kwargs['slices'] = slices

@@ -1709,8 +1709,8 @@ def unravel_run(res, print_progress=True):
         pass
 
     if (np.diff(res.logl) == 0).sum() > 0:
-        warnings.warn('The likelihood seem to have plateaus. '
-                      'The unraveling such runs may be inaccurate')
+        warnings.warn('The likelihood seems to have plateaus. '
+                      'Unraveling such runs may be inaccurate')
 
     # Recreate the nested sampling run for each strand.
     new_res = []

@@ -699,6 +699,48 @@ def test_slices_validation():
         cls(ndim=2, slices=1)
 
 
+def _make_dynamic_resdict(samples_n):
+    # minimal dynamic-style Results dict with given per-iteration live counts
+    from dynesty.results import Results
+    n = len(samples_n)
+    logl = np.sort(np.cumsum(np.abs(get_rstate().normal(size=n))))
+    d = dict(niter=n,
+             ncall=np.ones(n, dtype=int),
+             samples_n=np.asarray(samples_n),
+             samples_id=np.arange(n),
+             samples_it=np.arange(n),
+             samples_u=np.zeros((n, 2)),
+             samples=np.zeros((n, 2)),
+             logl=logl,
+             logvol=-np.arange(n, dtype=float),
+             logwt=np.zeros(n),
+             logz=np.linspace(-10, 0, n),
+             logzerr=np.ones(n),
+             information=np.zeros(n))
+    return Results(d)
+
+
+def test_check_result_static():
+    # A run with a constant number of live points and no recycled tail must
+    # be recognised as static with niter == nsamps (no spurious subtraction
+    # of nlive), while a run with a recycled decreasing tail keeps
+    # niter == nsamps - nlive.
+    nlive = 5
+    res_const = _make_dynamic_resdict([nlive] * 20)
+    out_const = dyutil.check_result_static(res_const)
+    assert not out_const.isdynamic()
+    assert out_const.nlive == nlive
+    assert out_const.niter == 20
+    dyutil._get_nsamps_samples_n(out_const)  # must stay self-consistent
+
+    res_recyc = _make_dynamic_resdict([nlive] * 15 + list(range(nlive, 0, -1)))
+    out_recyc = dyutil.check_result_static(res_recyc)
+    assert not out_recyc.isdynamic()
+    assert out_recyc.nlive == nlive
+    assert out_recyc.niter == 20 - nlive
+    dyutil._get_nsamps_samples_n(out_recyc)
+
+
 class Like3:
 
     def __init__(self):

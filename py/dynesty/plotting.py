@@ -53,6 +53,22 @@ def rotate_ticks(ax, xy):
         lab.set_rotation(45)
 
 
+def _default_labels(ndim, dims=None):
+    """
+    Build default ``$x_{i}$`` axis labels.
+
+    When ``dims`` is provided (i.e. only a subset of dimensions is being
+    plotted) the labels reflect the *original* dimension indices rather than
+    being renumbered from 1. For example ``dims=[2, 5]`` yields
+    ``['$x_{3}$', '$x_{6}$']``.
+    """
+    if dims is None:
+        idxs = range(ndim)
+    else:
+        idxs = dims
+    return [r"$x_{" + str(i + 1) + "}$" for i in idxs]
+
+
 def plot_truth(ax,
                truths,
                truth_color,
@@ -374,15 +390,17 @@ def runplot(results,
                                     color=c,
                                     alpha=0.2)
 
-        # Mark addition of final live points.
+        # Mark addition of final live points. These are fixed-style
+        # reference lines, so we do not forward `plot_kwargs` (which is meant
+        # for the data curves) onto them.
         if mark_final_live:
             ax.axvline(-logvol[live_idx],
                        color=c,
                        ls="dashed",
                        lw=2,
-                       **plot_kwargs)
+                       alpha=0.7)
             if i == 0:
-                ax.axhline(live_idx, color=c, ls="dashed", lw=2, **plot_kwargs)
+                ax.axhline(live_idx, color=c, ls="dashed", lw=2, alpha=0.7)
         # Add truth value(s).
         if i == 3 and lnz_truth is not None:
             if logplot:
@@ -671,7 +689,7 @@ def traceplot(results,
 
     # Setting up labels.
     if labels is None:
-        labels = [r"$x_{" + str(i + 1) + "}$" for i in range(ndim)]
+        labels = _default_labels(ndim, dims)
 
     # Setting up smoothing.
     if isinstance(smooth, (int_type, float_type)):
@@ -976,7 +994,7 @@ def cornerpoints(results,
 
     # Set labels
     if labels is None:
-        labels = [r"$x_{" + str(i + 1) + "}$" for i in range(ndim)]
+        labels = _default_labels(ndim, dims)
 
     # Set colormap.
     if color is None:
@@ -1274,7 +1292,7 @@ def cornerplot(results,
 
     # Set labels
     if labels is None:
-        labels = [r"$x_{" + str(i + 1) + "}$" for i in range(ndim)]
+        labels = _default_labels(ndim, dims)
 
     # Setting up smoothing.
     if isinstance(smooth, (int_type, float_type)):
@@ -2074,7 +2092,7 @@ def cornerbound(results,
 
     # Set labels.
     if labels is None:
-        labels = [r"$x_{" + str(i + 1) + "}$" for i in range(ndim)]
+        labels = _default_labels(ndim, dims)
 
     # Setup axis layout (from `corner.py`).
     factor = 2.0  # size of side of one panel

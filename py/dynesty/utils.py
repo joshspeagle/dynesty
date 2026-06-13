@@ -18,7 +18,7 @@ import pickle as pickle_module
 # To allow replacing of the pickler
 import numpy as np
 from scipy.special import logsumexp
-from . import __version__ as DYNESTY_VERSION
+from ._version import __version__ as DYNESTY_VERSION
 
 # Define SamplerHistoryItem here to avoid circular imports
 SamplerHistoryItem = namedtuple('SamplerHistoryItem', ['u', 'v', 'logl'])
@@ -1874,8 +1874,10 @@ def check_result_static(res):
     nlive = max(samples_n)
     niter = res.niter
     standard_run = False
+    recycled = False
 
-    # Check if we have a constant number of live points.
+    # Check if we have a constant number of live points (i.e. a static run
+    # where the final live points were *not* recycled).
     if samples_n.size == niter and np.all(samples_n == nlive):
         standard_run = True
 
@@ -1884,12 +1886,16 @@ def check_result_static(res):
     nlive_test = np.minimum(np.arange(niter, 0, -1), nlive)
     if samples_n.size == niter and np.all(samples_n == nlive_test):
         standard_run = True
+        recycled = True
     # If the number of live points is consistent with a standard nested
     # sampling run, slightly modify the format to keep with previous usage.
     if standard_run:
         resdict = res.asdict()
         resdict['nlive'] = nlive
-        resdict['niter'] = niter - nlive
+        # For a native static run the reported `niter` excludes the recycled
+        # live points (`nsamps == niter + nlive`), so subtract them only when
+        # such a tail is actually present.
+        resdict['niter'] = niter - nlive if recycled else niter
         res = Results(resdict)
     return res
 

@@ -170,3 +170,10 @@ def test_gaussianx(bound):
                        it=3000,
                        prior_transform=g.prior_transform,
                        show_live=False)
+
+
+def test_default_labels_with_dims():
+    # When only a subset of dimensions is plotted, auto-generated labels must
+    # reflect the original dimension indices rather than being renumbered.
+    assert dyplot._default_labels(3) == [r"$x_{1}$", r"$x_{2}$", r"$x_{3}$"]
+    assert dyplot._default_labels(2, dims=[2, 5]) == [r"$x_{3}$", r"$x_{6}$"]

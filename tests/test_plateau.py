@@ -76,7 +76,7 @@ def test_static(sample, dlogz):
 
 # here are are trying to test different stages of plateau
 # probing with different dlogz's
-@pytest.mark.parametrize('sample,', ['unif', 'rslice', 'rwalk'])
+@pytest.mark.parametrize('sample', ['unif', 'rslice', 'rwalk'])
 def test_dynamic(sample):
     rstate = get_rstate()
     nlive = 100
@@ -145,7 +145,7 @@ class WeddingCake:
 
 # here are are trying to test different stages of plateau
 # probing with different dlogz's
-@pytest.mark.parametrize('sample,', ['unif', 'rwalk', 'rslice'])
+@pytest.mark.parametrize('sample', ['unif', 'rwalk', 'rslice'])
 def test_cake_static(sample):
     nlive = 1000
     rstate = get_rstate()
@@ -163,7 +163,7 @@ def test_cake_static(sample):
     assert np.abs(res.logz[-1] - cake.logz_true) < THRESH * res.logzerr[-1]
 
 
-@pytest.mark.parametrize('sample,', ['unif', 'rslice', 'rwalk'])
+@pytest.mark.parametrize('sample', ['unif', 'rslice', 'rwalk'])
 def test_cake_dynamic(sample):
     rstate = get_rstate()
     nlive = 100
@@ -213,7 +213,7 @@ class EdgesInf:
         return (2 * x - 1) * self.size
 
 
-@pytest.mark.parametrize('dynamic,', [False, True])
+@pytest.mark.parametrize('dynamic', [False, True])
 def test_edge(dynamic):
     rstate = get_rstate()
     ndim = 2
@@ -245,7 +245,7 @@ def test_exc_small():
 
 
 # probe the uniform distribution
-@pytest.mark.parametrize('dyn,', [False, True])
+@pytest.mark.parametrize('dyn', [False, True])
 def test_uniform(dyn):
     rstate = get_rstate()
     nlive = 100
@@ -276,7 +276,7 @@ def test_uniform(dyn):
 
 # test uniform distribution with very low
 # likelihood
-@pytest.mark.parametrize('dyn,', [False, True])
+@pytest.mark.parametrize('dyn', [False, True])
 def test_uniform1(dyn):
     rstate = get_rstate()
     nlive = 100

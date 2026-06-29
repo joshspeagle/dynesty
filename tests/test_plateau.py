@@ -145,7 +145,7 @@ class WeddingCake:
 
 # here are are trying to test different stages of plateau
 # probing with different dlogz's
-@pytest.mark.parametrize('sample', ['unif', 'rwalk', 'rslice'])
+@pytest.mark.parametrize('sample,', ['unif', 'rwalk', 'rslice'])
 def test_cake_static(sample):
     nlive = 1000
     rstate = get_rstate()
@@ -245,7 +245,7 @@ def test_exc_small():
 
 
 # probe the uniform distribution
-@pytest.mark.parametrize('dyn', [False, True])
+@pytest.mark.parametrize('dyn,', [False, True])
 def test_uniform(dyn):
     rstate = get_rstate()
     nlive = 100
@@ -276,7 +276,7 @@ def test_uniform(dyn):
 
 # test uniform distribution with very low
 # likelihood
-@pytest.mark.parametrize('dyn', [False, True])
+@pytest.mark.parametrize('dyn,', [False, True])
 def test_uniform1(dyn):
     rstate = get_rstate()
     nlive = 100

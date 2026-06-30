@@ -377,6 +377,34 @@ PrintFnArgs = namedtuple('PrintFnArgs',
                          ['niter', 'short_str', 'mid_str', 'long_str'])
 
 
+def _tqdm_eta_slope(history, niter, value, min_points=2, log=False):
+    """Estimate a recent per-iteration slope from tqdm ETA history."""
+    if len(history) == 0 or niter > history[-1][0]:
+        history.append((niter, value))
+        if len(history) > 10:
+            history.pop(0)
+    if len(history) < min_points:
+        return None
+
+    points = np.asarray(history, dtype=float)
+    xvals = points[:, 0]
+    yvals = points[:, 1]
+    good = np.isfinite(yvals)
+    if log:
+        good &= yvals > 0
+    if np.count_nonzero(good) < min_points:
+        return None
+
+    xvals = xvals[good]
+    yvals = yvals[good]
+    if log:
+        yvals = np.log(yvals)
+    if np.allclose(xvals, xvals[0]):
+        return None
+
+    return np.polyfit(xvals, yvals, 1)[0]
+
+
 def _update_tqdm_eta_from_dlogz(pbar,
                                 niter,
                                 delta_logz,
@@ -400,10 +428,30 @@ def _update_tqdm_eta_from_dlogz(pbar,
             state.clear()
             state["mode"] = "batch"
             state["batch"] = nbatch
-            state["batch_start_iter"] = niter
+            if getattr(pbar, "_dynesty_initial", 0) > 0:
+                # A restored finite batch has already consumed part of the
+                # likelihood interval, so use newly observed loglstar motion.
+                state["history"] = []
+                state["restored_batch"] = True
+            else:
+                state["batch_start_iter"] = niter
 
         prog = (loglstar - logl_min) / (logl_max - logl_min)
         prog = float(np.clip(prog, 0.0, 0.999))
+
+        if state.get("restored_batch", False):
+            history = state["history"]
+            slope = _tqdm_eta_slope(history, niter, loglstar)
+            if slope is None or slope <= 0:
+                pbar.total = None
+                return
+            rem_iters = (logl_max - loglstar) / slope
+            if np.isfinite(rem_iters) and rem_iters > 0:
+                pbar.total = max(niter + int(np.ceil(rem_iters)),
+                                 pbar.n + 1)
+            else:
+                pbar.total = None
+            return
 
         if prog <= 1e-3:
             pbar.total = None
@@ -430,25 +478,13 @@ def _update_tqdm_eta_from_dlogz(pbar,
         state["last_slope"] = None
 
     history = state["history"]
-    history.append((niter, delta_logz))
-    if len(history) > 10:
-        history.pop(0)
-
-    if len(history) < 3:
+    slope = _tqdm_eta_slope(history,
+                            niter,
+                            delta_logz,
+                            min_points=3,
+                            log=True)
+    if slope is None:
         return
-
-    points = np.asarray(history, dtype=float)
-    xvals = points[:, 0]
-    dvals = points[:, 1]
-    good = np.isfinite(dvals) & (dvals > 0)
-    if np.count_nonzero(good) < 3:
-        return
-    xvals = xvals[good]
-    yvals = np.log(dvals[good])
-    if np.allclose(xvals, xvals[0]):
-        return
-
-    slope = np.polyfit(xvals, yvals, 1)[0]
     if slope >= -1e-8:
         if state["last_slope"] is None:
             pbar.total = None
@@ -946,7 +982,10 @@ def get_print_func(print_func, print_progress, initial=0):
         if tqdm is None or not print_progress:
             print_func = print_fn
         else:
-            pbar = tqdm.tqdm(initial=max(int(initial), 0))
+            initial = max(int(initial), 0)
+            pbar = tqdm.tqdm(initial=initial)
+            # tqdm does not consistently expose its initial argument.
+            pbar._dynesty_initial = initial
             print_func = partial(print_fn, pbar=pbar)
     return pbar, print_func
 

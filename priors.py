@@ -11,7 +11,7 @@ __all__ = ["prior_transform",
 def prior_transform(self, unit_coords, priors, prior_args=[]):
     """An example of one way to use the `Prior` objects below to go from unit
     cube to parameter space, for nested sampling.  This takes and returns a
-    list instead of an array, to accomodate possible vector parameters.  Thus
+    list instead of an array, to accommodate possible vector parameters.  Thus
     one will need something like ``theta_array=np.concatenate(*theta)``
 
     :param unit_coords:

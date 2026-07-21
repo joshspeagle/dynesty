@@ -1176,9 +1176,9 @@ def cornerplot(results,
         A list of fractional quantiles to use in the title. Default is
         `[0.025, 0.5, 0.975]` (median plus 95%/2-sigma credible interval).
 
-    title_fmt : str, optional
-        The format string for the quantiles provided in the title. Default is
-        `'.2f'`.
+    title_fmt : str or list of str, optional
+        The format string or list of strings for the quantiles provided in the title.
+        If a list is passed, the length has to match the dimensions. Default is `'.2f'`.
 
     title_kwargs : dict, optional
         Extra keyword arguments that will be sent to the
@@ -1310,6 +1310,12 @@ def cornerplot(results,
                         wspace=whspace,
                         hspace=whspace)
 
+    if isinstance(title_fmt, str):
+        title_fmt = [title_fmt] * samples.shape[0]
+    elif title_fmt is not None:
+        if len(title_fmt) != samples.shape[0]:
+            raise ValueError("Length of 'title_fmt' needs to match dimensions.")
+
     # Plotting.
     for i, x in enumerate(samples):
         ax = axes[i, i]
@@ -1387,7 +1393,7 @@ def cornerplot(results,
             if title_fmt is not None:
                 ql, qm, qh = _quantile(x, title_quantiles, weights=weights)
                 q_minus, q_plus = qm - ql, qh - qm
-                fmt = "{{0:{0}}}".format(title_fmt).format
+                fmt = "{{0:{0}}}".format(title_fmt[i]).format
                 title = r"${{{0}}}_{{-{1}}}^{{+{2}}}$"
                 title = title.format(fmt(qm), fmt(q_minus), fmt(q_plus))
                 title = "{0} = {1}".format(labels[i], title)

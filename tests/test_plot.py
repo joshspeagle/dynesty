@@ -1,3 +1,4 @@
+import random
 import numpy as np
 import pytest
 from numpy import linalg
@@ -111,6 +112,11 @@ def test_gaussian(dynamic, periodic, ndim, bound):
                       verbose=True,
                       hist2d_kwargs=dict(plot_datapoints=True),
                       max_n_ticks=0)
+    plt.close()
+    dyplot.cornerplot(results,
+                      title_fmt=[random.choice([".2f", ".2e"]) for _ in range(ndim)],
+                      show_titles=True,
+                      truths=truths)
     plt.close()
     if ndim != 1:
         # cornerbound

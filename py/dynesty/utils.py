@@ -754,7 +754,13 @@ _RESULTS_STRUCTURE = [
     ('logwt', 'array', 'Array of log-posterior weights', 'niter'),
     ('eff', 'float', 'Sampling efficiency', None),
     ('nlive', 'int', 'Number of live points for a static run', None),
-    ('logvol', 'array[float]', 'Logvolumes of dead points', 'niter'),
+    ('logvol', 'array[float]',
+     'Log of the prior volume enclosed by each dead point\'s likelihood '
+     'contour', 'niter'),
+    ('logvol_init', 'float',
+     'Log-volume at the start of the run (0 unless part of the prior has '
+     'zero likelihood, in which case it is the log of the estimated '
+     'finite-likelihood prior fraction)', None),
     ('information', 'array[float]', 'Information Integral H', 'niter'),
     ('bound', 'array[object]',
      "the set of bounding objects used to condition proposals for the "
@@ -943,6 +949,30 @@ substituted certain keys in it. It returns a copy object!
         else:
             new_list.append((k, kw_dict[k]))
     return Results(new_list)
+
+
+def _get_logvol_init(res):
+    """
+    Return the log-volume at the start of a run. Results objects
+    created before this key was introduced are assumed to start at
+    unit volume.
+    """
+    if 'logvol_init' in res.keys():
+        return float(res['logvol_init'])
+    return 0.
+
+
+def _combine_logvol_inits(logvol_inits, nlives):
+    """
+    Combine the initial prior-volume estimates of several prior-sampled
+    runs. Each run's estimate of the finite-likelihood prior fraction
+    f_i = exp(logvol_init_i) comes from roughly nlive_i / f_i prior
+    draws yielding nlive_i finite points, so the combined fraction is
+    sum(nlive_i) / sum(nlive_i / f_i).
+    """
+    logvol_inits = np.asarray(logvol_inits, dtype=float)
+    nlives = np.asarray(nlives, dtype=float)
+    return np.log(nlives.sum()) - logsumexp(np.log(nlives) - logvol_inits)
 
 
 def get_nonbounded(ndim, periodic, reflective):
@@ -1387,11 +1417,15 @@ def jitter_run(res, rstate=None, approx=False):
         t_arr[bound[0]:bound[1]] = rorder
 
     # These are the "compression factors" at each iteration. Let's turn
-    # these into associated ln(volumes).
-    logvol = np.log(t_arr).cumsum()
+    # these into associated ln(volumes) starting from the run's initial
+    # volume.
+    logvol_init = _get_logvol_init(res)
+    logvol = logvol_init + np.log(t_arr).cumsum()
 
     (saved_logwt, saved_logz, saved_logzvar,
-     saved_h) = compute_integrals(logl=logl, logvol=logvol)
+     saved_h) = compute_integrals(logl=logl,
+                                  logvol=logvol,
+                                  logvol_init=logvol_init)
 
     # Overwrite items with our new estimates.
     substitute = {
@@ -1406,7 +1440,7 @@ def jitter_run(res, rstate=None, approx=False):
     return new_res
 
 
-def compute_integrals(*, logl, logvol, reweight=None):
+def compute_integrals(*, logl, logvol, reweight=None, logvol_init=0):
     """
     Compute weights, logzs and variances using quadratic estimator.
     Returns logwt, logz, logzvar, h
@@ -1419,22 +1453,27 @@ def compute_integrals(*, logl, logvol, reweight=None):
         array of log volumes
     reweight: array (or None)
         (optional) reweighting array to reweight posterior
+    logvol_init: float
+        (optional) log-volume at the start of the run, i.e. the volume
+        from which the first sample shrinks. It is zero unless part of
+        the prior has zero likelihood, in which case it is the log of
+        the estimated finite-likelihood prior fraction.
     """
 
     loglstar_pad = np.concatenate([[-1.e300], logl])
 
     # we want log(exp(logvol_i)-exp(logvol_(i+1)))
-    # assuming that logvol0 = 0
+    # where the volume before the first sample is exp(logvol_init)
     # log(exp(LV_{i})-exp(LV_{i+1})) =
     # = LV{i} + log(1-exp(LV_{i+1}-LV{i}))
     # = LV_{i+1} - (LV_{i+1} -LV_i) + log(1-exp(LV_{i+1}-LV{i}))
-    dlogvol = np.diff(logvol, prepend=0)
+    dlogvol = np.diff(logvol, prepend=logvol_init)
     logdvol = logvol - dlogvol + np.log1p(-np.exp(dlogvol))
     # logdvol is log(delta(volumes)) i.e. log (X_i-X_{i-1})
     logdvol2 = logdvol + math.log(0.5)
     # These are log(1/2(X_(i+1)-X_i))
 
-    dlogvol = -np.diff(logvol, prepend=0)
+    dlogvol = -np.diff(logvol, prepend=logvol_init)
     # this are delta(log(volumes)) of the run
 
     # These are log((L_i+L_{i_1})*(X_i+1-X_i)/2)
@@ -1623,11 +1662,13 @@ def resample_run(res, rstate=None, return_idx=False):
         # number of live points and can simply be re-ordered.
         samp_n = samples_n[samp_idx]
 
-    # Assign log(volume) to samples.
-    logvol = np.cumsum(np.log(samp_n / (samp_n + 1.)))
+    # Assign log(volume) to samples, starting from the run's initial
+    # volume.
+    logvol_init = _get_logvol_init(res)
+    logvol = logvol_init + np.cumsum(np.log(samp_n / (samp_n + 1.)))
 
     saved_logwt, saved_logz, saved_logzvar, saved_h = compute_integrals(
-        logl=logl, logvol=logvol)
+        logl=logl, logvol=logvol, logvol_init=logvol_init)
 
     # Compute sampling efficiency.
     eff = 100. * len(res.ncall[samp_idx]) / sum(res.ncall[samp_idx])
@@ -1646,6 +1687,7 @@ def resample_run(res, rstate=None, return_idx=False):
                         logwt=np.asarray(saved_logwt),
                         logl=logl,
                         logvol=logvol,
+                        logvol_init=logvol_init,
                         logz=np.asarray(saved_logz),
                         logzerr=np.sqrt(
                             np.maximum(np.asarray(saved_logzvar), 0)),
@@ -1691,7 +1733,10 @@ def reweight_run(res, logp_new, logp_old=None):
     logl = res['logl']
 
     saved_logwt, saved_logz, saved_logzvar, saved_h = compute_integrals(
-        logl=logl, logvol=logvol, reweight=logrwt)
+        logl=logl,
+        logvol=logvol,
+        reweight=logrwt,
+        logvol_init=_get_logvol_init(res))
 
     # Overwrite items with our new estimates.
     substitute = {
@@ -1748,6 +1793,7 @@ def unravel_run(res, print_progress=True):
     # Recreate the nested sampling run for each strand.
     new_res = []
     nstrands = len(np.unique(idxs))
+    logvol_init = _get_logvol_init(res)
     for counter, idx in enumerate(np.unique(idxs)):
         # Select strand `idx`.
         strand = idxs == idx
@@ -1759,21 +1805,22 @@ def unravel_run(res, print_progress=True):
         # shrinking by 1/2). If the final set of live points were added,
         # the expected value of the final live point is a uniform
         # sample and so has an expected value of half the volume
-        # of the final dead point.
+        # of the final dead point. The whole strand starts from the run's
+        # initial volume.
         if added_live:
             niter = nsamps - 1
-            logvol_dead = -math.log(2) * (1. + np.arange(niter))
+            logvol_dead = logvol_init - math.log(2) * (1. + np.arange(niter))
             if niter > 0:
                 logvol_live = logvol_dead[-1] + math.log(0.5)
                 logvol = np.append(logvol_dead, logvol_live)
             else:  # point always live
-                logvol = np.array([math.log(0.5)])
+                logvol = np.array([logvol_init + math.log(0.5)])
         else:
             niter = nsamps
-            logvol = -math.log(2) * (1. + np.arange(niter))
+            logvol = logvol_init - math.log(2) * (1. + np.arange(niter))
 
         saved_logwt, saved_logz, saved_logzvar, saved_h = compute_integrals(
-            logl=logl, logvol=logvol)
+            logl=logl, logvol=logvol, logvol_init=logvol_init)
 
         # Compute sampling efficiency.
         eff = 100. * nsamps / sum(res.ncall[strand])
@@ -1791,6 +1838,7 @@ def unravel_run(res, print_progress=True):
                      logwt=saved_logwt,
                      logl=logl,
                      logvol=logvol,
+                     logvol_init=logvol_init,
                      logz=saved_logz,
                      logzerr=np.sqrt(saved_logzvar),
                      information=saved_h)
@@ -2009,7 +2057,8 @@ def _prepare_for_merge(res):
                     nc=res.ncall,
                     it=res.samples_it,
                     blob=res.blob,
-                    proposal_stats=res.proposal_stats)
+                    proposal_stats=res.proposal_stats,
+                    logvol_init=_get_logvol_init(res))
     nrun = len(run_info['id'])
 
     # Number of live points throughout the run.
@@ -2154,10 +2203,27 @@ def _merge_two(res1, res2, compute_aux=False):
 
         combined_info['n'].append(cur_nlive)
 
+    # Combine the initial volume estimates of the runs that contain
+    # prior-sampled points (see _combine_logvol_inits). Add-on runs
+    # sample above a finite logl bound and carry no information on the
+    # initial volume.
+    init_logvols, init_nlives = [], []
+    for lowedge, info, nlive0 in [(base_lowedge, base_info, base_nlive[0]),
+                                  (new_lowedge, new_info, new_nlive[0])]:
+        if lowedge == -np.inf:
+            init_logvols.append(info['logvol_init'])
+            init_nlives.append(nlive0)
+    if len(init_logvols) == 2:
+        logvol_init = _combine_logvol_inits(init_logvols, init_nlives)
+    elif len(init_logvols) == 1:
+        logvol_init = init_logvols[0]
+    else:
+        logvol_init = 0.
+
     plateau_mode = False
     plateau_counter = 0
     plateau_logdvol = 0
-    logvol = 0.
+    logvol = logvol_init
     logl_array = np.array(combined_info['logl'])
     nlive_array = np.array(combined_info['n'])
     for i, (curl, nlive) in enumerate(zip(logl_array, nlive_array)):
@@ -2193,6 +2259,7 @@ def _merge_two(res1, res2, compute_aux=False):
              samples=np.asarray(combined_info['v']),
              logl=np.asarray(combined_info['logl']),
              logvol=np.asarray(combined_info['logvol']),
+             logvol_init=logvol_init,
              batch_logl_bounds=np.asarray(combined_bounds),
              blob=np.asarray(combined_info['blob']))
 
@@ -2204,7 +2271,8 @@ def _merge_two(res1, res2, compute_aux=False):
 
         (r['logwt'], r['logz'], combined_logzvar,
          r['information']) = compute_integrals(logvol=r['logvol'],
-                                               logl=r['logl'])
+                                               logl=r['logl'],
+                                               logvol_init=logvol_init)
         r['logzerr'] = np.sqrt(np.maximum(combined_logzvar, 0))
 
         # Compute batch information.

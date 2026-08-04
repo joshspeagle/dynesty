@@ -6,8 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 [Unreleased]
 ### Added
+- The results objects now include the logvol_init attribute with the log of the prior volume at the start of the run. It is zero unless part of the prior has zero likelihood, in which case it is the log of the estimated finite-likelihood prior fraction (fixed by @segasai)
 ### Changed
 ### Fixed
+- Fix the evidence computations for runs where the likelihood is equal to -inf over part of the prior. Previously the initial prior volume estimated during live-point initialization was discarded by the final integral recomputation in the static run_nested(), by jitter_run()/resample_run()/unravel_run() and by merge_runs(), leading to systematically overestimated logz (by up to the log of the inverse finite-likelihood prior fraction) and invalid uncertainties. Now the initial volume is stored in the results (see logvol_init above), used consistently by all evidence reconstructions, and properly combined when merging runs or full-prior batches (fixed by @segasai)
 
 [3.1.0 - 2026-07-17]
 ### Added

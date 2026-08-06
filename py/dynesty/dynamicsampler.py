@@ -23,7 +23,7 @@ from .results import Results
 from .utils import (get_seed_sequence, get_print_func, _kld_error,
                     compute_integrals, IteratorResult, IteratorResultShort,
                     RunRecord, get_neff_from_logwt, DelayTimer, save_sampler,
-                    restore_sampler)
+                    restore_sampler, _combine_logvol_inits)
 
 __all__ = [
     "DynamicSampler",
@@ -758,6 +758,12 @@ class DynamicSampler:
         self.new_logl_min, self.new_logl_max = -np.inf, np.inf
         # logl bounds of latest "new" run
 
+        self.logvol_init = 0.
+        # initial log-volume estimate of the combined run; updated
+        # in combine_runs() when a prior-sampled batch is merged in
+        self.new_logvol_init = 0.
+        # initial log-volume estimate of the latest "new" run
+
         # these are set-up during sampling
         self.live_u = None
         self.live_v = None
@@ -876,7 +882,8 @@ class DynamicSampler:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             results = [('niter', self.it - 1), ('ncall', d['nc']),
-                       ('eff', self.eff), ('samples', d['v'])]
+                       ('eff', self.eff), ('samples', d['v']),
+                       ('logvol_init', self.logvol_init)]
             for k in ['id', 'batch', 'it', 'u', 'n']:
                 results.append(('samples_' + k, d[k]))
             for k in [
@@ -1108,6 +1115,7 @@ class DynamicSampler:
                                    bound_enlarge=self.bound_enlarge,
                                    blob=self.blob,
                                    logvol_init=logvol_init)
+            self.logvol_init = logvol_init
             self.bound_list = self.sampler.bound_list
             self.internal_state = DynamicSamplerStatesEnum.LIVEPOINTSINIT
             # Run the sampler internally as a generator.
@@ -1210,8 +1218,10 @@ class DynamicSampler:
                                  proposal_stats=None)
         new_vals = {}
         (new_vals['logwt'], new_vals['logz'], new_vals['logzvar'],
-         new_vals['h']) = compute_integrals(logl=self.saved_run['logl'],
-                                            logvol=self.saved_run['logvol'])
+         new_vals['h']) = compute_integrals(
+             logl=self.saved_run['logl'],
+             logvol=self.saved_run['logvol'],
+             logvol_init=self.logvol_init)
         for curk in ['logwt', 'logz', 'logzvar', 'h']:
             self.saved_run[curk] = new_vals[curk].tolist()
             self.base_run[curk] = new_vals[curk].tolist()
@@ -1461,6 +1471,7 @@ class DynamicSampler:
                                       eff=self.eff,
                                       delta_logz=np.nan,
                                       proposal_stats=None)
+        self.new_logvol_init = batch_sampler.logvol_init
         del self.batch_sampler
         self.batch_sampler = None
 
@@ -1551,10 +1562,22 @@ class DynamicSampler:
                 logl_n = np.inf
                 nlive_n = 0
 
+        if self.new_logl_min == -np.inf:
+            # The new batch was sampled from the whole prior, so its
+            # initial volume estimate is combined with the current one
+            # in the same way as _merge_two() merges independent runs,
+            # weighting by the numbers of prior-sampled live points.
+            nlive_prior = sum(n for n, b in zip(old_batch_nlive,
+                                                old_batch_logl_bounds)
+                              if b[0] == -np.inf)
+            self.logvol_init = _combine_logvol_inits(
+                [self.logvol_init, self.new_logvol_init],
+                [nlive_prior, max(new_d['n'])])
+
         plateau_mode = False
         plateau_counter = 0
         plateau_logdvol = 0
-        logvol = self.sampler.logvol_init
+        logvol = self.logvol_init
         logl_array = np.array(self.saved_run['logl'])
         nlive_array = np.array(self.saved_run['n'])
 
@@ -1589,7 +1612,9 @@ class DynamicSampler:
                                                  saved_d['logl'][-1])
 
         new_logwt, new_logz, new_logzvar, new_h = compute_integrals(
-            logl=self.saved_run['logl'], logvol=self.saved_run['logvol'])
+            logl=self.saved_run['logl'],
+            logvol=self.saved_run['logvol'],
+            logvol_init=self.logvol_init)
         self.saved_run['logwt'].extend(new_logwt.tolist())
         self.saved_run['logz'].extend(new_logz.tolist())
         self.saved_run['logzvar'].extend(new_logzvar.tolist())
@@ -1597,6 +1622,7 @@ class DynamicSampler:
 
         # Reset results.
         self.new_run = None
+        self.new_logvol_init = 0.
         self.new_logl_min, self.new_logl_max = -np.inf, np.inf
 
         # Increment batch counter.

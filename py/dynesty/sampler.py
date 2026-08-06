@@ -576,7 +576,8 @@ class Sampler:
             results = [('nlive', self.nlive), ('niter', self.it - 1),
                        ('ncall', d['nc']), ('eff', self.eff),
                        ('samples', d['v']), ('blob', d['blob']),
-                       ('proposal_stats', d['proposal_stats'])]
+                       ('proposal_stats', d['proposal_stats']),
+                       ('logvol_init', self.logvol_init)]
             for k in ['id', 'it', 'u']:
                 results.append(('samples_' + k, d[k]))
             for k in ['logwt', 'logl', 'logvol', 'logz']:
@@ -1341,7 +1342,9 @@ class Sampler:
 
             # Here we recompute the integrals using the full run
             new_logwt, new_logz, new_logzvar, new_h = compute_integrals(
-                logl=self.saved_run['logl'], logvol=self.saved_run['logvol'])
+                logl=self.saved_run['logl'],
+                logvol=self.saved_run['logvol'],
+                logvol_init=self.logvol_init)
             self.saved_run['logwt'] = new_logwt.tolist()
             self.saved_run['logz'] = new_logz.tolist()
             self.saved_run['logzvar'] = new_logzvar.tolist()

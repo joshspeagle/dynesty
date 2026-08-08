@@ -1,0 +1,50 @@
+cff-version: 1.2.0
+title: "dynesty: a dynamic nested sampling package for computing Bayesian posteriors and evidences"
+message: >-
+  If you use dynesty in your research, please cite both the software
+  itself (via the Zenodo DOI below) and the original paper describing
+  the method, Speagle (2020), listed under references.
+  Please also consider citing the papers describing the underlying
+  methods; a tailored list can be generated from the sampler object
+  via print(sampler.citations). See
+  https://dynesty.readthedocs.io/en/latest/references.html for details.
+type: software
+authors:
+  - family-names: Koposov
+    given-names: Sergey E.
+    orcid: "https://orcid.org/0000-0003-2644-135X"
+  - family-names: Speagle
+    given-names: Joshua S.
+    orcid: "https://orcid.org/0000-0003-2573-9832"
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.3348367
+    description: Zenodo concept DOI covering all versions of dynesty
+doi: 10.5281/zenodo.3348367
+version: 3.1.0
+date-released: 2026-07-17
+license: MIT
+repository-code: "https://github.com/joshspeagle/dynesty"
+url: "https://dynesty.readthedocs.io"
+keywords:
+  - nested sampling
+  - dynamic nested sampling
+  - monte carlo
+  - bayesian
+  - inference
+  - modeling
+  - python
+references:
+  - type: article
+    title: "dynesty: a dynamic nested sampling package for estimating Bayesian posteriors and evidences"
+    authors:
+      - family-names: Speagle
+        given-names: Joshua S.
+        orcid: "https://orcid.org/0000-0003-2573-9832"
+    journal: Monthly Notices of the Royal Astronomical Society
+    year: 2020
+    volume: 493
+    issue: 3
+    start: 3132
+    end: 3158
+    doi: 10.1093/mnras/staa278

@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Changed
 ### Fixed
 - Fix the evidence computations for runs where the likelihood is equal to -inf over part of the prior. Previously the initial prior volume estimated during live-point initialization was discarded by the final integral recomputation in the static run_nested(), by jitter_run()/resample_run()/unravel_run() and by merge_runs(), leading to systematically overestimated logz (by up to the log of the inverse finite-likelihood prior fraction) and invalid uncertainties. Now the initial volume is stored in the results (see logvol_init above), used consistently by all evidence reconstructions, and properly combined when merging runs or full-prior batches (fixed by @segasai)
+- Fix the uniform sampler (also used by default for ndim<10) with periodic or reflective parameters. Previously it could accept points outside the unit cube (up to -0.5..1.5) in those dimensions and pass them unchanged to the prior transform, which could lead to incorrect evidence and posteriors, especially for reflective parameters. Now such points are mapped into the unit cube, and are only accepted if the mapped location is not already covered by the bound, which keeps the sampling uniform (found by Opus, fixed by Opus and @segasai)
 
 [3.1.0 - 2026-07-17]
 ### Added

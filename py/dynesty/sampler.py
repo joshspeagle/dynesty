@@ -136,7 +136,8 @@ def _initialize_live_points(live_points,
         live_u = np.zeros((nlive, ndim))
         live_v = np.zeros((nlive, ndim))
         live_logl = np.zeros(nlive)
-        ngoods = 0  # counter for how many finite logl we have found
+        ngoods = 0  # counter for how many finite logl we have kept
+        ngoods_total = 0  # counter for how many finite logl we have found
         live_blobs = []
         iattempt = 0
         while True:
@@ -179,6 +180,7 @@ def _initialize_live_points(live_points,
 
             # how many finite logl values we have
             cur_ngood = finite.sum()
+            ngoods_total += cur_ngood
             if cur_ngood > 0:
                 # append them to our list
                 nextra = min(nlive - ngoods, cur_ngood)
@@ -206,16 +208,19 @@ def _initialize_live_points(live_points,
                     live_v[ngoods:ngoods + nextra] = cur_live_v[cur_ind]
                     if blob:
                         live_blobs.extend(cur_live_blobs[cur_ind])
-                logvol_init = -np.log(iattempt)
+                logvol_init = np.log(ngoods_total / (iattempt * ngoods))
                 # The logic is the following:
                 # if we have n live points and we sampled N attempts
-                # and we have k points above LOWL_VAL
+                # and we found K points above LOWL_VAL in total
                 # then the volume associated with pts above LOWL_VAL
-                # can be estimated as k/(Nn)
-                # the rest of the points have 1/Nn volume per pt
-                # Since we quit with k points above LOWL_VAL and
-                # (n-k)  LOWL points
-                # The volume is k/(Nn) + (n-k)/(Nn) = 1/N
+                # can be estimated as K/(Nn)
+                # We quit with k<=K points above LOWL_VAL (finite points
+                # of the last attempt that do not fit into n are dropped)
+                # and (n-k) LOWL points.
+                # The run treats the n live points as uniformly
+                # distributed in volume V, so the finite-logl volume
+                # is V k/n. Equating it to K/(Nn) gives V = K/(Nk),
+                # which is 1/N if no finite points were dropped
                 break
             if iattempt == n_attempts:
                 if ngoods == 0:

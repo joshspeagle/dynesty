@@ -10,6 +10,8 @@ import pytest
 from scipy.special import logsumexp
 import dynesty
 from dynesty import utils as dyfunc
+from dynesty.sampler import _initialize_live_points
+from dynesty.utils import LogLikelihood, _LOWL_VAL
 from utils import get_rstate, get_printing
 
 printing = get_printing()
@@ -140,3 +142,34 @@ def test_compute_integrals():
     lik = np.concatenate([[0], np.exp(logl)])
     expected = np.log(np.sum(0.5 * (lik[1:] + lik[:-1]) * (x[:-1] - x[1:])))
     assert np.abs(logz[-1] - expected) < 1e-6
+
+
+@pytest.mark.parametrize('frac', [0.79, 0.45])
+def test_initialize_live_points_volume(frac):
+    # The finite-likelihood volume implied by the initial live points,
+    # exp(logvol_init) * k / nlive (with k live points having finite
+    # logl), must be an unbiased estimate of the true finite fraction.
+    # With frac just below min_npoints/nlive = 0.8 the last attempt
+    # typically finds more finite points than fit into nlive, which
+    # previously biased the estimate by ~ -0.23 in log
+    nlive = 100
+    rstate = get_rstate()
+
+    def loglike(x):
+        return 0. if x[0] < frac else -np.inf
+
+    logl = LogLikelihood(loglike, 2)
+    est = []
+    for _ in range(500):
+        (_, _, live_logl, _), logvol_init, _ = _initialize_live_points(
+            None,
+            prior_transform,
+            logl,
+            map,
+            nlive=nlive,
+            ndim=2,
+            rstate=rstate)
+        k = (live_logl > _LOWL_VAL).sum()
+        est.append(logvol_init + np.log(k / nlive))
+    # the scatter of the mean is ~0.01
+    assert np.abs(np.mean(est) - np.log(frac)) < 0.07

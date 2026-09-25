@@ -3,7 +3,6 @@ import itertools
 import os
 import sys
 import time
-import warnings
 import multiprocessing as mp
 import dynesty
 import numpy as np
@@ -103,11 +102,56 @@ def fit_resume(fname, dynamic, prev_logz, pool=None, neff=NEFF0):
         kw = dict(n_effective=neff)
     else:
         kw = dict()
+    ncall0 = dns.ncall
     dns.run_nested(resume=True, print_progress=printing, **kw)
     # verify that the logz value is *identical*
     if prev_logz is not None:
         assert dns.results['logz'][-1] == prev_logz
-    return dns.results['blob']
+    # the second value tells whether any likelihood calls were made
+    # after resuming (the checkpoint could have been the final one)
+    return dns.results['blob'], dns.ncall > ncall0
+
+
+def run_interrupted(fname, dynamic, save_every, npool, dyn_pool, delay):
+    """
+    Run the fit in a separate process and kill it after delay seconds
+    since the start of the fit, but not before the first checkpoint
+    is written.
+    Returns True if the fit was interrupted and False if it finished
+    before we killed it.
+    """
+    ready_file = fname + '.ready'
+    try:
+        # Always use spawn context to match actual usage
+        fit_proc = mp.get_context('spawn').Process(
+            target=fit_main,
+            args=(fname, dynamic, save_every, npool, dyn_pool, NEFF0,
+                  ready_file))
+        start_time = time.time()
+        fit_proc.start()
+
+        # Wait for spawn process to be ready before starting timer
+        # as the process startup is not part of the cached timing
+        while not os.path.exists(ready_file):
+            time.sleep(0.01)
+            if time.time() - start_time > 5:  # Safety timeout
+                raise RuntimeError("Process failed to start")
+        fit_proc.join(delay)
+        # Make sure that we have something to resume from
+        while fit_proc.is_alive() and not os.path.exists(fname):
+            time.sleep(0.01)
+        if not fit_proc.is_alive():
+            assert fit_proc.exitcode == 0
+            return False
+        print('terminating', file=sys.stderr)
+        fit_proc.terminate()
+        fit_proc.join()
+        return True
+    finally:
+        try:
+            os.unlink(ready_file)
+        except:  # noqa
+            pass
 
 
 class cache:
@@ -170,53 +214,29 @@ def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
     save_every = min(save_every, curdt / 10)
     curdt *= delay_frac
 
-    # For spawn context, we need to account for startup time
-    ready_file = fname + '.ready'
-
     try:
-        # Always use spawn context to match actual usage
-        fit_proc = mp.get_context('spawn').Process(
-            target=fit_main,
-            args=(fname, dynamic, save_every, npool, dyn_pool, NEFF0,
-                  ready_file))
-        start_time = time.time()
-        fit_proc.start()
-
-        # Wait for spawn process to be ready before starting timer
-        while not os.path.exists(ready_file):
-            time.sleep(0.01)
-            if time.time() - start_time > 5:  # Safety timeout
-                raise RuntimeError("Process failed to start")
-        # Account for startup time in the timeout
-        startup_time = time.time() - start_time
-        actual_timeout = curdt + startup_time
-
-        fit_proc.join(actual_timeout)
-        # Proceed to terminate only if the process did not finish in time.
-        if fit_proc.is_alive():
-            print('terminating', file=sys.stderr)
-            fit_proc.terminate()
-            if np.allclose(delay_frac, .2) and not os.path.exists(fname):
-                warnings.warn(
-                    "The checkpoint file was not created I'm skipping the test"
-                )
-                return
-
-            with (NullContextManager() if npool is None else
-                  (dynesty.pool.Pool(npool, like, ptform) if dyn_pool else
-                   mp.get_context('spawn').Pool(npool))) as pool:
-                blob = fit_resume(fname, dynamic, curlogz, pool=pool)
-                if with_pool:
-                    # the expectation is we ran in 2 pids before
-                    # and 2 pids after
-                    nexpected = 4
-                else:
-                    nexpected = 2
-                assert (len(np.unique(blob)) in [1, nexpected])
-                # I allow 1 in order to allow cases where the
-                # sampling is done before interruption
+        if not run_interrupted(fname, dynamic, save_every, npool, dyn_pool,
+                               curdt):
+            # the fit finished before we could interrupt it
+            return
+        with (NullContextManager() if npool is None else
+              (dynesty.pool.Pool(npool, like, ptform) if dyn_pool else
+               mp.get_context('spawn').Pool(npool))) as pool:
+            blob, resumed = fit_resume(fname, dynamic, curlogz, pool=pool)
+        nproc = 1 if npool is None else npool
+        npids = len(np.unique(blob))
+        if npool is not None:
+            # with the pool nothing should be evaluated in this process,
+            # so any extra pids after resuming must be the new pool workers
+            assert os.getpid() not in blob
+        if resumed:
+            # we ran in nproc pids before and in new pids after
+            # (not necessarily all workers of the pool get used)
+            assert nproc < npids <= 2 * nproc
         else:
-            assert fit_proc.exitcode == 0
+            # the interruption happened after the final checkpoint
+            # so there was nothing left to sample
+            assert npids <= nproc
     finally:
         try:
             os.unlink(fname)
@@ -224,10 +244,6 @@ def test_resume(dynamic, delay_frac, with_pool, dyn_pool):
             pass
         try:
             os.unlink(fname + '.tmp')
-        except:  # noqa
-            pass
-        try:
-            os.unlink(ready_file)
         except:  # noqa
             pass
 
@@ -253,41 +269,13 @@ def test_resume_queue_size(delay_frac):
     save_every = min(save_every, curdt / 10)
     curdt *= delay_frac
 
-    # For spawn context, we need to account for startup time
-    ready_file = fname + '.ready'
-
     try:
-        # Always use spawn context to match actual usage
-        fit_proc = mp.get_context('spawn').Process(
-            target=fit_main,
-            args=(fname, False, save_every, npool, False, NEFF0, ready_file))
-        start_time = time.time()
-        fit_proc.start()
-
-        # Wait for spawn process to be ready before starting timer
-        while not os.path.exists(ready_file):
-            time.sleep(0.01)
-            if time.time() - start_time > 5:  # Safety timeout
-                raise RuntimeError("Process failed to start")
-        # Account for startup time in the timeout
-        startup_time = time.time() - start_time
-        actual_timeout = curdt + startup_time
-
-        fit_proc.join(actual_timeout)
-        # Proceed to terminate only if the process did not finish in time.
-        if fit_proc.is_alive():
-            print('terminating', file=sys.stderr)
-            fit_proc.terminate()
-            if np.allclose(delay_frac, .2) and not os.path.exists(fname):
-                warnings.warn(
-                    "The checkpoint file was not created I'm skipping the test"
-                )
-                return
-
-            with mp.get_context('spawn').Pool(npool + 1) as pool:
-                fit_resume(fname, False, curlogz, pool=pool)
-        else:
-            assert fit_proc.exitcode == 0
+        if not run_interrupted(fname, False, save_every, npool, False,
+                               curdt):
+            # the fit finished before we could interrupt it
+            return
+        with mp.get_context('spawn').Pool(npool + 1) as pool:
+            fit_resume(fname, False, curlogz, pool=pool)
     finally:
         try:
             os.unlink(fname)
@@ -295,10 +283,6 @@ def test_resume_queue_size(delay_frac):
             pass
         try:
             os.unlink(fname + '.tmp')
-        except:  # noqa
-            pass
-        try:
-            os.unlink(ready_file)
         except:  # noqa
             pass
 

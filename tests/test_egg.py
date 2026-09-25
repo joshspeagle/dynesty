@@ -28,8 +28,9 @@ LOGZ_TRUTH = 235.856
 
 @pytest.mark.parametrize(
     "bound,sample",
-    itertools.product(['multi', 'balls', 'cubes'],
-                      ['unif', 'rwalk', 'slice', 'rslice']))
+    list(
+        itertools.product(['multi', 'balls', 'cubes'],
+                          ['unif', 'rwalk', 'slice', 'rslice'])))
 def test_bounds(bound, sample):
     # stress test various boundaries
     ndim = 2

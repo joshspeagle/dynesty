@@ -8,6 +8,7 @@ Functions for proposing new live points used by
 """
 
 from collections import namedtuple
+import itertools
 import warnings
 import numpy as np
 from numpy import linalg
@@ -203,6 +204,65 @@ class InternalSampler:
         return []
 
 
+def _wrap_nonbounded(u, bound, periodic, reflective):
+    """
+    Map the point u sampled from the bound (that can be within -0.5..1.5
+    in periodic/reflective dimensions) into the unit cube.
+
+    Each mapped coordinate has exactly two preimages within -0.5..1.5
+    (y and y+/-1 for periodic, y and -y or 2-y for reflective dimensions).
+    Therefore the mapped point y has 2^m preimages (m is the number of
+    periodic/reflective dimensions), and its sampling density is
+    proportional to the number of those inside the bound.
+    To keep the sampling uniform we only accept u if it is the first
+    of the preimages of y inside the bound, where the preimages are
+    ordered such that the one inside the cube is first.
+    Therefore the points inside the cube are always accepted.
+
+    Parameters
+    ----------
+    u: ndarray
+        Point sampled from the bound
+    bound: Bound
+        Bound object
+    periodic: ndarray
+        Indices of periodic dimensions
+    reflective: ndarray
+        Indices of reflective dimensions
+
+    Returns
+    -------
+    y: ndarray
+        The point mapped into the unit cube
+    accept: bool
+        Whether u is the first preimage of y inside the bound
+    """
+    idx = np.concatenate([periodic, reflective])
+    # which of the two preimages is u itself in each dimension
+    own = (u[idx] < 0) | (u[idx] > 1)
+    if not own.any():
+        return u, True
+    y = u.copy()
+    y[periodic] = np.mod(u[periodic], 1)
+    y[reflective] = apply_reflect(u[reflective])
+    # the other preimage in each dimension
+    alt = y.copy()
+    alt[periodic] = np.where(y[periodic] < 0.5, y[periodic] + 1,
+                             y[periodic] - 1)
+    alt[reflective] = np.where(y[reflective] < 0.5, -y[reflective],
+                               2 - y[reflective])
+    for sel in itertools.product([False, True], repeat=len(idx)):
+        sel = np.array(sel)
+        if np.all(sel == own):
+            # we reached u itself
+            break
+        img = y.copy()
+        img[idx[sel]] = alt[idx[sel]]
+        if bound.contains(img):
+            return y, False
+    return y, True
+
+
 class UniformBoundSampler(InternalSampler):
     """
     Uniformly sample within a bounding proposal distribution.
@@ -301,17 +361,31 @@ class UniformBoundSampler(InternalSampler):
         nonbounded = args.kwargs.get('nonbounded')
         n_cluster = args.kwargs.get('n_cluster')
         ndim = args.kwargs['ndim']
+        # only the clustered periodic/reflective dimensions
+        # can be outside the cube
+        periodic, reflective = [
+            np.array([_ for _ in (args.kwargs.get(k) or []) if _ < n_cluster],
+                     dtype=int) for k in ['periodic', 'reflective']
+        ]
+        if len(periodic) + len(reflective) == 0:
+            nonbounded = None
+        else:
+            nonbounded = nonbounded[:n_cluster]
         nc = 0
         tuning_info = None
-        if nonbounded is not None:
-            nonbounded = nonbounded[:n_cluster]
         ntries = 0
         threshold_warning = 10000
         threshold_warned = False
         evaluation_history = []
         while True:
             u = bound.samples(1, rstate=rstate).flatten()
-            if not unitcheck(u, nonbounded):
+            accept = unitcheck(u, nonbounded)
+            if accept and nonbounded is not None:
+                # Map the point into the cube. Since the mapped point
+                # can be reached from several points of the bound
+                # we only accept one of them to keep the sampling uniform
+                u, accept = _wrap_nonbounded(u, bound, periodic, reflective)
+            if not accept:
                 ntries += 1
                 if ntries > threshold_warning and not threshold_warned:
                     warnings.warn(

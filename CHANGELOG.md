@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Changed
 ### Fixed
 - Fix the evidence computations for runs where the likelihood is equal to -inf over part of the prior. Previously the initial prior volume estimated during live-point initialization was discarded by the final integral recomputation in the static run_nested(), by jitter_run()/resample_run()/unravel_run() and by merge_runs(), leading to systematically overestimated logz (by up to the log of the inverse finite-likelihood prior fraction) and invalid uncertainties. Now the initial volume is stored in the results (see logvol_init above), used consistently by all evidence reconstructions, and properly combined when merging runs or full-prior batches (fixed by @segasai)
+- Fix the bias in the initial prior volume estimate when the likelihood is -inf over part of the prior. When the last round of initial prior draws produced more finite-likelihood points than could be kept, the dropped points were not accounted for, underestimating logz (by ~0.3 if the finite fraction is just below 0.8) (found by Opus, fixed  by Opus and  @segasai)
 
 [3.1.0 - 2026-07-17]
 ### Added

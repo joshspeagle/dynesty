@@ -63,10 +63,10 @@ def test_error():
                                      rstate=rstate)
 
 
-def test_error2():
-    # check you cant combine periodic/reflective for one var
+def test_reflective_ignored():
+    # reflective option is not supported anymore, it should warn
     rstate = get_rstate()
-    with pytest.raises(ValueError):
+    with pytest.warns(UserWarning, match='Reflective'):
         dynesty.DynamicNestedSampler(loglike,
                                      prior_transform,
                                      ndim,

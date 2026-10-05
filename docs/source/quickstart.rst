@@ -426,17 +426,19 @@ either defined everywhere (i.e. from negative infinity to infinity)
 or over a finite range (e.g., from :math:`10` to :math:`25`).
 
 Specific problems, however, may have parameters that behave differently.
-In particular, ``dynesty`` supports both **reflective** and **periodic**
-boundary conditions. The former can arise when parameters are ratios (where
-:math:`1/2` and :math:`2/1` may be equivalent) or angles (since 90 degrees and
-450 degrees are often equivalent). Imposing these specific boundary conditions
-on relevant parameters can help improve the overall sampling efficiency,
-especially when solutions end up near the bounds (e.g., at :math:`0` or
-:math:`2\pi` for phases). These can be enabled by just
+In particular, ``dynesty`` supports **periodic** boundary conditions, which
+arise for angles (since 90 degrees and 450 degrees are often equivalent).
+Imposing these boundary conditions on relevant parameters can help improve the
+overall sampling efficiency, especially when solutions end up near the bounds
+(e.g., at :math:`0` or :math:`2\pi` for phases). These can be enabled by just
 specifying the indices of the relevant parameters, as shown below::
 
-    NestedSampler(loglike, ptform, ndim, nlive=1000, bound='cubes',
-                  periodic=[0, 2], reflective=[1, 5])
+    NestedSampler(loglike, ptform, ndim, nlive=1000, periodic=[0, 2])
+
+Previous versions of ``dynesty`` also supported **reflective** boundary
+conditions. They were removed, because they do not preserve detailed balance
+of the random walk. The ``reflective`` argument is still accepted, but it is
+ignored (with a warning).
 
 Parallelization
 ---------------

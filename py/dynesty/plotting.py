@@ -1535,11 +1535,7 @@ def boundplot(results,
         boundary conditions).
 
     reflective : iterable, optional
-        A list of indices for parameters with reflective boundary conditions.
-        These parameters *will not* have their positions constrained to be
-        within the unit cube, enabling smooth behavior for parameters
-        that may reflect at the edge. Default is `None` (i.e. no reflective
-        boundary conditions).
+        Deprecated and ignored (emits a warning).
 
     ndraws : int, optional
         The number of random samples to draw from the bounding distribution
@@ -1853,11 +1849,7 @@ def cornerbound(results,
         boundary conditions).
 
     reflective : iterable, optional
-        A list of indices for parameters with reflective boundary conditions.
-        These parameters *will not* have their positions constrained to be
-        within the unit cube, enabling smooth behavior for parameters
-        that may reflect at the edge. Default is `None` (i.e. no reflective
-        boundary conditions).
+        Deprecated and ignored (emits a warning).
 
     ndraws : int, optional
         The number of random samples to draw from the bounding distribution

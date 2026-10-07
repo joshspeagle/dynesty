@@ -139,7 +139,6 @@ def _get_internal_sampler(sampling, ndim, ncdim, periodic, reflective, walks,
                       ndim=ndim,
                       nonbounded=nonbounded,
                       periodic=periodic,
-                      reflective=reflective,
                       facc=facc)
     if sampling == 'rslice':
         sampler_kw['slices'] = slices or default_steps['rslice']
@@ -302,12 +301,8 @@ optional
             boundary conditions).
 
         reflective : iterable, optional
-            A list of indices for parameters with reflective boundary
-            conditions.
-            These parameters *will not* have their positions constrained to be
-            within the unit cube, enabling smooth behavior for parameters
-            that may reflect at the edge. Default is `None` (i.e. no reflective
-            boundary conditions).
+            Deprecated and ignored (emits a warning), as reflective boundary
+            conditions do not preserve detailed balance.
 
         update_interval : int or float, optional
             If an integer is passed, only update the proposal distribution

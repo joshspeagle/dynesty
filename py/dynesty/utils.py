@@ -975,29 +975,24 @@ def _combine_logvol_inits(logvol_inits, nlives):
     return np.log(nlives.sum()) - logsumexp(np.log(nlives) - logvol_inits)
 
 
-def get_nonbounded(ndim, periodic, reflective):
+def get_nonbounded(ndim, periodic, reflective=None):
     """
-    Return a boolean mask for dimensions that are either
-    periodic or reflective. It will be true for normal dimension
-    and false for periodic/reflective
+    Return a boolean mask for dimensions that are periodic.
+    It will be true for normal dimension and false for periodic.
+    The reflective option is no longer supported and is ignored.
     """
-    if periodic is not None and reflective is not None:
-        if np.intersect1d(periodic, reflective).size > 0:
-            raise ValueError("You have specified a parameter as both "
-                             "periodic and reflective.")
+    if reflective is not None:
+        warnings.warn(
+            'Reflective boundary conditions are no longer supported, '
+            'because they do not preserve detailed balance. '
+            'The reflective option is ignored.')
 
-    if periodic is not None or reflective is not None:
+    if periodic is not None:
         nonbounded = np.ones(ndim, dtype=bool)
-        if periodic is not None:
-            if np.max(periodic) >= ndim:
-                raise ValueError(
-                    'Incorrect periodic variable index (larger than ndim')
-            nonbounded[periodic] = False
-        if reflective is not None:
-            if np.max(reflective) >= ndim:
-                raise ValueError(
-                    'Incorrect periodic variable index (larger than ndim')
-            nonbounded[reflective] = False
+        if np.max(periodic) >= ndim:
+            raise ValueError(
+                'Incorrect periodic variable index (larger than ndim')
+        nonbounded[periodic] = False
     else:
         nonbounded = None
 
@@ -1076,34 +1071,6 @@ def unitcheck(u, nonbounded=None):
         ub = u[~nonbounded]
         return (unb.min() > 0 and unb.max() < 1 and ub.min() > -0.5
                 and ub.max() < 1.5)
-
-
-def apply_reflect(u):
-    """
-    Iteratively reflect a number until it is contained in [0, 1].
-
-    This is for priors with a reflective boundary condition, all numbers in the
-    set `u = 2n +/- x` should be mapped to x.
-
-    For the `+` case we just take `u % 1`.
-    For the `-` case we take `1 - (u % 1)`.
-
-    E.g., -0.9, 1.1, and 2.9 should all map to 0.9.
-
-    Parameters
-    ----------
-    u: array-like
-        The array of points to map to the unit cube
-
-    Returns
-    -------
-    u: array-like
-       The input array, modified in place.
-    """
-    idxs_even = np.mod(u, 2) < 1
-    u[idxs_even] = np.mod(u[idxs_even], 1)
-    u[~idxs_even] = 1 - np.mod(u[~idxs_even], 1)
-    return u
 
 
 def mean_and_cov(samples, weights):

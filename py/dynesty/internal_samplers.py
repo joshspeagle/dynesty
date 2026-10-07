@@ -12,8 +12,7 @@ import warnings
 import numpy as np
 from numpy import linalg
 import math
-from .utils import (unitcheck, apply_reflect, get_random_generator,
-                    SamplerHistoryItem)
+from .utils import unitcheck, get_random_generator, SamplerHistoryItem
 from .bounding import randsphere
 
 __all__ = [
@@ -71,9 +70,6 @@ class InternalSampler:
         periodic : array
             Array of boolean values indicating which dimensions are
             periodic.
-        reflective : array
-            Array of boolean values indicating which dimensions are
-            reflective.
         ndim: int
             Number of dimensions.
         """
@@ -81,7 +77,7 @@ class InternalSampler:
         self.input_kwargs = kwargs
         self.sampler_kwargs = dict()
         self.ndim = kwargs.get('ndim')
-        for k in ['nonbounded', 'periodic', 'reflective']:
+        for k in ['nonbounded', 'periodic']:
             self.sampler_kwargs[k] = kwargs.get(k)
 
     @property
@@ -918,7 +914,6 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
     # Periodicity.
     nonbounded = kwargs.get('nonbounded')
     periodic = kwargs.get('periodic')
-    reflective = kwargs.get('reflective')
 
     # Setup.
     n = len(u)
@@ -946,7 +941,6 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
                                           n_cluster,
                                           rstate=rstate,
                                           periodic=periodic,
-                                          reflective=reflective,
                                           nonbounded=nonbounded)
         if fail:
             n_reject += 1
@@ -993,7 +987,6 @@ def propose_ball_point(u,
                        n_cluster,
                        rstate=None,
                        periodic=None,
-                       reflective=None,
                        nonbounded=None):
     """
     Here we are proposing points uniformly within an n-d ellipsoid.
@@ -1023,10 +1016,6 @@ def propose_ball_point(u,
     # Wrap periodic parameters
     if periodic is not None:
         u_prop[periodic] = np.mod(u_prop[periodic], 1)
-
-    # Reflect
-    if reflective is not None:
-        u_prop[reflective] = apply_reflect(u_prop[reflective])
 
     # Check unit cube constraints.
     if unitcheck(u_prop, nonbounded):

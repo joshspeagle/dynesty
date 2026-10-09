@@ -387,6 +387,51 @@ def test_update_interval(dyn):
     assert (bigres[1] == bigres[2])
 
 
+@pytest.mark.parametrize('bound', ['multi', 'single', 'balls'])
+def test_saved_bounds_distinct(bound):
+    # the saved bounds must be snapshots of the bound at each update,
+    # not references to the one live bound object (which is mutated in
+    # place), otherwise every saved bound describes the final state
+    ndim = 2
+    rstate = get_rstate()
+    sampler = dynesty.NestedSampler(loglike,
+                                    prior_transform,
+                                    ndim,
+                                    nlive=nlive,
+                                    bound=bound,
+                                    rstate=rstate)
+    sampler.run_nested(print_progress=printing)
+    res = sampler.results
+    bounds = res['bound']
+    assert len(bounds) == sampler.nbound
+    assert len(bounds) > 3
+    assert len(set(map(id, sampler.bound_list))) == len(bounds)
+    logvols = np.array([b.logvol for b in bounds[1:]])
+    # each saved bound is a different snapshot and the bounds shrink
+    # over the run (not strictly monotonically because of bootstrapping)
+    assert len(np.unique(logvols)) == len(logvols)
+    assert logvols[-1] < logvols[0] - 1
+
+    # rewind the live points to a mid-run iteration (as boundplot does)
+    # and check they lie inside the bound recorded for that iteration
+    nlive_ = res['nlive']
+    niter = res['niter']
+    assert len(res['samples']) - niter == nlive_
+    samples = res['samples_u']
+    samples_id = res['samples_id']
+    live_u = np.empty((nlive_, ndim))
+    live_u[samples_id[-nlive_:]] = samples[-nlive_:]
+    # pick an iteration that used the first (largest) non-unit-cube bound
+    bound_iter = res['bound_iter']
+    it = int(np.nonzero(bound_iter == 1)[0].mean())
+    for i in range(1, niter - it + 1):
+        r = -(nlive_ + i)
+        live_u[samples_id[r]] = samples[r]
+    bnd = bounds[bound_iter[it]]
+    inside = np.array([bnd.contains(u) for u in live_u])
+    assert inside.mean() > 0.9
+
+
 def prior_transform_large_logl(u):
     scale = 10
     v = scale * (2 * u - 1)

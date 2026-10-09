@@ -19,13 +19,14 @@ from .utils import (get_seed_sequence, get_print_func, progress_integration,
                     get_random_generator)
 
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
+                       PeriodicBound,
                        SupFriends, Bound, BOUND_LIST)
 from .utils import (save_sampler, restore_sampler)
 
 __all__ = ["Sampler"]
 
 
-def _get_bound(bounding, ndim):
+def _get_bound(bounding, ndim, periodic=None):
     if isinstance(bounding, str):
         if bounding not in BOUND_LIST:
             raise ValueError('Unsupported bounding type')
@@ -50,6 +51,8 @@ def _get_bound(bounding, ndim):
         bound = SupFriends(ndim)
     else:
         bound = bounding
+    if periodic is not None and not isinstance(bound, UnitCube):
+        bound = PeriodicBound(bound, periodic)
     return bound
 
 
@@ -434,7 +437,8 @@ class Sampler:
         self.bound_enlarge = bound_enlarge
 
         self.bounding = bounding
-        self.bound_next = _get_bound(bounding, ndim)
+        self.bound_next = _get_bound(
+            bounding, ndim, periodic=sampling.sampler_kwargs.get('periodic'))
         # the reason I do not set it as self.bound
         # because we start from unit cube
 

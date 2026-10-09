@@ -115,11 +115,128 @@ class Bound:
     def get_random_axes(self, rstate):
         pass
 
-    def scale_to_logvol(self, rstate):
+    def scale_to_logvol(self, logvol):
         pass
 
     def update(self, points, rstate=None, bootstrap=0, pool=None):
         pass
+
+
+class PeriodicBound(Bound):
+    """
+    A wrapper around a bound for problems with periodic dimensions.
+
+    The wrapped bound is constructed, queried and sampled in a shifted
+    frame ``(x - shift) % 1`` of the periodic coordinates, where the
+    periodic boundary is placed in the largest gap between the points
+    used for the last update. A cluster of points straddling the
+    periodic boundary is therefore contiguous in that frame and is
+    bounded as a single cluster. Points returned by `sample` have their
+    periodic coordinates mapped back into [0, 1); non-periodic
+    coordinates are returned as they are, i.e. possibly outside the
+    unit cube. Attributes of the wrapped bound are accessible through
+    the wrapper.
+
+    Parameters
+    ----------
+    bound : `Bound`
+        The bound to wrap.
+
+    periodic : iterable
+        Indices of the periodic dimensions.
+    """
+
+    def __init__(self, bound, periodic):
+        # pylint: disable=super-init-not-called
+        # logvol and need_centers are delegated to the wrapped bound
+        self.bound = bound
+        self.ndim = bound.ndim
+        self.periodic = np.array([i for i in periodic if i < bound.ndim],
+                                 dtype=int)
+        self.shift = np.zeros(bound.ndim)
+
+    def __getattr__(self, name):
+        if name == 'bound':
+            # not yet set (e.g. during unpickling)
+            raise AttributeError(name)
+        return getattr(self.bound, name)
+
+    @property
+    def logvol(self):
+        """Log volume of the wrapped bound."""
+        return self.bound.logvol
+
+    @property
+    def need_centers(self):
+        """Whether the wrapped bound needs the centers to be set."""
+        return self.bound.need_centers
+
+    @property
+    def ctrs(self):
+        """Centers of the wrapped bound, in unit cube coordinates."""
+        return self._from_frame(self.bound.ctrs)
+
+    @ctrs.setter
+    def ctrs(self, value):
+        self.bound.ctrs = self._to_frame(value)
+
+    def _to_frame(self, x):
+        """Map points from the unit cube to the frame of the bound."""
+        x = np.array(x, dtype=float)
+        x[..., self.periodic] = np.mod(
+            x[..., self.periodic] - self.shift[self.periodic], 1)
+        return x
+
+    def _from_frame(self, x):
+        """Map points from the frame of the bound back to the unit cube."""
+        x = np.array(x, dtype=float)
+        x[..., self.periodic] = np.mod(
+            x[..., self.periodic] + self.shift[self.periodic], 1)
+        return x
+
+    def contains(self, x):
+        """Checks if the bound contains the point `x`."""
+        return self.bound.contains(self._to_frame(x))
+
+    def sample(self, rstate=None):
+        """
+        Draw a sample uniformly distributed within the bound, with the
+        periodic coordinates within [0, 1).
+        """
+        while True:
+            x = self.bound.samples(1, rstate=rstate)[0]
+            xp = x[self.periodic]
+            if np.all((xp > 0) & (xp < 1)):
+                return self._from_frame(x)
+
+    def samples(self, nsamples, rstate=None):
+        """Draw `nsamples` samples uniformly distributed within the bound."""
+        return np.array([self.sample(rstate=rstate) for i in range(nsamples)])
+
+    def get_random_axes(self, rstate):
+        """Return the axes used to propose new points."""
+        return self.bound.get_random_axes(rstate)
+
+    def scale_to_logvol(self, logvol):
+        """Scale the wrapped bound to a target volume."""
+        self.bound.scale_to_logvol(logvol)
+
+    def update(self, points, rstate=None, bootstrap=0, pool=None, **kwargs):
+        """
+        Update the wrapped bound. The shift is chosen so that the periodic
+        boundary falls into the largest gap between the points.
+        """
+        points = np.asarray(points)
+        for i in self.periodic:
+            xs = np.sort(points[:, i])
+            gaps = np.diff(np.concatenate([xs, [xs[0] + 1]]))
+            j = np.argmax(gaps)
+            self.shift[i] = np.mod(xs[j] + gaps[j] / 2, 1)
+        self.bound.update(self._to_frame(points),
+                          rstate=rstate,
+                          bootstrap=bootstrap,
+                          pool=pool,
+                          **kwargs)
 
 
 class UnitCube(Bound):

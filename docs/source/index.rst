@@ -99,6 +99,22 @@ Changelog
 .. image:: ../images/logo.gif
     :align: center
 
+Unreleased
+----------
+
+- Fixed the uniform sampler with periodic boundary conditions. Previously the
+  overlap between the periodic images of the bounding ellipsoids (or balls,
+  cubes) was not accounted for, which made the proposals non-uniform near the
+  periodic boundary, and unwrapped coordinates were passed to the prior
+  transform. The bounding distributions are now constructed in a shifted
+  frame where the periodic boundary is placed in the largest gap between the
+  live points, so that a mode straddling the boundary is bounded by a single
+  ellipsoid. This also provides better proposal axes for the random walk and
+  slice samplers in that situation.
+- The slice samplers now use the periodic boundary conditions: the slices
+  can cross the periodic boundary. Previously the periodic option was
+  ignored by them and the slices were confined to the unit cube.
+
 3.1.0 (2026-07-17)
 ------------------
 Small feature release

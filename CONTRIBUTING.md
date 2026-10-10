@@ -9,5 +9,5 @@ Here are few guidelines to take into account.
 
 * In general we expect all the newly added code should have a test associated with it. And we aim to not decrease the testing code coverage fraction (which currently stands at around 91%). To see how the testing is done see [TESTING.md](TESTING.md).
 
-* LLM Policy. You are allowed to submit the PRs produced with the help of the LLM, but you MUST declare the LLM use, you should describe what was the LLM, what did you ask, and what steps did you undertake to review/verify the changes.
+* LLM Policy. You are allowed to submit the PRs produced with the help of the LLM, but you MUST declare the LLM use, you should describe what was the LLM, what did you ask, and what steps did you undertake to review/verify the changes. Also, if the LLM outputs concern multiple unrelated issues, please submit a PR for each separately
 

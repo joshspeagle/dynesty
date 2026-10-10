@@ -673,9 +673,9 @@ class Sampler:
                 self.internal_sampler = self.internal_sampler_next
                 # self.bound_next = None
                 # self.internal_sampler_next = None
-            self.update_bound(subset=subset)
+            bound_copy = self.update_bound(subset=subset)
             if self.save_bounds:
-                self.bound_list.append(self.bound)
+                self.bound_list.append(bound_copy)
             self.nbound += 1
             self.ncall_at_last_update = ncall
 

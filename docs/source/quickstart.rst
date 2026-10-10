@@ -845,12 +845,17 @@ included in `Results` are listed below:
 If the bounding distributions are also saved (the default behavior), then the
 following quantities are also provided:
 
-* `bound`: a (deep) copy of the set of bounding objects,
+* `bound`: a (deep) copy of the set of bounding objects (index 0 is the unit
+  cube, followed by one entry per bound update; for dynamic runs the bounds of
+  the base run are followed by those of each batch in order, each batch
+  starting with its own unit cube entry),
 
-* `bound_iter`: the index of the bounding object active at a given iteration,
+* `bound_iter`: the index into `bound` of the bounding object active at the
+  iteration when the sample was *removed from the live set*,
 
-* `samples_bound`: the index of the bounding object the sample was *originally
-  proposed from*, and
+* `samples_bound`: the index into `bound` of the bounding object the sample
+  was *originally proposed from* (this lags `bound_iter` because a live point
+  can survive several bound updates before it is removed), and
 
 * `scale`: the scale-factor used at a given iteration (used to scale the bounds
   for non-uniform proposals).

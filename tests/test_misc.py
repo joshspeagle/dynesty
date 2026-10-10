@@ -432,6 +432,82 @@ def test_saved_bounds_distinct(bound):
     assert inside.mean() > 0.9
 
 
+def test_saved_bounds_dynamic():
+    # bounds from the base run and from every batch must all be kept
+    # and the bound indices of the samples must point into that
+    # combined list
+    ndim = 2
+    rstate = get_rstate()
+    sampler = dynesty.DynamicNestedSampler(loglike,
+                                           prior_transform,
+                                           ndim,
+                                           nlive=nlive,
+                                           rstate=rstate)
+    sampler.run_nested(print_progress=printing, maxbatch=0)
+    base_logvols = [b.logvol for b in sampler.results['bound']]
+    nbase = len(base_logvols)
+    assert nbase > 3
+
+    # batch 1 starts above the likelihood at which the base run switched
+    # from the unit cube to a proper bound, so its points are drawn from
+    # a bound built from the base run; batch 2 starts from the prior
+    logl = sampler.results['logl']
+    logl_first = sampler.sampler.logl_first_update
+    lmin = max(np.percentile(logl, 60), np.nextafter(logl_first, np.inf))
+    offsets = []
+    for lb in [(lmin, np.percentile(logl, 95)), (-np.inf, np.median(logl))]:
+        offsets.append(len(sampler.bound_list))
+        sampler.add_batch(nlive=nlive,
+                          mode='manual',
+                          logl_bounds=lb,
+                          print_progress=printing)
+    offsets.append(len(sampler.bound_list))
+    res = sampler.results
+    bounds = res['bound']
+    bound_iter = res['bound_iter']
+    samples_bound = res['samples_bound']
+    batch = res['samples_batch']
+
+    # the base run bounds are untouched by the batches
+    assert offsets[0] == nbase
+    assert [b.logvol for b in bounds[:nbase]] == base_logvols
+    assert len(bounds) == offsets[-1]
+    assert len(bounds) > nbase + 2
+
+    # every index is valid and points into the bounds of its own batch
+    for arr in [bound_iter, samples_bound]:
+        assert np.all((arr >= 0) & (arr < len(bounds)))
+        assert np.all(arr[batch == 0] < nbase)
+        for i in range(2):
+            sel = batch == i + 1
+            assert sel.sum() > 0
+            assert np.all((arr[sel] >= offsets[i]) & (arr[sel] < offsets[i + 1]))
+    # batch 1 never sampled from the unit cube (its initial live points
+    # included), batch 2 started from it
+    assert np.all(samples_bound[batch == 1] > offsets[0])
+    assert np.all(bound_iter[batch == 1] > offsets[0])
+    assert np.any(samples_bound[batch == 2] == offsets[1])
+
+    # rewind the live points of batch 1 to one of its iterations
+    # (as boundplot does) and check they are inside the recorded bound
+    bsel = batch == 1
+    nbatch = res['batch_nlive'][1]
+    niter_eff = bsel.sum() - nbatch
+    samples = res['samples_u'][bsel]
+    samples_id = res['samples_id'][bsel]
+    samples_id = samples_id - samples_id.min()
+    live_u = np.empty((nbatch, ndim))
+    live_u[samples_id[-nbatch:]] = samples[-nbatch:]
+    it = int(np.nonzero(bsel)[0][niter_eff // 2])
+    it_eff = bsel[:it + 1].sum()
+    for i in range(1, niter_eff - it_eff + 1):
+        r = -(nbatch + i)
+        live_u[samples_id[r]] = samples[r]
+    bnd = bounds[bound_iter[it]]
+    inside = np.array([bnd.contains(u) for u in live_u])
+    assert inside.mean() > 0.9
+
+
 def prior_transform_large_logl(u):
     scale = 10
     v = scale * (2 * u - 1)

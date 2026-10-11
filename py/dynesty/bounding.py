@@ -115,11 +115,115 @@ class Bound:
     def get_random_axes(self, rstate):
         pass
 
-    def scale_to_logvol(self, rstate):
+    def scale_to_logvol(self, logvol):
         pass
 
     def update(self, points, rstate=None, bootstrap=0, pool=None):
         pass
+
+
+class PeriodicBound(Bound):
+    """
+    A bound for problems with periodic dimensions.
+
+    The wrapped bound (attribute `bound`) is constructed from the points
+    unwrapped onto the window ``[lo, lo + 1)`` along each periodic
+    dimension, where ``lo`` (attribute `lo`) is placed in the middle of
+    the largest gap between the points used for the last update. A
+    cluster of points straddling the periodic boundary is therefore
+    contiguous and is bounded as a single cluster. The window maps
+    one-to-one onto [0, 1), so samples are restricted to the window
+    and returned modulo 1, which keeps them uniformly distributed.
+    Non-periodic coordinates of the samples are returned as they are,
+    i.e. possibly outside the unit cube.
+
+    Only the `Bound` interface is exposed. Other attributes of the
+    wrapped bound (e.g. the ellipsoids) are in the unwrapped
+    coordinates and need to be accessed through `bound` explicitly.
+
+    Parameters
+    ----------
+    bound : `Bound`
+        The bound to wrap.
+
+    periodic : iterable
+        Indices of the periodic dimensions.
+    """
+
+    def __init__(self, bound, periodic):
+        # pylint: disable=super-init-not-called
+        # logvol and need_centers are delegated to the wrapped bound
+        self.bound = bound
+        self.ndim = bound.ndim
+        self.periodic = np.array(periodic, dtype=int)
+        self.lo = np.zeros(len(self.periodic))
+
+    def _unwrap(self, x):
+        """Map the periodic coordinates onto the window [lo, lo + 1)."""
+        x = np.array(x, dtype=float)
+        x[..., self.periodic] = self.lo + np.mod(
+            x[..., self.periodic] - self.lo, 1)
+        return x
+
+    @property
+    def logvol(self):
+        """Log volume of the wrapped bound."""
+        return self.bound.logvol
+
+    @property
+    def need_centers(self):
+        """Whether the wrapped bound needs the centers to be set."""
+        return self.bound.need_centers
+
+    def _set_ctrs(self, ctrs):
+        self.bound.ctrs = self._unwrap(ctrs)
+
+    ctrs = property(fset=_set_ctrs,
+                    doc="Centers (unit cube coordinates) for the bounds "
+                    "that need them.")
+
+    def contains(self, x):
+        """Checks if the bound contains the point `x`."""
+        return self.bound.contains(self._unwrap(x))
+
+    def samples(self, nsamples, rstate=None):
+        """
+        Draw `nsamples` samples uniformly distributed within the bound,
+        with the periodic coordinates within [0, 1).
+        """
+        out = []
+        while len(out) < nsamples:
+            x = self.bound.samples(1, rstate=rstate)[0]
+            xp = x[self.periodic]
+            if np.all((xp > self.lo) & (xp < self.lo + 1)):
+                x[self.periodic] = np.mod(xp, 1)
+                out.append(x)
+        return np.array(out)
+
+    def get_random_axes(self, rstate):
+        """Return the axes used to propose new points."""
+        return self.bound.get_random_axes(rstate)
+
+    def scale_to_logvol(self, logvol):
+        """Scale the wrapped bound to a target volume."""
+        self.bound.scale_to_logvol(logvol)
+
+    def update(self, points, rstate=None, bootstrap=0, pool=None, **kwargs):
+        """
+        Update the wrapped bound. The edge of the window is placed in the
+        middle of the largest gap between the points.
+        """
+        points = np.asarray(points)
+        for k, i in enumerate(self.periodic):
+            xs = np.sort(points[:, i])
+            gaps = np.diff(np.append(xs, xs[0] + 1))
+            j = np.argmax(gaps)
+            self.lo[k] = np.mod(xs[j] + gaps[j] / 2, 1)
+        self.bound.update(self._unwrap(points),
+                          rstate=rstate,
+                          bootstrap=bootstrap,
+                          pool=pool,
+                          **kwargs)
 
 
 class UnitCube(Bound):

@@ -295,10 +295,12 @@ optional
 
         periodic : iterable, optional
             A list of indices for parameters with periodic boundary conditions.
-            These parameters *will not* have their positions constrained to be
-            within the unit cube, enabling smooth behavior for parameters
-            that may wrap around the edge. Default is `None` (i.e. no periodic
-            boundary conditions).
+            Proposals for these parameters wrap around the edges of the unit
+            cube, and the bounding distributions are constructed in a frame
+            where the edge is placed in the largest gap between the live
+            points, so that a mode straddling the edge is treated as a single
+            cluster. Default is `None` (i.e. no periodic boundary
+            conditions).
 
         reflective : iterable, optional
             Deprecated and ignored (emits a warning), as reflective boundary

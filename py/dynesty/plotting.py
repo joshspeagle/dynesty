@@ -1709,7 +1709,10 @@ def boundplot(results,
                 live_u[uidx] = samples[r]
     rstate = get_random_generator()
     # Draw samples from the bounding distribution.
-    if not isinstance(bound, (bounding.RadFriends, bounding.SupFriends)):
+    # the bound may be wrapped (e.g. by PeriodicBound)
+    inner_bound = getattr(bound, 'bound', bound)
+    if not isinstance(inner_bound,
+                      (bounding.RadFriends, bounding.SupFriends)):
         # If bound is "fixed", go ahead and draw samples from it.
         psamps = bound.samples(ndraws, rstate=rstate)
     else:
@@ -2030,7 +2033,10 @@ def cornerbound(results,
 
     rstate = get_random_generator()
     # Draw samples from the bounding distribution.
-    if not isinstance(bound, (bounding.RadFriends, bounding.SupFriends)):
+    # the bound may be wrapped (e.g. by PeriodicBound)
+    inner_bound = getattr(bound, 'bound', bound)
+    if not isinstance(inner_bound,
+                      (bounding.RadFriends, bounding.SupFriends)):
         # If bound is "fixed", go ahead and draw samples from it.
         psamps = bound.samples(ndraws, rstate=rstate)
     else:

@@ -174,3 +174,30 @@ def test_periodic_boundary_mode(sampler, bound):
     res = ns.results
     assert np.all((res['samples_u'] >= 0) & (res['samples_u'] < 1))
     assert (np.abs(res['logz'][-1] - logz_true) < thresh * res['logzerr'][-1])
+
+
+@pytest.mark.parametrize("sampler", ['unif', 'rwalk'])
+@pytest.mark.parametrize("periodic", [[0], [2], [0, 2]])
+def test_periodic_ncdim(sampler, periodic):
+    # periodic dimensions both within and beyond the clustered ones
+    rstate = get_rstate()
+    ndim_ = 3
+
+    def loglike(v):
+        return -0.5 * (wrapdist(v[0])**2 + (v[1] - 0.5)**2 +
+                       wrapdist(v[2])**2) / SIGMA_BOUNDARY**2
+
+    logz_true = ndim_ * np.log(SIGMA_BOUNDARY * np.sqrt(2 * np.pi) *
+                               erf(0.5 / np.sqrt(2) / SIGMA_BOUNDARY))
+    ns = dynesty.NestedSampler(loglike,
+                               prior_transform_unit,
+                               ndim_,
+                               ncdim=2,
+                               nlive=nlive,
+                               periodic=periodic,
+                               rstate=rstate,
+                               sample=sampler)
+    ns.run_nested(dlogz=0.1, print_progress=printing)
+    res = ns.results
+    assert np.all((res['samples_u'] >= 0) & (res['samples_u'] < 1))
+    assert (np.abs(res['logz'][-1] - logz_true) < 5 * res['logzerr'][-1])

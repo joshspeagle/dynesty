@@ -26,7 +26,7 @@ from .utils import (save_sampler, restore_sampler)
 __all__ = ["Sampler"]
 
 
-def _get_bound(bounding, ndim, periodic=None):
+def _get_bound(bounding, ndim, ncdim=None, periodic=None):
     if isinstance(bounding, str):
         if bounding not in BOUND_LIST:
             raise ValueError('Unsupported bounding type')
@@ -51,7 +51,12 @@ def _get_bound(bounding, ndim, periodic=None):
         bound = SupFriends(ndim)
     else:
         bound = bounding
-    if periodic is not None and not isinstance(bound, UnitCube):
+    # the bound only sees the first ncdim (clustered) dimensions;
+    # the remaining ones are sampled uniformly and need no wrapping
+    ncdim = ncdim or ndim
+    if periodic is not None:
+        periodic = [i for i in periodic if i < ncdim]
+    if periodic and not isinstance(bound, UnitCube):
         bound = PeriodicBound(bound, periodic)
     return bound
 
@@ -438,7 +443,10 @@ class Sampler:
 
         self.bounding = bounding
         self.bound_next = _get_bound(
-            bounding, ndim, periodic=sampling.sampler_kwargs.get('periodic'))
+            bounding,
+            ndim,
+            ncdim=self.ncdim,
+            periodic=sampling.sampler_kwargs.get('periodic'))
         # the reason I do not set it as self.bound
         # because we start from unit cube
 

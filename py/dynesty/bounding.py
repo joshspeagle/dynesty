@@ -151,8 +151,7 @@ class PeriodicBound(Bound):
         # logvol and need_centers are delegated to the wrapped bound
         self.bound = bound
         self.ndim = bound.ndim
-        self.periodic = np.array([i for i in periodic if i < bound.ndim],
-                                 dtype=int)
+        self.periodic = np.array(periodic, dtype=int)
         self.shift = np.zeros(bound.ndim)
 
     def __getattr__(self, name):

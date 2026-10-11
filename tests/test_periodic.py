@@ -125,12 +125,11 @@ def test_periodic_proposal(sampler, bound):
                                rstate=rstate)
     ns.live_u[:] = live_u
     ns.update_bound_if_needed(-np.inf, force=True)
-    # the boundary of the bound frame must sit in the gap opposite to
+    # the edge of the unwrapping window must sit in the gap opposite to
     # the cluster, making the cluster contiguous
-    assert abs(ns.bound.shift[0] - 0.5) < rx
-    assert ns.bound.shift[1] == 0
+    assert abs(ns.bound.lo[0] - 0.5) < rx
     if bound == 'multi':
-        assert ns.bound.nells == 1
+        assert ns.bound.bound.nells == 1
 
     # starting points and axes as the nested sampler would provide them
     points, axes = zip(*[ns.propose_live() for i in range(ndraws)])
@@ -201,3 +200,35 @@ def test_periodic_ncdim(sampler, periodic):
     res = ns.results
     assert np.all((res['samples_u'] >= 0) & (res['samples_u'] < 1))
     assert (np.abs(res['logz'][-1] - logz_true) < 5 * res['logzerr'][-1])
+
+
+@pytest.mark.parametrize("bound", ['balls', 'cubes'])
+def test_periodic_boundplot(bound):
+    # the plotting functions must recognize the wrapped bounds that
+    # need the live points to be reconstructed
+    import matplotlib
+    matplotlib.use('Agg')
+    from matplotlib import pyplot as plt
+    from dynesty import plotting as dyplot
+    rstate = get_rstate()
+    ns = dynesty.NestedSampler(loglike_boundary,
+                               prior_transform_unit,
+                               2,
+                               nlive=nlive,
+                               periodic=[0],
+                               rstate=rstate,
+                               bound=bound)
+    ns.run_nested(dlogz=0.1, print_progress=printing)
+    res = ns.results
+    # an iteration after the first bound update
+    it = np.argmax(res['bound_iter'] > 0) + 10
+    pidx = res['bound_iter'][it]
+    assert isinstance(res['bound'][pidx], dynesty.bounding.PeriodicBound)
+    # only the Bound interface is exposed
+    with pytest.raises(AttributeError):
+        res['bound'][pidx].ctrs
+    # the stored centers must not be used
+    res['bound'][pidx].bound.ctrs = None
+    dyplot.boundplot(res, dims=(0, 1), it=it, show_live=False)
+    dyplot.cornerbound(res, it=it, show_live=False)
+    plt.close('all')

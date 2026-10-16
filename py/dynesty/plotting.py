@@ -18,7 +18,6 @@ from scipy.stats import gaussian_kde
 from .utils import resample_equal, unitcheck
 from .utils import quantile as _quantile
 from .utils import get_random_generator, get_nonbounded
-from . import bounding
 
 str_type = str
 float_type = float
@@ -1529,9 +1528,8 @@ def boundplot(results,
 
     periodic : iterable, optional
         A list of indices for parameters with periodic boundary conditions.
-        These parameters *will not* have their positions constrained to be
-        within the unit cube, enabling smooth behavior for parameters
-        that may wrap around the edge. Default is `None` (i.e. no periodic
+        Samples of these parameters falling outside the unit cube are kept
+        rather than discarded. Default is `None` (i.e. no periodic
         boundary conditions).
 
     reflective : iterable, optional
@@ -1709,10 +1707,7 @@ def boundplot(results,
                 live_u[uidx] = samples[r]
     rstate = get_random_generator()
     # Draw samples from the bounding distribution.
-    # the bound may be wrapped (e.g. by PeriodicBound)
-    inner_bound = getattr(bound, 'bound', bound)
-    if not isinstance(inner_bound,
-                      (bounding.RadFriends, bounding.SupFriends)):
+    if not bound.need_centers:
         # If bound is "fixed", go ahead and draw samples from it.
         psamps = bound.samples(ndraws, rstate=rstate)
     else:
@@ -1846,9 +1841,8 @@ def cornerbound(results,
 
     periodic : iterable, optional
         A list of indices for parameters with periodic boundary conditions.
-        These parameters *will not* have their positions constrained to be
-        within the unit cube, enabling smooth behavior for parameters
-        that may wrap around the edge. Default is `None` (i.e. no periodic
+        Samples of these parameters falling outside the unit cube are kept
+        rather than discarded. Default is `None` (i.e. no periodic
         boundary conditions).
 
     reflective : iterable, optional
@@ -2033,10 +2027,7 @@ def cornerbound(results,
 
     rstate = get_random_generator()
     # Draw samples from the bounding distribution.
-    # the bound may be wrapped (e.g. by PeriodicBound)
-    inner_bound = getattr(bound, 'bound', bound)
-    if not isinstance(inner_bound,
-                      (bounding.RadFriends, bounding.SupFriends)):
+    if not bound.need_centers:
         # If bound is "fixed", go ahead and draw samples from it.
         psamps = bound.samples(ndraws, rstate=rstate)
     else:

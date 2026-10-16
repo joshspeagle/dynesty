@@ -208,7 +208,7 @@ class PeriodicBound(Bound):
         """Scale the wrapped bound to a target volume."""
         self.bound.scale_to_logvol(logvol)
 
-    def update(self, points, rstate=None, bootstrap=0, pool=None, **kwargs):
+    def update(self, points, rstate=None, bootstrap=0, pool=None):
         """
         Update the wrapped bound. The edge of the window is placed in the
         middle of the largest gap between the points.
@@ -222,8 +222,7 @@ class PeriodicBound(Bound):
         self.bound.update(self._unwrap(points),
                           rstate=rstate,
                           bootstrap=bootstrap,
-                          pool=pool,
-                          **kwargs)
+                          pool=pool)
 
 
 class UnitCube(Bound):

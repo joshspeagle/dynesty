@@ -1084,7 +1084,8 @@ def mean_and_cov(samples, weights):
         using `rowvar=False` in `~numpy.cov`.
 
     weights : `~numpy.ndarray` with shape (nsamples,)
-        1-D array of sample weights.
+        1-D array of sample weights. Finite, nonnegative weights need not
+        sum to one; they are rescaled internally for numerical stability.
 
     Returns
     -------
@@ -1099,6 +1100,13 @@ def mean_and_cov(samples, weights):
     Implements the formulae found `here <https://goo.gl/emWFLR>`_.
 
     """
+
+    # The moments are invariant under a common rescaling of the weights.
+    # Rescale before forming squared sums to avoid overflow or underflow.
+    weights = np.asarray(weights)
+    max_weight = weights.max(initial=0)
+    if max_weight > 0:
+        weights = weights / max_weight
 
     # Compute the weighted mean.
     mean = np.average(samples, weights=weights, axis=0)

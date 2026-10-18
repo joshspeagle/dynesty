@@ -1528,9 +1528,8 @@ def boundplot(results,
 
     periodic : iterable, optional
         A list of indices for parameters with periodic boundary conditions.
-        Samples of these parameters falling outside the unit cube are kept
-        rather than discarded. Default is `None` (i.e. no periodic
-        boundary conditions).
+        Only validated: the saved bounds already wrap these parameters into
+        the unit cube. Default is `None`.
 
     reflective : iterable, optional
         Deprecated and ignored (emits a warning).
@@ -1841,9 +1840,8 @@ def cornerbound(results,
 
     periodic : iterable, optional
         A list of indices for parameters with periodic boundary conditions.
-        Samples of these parameters falling outside the unit cube are kept
-        rather than discarded. Default is `None` (i.e. no periodic
-        boundary conditions).
+        Only validated: the saved bounds already wrap these parameters into
+        the unit cube. Default is `None`.
 
     reflective : iterable, optional
         Deprecated and ignored (emits a warning).

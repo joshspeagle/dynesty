@@ -18,7 +18,7 @@ from .sampler import Sampler, _initialize_live_points
 from .bounding import BOUND_LIST
 from . import bounding
 from .dynamicsampler import DynamicSampler
-from .utils import (LogLikelihood, get_random_generator, get_nonbounded,
+from .utils import (LogLikelihood, get_random_generator, check_periodic,
                     _parse_pool_queue)
 
 __all__ = ["NestedSampler", "DynamicNestedSampler", "_function_wrapper"]
@@ -134,10 +134,9 @@ def _get_internal_sampler(sampling, ndim, ncdim, periodic, reflective, walks,
         else:
             sampling = RSliceSampler(ndim=ndim, slices=default_steps['rslice'])
 
-    nonbounded = get_nonbounded(ndim, periodic, reflective)
+    check_periodic(ndim, periodic, reflective)
     sampler_kw = dict(ncdim=ncdim,
                       ndim=ndim,
-                      nonbounded=nonbounded,
                       periodic=periodic,
                       facc=facc)
     if sampling == 'rslice':

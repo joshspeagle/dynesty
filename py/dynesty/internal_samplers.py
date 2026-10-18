@@ -64,12 +64,8 @@ class InternalSampler:
         kwargs : dict
             A dictionary of additional method-specific parameters.
             This common keywords:
-        nonbounded : array
-            Array of boolean values indicating which dimensions are
-            non-bounded.
         periodic : array
-            Array of boolean values indicating which dimensions are
-            periodic.
+            Indices of the periodic dimensions.
         ndim: int
             Number of dimensions.
         """
@@ -77,8 +73,7 @@ class InternalSampler:
         self.input_kwargs = kwargs
         self.sampler_kwargs = dict()
         self.ndim = kwargs.get('ndim')
-        for k in ['nonbounded', 'periodic']:
-            self.sampler_kwargs[k] = kwargs.get(k)
+        self.sampler_kwargs['periodic'] = kwargs.get('periodic')
 
     @property
     def update_bound_interval_ratio(self):
@@ -908,8 +903,6 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
 
     """
 
-    # Periodicity.
-    nonbounded = kwargs.get('nonbounded')
     periodic = kwargs.get('periodic')
 
     # Setup.
@@ -937,8 +930,7 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
                                           n,
                                           n_cluster,
                                           rstate=rstate,
-                                          periodic=periodic,
-                                          nonbounded=nonbounded)
+                                          periodic=periodic)
         if fail:
             n_reject += 1
             ncall += 1
@@ -983,8 +975,7 @@ def propose_ball_point(u,
                        n,
                        n_cluster,
                        rstate=None,
-                       periodic=None,
-                       nonbounded=None):
+                       periodic=None):
     """
     Here we are proposing points uniformly within an n-d ellipsoid.
     We are only trying once.
@@ -1015,7 +1006,7 @@ def propose_ball_point(u,
         u_prop[periodic] = np.mod(u_prop[periodic], 1)
 
     # Check unit cube constraints.
-    if unitcheck(u_prop, nonbounded):
+    if unitcheck(u_prop):
         return u_prop, False
     else:
         return None, True

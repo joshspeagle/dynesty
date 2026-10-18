@@ -17,7 +17,7 @@ from scipy.ndimage import gaussian_filter as norm_kde
 from scipy.stats import gaussian_kde
 from .utils import resample_equal, unitcheck
 from .utils import quantile as _quantile
-from .utils import get_random_generator, get_nonbounded
+from .utils import get_random_generator, check_periodic
 
 str_type = str
 float_type = float
@@ -1618,7 +1618,7 @@ def boundplot(results,
         raise ValueError("No bounds were saved in the results!")
     nsamps = len(results['samples'])
 
-    nonbounded = get_nonbounded(bounds[0].ndim, periodic, reflective)
+    check_periodic(bounds[0].ndim, periodic, reflective)
 
     if it is not None:
         if it >= nsamps:
@@ -1750,7 +1750,7 @@ def boundplot(results,
             l1, l2 = live_u[:, dims].T
     else:
         # Remove points outside of the unit cube as appropriate.
-        sel = [unitcheck(point, nonbounded) for point in psamps]
+        sel = [unitcheck(point) for point in psamps]
         vsamps = np.array(list(map(prior_transform, psamps[sel])))
         x1, x2 = vsamps[:, dims].T
         if show_live:
@@ -1934,7 +1934,7 @@ def cornerbound(results,
     if ndim == 1:
         raise ValueError('cornerbound does not work for 1-D posteriors')
 
-    nonbounded = get_nonbounded(bounds[0].ndim, periodic, reflective)
+    check_periodic(bounds[0].ndim, periodic, reflective)
 
     if it is not None:
         if it >= nsamps:
@@ -2066,7 +2066,7 @@ def cornerbound(results,
             lsamps = live_u.T
     else:
         # Remove points outside of the unit cube.
-        sel = [unitcheck(point, nonbounded) for point in psamps]
+        sel = [unitcheck(point) for point in psamps]
         psamps = np.array(list(map(prior_transform, psamps[sel])))
         psamps = psamps.T
         if show_live:

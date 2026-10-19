@@ -137,9 +137,8 @@ class PeriodicBound(Bound):
     Non-periodic coordinates of the samples are returned as they are,
     i.e. possibly outside the unit cube.
 
-    Only the `Bound` interface is exposed. Other attributes of the
-    wrapped bound (e.g. the ellipsoids) are in the unwrapped
-    coordinates and need to be accessed through `bound` explicitly.
+    Attributes of the wrapped bound (e.g. the ellipsoids or the centers)
+    are in the unwrapped coordinates.
 
     Parameters
     ----------
@@ -175,12 +174,14 @@ class PeriodicBound(Bound):
         """Whether the wrapped bound needs the centers to be set."""
         return self.bound.need_centers
 
-    def _set_ctrs(self, ctrs):
-        self.bound.ctrs = self._unwrap(ctrs)
+    @property
+    def ctrs(self):
+        """Centers (unwrapped) for the bounds that need them."""
+        return self.bound.ctrs
 
-    ctrs = property(fset=_set_ctrs,
-                    doc="Centers (unit cube coordinates) for the bounds "
-                    "that need them.")
+    @ctrs.setter
+    def ctrs(self, ctrs):
+        self.bound.ctrs = self._unwrap(ctrs)
 
     def contains(self, x):
         """Checks if the bound contains the point `x`."""

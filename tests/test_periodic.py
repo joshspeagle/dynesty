@@ -224,9 +224,6 @@ def test_periodic_boundplot(bound):
     it = np.argmax(res['bound_iter'] > 0) + 10
     pidx = res['bound_iter'][it]
     assert isinstance(res['bound'][pidx], dynesty.bounding.PeriodicBound)
-    # only the Bound interface is exposed
-    with pytest.raises(AttributeError):
-        res['bound'][pidx].ctrs
     # the stored centers must not be used
     res['bound'][pidx].bound.ctrs = None
     dyplot.boundplot(res, dims=(0, 1), it=it, show_live=False)

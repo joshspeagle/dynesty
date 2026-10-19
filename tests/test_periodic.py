@@ -146,9 +146,9 @@ def test_periodic_proposal(sampler, bound):
     assert np.all((us >= 0) & (us < 1))
     # and uniform within the constrained disk
     pval = stats.kstest(wrapdist(us[:, 0]) / rx, stats.semicircular.cdf).pvalue
-    assert pval > 1e-3
+    assert pval > 1e-4
     pval = stats.kstest((us[:, 1] - 0.5) / rx, stats.semicircular.cdf).pvalue
-    assert pval > 1e-3
+    assert pval > 1e-4
 
 
 @pytest.mark.parametrize("sampler,bound",

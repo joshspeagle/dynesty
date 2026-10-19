@@ -19,6 +19,7 @@ from .bounding import BOUND_LIST
 from . import bounding
 from .dynamicsampler import DynamicSampler
 from .utils import (LogLikelihood, get_random_generator, check_periodic,
+                    warn_reflective,
                     _parse_pool_queue)
 
 __all__ = ["NestedSampler", "DynamicNestedSampler", "_function_wrapper"]
@@ -123,7 +124,7 @@ Sampling Method:\n===============
     return citations
 
 
-def _get_internal_sampler(sampling, ndim, ncdim, periodic, reflective, walks,
+def _get_internal_sampler(sampling, ndim, ncdim, periodic, walks,
                           slices, facc):
     default_steps = {'rwalk': ndim + 20, 'slice': 3, 'rslice': 3 + ndim}
     if sampling == 'auto':
@@ -134,7 +135,7 @@ def _get_internal_sampler(sampling, ndim, ncdim, periodic, reflective, walks,
         else:
             sampling = RSliceSampler(ndim=ndim, slices=default_steps['rslice'])
 
-    check_periodic(ndim, periodic, reflective)
+    check_periodic(ndim, periodic)
     sampler_kw = dict(ncdim=ncdim,
                       ndim=ndim,
                       periodic=periodic,
@@ -493,8 +494,9 @@ def _common_sampler_init(*,
     if bound not in BOUND_LIST and not isinstance(bound, bounding.Bound):
         raise ValueError(f"Unknown bounding method: {bound}")
     # Sampling method.
-    sample = _get_internal_sampler(sample, ndim, ncdim, periodic, reflective,
-                                   walks, slices, facc)
+    warn_reflective(reflective)
+    sample = _get_internal_sampler(sample, ndim, ncdim, periodic, walks,
+                                   slices, facc)
 
     # Custom sampler
     if sample not in INTERNAL_SAMPLER_LIST and not isinstance(

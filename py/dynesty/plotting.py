@@ -17,7 +17,7 @@ from scipy.ndimage import gaussian_filter as norm_kde
 from scipy.stats import gaussian_kde
 from .utils import resample_equal, unitcheck
 from .utils import quantile as _quantile
-from .utils import get_random_generator, check_periodic
+from .utils import get_random_generator, check_periodic, warn_reflective
 
 str_type = str
 float_type = float
@@ -1617,7 +1617,8 @@ def boundplot(results,
         raise ValueError("No bounds were saved in the results!")
     nsamps = len(results['samples'])
 
-    check_periodic(bounds[0].ndim, periodic, reflective)
+    warn_reflective(reflective)
+    check_periodic(bounds[0].ndim, periodic)
 
     if it is not None:
         if it >= nsamps:
@@ -1932,7 +1933,8 @@ def cornerbound(results,
     if ndim == 1:
         raise ValueError('cornerbound does not work for 1-D posteriors')
 
-    check_periodic(bounds[0].ndim, periodic, reflective)
+    warn_reflective(reflective)
+    check_periodic(bounds[0].ndim, periodic)
 
     if it is not None:
         if it >= nsamps:

@@ -975,19 +975,19 @@ def _combine_logvol_inits(logvol_inits, nlives):
     return np.log(nlives.sum()) - logsumexp(np.log(nlives) - logvol_inits)
 
 
-def check_periodic(ndim, periodic, reflective=None):
-    """
-    Validate the periodic indices. The reflective option is no longer
-    supported and is ignored (with a warning).
-    """
+def check_periodic(ndim, periodic):
+    """Validate the periodic indices."""
+    if periodic is not None and np.max(periodic) >= ndim:
+        raise ValueError('Incorrect periodic variable index (larger than ndim')
+
+
+def warn_reflective(reflective):
+    """Warn if the (no longer supported) reflective option is set."""
     if reflective is not None:
         warnings.warn(
             'Reflective boundary conditions are no longer supported, '
             'because they do not preserve detailed balance. '
             'The reflective option is ignored.')
-
-    if periodic is not None and np.max(periodic) >= ndim:
-        raise ValueError('Incorrect periodic variable index (larger than ndim')
 
 
 def get_print_func(print_func, print_progress, initial=0):

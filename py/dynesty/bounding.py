@@ -187,19 +187,21 @@ class PeriodicBound(Bound):
         """Checks if the bound contains the point `x`."""
         return self.bound.contains(self._unwrap(x))
 
-    def samples(self, nsamples, rstate=None):
+    def sample(self, rstate=None):
         """
-        Draw `nsamples` samples uniformly distributed within the bound,
-        with the periodic coordinates within [0, 1).
+        Draw a sample uniformly distributed within the bound, with the
+        periodic coordinates within [0, 1).
         """
-        out = []
-        while len(out) < nsamples:
+        while True:
             x = self.bound.samples(1, rstate=rstate)[0]
             xp = x[self.periodic]
             if np.all((xp > self.lo) & (xp < self.lo + 1)):
                 x[self.periodic] = np.mod(xp, 1)
-                out.append(x)
-        return np.array(out)
+                return x
+
+    def samples(self, nsamples, rstate=None):
+        """Draw `nsamples` samples (see `sample`)."""
+        return np.array([self.sample(rstate) for i in range(nsamples)])
 
     def get_random_axes(self, rstate):
         """Return the axes used to propose new points."""

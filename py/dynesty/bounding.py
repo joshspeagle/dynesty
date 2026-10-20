@@ -192,12 +192,18 @@ class PeriodicBound(Bound):
         Draw a sample uniformly distributed within the bound, with the
         periodic coordinates within [0, 1).
         """
+        ntries = 0
         while True:
             x = self.bound.samples(1, rstate=rstate)[0]
             xp = x[self.periodic]
             if np.all((xp > self.lo) & (xp < self.lo + 1)):
                 x[self.periodic] = np.mod(xp, 1)
                 return x
+            ntries += 1
+            if ntries == 10000:
+                warnings.warn('Periodic bound sampling is extremely '
+                              'inefficient: the bound extends far beyond '
+                              'the period along a periodic dimension')
 
     def samples(self, nsamples, rstate=None):
         """Draw `nsamples` samples (see `sample`)."""

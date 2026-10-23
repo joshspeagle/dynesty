@@ -1078,10 +1078,9 @@ def generic_slice_step(u, direction, periodic, loglstar, loglikelihood,
     # Random shift of the origin of the periodic coordinates.
     # For a given shift, the slice sampling confined to the shifted
     # cube is a valid step on the torus, and so is their mixture.
-    shift = np.zeros(n)
     if periodic is not None:
-        shift[periodic] = rstate.random(len(periodic))
-        u = np.mod(u - shift, 1)
+        shift = rstate.random(len(periodic))
+        u[periodic] = np.mod(u[periodic] - shift, 1)
     rand0 = rstate.random()  # initial scale/offset
     dirlen = linalg.norm(direction)
     maxlen = np.sqrt(n) / 2.
@@ -1099,7 +1098,9 @@ def generic_slice_step(u, direction, periodic, loglstar, loglikelihood,
         nonlocal nc
         u_new = u + x * direction
         if unitcheck(u_new):
-            u_new = np.mod(u_new + shift, 1)  # back to the unit cube
+            if periodic is not None:
+                u_new[periodic] = np.mod(u_new[periodic] + shift,
+                                         1)  # back to the unit cube
             v_new = prior_transform(u_new)
             logl = loglikelihood(v_new)
             evaluation_history.append(

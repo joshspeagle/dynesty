@@ -492,7 +492,7 @@ class Sampler:
             i = self.rstate.choice(args[0])
         else:
             i = self.rstate.integers(self.nlive)
-        u = self.live_u[i, :]
+        u = self.live_u[i, :].copy()  # samplers may modify it in place
         ax = self.bound.get_random_axes(self.rstate)
         u_fit = u[:self.ncdim]
         if self.bound.need_centers:

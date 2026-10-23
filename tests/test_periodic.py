@@ -7,16 +7,25 @@ from utils import get_rstate, get_printing
 
 nlive = 100
 printing = get_printing()
-win = 100
 ndim = 2
+SIGMA_BOUNDARY = 0.05
+# evidence of loglike_boundary over the unit square
+LOGZ_BOUNDARY = 2 * np.log(SIGMA_BOUNDARY * np.sqrt(2 * np.pi) *
+                           erf(0.5 / np.sqrt(2) / SIGMA_BOUNDARY))
 
 
-def loglike(x):
-    return -0.5 * x[1]**2
+def wrapdist(x):
+    # distance from the periodic boundary x=0 (==1), in (-0.5, 0.5]
+    return np.mod(x + 0.5, 1) - 0.5
 
 
-def prior_transform(x):
-    return (2 * x - 1) * win
+def loglike_boundary(v):
+    # Gaussian centered on the periodic boundary of the first parameter
+    return -0.5 * (wrapdist(v[0])**2 + (v[1] - 0.5)**2) / SIGMA_BOUNDARY**2
+
+
+def prior_transform_unit(u):
+    return u
 
 
 @pytest.mark.parametrize("sampler,dynamic", [('rwalk', True), ('unif', True),
@@ -25,15 +34,12 @@ def prior_transform(x):
 def test_periodic(sampler, dynamic):
     # hard test of dynamic sampler with high dlogz_init and small number
     # of live points
-    logz_true = np.log(np.sqrt(2 * np.pi) * erf(win / np.sqrt(2)) / (2 * win))
-    thresh = 8
-    # This is set up to higher level
-    # becasue of failures at ~5ssigma level
-    # this needs to be investigated
+    logz_true = LOGZ_BOUNDARY
+    thresh = 5
     rstate = get_rstate()
     if dynamic:
-        dns = dynesty.DynamicNestedSampler(loglike,
-                                           prior_transform,
+        dns = dynesty.DynamicNestedSampler(loglike_boundary,
+                                           prior_transform_unit,
                                            ndim,
                                            nlive=nlive,
                                            periodic=[0],
@@ -41,8 +47,8 @@ def test_periodic(sampler, dynamic):
                                            sample=sampler)
         dns.run_nested(dlogz_init=1, print_progress=printing)
     else:
-        dns = dynesty.NestedSampler(loglike,
-                                    prior_transform,
+        dns = dynesty.NestedSampler(loglike_boundary,
+                                    prior_transform_unit,
                                     ndim,
                                     nlive=nlive,
                                     periodic=[0],
@@ -56,14 +62,14 @@ def test_periodic(sampler, dynamic):
 def test_error():
     rstate = get_rstate()
     with pytest.raises(ValueError):
-        dynesty.DynamicNestedSampler(loglike,
-                                     prior_transform,
+        dynesty.DynamicNestedSampler(loglike_boundary,
+                                     prior_transform_unit,
                                      ndim,
                                      nlive=nlive,
                                      periodic=[22],
                                      rstate=rstate)
-    dynesty.NestedSampler(loglike,
-                          prior_transform,
+    dynesty.NestedSampler(loglike_boundary,
+                          prior_transform_unit,
                           ndim,
                           nlive=nlive,
                           periodic=[],
@@ -74,30 +80,13 @@ def test_reflective_ignored():
     # reflective option is not supported anymore, it should warn
     rstate = get_rstate()
     with pytest.warns(UserWarning, match='Reflective'):
-        dynesty.DynamicNestedSampler(loglike,
-                                     prior_transform,
+        dynesty.DynamicNestedSampler(loglike_boundary,
+                                     prior_transform_unit,
                                      ndim,
                                      nlive=nlive,
                                      periodic=[1],
                                      reflective=[1],
                                      rstate=rstate)
-
-
-def wrapdist(x):
-    # distance from the periodic boundary x=0 (==1), in (-0.5, 0.5]
-    return np.mod(x + 0.5, 1) - 0.5
-
-
-SIGMA_BOUNDARY = 0.05
-
-
-def loglike_boundary(v):
-    # Gaussian centered on the periodic boundary of the first parameter
-    return -0.5 * (wrapdist(v[0])**2 + (v[1] - 0.5)**2) / SIGMA_BOUNDARY**2
-
-
-def prior_transform_unit(u):
-    return u
 
 
 @pytest.mark.parametrize("sampler,bound",
@@ -164,8 +153,7 @@ def test_periodic_proposal(sampler, bound):
 def test_periodic_boundary_mode(sampler, bound):
     # full run with the posterior mode on the periodic boundary
     rstate = get_rstate()
-    logz_true = 2 * np.log(SIGMA_BOUNDARY * np.sqrt(2 * np.pi) *
-                           erf(0.5 / np.sqrt(2) / SIGMA_BOUNDARY))
+    logz_true = LOGZ_BOUNDARY
     thresh = 5
     ns = dynesty.NestedSampler(loglike_boundary,
                                prior_transform_unit,

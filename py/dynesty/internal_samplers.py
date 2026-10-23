@@ -1049,7 +1049,7 @@ def _slice_doubling_accept(x1, F, loglstar, L, R, fL, fR):
     return True
 
 
-def generic_slice_step(u, direction, periodic, loglstar, loglikelihood,
+def generic_slice_step(u0, direction, periodic, loglstar, loglikelihood,
                        prior_transform, doubling, evaluation_history, rstate):
     """
     Do a slice generic slice sampling step along a specified dimension
@@ -1074,13 +1074,18 @@ def generic_slice_step(u, direction, periodic, loglstar, loglikelihood,
     """
     nc, n_expand, n_contract = 0, 0, 0
     n_expand_threshold = 1000  # Threshold for warning the user
-    n = len(u)
+    n = len(u0)
     # Random shift of the origin of the periodic coordinates.
     # For a given shift, the slice sampling confined to the shifted
     # cube is a valid step on the torus, and so is their mixture.
     if periodic is not None:
+        u = u0.copy()
+        # since we modify u
         shift = rstate.random(len(periodic))
         u[periodic] = np.mod(u[periodic] - shift, 1)
+    else:
+        # we do not modify u, copy not needed
+        u = u0
     rand0 = rstate.random()  # initial scale/offset
     dirlen = linalg.norm(direction)
     maxlen = np.sqrt(n) / 2.

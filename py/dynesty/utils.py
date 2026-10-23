@@ -976,10 +976,15 @@ def _combine_logvol_inits(logvol_inits, nlives):
 
 
 def check_periodic(ndim, periodic):
-    """Validate the periodic indices."""
-    if periodic is not None and (np.min(periodic) < 0
-                                 or np.max(periodic) >= ndim):
+    """Validate and normalize the periodic indices."""
+    if periodic is None:
+        return None
+    periodic = np.array(list(periodic), dtype=int)
+    if len(periodic) == 0:
+        return None
+    if np.min(periodic) < 0 or np.max(periodic) >= ndim:
         raise ValueError('Periodic indices must be in [0, ndim)')
+    return periodic
 
 
 def warn_reflective(reflective):

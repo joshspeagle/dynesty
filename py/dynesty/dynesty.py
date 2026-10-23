@@ -135,7 +135,7 @@ def _get_internal_sampler(sampling, ndim, ncdim, periodic, walks,
         else:
             sampling = RSliceSampler(ndim=ndim, slices=default_steps['rslice'])
 
-    check_periodic(ndim, periodic)
+    periodic = check_periodic(ndim, periodic)
     sampler_kw = dict(ncdim=ncdim,
                       ndim=ndim,
                       periodic=periodic,

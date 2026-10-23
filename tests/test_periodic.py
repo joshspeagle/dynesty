@@ -62,6 +62,12 @@ def test_error():
                                      nlive=nlive,
                                      periodic=[22],
                                      rstate=rstate)
+    dynesty.NestedSampler(loglike,
+                          prior_transform,
+                          ndim,
+                          nlive=nlive,
+                          periodic=[],
+                          rstate=rstate)
 
 
 def test_reflective_ignored():
@@ -176,7 +182,7 @@ def test_periodic_boundary_mode(sampler, bound):
 
 
 @pytest.mark.parametrize("sampler", ['unif', 'rwalk'])
-@pytest.mark.parametrize("periodic", [[0], [2], [0, 2]])
+@pytest.mark.parametrize("periodic", [[0], [2], (0, 2)])
 def test_periodic_ncdim(sampler, periodic):
     # periodic dimensions both within and beyond the clustered ones
     rstate = get_rstate()

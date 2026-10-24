@@ -35,25 +35,25 @@ def _get_bound(bounding, ndim, ncdim=None, periodic=None):
     else:
         raise ValueError('Unsupported bounding type')
 
-    if bounding == 'none':
-        bound = UnitCube(ndim)
-    elif bounding == 'single':
-        bound = Ellipsoid(ndim)
-        # this is ellipsoid in the center of the cube that contains
-        # the whole cube
-    elif bounding == 'multi':
-        bound = MultiEllipsoid(ndim)
-        # this is ellipsoid in the center of the cube that contains
-        # the whole cube
-    elif bounding == 'balls':
-        bound = RadFriends(ndim)
-    elif bounding == 'cubes':
-        bound = SupFriends(ndim)
-    else:
-        bound = bounding
     # the bound only sees the first ncdim (clustered) dimensions;
     # the remaining ones are sampled uniformly and need no wrapping
     ncdim = ncdim or ndim
+    if bounding == 'none':
+        bound = UnitCube(ncdim)
+    elif bounding == 'single':
+        bound = Ellipsoid(ncdim)
+        # this is ellipsoid in the center of the cube that contains
+        # the whole cube
+    elif bounding == 'multi':
+        bound = MultiEllipsoid(ncdim)
+        # this is ellipsoid in the center of the cube that contains
+        # the whole cube
+    elif bounding == 'balls':
+        bound = RadFriends(ncdim)
+    elif bounding == 'cubes':
+        bound = SupFriends(ncdim)
+    else:
+        bound = bounding
     if periodic is not None:
         periodic = [i for i in periodic if i < ncdim]
     if periodic and not isinstance(bound, UnitCube):
@@ -496,7 +496,7 @@ class Sampler:
         ax = self.bound.get_random_axes(self.rstate)
         u_fit = u[:self.ncdim]
         if self.bound.need_centers:
-            self.bound.ctrs = self.live_u
+            self.bound.ctrs = self.live_u[:, :self.ncdim]
         # Automatically trigger an update if we're not in any ellipsoid.
         if not self.bound.contains(u_fit):
             # Update the bounding ellipsoids.

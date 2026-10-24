@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - The results objects now include the logvol_init attribute with the log of the prior volume at the start of the run. It is zero unless part of the prior has zero likelihood, in which case it is the log of the estimated finite-likelihood prior fraction (fixed by @segasai)
 ### Changed
 - Remove the support for reflective boundary conditions, as they do not preserve detailed balance. The `reflective` argument is still accepted, but it is ignored and emits a warning.
+- The `ncdim` option is deprecated (emits a DeprecationWarning) and will be removed in a future release.
 ### Fixed
 - Fix the saved bounds in the results (`bound`, used by `boundplot`/`cornerbound`). Since 3.0 every saved bound after the initial unit cube was a reference to the single live bound object, which is updated in place, so all of them described the final bound and plots of earlier iterations showed live points far outside the drawn bound. Each update now stores a copy (fixed by @segasai)
 - Fix the saved bounds for dynamic nested sampling runs. Previously each batch replaced the saved bounds with its own, so the bounds of the base run and of earlier batches were lost and the `bound_iter`/`samples_bound` indices of their samples pointed into the wrong list. Now the bounds of the base run and of all batches are accumulated in the results and the indices refer to that combined list (fixed by @segasai)

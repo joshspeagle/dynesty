@@ -151,6 +151,17 @@ def test_dynamic():
 
 
 @pytest.mark.parametrize(
+    'cls', [dynesty.NestedSampler, dynesty.DynamicNestedSampler])
+def test_ncdim_deprecated(cls):
+    with pytest.warns(DeprecationWarning, match='ncdim'):
+        cls(loglikelihood_gau,
+            prior_transform_gau,
+            ntotdim,
+            ncdim=ndim_gau,
+            rstate=get_rstate())
+
+
+@pytest.mark.parametrize(
     'bound,periodic',
     itertools.product(['single', 'multi', 'balls', 'cubes', 'none'],
                       [False, True]))

@@ -418,6 +418,8 @@ optional
             dimensions will
             just sample uniformly from the prior distribution.
             If this is `None` (default), this will default to ndim.
+            Deprecated (emits a DeprecationWarning) and will be removed in
+            a future release.
 
         blob: bool, optional
             The default value is False. If it is true, then the log-likelihood
@@ -484,6 +486,10 @@ def _common_sampler_init(*,
                          dynamic=False):
     ret = {}
 
+    if ncdim is not None:
+        warnings.warn(
+            'The ncdim option is deprecated and will be removed '
+            'in a future release', DeprecationWarning, stacklevel=3)
     ncdim = ncdim or ndim
     ret['ncdim'] = ncdim
     # Dimensional warning check.

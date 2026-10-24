@@ -763,14 +763,17 @@ _RESULTS_STRUCTURE = [
      'finite-likelihood prior fraction)', None),
     ('information', 'array[float]', 'Information Integral H', 'niter'),
     ('bound', 'array[object]',
-     "the set of bounding objects used to condition proposals for the "
-     "base run", 'nbound'),
+     "The bounding objects used to condition proposals: index 0 is the unit "
+     "cube, followed by one entry per bound update. For dynamic runs the "
+     "bounds of the base run are followed by those of each batch in order, "
+     "each batch starting with its own unit cube entry", 'nbound'),
     ('bound_iter', 'array[int]',
-     "index of the bound being used for an iteration that generated the point",
-     'niter'),
+     "Index into `bound` of the bound that was active at the iteration when "
+     "the corresponding sample was removed from the live set", 'niter'),
     ('samples_bound', 'array[int]',
-     "The index of the bound that the corresponding sample was drawn from",
-     'niter'),
+     "Index into `bound` of the bound the corresponding sample was originally "
+     "proposed from. This lags `bound_iter` because a live point can survive "
+     "several bound updates before it is removed", 'niter'),
     ('samples_batch', 'array[int]',
      "Tracks the batch during which the samples were proposed", 'niter'),
     ('batch_logl_bounds', 'array[tuple]',

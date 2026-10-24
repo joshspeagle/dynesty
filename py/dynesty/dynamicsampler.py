@@ -548,7 +548,8 @@ def _configure_batch_sampler(main_sampler,
         live_u = np.empty((nlive_new, main_sampler.ndim))
         live_v = np.empty((nlive_new, saved_v.shape[1]))
         live_logl = np.empty(nlive_new)
-        live_bound = np.zeros(nlive_new, dtype=int)
+        # the new live points are drawn from the bound just constructed
+        live_bound = np.full(nlive_new, batch_sampler.nbound - 1, dtype=int)
         live_it = np.zeros(nlive_new, dtype=int)
 
         live_nc = np.empty(nlive_new, dtype=int)
@@ -1233,6 +1234,10 @@ class DynamicSampler:
         self.saved_run['batch_logl_bounds'].append(
             (-np.inf, np.inf))  # initial bounds
 
+        # take a copy of the list so that batches can extend it
+        # without touching the base sampler
+        self.bound_list = list(self.sampler.bound_list)
+
         self.internal_state = DynamicSamplerStatesEnum.BASE_DONE
 
     def sample_batch(self,
@@ -1342,12 +1347,10 @@ class DynamicSampler:
                  logl_bounds=logl_bounds,
                  save_bounds=save_bounds)
             self.batch_sampler = batch_sampler
-
-            # TODO
-            # This is not actually correct, and because of that
-            # the bounds from base run or added batches are lost
-            # Ideally bounds need to be saved somehow not just overwritten
-            self.bound_list = self.batch_sampler.bound_list
+            # the batch sampler records bound indices relative to its
+            # own bound_list; they are shifted by this offset when stored
+            # so that they index the combined list of all bounds
+            batch_sampler.bound_offset = len(self.bound_list)
 
             self.new_logl_min, self.new_logl_max = logl_min, logl_max
             # Reset "new" results.
@@ -1398,8 +1401,8 @@ class DynamicSampler:
                      it=results.worst_it + it0,
                      blob=results.blob,
                      n=nlive_new,
-                     boundidx=results.boundidx,
-                     bounditer=results.bounditer,
+                     boundidx=results.boundidx + batch_sampler.bound_offset,
+                     bounditer=results.bounditer + batch_sampler.bound_offset,
                      scale=batch_sampler.internal_sampler.scale,
                      proposal_stats=results.proposal_stats)
             self.new_run.append(D)
@@ -1419,8 +1422,10 @@ class DynamicSampler:
                                       loglstar=results.loglstar,
                                       nc=results.nc,
                                       worst_it=results.worst_it + it0,
-                                      boundidx=results.boundidx,
-                                      bounditer=results.bounditer,
+                                      boundidx=results.boundidx +
+                                      batch_sampler.bound_offset,
+                                      bounditer=results.bounditer +
+                                      batch_sampler.bound_offset,
                                       eff=self.eff,
                                       delta_logz=results.delta_logz,
                                       proposal_stats=results.proposal_stats)
@@ -1450,8 +1455,8 @@ class DynamicSampler:
                      it=results.worst_it + it0,
                      n=nlive_new - it,
                      blob=results.blob,
-                     boundidx=results.boundidx,
-                     bounditer=results.bounditer,
+                     boundidx=results.boundidx + batch_sampler.bound_offset,
+                     bounditer=results.bounditer + batch_sampler.bound_offset,
                      scale=batch_sampler.internal_sampler.scale,
                      proposal_stats=None)
             self.new_run.append(D)
@@ -1466,12 +1471,16 @@ class DynamicSampler:
                                       loglstar=results.loglstar,
                                       nc=results.nc,
                                       worst_it=results.worst_it + it0,
-                                      boundidx=results.boundidx,
-                                      bounditer=results.bounditer,
+                                      boundidx=results.boundidx +
+                                      batch_sampler.bound_offset,
+                                      bounditer=results.bounditer +
+                                      batch_sampler.bound_offset,
                                       eff=self.eff,
                                       delta_logz=np.nan,
                                       proposal_stats=None)
         self.new_logvol_init = batch_sampler.logvol_init
+        if batch_sampler.save_bounds:
+            self.bound_list.extend(batch_sampler.bound_list)
         del self.batch_sampler
         self.batch_sampler = None
 

@@ -1116,7 +1116,7 @@ def resample_equal(samples, weights, rstate=None):
         Set of unequally weighted samples.
 
     weights : `~numpy.ndarray` with shape (nsamples,)
-        Corresponding weight of each sample.
+        Corresponding weight of each sample; integer weights are supported.
 
     rstate : `~numpy.random.Generator`, optional
         `~numpy.random.Generator` instance.
@@ -1145,7 +1145,8 @@ def resample_equal(samples, weights, rstate=None):
     if rstate is None:
         rstate = get_random_generator()
 
-    cumulative_sum = np.cumsum(weights)
+    cumulative_sum = np.cumsum(
+        weights, dtype=np.result_type(np.asarray(weights), 1.0))
     if abs(cumulative_sum[-1] - 1.) > SQRTEPS:
         # same tol as in numpy's random.choice.
         # Guarantee that the weights will sum to 1.
@@ -1183,7 +1184,7 @@ def quantile(x, q, weights=None):
        The list of quantiles to compute from `[0., 1.]`.
 
     weights : `~numpy.ndarray` with shape (nsamps,), optional
-        The associated weight from each sample.
+        The associated weight from each sample; integer weights are supported.
 
     Returns
     -------
@@ -1210,7 +1211,7 @@ def quantile(x, q, weights=None):
             raise ValueError("Dimension mismatch: len(weights) != len(x).")
         idx = np.argsort(x)  # sort samples
         sw = weights[idx]  # sort weights
-        cdf = np.cumsum(sw)[:-1]  # compute CDF
+        cdf = np.cumsum(sw, dtype=np.result_type(sw, 1.0))[:-1]  # compute CDF
         cdf /= cdf[-1]  # normalize CDF
         cdf = np.append(0, cdf)  # ensure proper span
         quantiles = np.interp(q, cdf, x[idx]).tolist()

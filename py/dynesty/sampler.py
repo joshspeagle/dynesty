@@ -19,13 +19,14 @@ from .utils import (get_seed_sequence, get_print_func, progress_integration,
                     get_random_generator)
 
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
+                       PeriodicBound,
                        SupFriends, Bound, BOUND_LIST)
 from .utils import (save_sampler, restore_sampler)
 
 __all__ = ["Sampler"]
 
 
-def _get_bound(bounding, ndim):
+def _get_bound(bounding, ndim, ncdim=None, periodic=None):
     if isinstance(bounding, str):
         if bounding not in BOUND_LIST:
             raise ValueError('Unsupported bounding type')
@@ -34,22 +35,29 @@ def _get_bound(bounding, ndim):
     else:
         raise ValueError('Unsupported bounding type')
 
+    # the bound only sees the first ncdim (clustered) dimensions;
+    # the remaining ones are sampled uniformly and need no wrapping
+    ncdim = ncdim or ndim
     if bounding == 'none':
-        bound = UnitCube(ndim)
+        bound = UnitCube(ncdim)
     elif bounding == 'single':
-        bound = Ellipsoid(ndim)
+        bound = Ellipsoid(ncdim)
         # this is ellipsoid in the center of the cube that contains
         # the whole cube
     elif bounding == 'multi':
-        bound = MultiEllipsoid(ndim)
+        bound = MultiEllipsoid(ncdim)
         # this is ellipsoid in the center of the cube that contains
         # the whole cube
     elif bounding == 'balls':
-        bound = RadFriends(ndim)
+        bound = RadFriends(ncdim)
     elif bounding == 'cubes':
-        bound = SupFriends(ndim)
+        bound = SupFriends(ncdim)
     else:
         bound = bounding
+    if periodic is not None:
+        periodic = [i for i in periodic if i < ncdim]
+    if periodic and not isinstance(bound, UnitCube):
+        bound = PeriodicBound(bound, periodic)
     return bound
 
 
@@ -434,7 +442,11 @@ class Sampler:
         self.bound_enlarge = bound_enlarge
 
         self.bounding = bounding
-        self.bound_next = _get_bound(bounding, ndim)
+        self.bound_next = _get_bound(
+            bounding,
+            ndim,
+            ncdim=self.ncdim,
+            periodic=sampling.sampler_kwargs.get('periodic'))
         # the reason I do not set it as self.bound
         # because we start from unit cube
 
@@ -480,11 +492,11 @@ class Sampler:
             i = self.rstate.choice(args[0])
         else:
             i = self.rstate.integers(self.nlive)
-        u = self.live_u[i, :]
+        u = self.live_u[i, :].copy()  # samplers may modify it in place
         ax = self.bound.get_random_axes(self.rstate)
         u_fit = u[:self.ncdim]
         if self.bound.need_centers:
-            self.bound.ctrs = self.live_u
+            self.bound.ctrs = self.live_u[:, :self.ncdim]
         # Automatically trigger an update if we're not in any ellipsoid.
         if not self.bound.contains(u_fit):
             # Update the bounding ellipsoids.

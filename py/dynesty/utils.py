@@ -978,28 +978,25 @@ def _combine_logvol_inits(logvol_inits, nlives):
     return np.log(nlives.sum()) - logsumexp(np.log(nlives) - logvol_inits)
 
 
-def get_nonbounded(ndim, periodic, reflective=None):
-    """
-    Return a boolean mask for dimensions that are periodic.
-    It will be true for normal dimension and false for periodic.
-    The reflective option is no longer supported and is ignored.
-    """
+def check_periodic(ndim, periodic):
+    """Validate and normalize the periodic indices."""
+    if periodic is None:
+        return None
+    periodic = np.array(list(periodic), dtype=int)
+    if len(periodic) == 0:
+        return None
+    if np.min(periodic) < 0 or np.max(periodic) >= ndim:
+        raise ValueError('Periodic indices must be in [0, ndim)')
+    return periodic
+
+
+def warn_reflective(reflective):
+    """Warn if the (no longer supported) reflective option is set."""
     if reflective is not None:
         warnings.warn(
             'Reflective boundary conditions are no longer supported, '
             'because they do not preserve detailed balance. '
             'The reflective option is ignored.')
-
-    if periodic is not None:
-        nonbounded = np.ones(ndim, dtype=bool)
-        if np.max(periodic) >= ndim:
-            raise ValueError(
-                'Incorrect periodic variable index (larger than ndim')
-        nonbounded[periodic] = False
-    else:
-        nonbounded = None
-
-    return nonbounded
 
 
 def get_print_func(print_func, print_progress, initial=0):
@@ -1059,21 +1056,9 @@ def get_neff_from_logwt(logwt):
     return W.sum()**2 / (W**2).sum()
 
 
-def unitcheck(u, nonbounded=None):
-    """Check whether `u` is inside the unit cube. Given a masked array
-    `nonbounded`, also allows periodic boundaries conditions to exceed
-    the unit cube."""
-
-    if nonbounded is None:
-        # No periodic boundary conditions provided.
-        return u.min() > 0 and u.max() < 1
-    else:
-        # Alternating periodic and non-periodic boundary conditions.
-        unb = u[nonbounded]
-        # pylint: disable=invalid-unary-operand-type
-        ub = u[~nonbounded]
-        return (unb.min() > 0 and unb.max() < 1 and ub.min() > -0.5
-                and ub.max() < 1.5)
+def unitcheck(u):
+    """Check whether `u` is inside the unit cube."""
+    return u.min() > 0 and u.max() < 1
 
 
 def mean_and_cov(samples, weights):

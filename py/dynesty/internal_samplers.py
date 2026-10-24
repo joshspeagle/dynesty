@@ -64,12 +64,8 @@ class InternalSampler:
         kwargs : dict
             A dictionary of additional method-specific parameters.
             This common keywords:
-        nonbounded : array
-            Array of boolean values indicating which dimensions are
-            non-bounded.
         periodic : array
-            Array of boolean values indicating which dimensions are
-            periodic.
+            Indices of the periodic dimensions.
         ndim: int
             Number of dimensions.
         """
@@ -77,8 +73,7 @@ class InternalSampler:
         self.input_kwargs = kwargs
         self.sampler_kwargs = dict()
         self.ndim = kwargs.get('ndim')
-        for k in ['nonbounded', 'periodic']:
-            self.sampler_kwargs[k] = kwargs.get(k)
+        self.sampler_kwargs['periodic'] = kwargs.get('periodic')
 
     @property
     def update_bound_interval_ratio(self):
@@ -226,7 +221,7 @@ class UniformBoundSampler(InternalSampler):
         self.sampler_kwargs['ndim'] = nested_sampler.ndim
         self.sampler_kwargs['n_cluster'] = nested_sampler.ncdim
         if nested_sampler.bound.need_centers:
-            self.sampler_kwargs['bound'].ctrs = nested_sampler.live_u
+            self.sampler_kwargs['bound'].ctrs = nested_sampler.live_u[:, :nested_sampler.ncdim]
 
         return super().prepare_sampler(loglstar=loglstar,
                                        points=points,
@@ -270,7 +265,6 @@ class UniformBoundSampler(InternalSampler):
             bound (dynesty.bounding object)
             ndim (number of dimensions)
             n_cluster (number of dimensions that are clustered)
-            nonbounded array
 
         Returns
         -------
@@ -294,20 +288,19 @@ class UniformBoundSampler(InternalSampler):
         # Unzipping.
         rstate = get_random_generator(args.rseed)
         bound = args.kwargs['bound']
-        nonbounded = args.kwargs.get('nonbounded')
         n_cluster = args.kwargs.get('n_cluster')
         ndim = args.kwargs['ndim']
         nc = 0
         tuning_info = None
-        if nonbounded is not None:
-            nonbounded = nonbounded[:n_cluster]
         ntries = 0
         threshold_warning = 10000
         threshold_warned = False
         evaluation_history = []
         while True:
             u = bound.samples(1, rstate=rstate).flatten()
-            if not unitcheck(u, nonbounded):
+            # periodic coordinates are handled by the bound, so the
+            # point must be strictly within the unit cube
+            if not unitcheck(u):
                 ntries += 1
                 if ntries > threshold_warning and not threshold_warned:
                     warnings.warn(
@@ -393,7 +386,6 @@ class UnitCubeSampler(InternalSampler):
             bound (dynesty.bounding object)
             ndim (number of dimensions)
             n_cluster (number of dimensions that are clustered)
-            nonbounded array
 
         Returns
         -------
@@ -647,7 +639,7 @@ class SliceSampler(InternalSampler):
                     args.prior_transform, args.loglikelihood, args.kwargs)
         rstate = get_random_generator(args.rseed)
         # Periodicity.
-        nonperiodic = kwargs.get('nonperiodic', None)
+        periodic = kwargs.get('periodic', None)
         doubling = kwargs.get('slice_doubling', False)
         # Setup.
         n = len(u)
@@ -676,7 +668,7 @@ class SliceSampler(InternalSampler):
                 axis = axes[idx]
                 (u_prop, v_prop, logl_prop, nc1, n_expand1, n_contract1,
                  expansion_warning) = generic_slice_step(
-                     u, axis, nonperiodic, loglstar, loglikelihood,
+                     u, axis, periodic, loglstar, loglikelihood,
                      prior_transform, doubling, evaluation_history, rstate)
                 u = u_prop
                 nc += nc1
@@ -797,7 +789,7 @@ class RSliceSampler(InternalSampler):
                     args.prior_transform, args.loglikelihood, args.kwargs)
         rstate = get_random_generator(args.rseed)
         # Periodicity.
-        nonperiodic = kwargs.get('nonperiodic', None)
+        periodic = kwargs.get('periodic', None)
         doubling = kwargs.get('slice_doubling', False)
         evaluation_history = []
         # Setup.
@@ -820,7 +812,7 @@ class RSliceSampler(InternalSampler):
             direction = np.dot(axes, drhat) * scale
 
             (u_prop, v_prop, logl_prop, nc1, n_expand1, n_contract1,
-             expansion_warning) = generic_slice_step(u, direction, nonperiodic,
+             expansion_warning) = generic_slice_step(u, direction, periodic,
                                                      loglstar, loglikelihood,
                                                      prior_transform, doubling,
                                                      evaluation_history,
@@ -911,8 +903,6 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
 
     """
 
-    # Periodicity.
-    nonbounded = kwargs.get('nonbounded')
     periodic = kwargs.get('periodic')
 
     # Setup.
@@ -940,8 +930,7 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
                                           n,
                                           n_cluster,
                                           rstate=rstate,
-                                          periodic=periodic,
-                                          nonbounded=nonbounded)
+                                          periodic=periodic)
         if fail:
             n_reject += 1
             ncall += 1
@@ -986,8 +975,7 @@ def propose_ball_point(u,
                        n,
                        n_cluster,
                        rstate=None,
-                       periodic=None,
-                       nonbounded=None):
+                       periodic=None):
     """
     Here we are proposing points uniformly within an n-d ellipsoid.
     We are only trying once.
@@ -1018,7 +1006,7 @@ def propose_ball_point(u,
         u_prop[periodic] = np.mod(u_prop[periodic], 1)
 
     # Check unit cube constraints.
-    if unitcheck(u_prop, nonbounded):
+    if unitcheck(u_prop):
         return u_prop, False
     else:
         return None, True
@@ -1061,7 +1049,7 @@ def _slice_doubling_accept(x1, F, loglstar, L, R, fL, fR):
     return True
 
 
-def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
+def generic_slice_step(u0, direction, periodic, loglstar, loglikelihood,
                        prior_transform, doubling, evaluation_history, rstate):
     """
     Do a slice generic slice sampling step along a specified dimension
@@ -1073,8 +1061,10 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
         It MUST satisfy the logl>loglstar criterion
     direction: ndarray (ndim sized)
         Step direction vector
-    nonperiodic: ndarray(bool)
-        mask for nonperiodic variables
+    periodic: iterable or None
+        indices of the periodic variables. The slice is confined to
+        a unit cube whose origin is randomly shifted along the periodic
+        dimensions, so that it can cross the periodic boundary.
     loglstar: float
         the critical value of logl, so that new logl must be >loglstar
     loglikelihood: function
@@ -1084,7 +1074,18 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
     """
     nc, n_expand, n_contract = 0, 0, 0
     n_expand_threshold = 1000  # Threshold for warning the user
-    n = len(u)
+    n = len(u0)
+    # Random shift of the origin of the periodic coordinates.
+    # For a given shift, the slice sampling confined to the shifted
+    # cube is a valid step on the torus, and so is their mixture.
+    if periodic is not None:
+        u = u0.copy()
+        # since we modify u
+        shift = rstate.random(len(periodic))
+        u[periodic] = np.mod(u[periodic] - shift, 1)
+    else:
+        # we do not modify u, copy not needed
+        u = u0
     rand0 = rstate.random()  # initial scale/offset
     dirlen = linalg.norm(direction)
     maxlen = np.sqrt(n) / 2.
@@ -1101,7 +1102,10 @@ def generic_slice_step(u, direction, nonperiodic, loglstar, loglikelihood,
     def F(x):
         nonlocal nc
         u_new = u + x * direction
-        if unitcheck(u_new, nonperiodic):
+        if unitcheck(u_new):
+            if periodic is not None:
+                u_new[periodic] = np.mod(u_new[periodic] + shift,
+                                         1)  # back to the unit cube
             v_new = prior_transform(u_new)
             logl = loglikelihood(v_new)
             evaluation_history.append(

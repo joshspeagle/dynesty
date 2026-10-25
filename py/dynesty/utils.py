@@ -1764,7 +1764,7 @@ def unravel_run(res, print_progress=True):
     except AttributeError:
         pass
 
-    if (np.diff(res.logl) == 0).sum() == 0:
+    if (np.diff(res.logl) == 0).sum() > 0:
         warnings.warn('The likelihood seem to have plateaus. '
                       'The unraveling such runs may be inaccurate')
 

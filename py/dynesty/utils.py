@@ -1396,7 +1396,7 @@ def jitter_run(res, rstate=None, approx=False):
         'logwt': saved_logwt,
         'logz': saved_logz,
         'logzerr': np.sqrt(np.maximum(saved_logzvar, 0)),
-        'h': saved_h
+        'information': saved_h
     }
 
     new_res = results_substitute(res, substitute)
@@ -1415,7 +1415,9 @@ def compute_integrals(*, logl, logvol, reweight=None, logvol_init=0):
     logvol: array
         array of log volumes
     reweight: array (or None)
-        (optional) reweighting array to reweight posterior
+        (optional) array of log-reweighting factors of the likelihood, i.e.
+        the likelihood in the interval preceding the i-th sample is
+        multiplied by exp(reweight[i])
     logvol_init: float
         (optional) log-volume at the start of the run, i.e. the volume
         from which the first sample shrinks. It is zero unless part of
@@ -1439,10 +1441,13 @@ def compute_integrals(*, logl, logvol, reweight=None, logvol_init=0):
     dlogvol = -np.diff(logvol, prepend=logvol_init)
     # this are delta(log(volumes)) of the run
 
+    if reweight is None:
+        reweight = np.zeros(len(logl))
     # These are log((L_i+L_{i_1})*(X_i+1-X_i)/2)
-    saved_logwt = np.logaddexp(loglstar_pad[1:], loglstar_pad[:-1]) + logdvol2
-    if reweight is not None:
-        saved_logwt = saved_logwt + reweight
+    # With reweighting the likelihood in the i-th interval is
+    # L * exp(reweight_i)
+    saved_logwt = (np.logaddexp(loglstar_pad[1:], loglstar_pad[:-1]) +
+                   logdvol2 + reweight)
     saved_logz = np.logaddexp.accumulate(saved_logwt)
     # This implements eqn 16 of Speagle2020
 
@@ -1454,8 +1459,10 @@ def compute_integrals(*, logl, logvol, reweight=None, logvol_init=0):
     # incomplete H can be defined as
     # H = int( L/Z * ln(L) dX,X=0..x) - z_x/Z * ln(Z)
     h_part1 = np.cumsum(
-        (np.exp(loglstar_pad[1:] - logzmax + logdvol2) * loglstar_pad[1:] +
-         np.exp(loglstar_pad[:-1] - logzmax + logdvol2) * loglstar_pad[:-1]))
+        np.exp(loglstar_pad[1:] + reweight - logzmax + logdvol2) *
+        (loglstar_pad[1:] + reweight) +
+        np.exp(loglstar_pad[:-1] + reweight - logzmax + logdvol2) *
+        (loglstar_pad[:-1] + reweight))
     # here we divide the likelihood by zmax to avoid to overflow
     saved_h = h_part1 - logzmax * np.exp(saved_logz - logzmax)
     # changes in h in each step
@@ -1686,6 +1693,14 @@ def reweight_run(res, logp_new, logp_old=None):
         A new :class:`~dynesty.results.Results` instance with corresponding
         weights based on our reweighted samples.
 
+    Notes
+    -----
+    The prior volumes of the original run are kept, i.e. the reweighting
+    is treated as a change of the likelihood under the original prior.
+    The returned `information` is therefore the information of the new
+    posterior relative to the original prior. The `logzerr` estimate does
+    not include the additional uncertainty due to the reweighting itself.
+
     """
 
     # Extract info.
@@ -1707,7 +1722,7 @@ def reweight_run(res, logp_new, logp_old=None):
         'logwt': saved_logwt,
         'logz': saved_logz,
         'logzerr': np.sqrt(np.maximum(saved_logzvar, 0)),
-        'h': saved_h
+        'information': saved_h
     }
 
     new_res = results_substitute(res, substitute)

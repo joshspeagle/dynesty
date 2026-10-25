@@ -186,6 +186,50 @@ def test_reweight(dyn, ndim):
                   res0['logz'][-1]) < 3 * res1['logzerr'][-1]
 
 
+def test_jitter_information():
+    # test that jitter_run recomputes the information
+    ndim = 2
+    rstate = get_rstate()
+    sampler = dynesty.NestedSampler(loglike,
+                                    prior_transform,
+                                    ndim,
+                                    nlive=nlive,
+                                    rstate=rstate)
+    sampler.run_nested(print_progress=printing)
+    res0 = sampler.results
+    res1 = dyutil.jitter_run(res0, rstate=rstate)
+    info = dyutil.compute_integrals(logl=res1['logl'],
+                                    logvol=res1['logvol'],
+                                    logvol_init=res1['logvol_init'])[3]
+    assert not np.allclose(res1['information'], res0['information'])
+    assert np.allclose(res1['information'], info)
+
+
+def test_reweight_information():
+    # test that reweight_run computes the information
+    # of the reweighted posterior
+    ndim = 2
+    rstate = get_rstate()
+    sampler = dynesty.NestedSampler(loglike,
+                                    prior_transform,
+                                    ndim,
+                                    nlive=500,
+                                    rstate=rstate)
+    sampler.run_nested(print_progress=printing)
+    res0 = sampler.results
+    # reweight the unit gaussian to a gaussian with sigma=s
+    s = 0.5
+    logl_new = -0.5 * np.sum((res0['samples'] / s)**2, axis=1)
+    res1 = dyutil.reweight_run(res0, logl_new)
+    # information of the gaussian with respect to the uniform prior
+    info_true = ndim * (np.log(2 * size / s / np.sqrt(2 * np.pi)) - 0.5)
+    assert np.abs(res1['information'][-1] - info_true) < 0.3
+    # reweighting with the same likelihood changes nothing
+    res2 = dyutil.reweight_run(res0, res0['logl'])
+    assert np.allclose(res2['information'], res0['information'])
+    assert np.allclose(res2['logzerr'], res0['logzerr'])
+
+
 def test_livepoints():
     # Test the providing of initial live-points to the sampler
     ndim = 2

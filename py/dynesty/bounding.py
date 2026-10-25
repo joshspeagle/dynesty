@@ -75,8 +75,22 @@ def _slogdet_checked(matrix):
 
 class Bound:
     """
-    This is is master class for the all the bounds listing
-    the key methods required from the bound
+    The base class of all the bounds, listing the methods and attributes
+    required from a bound. A user-defined bound (passed as `bound` to the
+    nested samplers) must implement them.
+
+    Attributes
+    ----------
+    ndim : int
+        The number of dimensions of the bound.
+
+    logvol : float
+        The ln(volume) of the bound.
+
+    need_centers : bool
+        If `True`, the sampler sets the attribute `ctrs` of the bound to
+        the current live points before proposing new points (as done for
+        the balls/cubes centered on the live points).
     """
 
     def __init__(self, ndim):
@@ -85,40 +99,53 @@ class Bound:
         self.ndim = ndim
 
     def contains(self, x):
-        """Checks if unit cube contains the point `x`."""
+        """Checks if the bound contains the point `x`."""
         pass
 
     def sample(self, rstate=None):
         """
-        Draw a sample uniformly distributed within the unit cube.
+        Draw a sample uniformly distributed within the bound.
 
         Returns
         -------
         x : `~numpy.ndarray` with shape (ndim,)
-            A coordinate within the unit cube.
+            A coordinate within the bound.
 
         """
         pass
 
     def samples(self, nsamples, rstate=None):
         """
-        Draw `nsamples` samples randomly distributed within the unit cube.
+        Draw `nsamples` samples uniformly distributed within the bound.
 
         Returns
         -------
         x : `~numpy.ndarray` with shape (nsamples, ndim)
-            A collection of coordinates within the unit cube.
+            A collection of coordinates within the bound.
 
         """
         pass
 
     def get_random_axes(self, rstate):
+        """
+        Return the axes, an `~numpy.ndarray` with shape (ndim, ndim), used
+        by the random walk and slice samplers to propose new points
+        (possibly chosen randomly, e.g. from one of several ellipsoids).
+        """
         pass
 
     def scale_to_logvol(self, logvol):
+        """Scale the bound to the ln(volume) `logvol` (used to enlarge
+        the bound)."""
         pass
 
     def update(self, points, rstate=None, bootstrap=0, pool=None):
+        """
+        Update the bound to enclose the set of live `points` (an
+        `~numpy.ndarray` with shape (npoints, ndim)). If `bootstrap > 0`,
+        the bound is enlarged using that many bootstrapped realizations.
+        `pool` can be used to compute them in parallel.
+        """
         pass
 
 

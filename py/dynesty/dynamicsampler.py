@@ -973,7 +973,8 @@ class DynamicSampler:
         ----------
         nlive : int, optional
             The number of live points to use for the baseline nested
-            sampling run. Default is either nlive0 parameter of 500
+            sampling run. Default is the number of live points given at
+            initialization (`nlive0`).
 
         update_interval : int or float, optional
             If an integer is passed, only update the bounding distribution
@@ -986,7 +987,8 @@ class DynamicSampler:
         first_update : dict, optional
             A dictionary containing parameters governing when the sampler will
             first update the bounding distribution from the unit cube
-            (`'none'`) to the one specified by `sample`.
+            (`'none'`) to the one specified by `bound`. If not provided,
+            defaults to the value passed during initialization.
 
         maxiter : int, optional
             Maximum number of iterations. Iteration may stop earlier if the
@@ -1027,55 +1029,73 @@ class DynamicSampler:
             Whether or not to save past distributions used to bound
             the live points internally. Default is `True`.
 
-        Returns
-        -------
-        worst : int
-            Index of the live point with the worst likelihood. This is our
-            new dead point sample.
+        resume : bool, optional
+            If `True`, continue a previously interrupted run (e.g. one
+            restored from a checkpoint file) instead of starting a new one.
+            Default is `False`.
 
-        ustar : `~numpy.ndarray` with shape (ndim,)
-            Position of the sample.
+        Yields
+        ------
+        result : `IteratorResult`
+            A named tuple (`dynesty.utils.IteratorResult`) describing the
+            new dead point, with the following fields:
 
-        vstar : `~numpy.ndarray` with shape (ndim,)
-            Transformed position of the sample.
+            worst : int
+                Index of the live point with the worst likelihood. This is our
+                new dead point sample.
 
-        loglstar : float
-            Ln(likelihood) of the sample.
+            ustar : `~numpy.ndarray` with shape (ndim,)
+                Position of the sample.
 
-        logvol : float
-            Ln(prior volume) within the sample.
+            vstar : `~numpy.ndarray` with shape (ndim,)
+                Transformed position of the sample.
 
-        logwt : float
-            Ln(weight) of the sample.
+            loglstar : float
+                Ln(likelihood) of the sample.
 
-        logz : float
-            Cumulative ln(evidence) up to the sample (inclusive).
+            logvol : float
+                Ln(prior volume) within the sample.
 
-        logzvar : float
-            Estimated cumulative variance on `logz` (inclusive).
+            logwt : float
+                Ln(weight) of the sample.
 
-        h : float
-            Cumulative information up to the sample (inclusive).
+            logz : float
+                Cumulative ln(evidence) up to the sample (inclusive).
 
-        nc : int
-            Number of likelihood calls performed before the new
-            live point was accepted.
+            logzvar : float
+                Estimated cumulative variance on `logz` (inclusive).
 
-        worst_it : int
-            Iteration when the live (now dead) point was originally proposed.
+            h : float
+                Cumulative information up to the sample (inclusive).
 
-        boundidx : int
-            Index of the bound the dead point was originally drawn from.
+            nc : int
+                Number of likelihood calls performed before the new
+                live point was accepted.
 
-        bounditer : int
-            Index of the bound being used at the current iteration.
+            worst_it : int
+                Iteration when the live (now dead) point was originally
+                proposed.
 
-        eff : float
-            The cumulative sampling efficiency (in percent).
+            boundidx : int
+                Index of the bound the dead point was originally drawn from.
 
-        delta_logz : float
-            The estimated remaining evidence expressed as the ln(ratio) of the
-            current evidence.
+            bounditer : int
+                Index of the bound being used at the current iteration.
+
+            eff : float
+                The cumulative sampling efficiency (in percent).
+
+            delta_logz : float
+                The estimated remaining evidence expressed as the ln(ratio)
+                of the current evidence.
+
+            blob : object
+                The blob returned by the log-likelihood for the sample (if
+                `blob=True`, otherwise `None`).
+
+            proposal_stats : dict
+                Statistics of the internal sampler proposal of the sample
+                (e.g. the number of accepted/rejected steps).
 
         """
         # Initialize inputs.
@@ -1293,8 +1313,10 @@ class DynamicSampler:
 
         logl_bounds : tuple of size (2,), optional
             The ln(likelihood) bounds used to bracket the run. If `None`,
-            the default bounds span the entire range covered by the
-            original run.
+            the batch starts from the prior (lower bound `-inf`) and the
+            upper bound is the ln(likelihood) of the last saved sample
+            whose ln(prior volume) is below the final ln(prior volume)
+            of the previous samples plus `ln(nlive_new)`.
 
         maxiter : int, optional
             Maximum number of iterations. Iteration may stop earlier if the
@@ -1314,39 +1336,59 @@ class DynamicSampler:
             `samples_bound`). Default is `True`.
 
         dlogz : float, optional
-            The stopping point in terms of remaining delta(logz)
+            The stopping point in terms of remaining delta(logz) of the
+            batch run (see :meth:`~dynesty.sampler.Sampler.sample`).
+            Default is `0.01`.
 
-        Returns
-        -------
-        worst : int
-            Index of the live point with the worst likelihood. This is our
-            new dead point sample. **Negative values indicate the index
-            of a new live point generated when initializing a new batch.**
+        resume : bool, optional
+            If `True`, continue a previously interrupted run (e.g. one
+            restored from a checkpoint file) instead of starting a new one.
+            Default is `False`.
 
-        ustar : `~numpy.ndarray` with shape (ndim,)
-            Position of the sample.
+        Yields
+        ------
+        result : `IteratorResultShort`
+            A named tuple (`dynesty.utils.IteratorResultShort`) describing
+            the new dead point (or, at the start of the batch, a new live
+            point), with the following fields:
 
-        vstar : `~numpy.ndarray` with shape (ndim,)
-            Transformed position of the sample.
+            worst : int
+                Index of the live point with the worst likelihood. This is our
+                new dead point sample. **Negative values indicate the index
+                of a new live point generated when initializing a new batch.**
 
-        loglstar : float
-            Ln(likelihood) of the sample.
+            ustar : `~numpy.ndarray` with shape (ndim,)
+                Position of the sample.
 
-        nc : int
-            Number of likelihood calls performed before the new
-            live point was accepted.
+            vstar : `~numpy.ndarray` with shape (ndim,)
+                Transformed position of the sample.
 
-        worst_it : int
-            Iteration when the live (now dead) point was originally proposed.
+            loglstar : float
+                Ln(likelihood) of the sample.
 
-        boundidx : int
-            Index of the bound the dead point was originally drawn from.
+            nc : int
+                Number of likelihood calls performed before the new
+                live point was accepted.
 
-        bounditer : int
-            Index of the bound being used at the current iteration.
+            worst_it : int
+                Iteration when the live (now dead) point was originally
+                proposed.
 
-        eff : float
-            The cumulative sampling efficiency (in percent).
+            boundidx : int
+                Index of the bound the dead point was originally drawn from.
+
+            bounditer : int
+                Index of the bound being used at the current iteration.
+
+            eff : float
+                The cumulative sampling efficiency (in percent).
+
+            delta_logz : float
+                The estimated remaining evidence expressed as the ln(ratio)
+                of the current evidence.
+
+            proposal_stats : dict
+                Statistics of the internal sampler proposal of the sample.
 
         """
 
@@ -1836,7 +1878,7 @@ class DynamicSampler:
             file every checkpoint_every seconds
         checkpoint_every : float, optional
             The number of seconds between checkpoints that will save
-            the internal state of the sampler
+            the internal state of the sampler. Default is `60`.
         """
 
         # Initialize values.
@@ -2084,6 +2126,12 @@ class DynamicSampler:
             The value of the stopping criteria to be passed to
             :meth:`print_func`. Used internally within :meth:`run_nested` to
             keep track of progress.
+
+        dlogz : float, optional
+            The stopping point in terms of remaining delta(logz) of the
+            batch run (see :meth:`~dynesty.sampler.Sampler.sample`).
+            Default is `0.01`.
+
         resume : bool, optional
             If resume is set to true, we will try to resume a previously
             interrupted run
@@ -2094,6 +2142,21 @@ class DynamicSampler:
             The number of seconds between checkpoints that will save
             the internal state of the sampler. If this is None, we
             we will use the timer created in run_nested()
+
+        Returns
+        -------
+        ncall : int
+            The total number of likelihood calls of the run after the batch.
+
+        niter : int
+            The total number of iterations of the run after the batch.
+
+        logl_bounds : tuple of size (2,) or None
+            The ln(likelihood) bounds requested for the batch (`None` for
+            `mode='full'`).
+
+        results : `IteratorResult`
+            The last iteration result of the batch (used for printing).
         """
 
         # Initialize values.

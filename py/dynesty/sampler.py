@@ -808,7 +808,8 @@ class Sampler:
     def add_live_points(self):
         """Add the remaining set of live points to the current set of dead
         points. Instantiates a generator that will be called by
-        the user. Returns the same outputs as :meth:`sample`."""
+        the user. Yields the same `IteratorResult` objects as
+        :meth:`sample`."""
 
         # Check if the remaining live points have already been added
         # to the output set of samples.
@@ -1004,55 +1005,73 @@ class Sampler:
             Whether or not to save past distributions used to bound
             the live points internally. Default is `True`.
 
-        Returns
-        -------
-        worst : int
-            Index of the live point with the worst likelihood. This is our
-            new dead point sample.
+        resume : bool, optional
+            If `True`, continue a previously interrupted run (e.g. one
+            restored from a checkpoint file) instead of starting a new one.
+            Default is `False`.
 
-        ustar : `~numpy.ndarray` with shape (ndim,)
-            Position of the sample.
+        Yields
+        ------
+        result : `IteratorResult`
+            A named tuple (`dynesty.utils.IteratorResult`) describing the
+            new dead point, with the following fields:
 
-        vstar : `~numpy.ndarray` with shape (ndim,)
-            Transformed position of the sample.
+            worst : int
+                Index of the live point with the worst likelihood. This is our
+                new dead point sample.
 
-        loglstar : float
-            Ln(likelihood) of the sample.
+            ustar : `~numpy.ndarray` with shape (ndim,)
+                Position of the sample.
 
-        logvol : float
-            Ln(prior volume) within the sample.
+            vstar : `~numpy.ndarray` with shape (ndim,)
+                Transformed position of the sample.
 
-        logwt : float
-            Ln(weight) of the sample.
+            loglstar : float
+                Ln(likelihood) of the sample.
 
-        logz : float
-            Cumulative ln(evidence) up to the sample (inclusive).
+            logvol : float
+                Ln(prior volume) within the sample.
 
-        logzvar : float
-            Estimated cumulative variance on `logz` (inclusive).
+            logwt : float
+                Ln(weight) of the sample.
 
-        h : float
-            Cumulative information up to the sample (inclusive).
+            logz : float
+                Cumulative ln(evidence) up to the sample (inclusive).
 
-        nc : int
-            Number of likelihood calls performed before the new
-            live point was accepted.
+            logzvar : float
+                Estimated cumulative variance on `logz` (inclusive).
 
-        worst_it : int
-            Iteration when the live (now dead) point was originally proposed.
+            h : float
+                Cumulative information up to the sample (inclusive).
 
-        boundidx : int
-            Index of the bound the dead point was originally drawn from.
+            nc : int
+                Number of likelihood calls performed before the new
+                live point was accepted.
 
-        bounditer : int
-            Index of the bound being used at the current iteration.
+            worst_it : int
+                Iteration when the live (now dead) point was originally
+                proposed.
 
-        eff : float
-            The cumulative sampling efficiency (in percent).
+            boundidx : int
+                Index of the bound the dead point was originally drawn from.
 
-        delta_logz : float
-            The estimated remaining evidence expressed as the ln(ratio) of the
-            current evidence.
+            bounditer : int
+                Index of the bound being used at the current iteration.
+
+            eff : float
+                The cumulative sampling efficiency (in percent).
+
+            delta_logz : float
+                The estimated remaining evidence expressed as the ln(ratio)
+                of the current evidence.
+
+            blob : object
+                The blob returned by the log-likelihood for the sample (if
+                `blob=True`, otherwise `None`).
+
+            proposal_stats : dict
+                Statistics of the internal sampler proposal of the sample
+                (e.g. the number of accepted/rejected steps).
 
         """
 
@@ -1308,6 +1327,12 @@ class Sampler:
             The number of seconds between checkpoints that will save
             the internal state of the sampler. The sampler will also be
             saved in the end of the run irrespective of checkpoint_every.
+            Default is `60`.
+
+        resume : bool, optional
+            If `True`, continue a previously interrupted run (e.g. one
+            restored from a checkpoint file) instead of starting a new one.
+            Default is `False`.
         """
 
         # Define our stopping criteria.

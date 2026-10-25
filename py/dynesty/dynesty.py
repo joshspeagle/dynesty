@@ -274,7 +274,8 @@ optional
             bounding ellipsoid (`'single'`), multiple bounding ellipsoids
             (`'multi'`), balls centered on each live point (`'balls'`), and
             cubes centered on each live point (`'cubes'`). Default is
-            `'multi'`.
+            `'multi'`. An instance of a :class:`~dynesty.bounding.Bound`
+            subclass can also be provided.
 
         sample : {`'auto'`, `'unif'`, `'rwalk'`, `'slice'`, `'rslice'`}, \
 optional
@@ -291,7 +292,10 @@ optional
             When `10 <= ndim <= 20`, this defaults to `'rwalk'`.
             When `ndim > 20`, this defaults to`'rslice'`. `'slice'`
             is provided as alternative for`'rslice'`.
-            Default is `'auto'`.
+            Default is `'auto'`. An instance of an
+            :class:`~dynesty.internal_samplers.InternalSampler` subclass
+            (e.g. `RWalkSampler(walks=50)`) can also be provided, in which
+            case the `walks` and `slices` arguments are ignored.
 
         periodic : iterable, optional
             A list of indices for parameters with periodic boundary conditions.
@@ -352,8 +356,10 @@ optional
             `loglikelihood` is executed in parallel during initialization
             (`'loglikelihood'`), live points are proposed in parallel during
             a run
-            (`'propose_point'`), and bounding distributions are updated in
-            parallel during a run (`'update_bound'`). Default is `True` for all
+            (`'propose_point'`), bounding distributions are updated in
+            parallel during a run (`'update_bound'`), and (for the dynamic
+            sampler) the stopping function is evaluated in parallel
+            (`'stop_function'`). Default is `True` for all
             options.
 {live_points}
         logl_args : iterable, optional
@@ -371,21 +377,24 @@ optional
 
         enlarge : float, optional
             Enlarge the volumes of the specified bounding object(s) by this
-            fraction. The preferred method is to determine this organically
-            using bootstrapping. If `bootstrap > 0`, this defaults to `1.0`.
-            If `bootstrap = 0`, this instead defaults to `1.25`.
+            factor (at least `1`). If neither `enlarge` nor `bootstrap` is
+            given, this defaults to `1.25`, except for uniform sampling
+            (`'unif'`), which uses bootstrapping instead (`enlarge=1`,
+            `bootstrap=5`). If only `bootstrap` is given, this is `1`.
 
         bootstrap : int, optional
             Compute this many bootstrapped realizations of the bounding
             objects. Use the maximum distance found to the set of points left
             out during each iteration to enlarge the resulting volumes. Can
-            lead to unstable bounding ellipsoids. Default is `None` (no
-            bootstrap
-            unless the sampler is uniform). If bootstrap is set to zero,
-            bootstrap is disabled.
+            lead to unstable bounding ellipsoids. Must be `0` (no
+            bootstrapping) or larger than `1`. Default is `None`, i.e. `5`
+            for uniform sampling and `0` otherwise (see `enlarge`).
+            `enlarge` and `bootstrap` can only be combined if
+            `bootstrap=0` or `enlarge=1`, otherwise a `ValueError` is
+            raised.
 
         walks : int, optional
-            For the `'rwalk'` sampling option, the minimum number of steps
+            For the `'rwalk'` sampling option, the number of steps
             (minimum 2) before proposing a new live point. Default is
             `ndim + 20`.
 
@@ -415,6 +424,16 @@ optional
             should return the tuple of logl and a numpy-array "blob" that will
             stored as part of the chain. That blob can contain auxiliary
             information computed inside the likelihood function.
+
+        save_evaluation_history : bool, optional
+            Whether to save all the likelihood evaluations (the positions in
+            the unit cube and in the parameter space, and the
+            ln(likelihood) values) to the HDF5 file `history_filename`.
+            Requires `h5py`. Default is `False`.
+
+        history_filename : str, optional
+            The name of the HDF5 file used by `save_evaluation_history`.
+            Default is `'dynesty_logl_history.h5'`.
 
     """
     live_points = """

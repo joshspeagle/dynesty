@@ -119,8 +119,9 @@ class LoglOutput:
 
 class LogLikelihood:
     """
-    Class that calls the likelihood function (using a pool if provided)
-    Also if requested it saves the history of evaluations
+    Class that calls the likelihood function and wraps its output in
+    :class:`LoglOutput`. If requested, it also saves the history of
+    evaluations to an HDF5 file.
     """
 
     def __init__(self,
@@ -142,9 +143,9 @@ class LogLikelihood:
             if True we expect the logl output to be a tuple of logl value and
             a blob, otherwise it'll be logl value only
         save_evaluation_history : bool
-            if True, evaluation history (intermediate points) will also be
-            saved.
-            This automatically enables basic history saving.
+            if True, all the likelihood evaluations (including the
+            intermediate points of the internal samplers) will be saved
+            to `history_filename`.
         """
         self.loglikelihood = loglikelihood
         self.save_every = 10000
@@ -740,18 +741,21 @@ _RESULTS_STRUCTURE = [
      "the sampling iteration when the sample was proposed "
      "(e.g., iteration 570)", 'niter'),
     ('samples_id', 'array[int]',
-     'The unique ID of the sample XXX (within nlive points)', None),
+     'The index (between 0 and nlive - 1) of the live point slot '
+     'occupied by the sample', 'niter'),
     ('samples_n', 'array[int]',
      'The number of live points at the point when the sample was proposed',
      'niter'),
     ('samples_u', 'array[float]', '''The coordinates of live points in the
     unit cube coordinate system''', 'niter,ndim'),
-    ('samples_v', 'array[float]', '''The coordinates of live points''',
-     'niter,ndim'),
+    ('samples_v', 'array[float]',
+     '''Not set by the samplers (the coordinates of the samples in the
+     original parameter space are stored in `samples`)''', 'niter,ndim'),
     ('samples', 'array',
-     '''the location (in original coordinates). Identical to samples_v''',
+     '''the location (in original coordinates)''',
      'niter,ndim'), ('niter', 'int', 'number of iterations', None),
-    ('ncall', 'int', 'Total number likelihood calls', None),
+    ('ncall', 'array[int]',
+     'Number of likelihood calls used to propose each sample', 'niter'),
     ('logz', 'array', 'Array of cumulative log(Z) integrals', 'niter'),
     ('logzerr', 'array', 'Array of uncertainty of log(Z)', 'niter'),
     ('logwt', 'array', 'Array of log-posterior weights', 'niter'),
@@ -765,7 +769,7 @@ _RESULTS_STRUCTURE = [
      'zero likelihood, in which case it is the log of the estimated '
      'finite-likelihood prior fraction)', None),
     ('information', 'array[float]', 'Information Integral H', 'niter'),
-    ('bound', 'array[object]',
+    ('bound', 'list[object]',
      "The bounding objects used to condition proposals: index 0 is the unit "
      "cube, followed by one entry per bound update. For dynamic runs the "
      "bounds of the base run are followed by those of each batch in order, "
@@ -1113,18 +1117,19 @@ def resample_equal(samples, weights, rstate=None):
 
     Parameters
     ----------
-    samples : `~numpy.ndarray` with shape (nsamples,)
+    samples : `~numpy.ndarray` with shape (nsamples, ...)
         Set of unequally weighted samples.
 
     weights : `~numpy.ndarray` with shape (nsamples,)
-        Corresponding weight of each sample.
+        Corresponding weight of each sample. If the weights do not sum
+        to 1, they are renormalized (with a warning).
 
     rstate : `~numpy.random.Generator`, optional
         `~numpy.random.Generator` instance.
 
     Returns
     -------
-    equal_weight_samples : `~numpy.ndarray` with shape (nsamples,)
+    equal_weight_samples : `~numpy.ndarray` with shape (nsamples, ...)
         New set of samples with equal weights in random order.
 
     Examples

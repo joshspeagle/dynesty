@@ -174,7 +174,7 @@ def runplot(results,
         A reference value for the evidence that will be overplotted on the
         evidence subplot if provided.
 
-    truth_color : str or iterable with shape (ndim,), optional
+    truth_color : str, optional
         A `~matplotlib`-style color used when plotting :data:`lnz_truth`.
         Default is `'red'`.
 
@@ -441,8 +441,7 @@ def traceplot(results,
     ----------
     results : :class:`~dynesty.results.Results` instance
         A :class:`~dynesty.results.Results` instance from a nested
-        sampling run. **Compatible with results derived from**
-        `nestle <http://kylebarbary.com/nestle/>`_.
+        sampling run.
 
     span : iterable with shape (ndim,), optional
         A list where each element is either a length-2 tuple containing
@@ -566,9 +565,8 @@ def traceplot(results,
         marginalized 1-D posteriors as solid horizontal/vertical lines.
         Individual values can be exempt using `None`. Default is `None`.
 
-    truth_color : str or iterable with shape (ndim,), optional
-        A `~matplotlib`-style color (either a single color or a different
-        value for each subplot) used when plotting `truths`.
+    truth_color : str, optional
+        A `~matplotlib`-style color used when plotting `truths`.
         Default is `'red'`.
 
     truth_kwargs : dict, optional
@@ -847,8 +845,7 @@ def cornerpoints(results,
     ----------
     results : :class:`~dynesty.results.Results` instance
         A :class:`~dynesty.results.Results` instance from a nested
-        sampling run. **Compatible with results derived from**
-        `nestle <http://kylebarbary.com/nestle/>`_.
+        sampling run.
 
     dims : iterable of shape (ndim,), optional
         The subset of dimensions that should be plotted. If not provided,
@@ -905,9 +902,8 @@ def cornerpoints(results,
         marginalized 1-D posteriors as solid horizontal/vertical lines.
         Individual values can be exempt using `None`. Default is `None`.
 
-    truth_color : str or iterable with shape (ndim,), optional
-        A `~matplotlib`-style color (either a single color or a different
-        value for each subplot) used when plotting `truths`.
+    truth_color : str, optional
+        A `~matplotlib`-style color used when plotting `truths`.
         Default is `'red'`.
 
     truth_kwargs : dict, optional
@@ -1121,8 +1117,7 @@ def cornerplot(results,
     ----------
     results : :class:`~dynesty.results.Results` instance
         A :class:`~dynesty.results.Results` instance from a nested
-        sampling run. **Compatible with results derived from**
-        `nestle <http://kylebarbary.com/nestle/>`_.
+        sampling run.
 
     dims : iterable of shape (ndim,), optional
         The subset of dimensions that should be plotted. If not provided,
@@ -1143,9 +1138,8 @@ def cornerplot(results,
         posteriors as vertical dashed lines. Default is `[0.025, 0.5, 0.975]`
         (spanning the 95%/2-sigma credible interval).
 
-    color : str or iterable with shape (ndim,), optional
-        A `~matplotlib`-style color (either a single color or a different
-        value for each subplot) used when plotting the histograms.
+    color : str, optional
+        A `~matplotlib`-style color used when plotting the histograms.
         Default is `'black'`.
 
     smooth : float or iterable with shape (ndim,), optional
@@ -1199,9 +1193,8 @@ def cornerplot(results,
         marginalized 1-D posteriors as solid horizontal/vertical lines.
         Individual values can be exempt using `None`. Default is `None`.
 
-    truth_color : str or iterable with shape (ndim,), optional
-        A `~matplotlib`-style color (either a single color or a different
-        value for each subplot) used when plotting `truths`.
+    truth_color : str, optional
+        A `~matplotlib`-style color used when plotting `truths`.
         Default is `'red'`.
 
     truth_kwargs : dict, optional
@@ -1556,8 +1549,9 @@ def boundplot(results,
     plot_kwargs : dict, optional
         Extra keyword arguments used when plotting the bounding draws.
 
-    labels : iterable with shape (ndim,), optional
-        A list of names for each parameter. If not provided, the default name
+    labels : iterable with shape (2,), optional
+        The names of the two plotted parameters (`dims`), used as the x and
+        y axis labels. If not provided, the default name
         used when plotting will follow :math:`x_i` style.
 
     label_kwargs : dict, optional
@@ -1900,9 +1894,10 @@ def cornerbound(results,
     live_kwargs : dict, optional
         Extra keyword arguments used when plotting the live points.
 
-    span : iterable with shape (2,), optional
+    span : iterable with shape (ndim,), optional
         A list where each element is a length-2 tuple containing
-        lower and upper bounds. Default is `None` (no bound).
+        lower and upper bounds for each dimension. Default is `None`
+        (no bound).
 
     fig : (`~matplotlib.figure.Figure`, `~matplotlib.axes.Axes`), optional
         If provided, overplot the draws onto the provided figure.
@@ -2194,13 +2189,21 @@ def _hist2d(x,
     y : iterable with shape (nsamps,)
        Sample positions in the second dimension.
 
-    span : iterable with shape (ndim,), optional
-        A list where each element is either a length-2 tuple containing
-        lower and upper bounds or a float from `(0., 1.]` giving the
-        fraction of (weighted) samples to include. If a fraction is provided,
-        the bounds are chosen to be equal-tailed. An example would be::
+    smooth : float or iterable with shape (2,), optional
+        The standard deviation (either a single value or a different value
+        for each dimension) for the Gaussian kernel used to smooth the 2-D
+        histogram, expressed as a fraction of the span. If an integer is
+        provided instead, a simple (weighted) histogram with `bins=smooth`
+        is used. Default is `0.02` (2% smoothing).
 
-            span = [(0., 10.), 0.95, (5., 6.)]
+    span : iterable with shape (2,), optional
+        A list where each element (for `x` and `y`) is either a length-2
+        tuple containing lower and upper bounds or a float from `(0., 1.]`
+        giving the fraction of (weighted) samples to include. If a fraction
+        is provided, the bounds are chosen to be equal-tailed. An example
+        would be::
+
+            span = [(0., 10.), 0.95]
 
         Default is `0.999999426697` (5-sigma credible interval).
 

@@ -1082,20 +1082,13 @@ def mean_and_cov(samples, weights):
     cov : `~numpy.ndarray` with shape (ndim, ndim)
         Weighted sample covariance matrix.
 
-    Notes
-    -----
-    Implements the formulae found `here <https://goo.gl/emWFLR>`_.
-
     """
 
     # Compute the weighted mean.
     mean = np.average(samples, weights=weights, axis=0)
 
     # Compute the weighted covariance.
-    dx = samples - mean
-    wsum = np.sum(weights)
-    w2sum = np.sum(weights**2)
-    cov = wsum / (wsum**2 - w2sum) * np.einsum('i,ij,ik', weights, dx, dx)
+    cov = np.atleast_2d(np.cov(samples, rowvar=False, aweights=weights))
 
     return mean, cov
 

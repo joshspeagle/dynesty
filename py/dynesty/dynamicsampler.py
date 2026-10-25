@@ -545,7 +545,9 @@ def _configure_batch_sampler(main_sampler,
         batch_sampler.live_u = live_u
         batch_sampler.live_v = live_v
         batch_sampler.live_logl = live_logl
-        batch_sampler.internal_sampler.scale = live_scale
+        # the scale is set for the sampler that will be used after
+        # the switch from the unit cube sampling
+        batch_sampler.internal_sampler_next.scale = live_scale
         batch_sampler.live_blobs = live_blobs
         batch_sampler.live_proposal_stats = [None] * cur_nlive
         batch_sampler.update_bound_if_needed(logl_min)

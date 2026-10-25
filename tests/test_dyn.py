@@ -40,3 +40,18 @@ def test_dyn():
     assert (abs(LOGZ_TRUTH - sampler.results.logz[-1])
             < THRESHOLD * sampler.results.logzerr[-1])
     print(sampler.citations)
+
+
+def test_add_batch_default_nlive():
+    # add_batch() without nlive should use the nlive given at
+    # initialization, like run_nested() does
+    ndim = 2
+    nlive0 = 60
+    sampler = dynesty.DynamicNestedSampler(lambda x: -0.5 * np.sum(x**2),
+                                           lambda u: 20 * u - 10,
+                                           ndim,
+                                           nlive=nlive0,
+                                           rstate=get_rstate())
+    sampler.run_nested(maxbatch=0, print_progress=printing)
+    sampler.add_batch(print_progress=printing)
+    assert sampler.results.batch_nlive[-1] == nlive0

@@ -1268,7 +1268,8 @@ class DynamicSampler:
         Parameters
         ----------
         nlive_new : int
-            Number of new live points to be added. Default is `500`.
+            Number of new live points to be added. Default is the `nlive0`
+            value (the number of live points given at initialization).
 
         update_interval : int or float, optional
             If an integer is passed, only update the bounding distribution
@@ -1983,7 +1984,7 @@ class DynamicSampler:
             self.loglikelihood.history_save()
 
     def add_batch(self,
-                  nlive=500,
+                  nlive=None,
                   dlogz=1e-2,
                   mode='weight',
                   wt_function=None,
@@ -2007,7 +2008,8 @@ class DynamicSampler:
         ----------
         nlive : int, optional
             The number of live points used when adding additional samples
-            in the batch. Default is `500`.
+            in the batch. Default is the number of live points given at
+            initialization (`nlive0`).
 
         mode: string, optional
             How to allocate a new batch.

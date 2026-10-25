@@ -193,3 +193,14 @@ def test_bounding_sample(bound, sample):
     sampler.run_nested(print_progress=printing)
     check_results_gau(sampler.results, g, rstate)
     print(sampler.citations)
+
+
+@pytest.mark.parametrize("bound", [db.RadFriends, db.SupFriends])
+def test_friends_mc_integrate(bound):
+    # update() with mc_integrate=True computes the overlap with the cube
+    rstate = get_rstate()
+    ndim = 2
+    points = rstate.uniform(0.3, 0.7, size=(50, ndim))
+    b = bound(ndim)
+    b.update(points, rstate=rstate, mc_integrate=True)
+    assert 0 < b.funit <= 1 + 1e-10

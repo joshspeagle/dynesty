@@ -1326,6 +1326,7 @@ class SupFriends(Bound):
         self.am /= hsmax**2
         self.axes *= hsmax
         self.axes_inv /= hsmax
+        self.ctrs = points
 
         detln = _slogdet_checked(self.am)
         self.logvol = self.ndim * np.log(2.) - 0.5 * detln
@@ -1333,8 +1334,7 @@ class SupFriends(Bound):
         # Estimate the volume and fractional overlap with the unit cube
         # using Monte Carlo integration.
         if mc_integrate:
-            self.funit = self.monte_carlo_logvol(points,
-                                                 return_overlap=True,
+            self.funit = self.monte_carlo_logvol(return_overlap=True,
                                                  rstate=rstate)[1]
 
     def _get_covariance_from_all_points(self, points):

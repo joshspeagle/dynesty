@@ -855,10 +855,14 @@ following quantities are also provided:
 
 * `samples_bound`: the index into `bound` of the bounding object the sample
   was *originally proposed from* (this lags `bound_iter` because a live point
-  can survive several bound updates before it is removed), and
+  can survive several bound updates before it is removed).
 
-* `scale`: the scale-factor used at a given iteration (used to scale the bounds
-  for non-uniform proposals).
+The results also always include `scale`: the proposal scale of the internal
+sampler (`'rwalk'`, `'slice'`, `'rslice'`) at the iteration when the sample
+was *removed from the live set*. It multiplies the axes of the bound active at
+that iteration (`bound_iter`) and is tuned during the run, so it is not
+necessarily the scale the sample was proposed with. It is always 1 for
+uniform sampling.
 
 Note that some of these quantities change when using :ref:`Dynamic Nested
 Sampling`.

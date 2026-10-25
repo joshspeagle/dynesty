@@ -748,6 +748,9 @@ class DynamicSampler:
         self.batch = 0  # number of batches allocated dynamically
         self.ncall = 0  # number of function calls
         self.bound_list = []  # initial states used to compute bounds
+        # whether the bounds of the base run and of all the batches
+        # were saved
+        self.save_bounds = True
         self.eff = 1.  # sampling efficiency
         self.nlive0 = nlive0
         self.internal_state = DynamicSamplerStatesEnum.INIT
@@ -894,15 +897,15 @@ class DynamicSampler:
                 results.append((k, d[k]))
             results.append(('logzerr', np.sqrt(d['logzvar'])))
             results.append(('information', d['h']))
+        results.append(('scale', np.array(self.saved_run['scale'])))
 
         # Add any saved bounds (and ancillary quantities) to the results.
-        if self.sampler.save_bounds:
+        if self.save_bounds:
             results.append(('bound', copy.deepcopy(self.bound_list)))
             results.append(
                 ('bound_iter', np.array(self.saved_run['bounditer'])))
             results.append(
                 ('samples_bound', np.array(self.saved_run['boundidx'])))
-            results.append(('scale', np.array(self.saved_run['scale'])))
 
         return Results(results)
 
@@ -941,6 +944,7 @@ class DynamicSampler:
                        logl_max=np.inf,
                        dlogz=0.01,
                        live_points=None,
+                       save_bounds=True,
                        resume=False):
         """
         Generate a series of initial samples from a nested sampling
@@ -1002,6 +1006,10 @@ class DynamicSampler:
             been sampled from the prior. Failure to provide a set of valid
             live points will lead to incorrect results.**
 
+        save_bounds : bool, optional
+            Whether or not to save past distributions used to bound
+            the live points internally. Default is `True`.
+
         Returns
         -------
         worst : int
@@ -1060,6 +1068,7 @@ class DynamicSampler:
         update_interval = self.__get_update_interval(update_interval, nlive)
         if nlive <= 2 * self.ncdim:
             warnings.warn("Beware: `nlive_init <= 2 * ndim`!")
+        self.save_bounds = save_bounds
 
         if not resume:
             (self.live_u, self.live_v, self.live_logl,
@@ -1125,6 +1134,7 @@ class DynamicSampler:
                                     maxcall=maxcall,
                                     logl_max=logl_max,
                                     dlogz=dlogz,
+                                    save_bounds=save_bounds,
                                     resume=resume)):
             # Grab results.
 
@@ -1285,7 +1295,10 @@ class DynamicSampler:
 
         save_bounds : bool, optional
             Whether or not to save past distributions used to bound
-            the live points internally. Default is `True`.
+            the live points internally.
+            If the bounds of the base run or of any batch are not saved,
+            the results do not include the bounds (`bound`, `bound_iter`,
+            `samples_bound`). Default is `True`.
 
         dlogz : float, optional
             The stopping point in terms of remaining delta(logz)
@@ -1332,6 +1345,10 @@ class DynamicSampler:
 
         if nlive_new <= 2 * self.ncdim:
             warnings.warn("Beware: `nlive_batch <= 2 * ndim`!")
+        if not save_bounds:
+            # the bound indices of all the samples can only be
+            # interpreted if the bounds of every part of the run are kept
+            self.save_bounds = False
 
         # In the following code we are carefully trying to store everything
         # in attributes of batch_sampler rather than have individual
@@ -1767,8 +1784,10 @@ class DynamicSampler:
 
         save_bounds : bool, optional
             Whether or not to save distributions used to bound
-            the live points internally during dynamic live point allocation.
-            Default is `True`.
+            the live points internally during the base run and the batches.
+            If the bounds of the base run or of any batch are not saved,
+            the results do not include the bounds (`bound`, `bound_iter`,
+            `samples_bound`). Default is `True`.
 
         print_progress : bool, optional
             Whether to output a simple summary of the current run that
@@ -1876,6 +1895,7 @@ class DynamicSampler:
             ]:
                 for results in self.sample_initial(nlive=nlive_init,
                                                    dlogz=dlogz_init,
+                                                   save_bounds=save_bounds,
                                                    maxcall=maxcall_init,
                                                    maxiter=maxiter_init,
                                                    logl_max=logl_max_init,
@@ -2026,8 +2046,10 @@ class DynamicSampler:
 
         save_bounds : bool, optional
             Whether or not to save distributions used to bound
-            the live points internally during dynamic live point allocations.
-            Default is `True`.
+            the live points internally during the batch.
+            If the bounds of the base run or of any batch are not saved,
+            the results do not include the bounds (`bound`, `bound_iter`,
+            `samples_bound`). Default is `True`.
 
         print_progress : bool, optional
             Whether to output a simple summary of the current run that

@@ -601,6 +601,7 @@ class Sampler:
                 results.append((k, d[k]))
             results.append(('logzerr', np.sqrt(d['logzvar'])))
             results.append(('information', d['h']))
+        results.append(('scale', np.array(self.saved_run['scale'])))
 
         # Add any saved bounds (and ancillary quantities) to the results.
         if self.save_bounds:
@@ -610,7 +611,6 @@ class Sampler:
                                         dtype=int)))
             results.append(('samples_bound',
                             np.array(self.saved_run['boundidx'], dtype=int)))
-            results.append(('scale', np.array(self.saved_run['scale'])))
 
         return Results(results)
 

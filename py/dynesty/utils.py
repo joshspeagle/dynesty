@@ -780,7 +780,13 @@ _RESULTS_STRUCTURE = [
      "The log-likelihood bounds used to run a batch.", 'nbatch'),
     ('batch_nlive', 'array[int]',
      "The number of live points used for  given batch", 'nbatch'),
-    ('scale', 'array[float]', "Scalar scale applied for proposals", 'niter'),
+    ('scale', 'array[float]',
+     "Proposal scale of the internal sampler (rwalk, slice, rslice) at the "
+     "iteration when the corresponding sample was removed from the live set. "
+     "It multiplies the axes provided by the bound active at that iteration "
+     "(see `bound_iter`). It is not necessarily the scale the sample was "
+     "proposed with, as the scale is tuned during the run. It is always 1 "
+     "for uniform sampling", 'niter'),
     ('blob', 'array[]',
      'The auxiliary blobs computed by the log-likelihood function', 'niter'),
     ('proposal_stats', 'array[]', 'Information from the inner sampler',

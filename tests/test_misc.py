@@ -535,6 +535,44 @@ def test_saved_bounds_dynamic():
     assert inside.mean() > 0.9
 
 
+@pytest.mark.parametrize('where', ['static', 'run', 'batch'])
+def test_saved_bounds_disabled(where):
+    # if the bounds of any part of a run are not saved, the bound indices
+    # of the samples cannot be interpreted, so no bound information must
+    # be returned in the results. The proposal scales must still be there
+    ndim = 2
+    rstate = get_rstate()
+    if where == 'static':
+        sampler = dynesty.NestedSampler(loglike,
+                                        prior_transform,
+                                        ndim,
+                                        nlive=nlive,
+                                        rstate=rstate)
+        sampler.run_nested(print_progress=printing, save_bounds=False)
+    else:
+        sampler = dynesty.DynamicNestedSampler(loglike,
+                                               prior_transform,
+                                               ndim,
+                                               nlive=nlive,
+                                               rstate=rstate)
+    if where == 'run':
+        sampler.run_nested(print_progress=printing,
+                           maxbatch=2,
+                           save_bounds=False)
+    elif where == 'batch':
+        sampler.run_nested(print_progress=printing, maxbatch=1)
+        assert 'bound' in sampler.results.keys()
+        sampler.add_batch(nlive=nlive,
+                          save_bounds=False,
+                          print_progress=printing)
+    res = sampler.results
+    if where != 'static':
+        assert res['samples_batch'].max() > 0
+    for k in ['bound', 'bound_iter', 'samples_bound']:
+        assert k not in res.keys()
+    assert len(res['scale']) == len(res['samples'])
+
+
 def prior_transform_large_logl(u):
     scale = 10
     v = scale * (2 * u - 1)

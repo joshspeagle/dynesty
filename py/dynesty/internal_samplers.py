@@ -126,7 +126,7 @@ class InternalSampler:
         loglikelihood : function
             Function returning ln(likelihood) given parameters as a 1-d
             `~numpy` array of length `ndim`.
-        nested_sampler : `~dynesty.samplers.Sampler`
+        nested_sampler : `~dynesty.sampler.Sampler`
             The nested sampler object used to sample.
 
         Returns

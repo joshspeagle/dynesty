@@ -290,7 +290,7 @@ class Sampler:
         Function transforming a sample from the a unit cube to the parameter
         space of interest according to the prior.
 
-    ndim : int, optional
+    ndim : int
         Number of parameters accepted by `prior_transform`.
 
     live_points : list of 3 or 4 `~numpy.ndarray`
@@ -298,35 +298,13 @@ class Sampler:
         If `blob=True`, a fourth array of blobs (arbitrary shape) may be
         included.
 
-    sampling : {`'unif'`, `'rwalk'`, `'slice'`, `'rslice'`}
-        Sampling Method used to sample uniformly within the likelihood
+    sampling : :class:`~dynesty.internal_samplers.InternalSampler` instance
+        The sampler used to propose new live points within the likelihood
         constraint, conditioned on the provided bounds.
 
-    bound_update_interval : int
-        Only update the bounding distribution every `update_interval`-th
-        likelihood call.
-
-    first_update : dict
-        A dictionary containing parameters governing when the sampler should
-        first update the bounding distribution from the unit cube to the one
-        specified by the user.
-
-    rstate : `~numpy.random.Generator`
-        `~numpy.random.Generator` instance.
-
-    queue_size : int
-        Carry out likelihood evaluations in parallel by queueing up new live
-        point proposals using (at most) this many threads/members.
-
-    pool: pool
-        Use this pool of workers to execute operations in parallel.
-
-    use_pool : dict, optional
-        A dictionary containing flags indicating where the provided `pool`
-        should be used to execute operations in parallel.
-
-    kwargs : dict, optional
-        A dictionary of additional parameters.
+    bounding : str or :class:`~dynesty.bounding.Bound` instance
+        The bounding distribution (`'none'`, `'single'`, `'multi'`,
+        `'balls'`, `'cubes'` or a `Bound` instance).
 
     ncdim : int, optional
         The number of clustering dimensions. The first ncdim dimensions
@@ -334,6 +312,41 @@ class Sampler:
         dimensions will
         just sample uniformly from the prior distribution.
         If this is `None` (default), this will default to ndim.
+
+    rstate : `~numpy.random.Generator`, optional
+        `~numpy.random.Generator` instance.
+
+    pool : pool, optional
+        Use this pool of workers to execute operations in parallel.
+
+    use_pool : dict, optional
+        A dictionary containing flags indicating where the provided `pool`
+        should be used to execute operations in parallel.
+
+    queue_size : int, optional
+        Carry out likelihood evaluations in parallel by queueing up new live
+        point proposals using (at most) this many threads/members.
+
+    bound_update_interval : int, optional
+        Only update the bounding distribution every
+        `bound_update_interval`-th likelihood call.
+
+    first_bound_update : dict, optional
+        A dictionary containing parameters governing when the sampler should
+        first update the bounding distribution from the unit cube to the one
+        specified by `bounding` (`'min_ncall'` and `'min_eff'`).
+
+    bound_bootstrap : int, optional
+        The number of bootstrapped realizations used to enlarge the bounds.
+
+    bound_enlarge : float, optional
+        The factor by which the volume of the bounds is enlarged.
+
+    blob : bool, optional
+        Whether the log-likelihood returns a blob in addition to the logl.
+
+    cite : str, optional
+        The citation information for the run.
 
     logvol_init : float, optional
         The initial log of volume when starting sampling. This is relevant
@@ -1281,7 +1294,7 @@ class Sampler:
 
         print_func : function, optional
             A function that prints out the current state of the sampler.
-            If not provided, the default :meth:`results.print_fn` is used.
+            If not provided, the default :func:`~dynesty.utils.print_fn` is used.
 
         save_bounds : bool, optional
             Whether or not to save past bounding distributions used to bound
@@ -1387,7 +1400,7 @@ class Sampler:
 
         print_func : function, optional
             A function that prints out the current state of the sampler.
-            If not provided, the default :meth:`results.print_fn` is used.
+            If not provided, the default :func:`~dynesty.utils.print_fn` is used.
 
         """
 

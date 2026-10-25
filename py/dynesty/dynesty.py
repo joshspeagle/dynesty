@@ -355,19 +355,7 @@ optional
             (`'propose_point'`), and bounding distributions are updated in
             parallel during a run (`'update_bound'`). Default is `True` for all
             options.
-
-        live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
-            A set of live points used to initialize the nested sampling run.
-            Contains `live_u`, the coordinates on the unit cube, `live_v`, the
-            transformed variables, and `live_logl`, the associated
-            loglikelihoods.
-            By default, if these are not provided the initial set of live
-            points will be drawn uniformly from the unit `ndim`-cube.
-            **WARNING: It is crucial that the initial set of live points have
-            been sampled from the prior. Failure to provide a set of valid
-            live points
-            will result in incorrect results.**
-
+{live_points}
         logl_args : iterable, optional
             Additional arguments that can be passed to `loglikelihood`.
 
@@ -429,10 +417,25 @@ optional
             information computed inside the likelihood function.
 
     """
+    live_points = """
+        live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
+            A set of live points used to initialize the nested sampling run.
+            Contains `live_u`, the coordinates on the unit cube, `live_v`, the
+            transformed variables, and `live_logl`, the associated
+            loglikelihoods.
+            By default, if these are not provided the initial set of live
+            points will be drawn uniformly from the unit `ndim`-cube.
+            **WARNING: It is crucial that the initial set of live points have
+            been sampled from the prior. Failure to provide a set of valid
+            live points
+            will result in incorrect results.**
+"""
+    common_static = common.replace('{live_points}', live_points)
+    common_dynamic = common.replace('{live_points}', '')
 
     static_docstring = f"""
         Initializes and returns a sampler object for Static Nested Sampling.
-{common}
+{common_static}
         Returns
         -------
         sampler : a :class:`dynesty.sampler.Sampler` instance
@@ -442,12 +445,7 @@ optional
     dynamic_docstring = f"""
         Initializes a sampler object for Dynamic Nested Sampling.
 
-{common}
-        Returns
-        -------
-        sampler : a :class:`dynesty.DynamicSampler` instance
-            An initialized instance of the dynamic nested sampler.
-
+{common_dynamic}
         """
     if dynamic:
         return dynamic_docstring
@@ -690,7 +688,6 @@ class NestedSampler(Sampler):
 
 
 NestedSampler.__new__.__doc__ = _assemble_sampler_docstring(False)
-NestedSampler.__init__.__doc__ = _assemble_sampler_docstring(False)
 
 
 class DynamicNestedSampler(DynamicSampler):

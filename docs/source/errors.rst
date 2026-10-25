@@ -330,8 +330,6 @@ distribution of possible prior volumes looks like::
 How do these realizations compare with our evidence approximation? We can 
 compare them directly::
 
-    import copy
-
     # compute ln(evidence) error
     lnzs = np.zeros((100, len(dres.logvol)))
     for i in range(100):
@@ -518,55 +516,6 @@ how our (stratified) bootstrap affects other quantities::
     fig.tight_layout()
 
 .. image:: ../images/errors_006.png
-
-Uncertainty Estimates in Practice
-=================================
-
-Let's examine the behavior using the same examples as
-shown in :ref:`Jittering Runs` and :ref:`Bootstrapping Runs`.
-
-.. code-block:: python
-
-    # compute ln(evidence) error
-    lnzs = np.zeros((100, len(dres.logvol)))
-    for i in range(100):
-        dres_s = dyfunc.simulate_run(dres)
-        lnzs[i] = np.interp(-dres.logvol, -dres_s.logvol, dres_s.logz)
-    lnzerr = np.std(lnzs, axis=0)
-
-    # plot comparison
-    dres_s = copy.deepcopy(dres)
-    dres_s['logzerr'] = lnzerr
-    fig, axes = dyplot.runplot(dres, color='blue')
-    fig, axes = dyplot.runplot(dres_s, color='orange', 
-                               lnz_truth=lnz_truth, truth_color='black',
-                               fig=(fig, axes))
-    fig.tight_layout()
-
-.. image:: ../images/errors_007.png
-    :align: center
-
-.. code-block:: python
-
-    # overplot draws on summary plots
-    fig, axes = plt.subplots(4, 1, figsize=(16, 16))
-    for i in range(100):
-        res2_s = dyfunc.simulate_run(res2)
-        fig, axes = dyplot.runplot(res2_s, color='red',
-                                   plot_kwargs={'alpha': 0.1, 'linewidth': 2},
-                                   mark_final_live=False, lnz_error=False,
-                                   fig=(fig, axes))
-    for i in range(100):
-        dres_s = dyfunc.simulate_run(dres)
-        fig, axes = dyplot.runplot(dres_s, color='blue',
-                                   plot_kwargs={'alpha': 0.1, 'linewidth': 2},
-                                   mark_final_live=False, lnz_error=False,
-                                   lnz_truth=lnz_truth, truth_color='black',
-                                   truth_kwargs={'alpha': 0.1},
-                                   fig=(fig, axes))
-    fig.tight_layout()
-
-.. image:: ../images/errors_008.png
 
 Validation Against Repeated Runs
 ================================

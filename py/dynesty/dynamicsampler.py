@@ -195,8 +195,9 @@ def stopping_function(results,
 
     Estimates of the mean and standard deviation are computed using `n_mc`
     realizations of the input using a provided `'error'` keyword (either
-    `'jitter'` or `'resample'`, which call related functions :meth:`jitter_run`
-    and :meth:`resample_run` in :mod:`dynesty.utils`, respectively.
+    `'jitter'` or `'resample'`, which call related functions
+    :func:`~dynesty.utils.jitter_run` and :func:`~dynesty.utils.resample_run`,
+    respectively.
 
     Returns the boolean `stop <= 1`. If `True`, the :class:`DynamicSampler`
     will stop adding new samples to our results.
@@ -648,50 +649,57 @@ class DynamicSampler:
         Function transforming a sample from the a unit cube to the parameter
         space of interest according to the prior.
 
-    ndim : int, optional
+    ndim : int
         Number of parameters accepted by `prior_transform`.
 
-    bound : {`'none'`, `'single'`, `'multi'`, `'balls'`, `'cubes'`}, optional
-        Method used to approximately bound the prior using the current
-        set of live points. Conditions the sampling methods used to
-        propose new live points.
+    sampling : :class:`~dynesty.internal_samplers.InternalSampler` instance
+        The sampler used to propose new live points within the likelihood
+        constraint, conditioned on the provided bounds.
 
-    method : {`'unif'`, `'rwalk'`,
-        `'slice'`, `'rslice'`}, optional
-        Method used to sample uniformly within the likelihood constraint,
-        conditioned on the provided bounds.
+    bounding : str or :class:`~dynesty.bounding.Bound` instance
+        The bounding distribution (`'none'`, `'single'`, `'multi'`,
+        `'balls'`, `'cubes'` or a `Bound` instance).
 
-    update_interval : int
-        Only update the bounding distribution every `update_interval`-th
-        likelihood call.
+    nlive0 : int, optional
+        Default number of live points to use
 
-    first_update : dict
-        A dictionary containing parameters governing when the sampler should
-        first update the bounding distribution from the unit cube to the one
-        specified by the user.
+    ncdim : int, optional
+        Number of clustered dimensions
 
-    rstate : `~numpy.random.Generator`
+    rstate : `~numpy.random.Generator`, optional
         `~numpy.random.Generator` instance.
 
-    queue_size : int
-        Carry out likelihood evaluations in parallel by queueing up new live
-        point proposals using (at most) this many threads/members.
-
-    pool: pool
+    pool : pool, optional
         Use this pool of workers to execute operations in parallel.
 
     use_pool : dict
         A dictionary containing flags indicating where the provided `pool`
         should be used to execute operations in parallel.
 
-    ncdim : int
-        Number of clustered dimensions
+    queue_size : int, optional
+        Carry out likelihood evaluations in parallel by queueing up new live
+        point proposals using (at most) this many threads/members.
 
-    nlive0 : int
-        Default number of live points to use
+    bound_update_interval_ratio : float, optional
+        Update the bounding distribution every
+        `bound_update_interval_ratio * nlive` likelihood calls.
 
-    kwargs : dict, optional
-        A dictionary of additional parameters (described below).
+    first_bound_update : dict, optional
+        A dictionary containing parameters governing when the sampler should
+        first update the bounding distribution from the unit cube to the one
+        specified by `bounding` (`'min_ncall'` and `'min_eff'`).
+
+    bound_bootstrap : int, optional
+        The number of bootstrapped realizations used to enlarge the bounds.
+
+    bound_enlarge : float, optional
+        The factor by which the volume of the bounds is enlarged.
+
+    blob : bool, optional
+        Whether the log-likelihood returns a blob in addition to the logl.
+
+    cite : str, optional
+        The citation information for the run.
     """
 
     def __init__(self,
@@ -1806,7 +1814,7 @@ class DynamicSampler:
 
         print_func : function, optional
             A function that prints out the current state of the sampler.
-            If not provided, the default :meth:`results.print_fn` is used.
+            If not provided, the default :func:`~dynesty.utils.print_fn` is used.
 
         live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
             and optionally list of blobs associated with these likelihood calls
@@ -2070,7 +2078,7 @@ class DynamicSampler:
 
         print_func : function, optional
             A function that prints out the current state of the sampler.
-            If not provided, the default :meth:`results.print_fn` is used.
+            If not provided, the default :func:`~dynesty.utils.print_fn` is used.
 
         stop_val : float, optional
             The value of the stopping criteria to be passed to

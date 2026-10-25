@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Remove the support for reflective boundary conditions, as they do not preserve detailed balance. The `reflective` argument is still accepted, but it is ignored and emits a warning.
 - The `ncdim` option is deprecated (emits a DeprecationWarning) and will be removed in a future release.
 - `add_batch()` now uses the number of live points given at initialization by default, instead of a fixed 500, consistent with `run_nested()` (fixed by @segasai)
+- `DynamicSampler.run_nested()` no longer modifies the `stop_kwargs` dictionary and uses `stop_kwargs['target_n_effective']` if `n_effective` is not given (previously it was overridden); conflicting values raise an error, and `n_effective` with a custom `stop_function` emits a warning. The default `target_n_effective` of `stopping_function` is now `max(10000, ndim^2)`, as in `run_nested()` (fixed by @segasai)
 ### Fixed
 - Fix the `information` returned by `jitter_run()` and `reweight_run()`. Previously the recomputed information was discarded and the original one was returned. Also the information computed for reweighted runs (and therefore their `logzerr`) did not account for the reweighting of the likelihood (fixed by @segasai)
 - Fix `samples_bound` in the results of static runs. Only the final live points recorded the index of the bound they were proposed from, so `samples_bound` had `nlive` entries instead of one per sample and `boundplot`/`cornerbound` with the `idx` option failed (fixed by @segasai)

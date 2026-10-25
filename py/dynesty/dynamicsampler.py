@@ -208,8 +208,9 @@ def stopping_function(results,
 
     args : dictionary of keyword arguments, optional
         Arguments used to set the stopping values. Default values are
-        `pfrac = 1.0`, `evid_thresh = 0.1`, `target_n_effective = 10000`,
-        `n_mc = 0`, `error = 'jitter'`, and `approx = True`.
+        `pfrac = 1.0`, `evid_thresh = 0.1`,
+        `target_n_effective = max(10000, ndim^2)`, `n_mc = 0`,
+        `error = 'jitter'`, and `approx = True`.
 
     rstate : `~numpy.random.Generator`, optional
         `~numpy.random.Generator` instance.
@@ -251,7 +252,13 @@ def stopping_function(results,
         raise ValueError(
             f"The provided `evid_thresh` {evid_thresh} is not non-negative "
             f"even though `pfrac` is {pfrac}.")
-    target_n_effective = args.get('target_n_effective', 10000)
+    target_n_effective = args.get('target_n_effective')
+    if target_n_effective is None:
+        # The reason to scale with square of number of
+        # dimensions is because the number coefficients
+        # defining covariance is roughly 0.5 * N^2
+        ndim = results.samples_u.shape[1]
+        target_n_effective = max(ndim * ndim, 10000)
 
     if pfrac > 0. and target_n_effective < 0.:
         raise ValueError(
@@ -1768,14 +1775,20 @@ class DynamicSampler:
             Minimum number of effective posterior samples needed during the
             entire run. If the estimated "effective sample size" (ESS)
             exceeds this number, sampling will terminate.
-            Default is max(10000, ndim^2)
+            This sets `target_n_effective` of the default
+            :meth:`stopping_function` and is ignored with a custom
+            `stop_function`. Default is max(10000, ndim^2)
 
         stop_function : func, optional
-            A function that takes a :class:`Results` instance and
-            returns a boolean indicating that we should terminate the run
-            because we've collected enough samples.
+            A function that decides whether to stop adding batches. It is
+            called as ``stop_function(results, stop_kwargs, rstate=rstate,
+            mapper=mapper, return_vals=True)`` and must return a tuple
+            ``(stop, stop_vals)``, where `stop` is a boolean that is `True`
+            if we have collected enough samples and ``stop_vals[2]`` is the
+            stopping value shown in the progress output.
+            Default is :meth:`stopping_function`.
 
-        stop_kwargs : float, optional
+        stop_kwargs : dict, optional
             Extra arguments to be passed to the stopping function.
 
         use_stop : bool, optional
@@ -1832,21 +1845,21 @@ class DynamicSampler:
         wt_function = wt_function or weight_function
         wt_kwargs = {} if wt_kwargs is None else wt_kwargs
 
+        # copy, so that we do not modify the user's dictionary
+        stop_kwargs = dict(stop_kwargs or {})
         if stop_function is None:
-            default_stop_function = True
             stop_function = stopping_function
-        else:
-            default_stop_function = False
-        if stop_kwargs is None:
-            stop_kwargs = {}
-        if default_stop_function:
-            if n_effective is None:
-                # The reason to scale with square of number of
-                # dimensions is because the number coefficients
-                # defining covariance is roughly 0.5 * N^2
-                n_effective = max(self.ndim * self.ndim, 10000)
-
-            stop_kwargs['target_n_effective'] = n_effective
+            if n_effective is not None:
+                if stop_kwargs.get('target_n_effective',
+                                   n_effective) != n_effective:
+                    raise ValueError(
+                        f'n_effective={n_effective} is inconsistent with '
+                        "stop_kwargs['target_n_effective']="
+                        f"{stop_kwargs['target_n_effective']}")
+                stop_kwargs['target_n_effective'] = n_effective
+        elif n_effective is not None:
+            warnings.warn('n_effective is ignored when a custom '
+                          'stop_function is used')
         nlive_init = nlive_init or self.nlive0
         nlive_batch = nlive_batch or self.nlive0
 

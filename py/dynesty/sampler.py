@@ -986,9 +986,9 @@ class Sampler:
             threshold set by `logl_max`. Default is no bound (`np.inf`).
 
         add_live : bool, optional
-            Whether or not to add the remaining set of live points to
-            the list of samples when calculating `n_effective`.
-            Default is `True`.
+            Not used by this method. The remaining set of live points
+            is added to the list of samples by :meth:`add_live_points`
+            (called by :meth:`run_nested` if its `add_live` is `True`).
 
         save_bounds : bool, optional
             Whether or not to save past distributions used to bound

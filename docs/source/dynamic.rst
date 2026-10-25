@@ -206,7 +206,9 @@ used to generate the posterior/evidence stopping values.
 
 
 The default values of these are :math:`f_p = 1` (100% posterior/0% evidence),
-:math:`s_p = 0.02`, :math:`s_{\mathcal{Z}} = 0.1`, and :math:`n=128`. 
+:math:`s_p = 1`, :math:`s_{\mathcal{Z}} = 0.1`, and :math:`n=0`. With
+:math:`n=0` the evidence error is the estimate from the run itself
+(`logzerr`) instead of the scatter of Monte Carlo realizations.
 More details on :math:`S_p(n)` and :math:`S_\mathcal{Z}(n)` are outlined below.
 
 How Many Samples are Enough?
@@ -250,8 +252,10 @@ effective number of posterior samples i.e.
 
    S_{p} = \frac{N_{target,effective}}{N_{effective}}
 
-where :math:`N_{target,effective}` is user specified target number of
-of effective samples.
+where :math:`N_{target,effective}` is the user specified target number
+of effective samples (the `n_effective` argument of
+:meth:`~dynesty.dynamicsampler.DynamicSampler.run_nested`, by default
+:math:`\max(10000, N_{dim}^2)`).
 
 Previously, the default choice for :math:`S_p` in ``dynesty`` was to use the 
 "difference" between the posterior density estimate

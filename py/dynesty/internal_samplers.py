@@ -12,7 +12,8 @@ import warnings
 import numpy as np
 from numpy import linalg
 import math
-from .utils import unitcheck, get_random_generator, SamplerHistoryItem
+from .utils import (unitcheck, get_random_generator, SamplerHistoryItem,
+                    check_periodic)
 from .bounding import randsphere
 
 __all__ = [
@@ -51,9 +52,23 @@ class InternalSampler:
     The `tune` method is called by the parent process to adjust things,
     such as scale of the proposal distribution. The `tune` method is not
     a static method and has access to the class instance.
+
+    The sampler instance given to the nested sampler is not used directly.
+    Instead a new instance is created by calling the constructor with
+    the same arguments plus the problem parameters (`ndim`, `ncdim`,
+    `periodic`), so the constructor must accept these keywords.
     """
 
-    def __init__(self, **kwargs):
+    def __new__(cls, *args, **kwargs):
+        # Remember the constructor arguments so that _new_from_template
+        # can recreate the sampler, including the arguments consumed by
+        # the subclasses
+        obj = super().__new__(cls)
+        obj._init_args = args
+        obj._init_kwargs = kwargs
+        return obj
+
+    def __init__(self, ndim=None, ncdim=None, periodic=None, **kwargs):
         """Initialize the internal sampler.
 
         Importantely this sets up the sampler_kwargs that is being passed
@@ -61,19 +76,20 @@ class InternalSampler:
 
         Parameters
         ----------
-        kwargs : dict
-            A dictionary of additional method-specific parameters.
-            This common keywords:
-        periodic : array
-            Indices of the periodic dimensions.
         ndim: int
             Number of dimensions.
+        ncdim: int
+            Number of clustered dimensions.
+        periodic : array
+            Indices of the periodic dimensions.
+        kwargs : dict
+            A dictionary of additional method-specific parameters.
         """
         self.scale = 1
-        self.input_kwargs = kwargs
         self.sampler_kwargs = dict()
-        self.ndim = kwargs.get('ndim')
-        self.sampler_kwargs['periodic'] = kwargs.get('periodic')
+        self.ndim = ndim
+        self.ncdim = ncdim
+        self.sampler_kwargs['periodic'] = periodic
 
     @property
     def update_bound_interval_ratio(self):
@@ -86,18 +102,25 @@ class InternalSampler:
 
     def _new_from_template(self, template_kwargs):
         """
-        Create a new sampler from a template.
+        Create a new sampler with the same constructor arguments as this
+        one, and the problem parameters from template_kwargs that were
+        not specified.
         """
-        template_kwargs1 = self.input_kwargs.copy()
+        kwargs = dict(self._init_kwargs)
         for k, v in template_kwargs.items():
-            if k not in self.input_kwargs:
-                template_kwargs1[k] = v
+            if k not in kwargs:
+                kwargs[k] = v
             else:
-                if template_kwargs1[k] != self.input_kwargs[k]:
-                    warnings.warn(
-                        "Incompatible sampler parameters: "
-                        f"{template_kwargs1[k]} vs {self.input_kwargs[k]}")
-        return self.__class__(**template_kwargs1)
+                val = kwargs[k]
+                if k == 'periodic':
+                    val = check_periodic(template_kwargs['ndim'], val)
+                if not np.array_equal(val, v):
+                    raise ValueError(
+                        f"The sampler parameter {k}={kwargs[k]} is "
+                        f"incompatible with the nested sampler value {v}. "
+                        "The problem parameters should be specified "
+                        "when creating the nested sampler")
+        return self.__class__(*self._init_args, **kwargs)
 
     def prepare_sampler(self,
                         loglstar=None,
@@ -199,8 +222,8 @@ class UniformBoundSampler(InternalSampler):
     Uniformly sample within a bounding proposal distribution.
     """
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, ndim=None, ncdim=None, periodic=None):
+        super().__init__(ndim=ndim, ncdim=ncdim, periodic=periodic)
 
     def prepare_sampler(self,
                         loglstar=None,
@@ -331,9 +354,8 @@ class UniformBoundSampler(InternalSampler):
 
 class UnitCubeSampler(InternalSampler):
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.ndim = kwargs['ndim']
+    def __init__(self, ndim=None, ncdim=None, periodic=None):
+        super().__init__(ndim=ndim, ncdim=ncdim, periodic=periodic)
 
     def prepare_sampler(self,
                         loglstar=None,
@@ -431,14 +453,33 @@ class UnitCubeSampler(InternalSampler):
 
 class RWalkSampler(InternalSampler):
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self,
+                 walks=None,
+                 facc=None,
+                 ndim=None,
+                 ncdim=None,
+                 periodic=None):
+        """
+        Parameters
+        ----------
+        walks : int, optional
+            Minimum number of random walk steps. Default is `ndim + 20`.
+        facc : float, optional
+            Target acceptance fraction. Default is 0.5.
+        ndim, ncdim, periodic :
+            Problem parameters, set from the options of the nested sampler.
+        """
+        super().__init__(ndim=ndim, ncdim=ncdim, periodic=periodic)
         # Initialize random walk parameters.
-        walks = max(2, kwargs.get('walks', 25))
-        self.facc = kwargs.get('facc', 0.5)
-        self.facc = min(1., max(1. / walks, self.facc))
+        # The default depends on the dimensionality, so it is only set
+        # when the sampler is configured for a problem
+        if walks is None and ndim is not None:
+            walks = ndim + 20
+        self.facc = 0.5 if facc is None else facc
+        if walks is not None:
+            walks = max(2, walks)
+            self.facc = min(1., max(1. / walks, self.facc))
         self.rwalk_history = {'n_accept': 0, 'n_reject': 0}
-        self.ncdim = kwargs.get('ncdim')
         # Since the sample is a static method, it's crucial
         # to put relevant information into kwargs which is then passed to
         # the samplers
@@ -555,10 +596,19 @@ class RWalkSampler(InternalSampler):
 
 class SliceSampler(InternalSampler):
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, slices=None, ndim=None, ncdim=None, periodic=None):
+        """
+        Parameters
+        ----------
+        slices : int, optional
+            Minimum number of slice sampling steps. Default is 3.
+        ndim, ncdim, periodic :
+            Problem parameters, set from the options of the nested sampler.
+        """
+        super().__init__(ndim=ndim, ncdim=ncdim, periodic=periodic)
         # Initialize slice parameters.
-        slices = kwargs.get('slices', 5)
+        if slices is None:
+            slices = 3
         self.slice_history = {'n_contract': 0, 'n_expand': 0}
 
         self.sampler_kwargs['slices'] = slices
@@ -707,10 +757,21 @@ class SliceSampler(InternalSampler):
 
 class RSliceSampler(InternalSampler):
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, slices=None, ndim=None, ncdim=None, periodic=None):
+        """
+        Parameters
+        ----------
+        slices : int, optional
+            Minimum number of slice sampling steps. Default is `ndim + 3`.
+        ndim, ncdim, periodic :
+            Problem parameters, set from the options of the nested sampler.
+        """
+        super().__init__(ndim=ndim, ncdim=ncdim, periodic=periodic)
         # Initialize slice parameters.
-        slices = kwargs.get('slices', 5)
+        # The default depends on the dimensionality, so it is only set
+        # when the sampler is configured for a problem
+        if slices is None and ndim is not None:
+            slices = ndim + 3
         self.slice_history = {'n_contract': 0, 'n_expand': 0}
 
         self.sampler_kwargs['slices'] = slices

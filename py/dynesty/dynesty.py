@@ -126,7 +126,11 @@ Sampling Method:\n===============
 
 def _get_internal_sampler(sampling, ndim, ncdim, periodic, walks,
                           slices, facc):
-    default_steps = {'rwalk': ndim + 20, 'slice': 3, 'rslice': 3 + ndim}
+    if isinstance(sampling, InternalSampler) and (
+            walks is not None or slices is not None or facc is not None):
+        raise ValueError('The walks/slices/facc options cannot be used with '
+                         'a sampler instance. Specify them when creating the '
+                         'sampler instance instead')
     if sampling == 'auto':
         if ndim < 10:
             sampling = 'unif'
@@ -136,23 +140,19 @@ def _get_internal_sampler(sampling, ndim, ncdim, periodic, walks,
             sampling = 'rslice'
 
     periodic = check_periodic(ndim, periodic)
-    sampler_kw = dict(ncdim=ncdim,
-                      ndim=ndim,
-                      periodic=periodic,
-                      facc=facc)
+    sampler_kw = dict(ncdim=ncdim, ndim=ndim, periodic=periodic)
+    # the samplers determine the default number of steps
     if sampling == 'rslice':
-        sampler_kw['slices'] = slices or default_steps['rslice']
-        internal_sampler = RSliceSampler(**sampler_kw)
+        internal_sampler = RSliceSampler(slices=slices or None, **sampler_kw)
     elif sampling == 'slice':
-        sampler_kw['slices'] = slices or default_steps['slice']
-        internal_sampler = SliceSampler(**sampler_kw)
+        internal_sampler = SliceSampler(slices=slices or None, **sampler_kw)
     elif sampling == 'rwalk':
-        sampler_kw['walks'] = walks or default_steps['rwalk']
-        internal_sampler = RWalkSampler(**sampler_kw)
+        internal_sampler = RWalkSampler(walks=walks or None,
+                                        facc=facc,
+                                        **sampler_kw)
     elif sampling == 'unif':
         internal_sampler = UniformBoundSampler(**sampler_kw)
     elif isinstance(sampling, InternalSampler):
-        # todo check what to do with the options
         internal_sampler = sampling._new_from_template(sampler_kw)
     else:
         raise ValueError(f'Unsupported Sampler {sampling}')
@@ -291,6 +291,11 @@ optional
             When `10 <= ndim <= 20`, this defaults to `'rwalk'`.
             When `ndim > 20`, this defaults to`'rslice'`. `'slice'`
             is provided as alternative for`'rslice'`.
+            Alternatively, an instance of a
+            :class:`~dynesty.internal_samplers.InternalSampler` subclass
+            can be provided. A new instance with the same constructor
+            arguments and the problem parameters (`ndim`, `periodic`) is
+            then used for sampling.
             Default is `'auto'`.
 
         periodic : iterable, optional
@@ -399,11 +404,12 @@ optional
         walks : int, optional
             For the `'rwalk'` sampling option, the minimum number of steps
             (minimum 2) before proposing a new live point. Default is
-            `ndim + 20`.
+            `ndim + 20`. Cannot be used if `sample` is a sampler instance.
 
         facc : float, optional
             The target acceptance fraction for the `'rwalk'` sampling option.
             Default is `0.5`. Bounded to be between `[1. / walks, 1.]`.
+            Cannot be used if `sample` is a sampler instance.
 
         slices : int, optional
             For the `'slice'`, `'rslice'` sampling
@@ -411,7 +417,8 @@ optional
             before proposing a new live point. Default is 3 for
             `'slice'` and 3+ndim for rslice.
             Note that `'slice'` cycles through **all dimensions**
-            when executing a "slice update".
+            when executing a "slice update". Cannot be used if `sample`
+            is a sampler instance.
 
         ncdim: int, optional
             The number of clustering dimensions. The first ncdim dimensions
@@ -611,7 +618,7 @@ class NestedSampler(Sampler):
         enlarge=None,
         bootstrap=None,
         walks=None,
-        facc=0.5,
+        facc=None,
         slices=None,
         ncdim=None,
         blob=False,
@@ -722,7 +729,7 @@ class DynamicNestedSampler(DynamicSampler):
                  enlarge=None,
                  bootstrap=None,
                  walks=None,
-                 facc=0.5,
+                 facc=None,
                  slices=None,
                  ncdim=None,
                  blob=False,

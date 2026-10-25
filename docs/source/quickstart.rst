@@ -375,6 +375,14 @@ Or to use slice sampling with more slices::
     sampler = NestedSampler(loglike, ptform, ndim,
                            sample=SliceSampler(slices=10))
 
+The sampler instances have the same defaults as the corresponding string
+options. When an instance is used, the sampler options must be specified
+when creating it, as the `walks`, `slices` and `facc` arguments of the
+nested sampler cannot be combined with a sampler instance.
+The problem parameters, such as `ndim` and `periodic`, are specified
+when creating the nested sampler and do not need to be given to the
+sampler instance.
+
 You can also create entirely custom samplers by subclassing
 :class:`~dynesty.internal_samplers.InternalSampler`. Your custom sampler
 needs to implement:
@@ -382,8 +390,24 @@ needs to implement:
 * `__init__()`: Initialize sampler parameters
 * `prepare_sampler()`: Prepare arguments for sampling
 * `sample()`: A static method that performs the actual sampling
-* `tune()`: Update sampler parameters based on acceptance statistics
+* `tune(tuning_info, update=False)`: Update sampler parameters based on
+  acceptance statistics
 * `citations`: A property returning citation information
+
+The instance given to the nested sampler is not used directly. Instead,
+`dynesty` creates a new instance of your class with the same constructor
+arguments plus the problem parameters (`ndim`, `ncdim` and `periodic`)
+as keyword arguments. Your constructor must therefore accept these keywords
+and pass them on to `super().__init__()`::
+
+    from dynesty.internal_samplers import InternalSampler
+
+    class MyCustomSampler(InternalSampler):
+        def __init__(self, my_param=10, **kwargs):
+            super().__init__(**kwargs)
+            self.my_param = my_param
+            # parameters needed by sample() are passed through sampler_kwargs
+            self.sampler_kwargs['my_param'] = my_param
 
 See the :ref:`API` documentation for full details on the
 :class:`~dynesty.internal_samplers.InternalSampler` interface.

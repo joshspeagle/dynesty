@@ -270,3 +270,116 @@ def test_auto_walks_slices_mismatch():
                               sample='auto',
                               rstate=rstate,
                               slices=7)
+
+
+class ParamSampler(dysa.RWalkSampler):
+    """
+    Custom sampler with its own constructor argument
+    """
+
+    def __init__(self, my_param=10, **kwargs):
+        super().__init__(**kwargs)
+        self.my_param = my_param
+
+
+def _get_sampler(sample, ndim=3, **kwargs):
+    g = Gaussian(0.1, ndim=ndim)
+    return dynesty.NestedSampler(g.loglikelihood,
+                                 g.prior_transform,
+                                 g.ndim,
+                                 nlive=nlive,
+                                 sample=sample,
+                                 rstate=get_rstate(),
+                                 **kwargs)
+
+
+@pytest.mark.parametrize("positional", [False, True])
+def test_custom_sampler_args(positional):
+    # the arguments of custom sampler subclasses must be preserved
+    # when dynesty configures the sampler for the problem
+    if positional:
+        cur_sample = ParamSampler(20, walks=7)
+    else:
+        cur_sample = ParamSampler(my_param=20, walks=7)
+    sampler = _get_sampler(cur_sample)
+    internal_sampler = sampler.internal_sampler_next
+    assert isinstance(internal_sampler, ParamSampler)
+    assert internal_sampler.my_param == 20
+    assert internal_sampler.sampler_kwargs['walks'] == 7
+    assert internal_sampler.ndim == 3
+
+
+def test_custom_sampler_pickle():
+    # configured samplers must survive pickling (i.e. checkpointing)
+    import pickle
+    sampler = _get_sampler(ParamSampler(my_param=20))
+    internal_sampler = pickle.loads(
+        pickle.dumps(sampler.internal_sampler_next))
+    assert internal_sampler.my_param == 20
+    sampler = _get_sampler(internal_sampler)
+    assert sampler.internal_sampler_next.my_param == 20
+
+
+@pytest.mark.parametrize("kw,nested_kw", [(dict(ndim=5), {}),
+                                          (dict(periodic=[0]), {}),
+                                          (dict(periodic=[0]),
+                                           dict(periodic=[1]))])
+def test_sampler_incompatible_params(kw, nested_kw):
+    # the problem parameters of a sampler instance must agree with the
+    # ones of the nested sampler
+    with pytest.raises(ValueError, match='incompatible'):
+        _get_sampler(dysa.RWalkSampler(**kw), **nested_kw)
+
+
+def test_sampler_compatible_params():
+    sampler = _get_sampler(dysa.RWalkSampler(ndim=3, periodic=(0, )),
+                           periodic=[0])
+    assert list(sampler.internal_sampler_next.sampler_kwargs['periodic']) == [
+        0
+    ]
+
+
+@pytest.mark.parametrize("typ,kw", [(dysa.RWalkSampler, dict(walk=5)),
+                                    (dysa.SliceSampler, dict(walks=5)),
+                                    (dysa.RSliceSampler, dict(facc=0.3)),
+                                    (dysa.UniformBoundSampler, dict(slices=5))
+                                    ])
+def test_sampler_unknown_kwargs(typ, kw):
+    # unknown or meaningless options are not silently ignored
+    with pytest.raises(TypeError):
+        typ(**kw)
+
+
+@pytest.mark.parametrize("sample,typ,key", [
+    ('rwalk', dysa.RWalkSampler, 'walks'),
+    ('slice', dysa.SliceSampler, 'slices'),
+    ('rslice', dysa.RSliceSampler, 'slices'),
+])
+def test_sampler_instance_defaults(sample, typ, key):
+    # sampler instances must have the same defaults as the string options
+    ndim = 4
+    val1 = _get_sampler(sample, ndim=ndim).internal_sampler_next.sampler_kwargs[key]
+    val2 = _get_sampler(typ(), ndim=ndim).internal_sampler_next.sampler_kwargs[key]
+    assert val1 == val2
+    # and these depend on dimension
+    assert val1 == {'rwalk': ndim + 20, 'slice': 3, 'rslice': 3 + ndim}[sample]
+
+
+@pytest.mark.parametrize("typ,kw", [(dysa.RWalkSampler, dict(walks=50)),
+                                    (dysa.SliceSampler, dict(slices=5)),
+                                    (dysa.RWalkSampler, dict(slices=5)),
+                                    (dysa.RWalkSampler, dict(facc=0.3))])
+def test_sampler_instance_walks_slices(typ, kw):
+    # walks/slices/facc options are ambiguous when a sampler instance is given
+    with pytest.raises(ValueError, match='sampler instance'):
+        _get_sampler(typ(), **kw)
+
+
+@pytest.mark.parametrize("sample,kw,value",
+                         [('rwalk', {}, 0.5), ('rwalk', dict(facc=0.3), 0.3),
+                          (dysa.RWalkSampler(), {}, 0.5),
+                          (dysa.RWalkSampler(facc=0.3), {}, 0.3)])
+def test_sampler_facc(sample, kw, value):
+    # facc is used both with the string option and the sampler instance
+    sampler = _get_sampler(sample, **kw)
+    assert sampler.internal_sampler_next.facc == value

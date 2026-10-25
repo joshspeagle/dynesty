@@ -796,6 +796,52 @@ def test_quantile():
     dyutil.quantile(rstate.normal(size=10), 0.5, weights=whts)
     with pytest.raises(Exception):
         dyutil.quantile(rstate.normal(size=10), 0.5, weights=np.ones(9))
+    with pytest.raises(ValueError):
+        dyutil.quantile(rstate.normal(size=3), 0.5, weights=np.zeros(3))
+    with pytest.raises(ValueError):
+        dyutil.quantile(rstate.normal(size=3), 0.5, weights=[1., -1, 1])
+    with pytest.raises(ValueError):
+        dyutil.quantile(rstate.normal(size=3), 0.5, weights=[1., np.inf, 1])
+
+
+def test_quantile_weighted():
+    # weighted Hazen (Hyndman & Fan 1996 Type 5) quantiles
+    rstate = get_rstate()
+    qs = np.array([0, 0.025, 0.16, 0.35, 0.5, 0.84, 0.975, 1])
+    n = 17
+    x = rstate.normal(size=n)
+    # equal weights give the Hazen estimator, i.e.
+    # np.percentile(x, 100 * qs, method='hazen')
+    hazen = np.interp(qs, (np.arange(n) + 0.5) / n, np.sort(x))
+    assert np.allclose(dyutil.quantile(x, qs, weights=np.ones(n) * 3), hazen)
+    # no weights is the same as equal weights
+    assert np.allclose(dyutil.quantile(x, qs), hazen)
+    # integer weights are accepted
+    assert np.allclose(dyutil.quantile(x, qs, weights=np.ones(n, dtype=int)),
+                       hazen)
+    # sample positions in the weighted CDF are 1/6, 7/18, 1/2, 7/9
+    # (the zero-weight sample is dropped)
+    assert np.isclose(
+        dyutil.quantile([1, 2, 3, 4, 5], 0.5,
+                        weights=[0.3, 0.1, 0, 0.1, 0.4])[0], 4)
+    w = rstate.exponential(size=n)
+    res = dyutil.quantile(x, qs, weights=w)
+    # result does not depend on the weight normalization
+    assert np.allclose(dyutil.quantile(x, qs, weights=w * 1e-300), res)
+    # the estimator is symmetric under x -> -x, q -> 1-q
+    assert np.allclose(dyutil.quantile(-x, 1 - qs, weights=w), -np.array(res))
+    # zero-weight samples are ignored
+    x2 = np.concatenate((x, [-100, 100]))
+    w2 = np.concatenate((w, [0, 0]))
+    assert np.allclose(dyutil.quantile(x2, qs, weights=w2), res)
+    # weights of the extreme samples are taken into account
+    assert dyutil.quantile([0, 1], 0.5, weights=[1, 1000])[0] > 0.99
+    assert dyutil.quantile([0, 1], 0.5, weights=[1000, 1])[0] < 0.01
+    # the extreme quantiles are the extreme samples with non-zero weight
+    assert np.allclose(dyutil.quantile(x2, [0, 1], weights=w2),
+                       [x.min(), x.max()])
+    # single sample
+    assert np.allclose(dyutil.quantile([3.], qs, weights=[2.]), 3)
 
 
 class Like3:

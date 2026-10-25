@@ -1145,7 +1145,7 @@ def resample_equal(samples, weights, rstate=None):
     if rstate is None:
         rstate = get_random_generator()
 
-    cumulative_sum = np.cumsum(weights)
+    cumulative_sum = np.cumsum(weights).astype(float)
     if abs(cumulative_sum[-1] - 1.) > SQRTEPS:
         # same tol as in numpy's random.choice.
         # Guarantee that the weights will sum to 1.
@@ -1174,6 +1174,13 @@ def quantile(x, q, weights=None):
     """
     Compute (weighted) quantiles from an input set of samples.
 
+    This is the weighted version of the Hazen (1914) estimator, i.e.
+    Type 5 of Hyndman & Fan (1996) (`numpy.percentile` with
+    ``method='hazen'``). Each sample is placed at the midpoint of its
+    step in the weighted empirical CDF, and the quantiles are linearly
+    interpolated between these points. Samples with zero weight are
+    ignored. Without weights all the samples have equal weights.
+
     Parameters
     ----------
     x : `~numpy.ndarray` with shape (nsamps,)
@@ -1201,20 +1208,22 @@ def quantile(x, q, weights=None):
         raise ValueError("Quantiles must be between 0. and 1.")
 
     if weights is None:
-        # If no weights provided, this simply calls `np.percentile`.
-        return np.percentile(x, list(100.0 * q))
-    else:
-        # If weights are provided, compute the weighted quantiles.
-        weights = np.atleast_1d(weights)
-        if len(x) != len(weights):
-            raise ValueError("Dimension mismatch: len(weights) != len(x).")
-        idx = np.argsort(x)  # sort samples
-        sw = weights[idx]  # sort weights
-        cdf = np.cumsum(sw)[:-1]  # compute CDF
-        cdf /= cdf[-1]  # normalize CDF
-        cdf = np.append(0, cdf)  # ensure proper span
-        quantiles = np.interp(q, cdf, x[idx]).tolist()
-        return quantiles
+        weights = np.ones(len(x))
+    weights = np.atleast_1d(weights)
+    if len(x) != len(weights):
+        raise ValueError("Dimension mismatch: len(weights) != len(x).")
+    if (not np.all(np.isfinite(weights)) or np.any(weights < 0)
+            or not np.sum(weights) > 0):
+        raise ValueError("Weights must be finite and non-negative with a "
+                         "positive sum.")
+    keep = weights > 0  # zero-weight samples play no role
+    x, weights = x[keep], weights[keep]
+    idx = np.argsort(x)  # sort samples
+    sw = weights[idx] / np.sum(weights)  # sort and normalize weights
+    # midpoint of the step of each sample in the weighted CDF
+    pos = np.cumsum(sw) - 0.5 * sw
+    quantiles = np.interp(q, pos, x[idx]).tolist()
+    return quantiles
 
 
 def _get_nsamps_samples_n(res):

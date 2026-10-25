@@ -285,7 +285,7 @@ instead attempt to approximate this quantity based on realizations of
     \, d\boldsymbol{\Theta} = \sum_i \hat{p}_i^\prime \, \left(
     \ln \hat{p}_i^\prime - \ln \hat{p}_i \right)
 
-Since :math:`\hat{P}^\prime` is a based on a realization of the posterior
+Since :math:`\hat{P}^\prime` is based on a realization of the posterior
 weights :math:`\mathbf{\hat{p}}^\prime \sim P(\mathbf{\hat{p}})`, our
 computed distance
 :math:`H(\hat{P}^\prime|\hat{P}) \sim P(H(\hat{P}^\prime|\hat{P}))`
@@ -397,7 +397,7 @@ As an example, if we wanted to ensure that our posterior has more than
 
     dsampler.run_nested(n_effective=30000)
 
-In this case the sampler may chose run the sampler multiple times, till the
+In this case the sampler may choose to run the sampler multiple times, till the
 required number is reached.
 
 Alternatively if we wanted to limit the total number of batches to 10, our
@@ -413,8 +413,10 @@ change the way live point are allocated during a run. The only restrictions
 on these functions are that they take in a `~dynesty.results.Results` 
 instance and a dictionary of arguments (`args`) and return results in the same
 format as the default :meth:`~dynesty.dynamicsampler.weight_function` and
-:meth:`~dynesty.dynamicsampler.stopping_function`. That might look something
-like::
+:meth:`~dynesty.dynamicsampler.stopping_function`. The stopping function
+is also passed the `rstate`, `mapper` and `return_vals` keyword arguments
+(see :meth:`~dynesty.dynamicsampler.DynamicSampler.run_nested`).
+That might look something like::
 
     dsampler.run_nested(dlogz_init=0.05, nlive_init=500, nlive_batch=100,
                         maxiter_init=10000, maxiter_batch=1000, maxbatch=10,
@@ -455,11 +457,11 @@ To add more points to the posterior you should be using the :meth:`~dynesty.dyna
     dsampler.add_batch(mode='full')
     dsampler.add_batch(mode='manual', logl_bounds=[-4,1])
 
-The default mode auto will use the weight function described previously to find the best log-likelihood interval to place a batch.
-The full mode will place add a batch that covers the full posterior, i.e. this is equivalent to adding another static nested run to what you have already.
+The default mode `'weight'` (`'auto'` is currently the same) will use the weight function described previously to find the best log-likelihood interval to place a batch.
+The full mode will add a batch that covers the full posterior, i.e. this is equivalent to adding another static nested run to what you have already.
 Finally the manual mode allows you to add a batch that covers a certain specific log-likelihood range.
 
-It is important to understand that there multiple reasons to add batches to a dynamic nested run. One is just to reduce the noise in the posterior/increase the number of effective posterior samples, but another reason is that if you have a very multi-modal problem and you are worried whether you fully sample all the modes, you can do a dynamic run and then keep adding batches till you are satisfied with the result.
+It is important to understand that there are multiple reasons to add batches to a dynamic nested run. One is just to reduce the noise in the posterior/increase the number of effective posterior samples, but another reason is that if you have a very multi-modal problem and you are worried whether you fully sample all the modes, you can do a dynamic run and then keep adding batches till you are satisfied with the result.
 
 
 Checkpointing with the dynamic sampler

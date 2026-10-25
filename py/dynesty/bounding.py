@@ -541,7 +541,7 @@ class MultiEllipsoid(Bound):
 
     ctrs : `~numpy.ndarray` with shape (M, N), optional
         Collection of coordinates of ellipsoid centers. Used to initialize
-        :class:`MultiEllipsoid` if :data:`ams` is also provided.
+        :class:`MultiEllipsoid` if :data:`covs` is also provided.
 
     covs : `~numpy.ndarray` with shape (M, N, N), optional
         Collection of matrices describing the axes of the ellipsoids. Used to
@@ -1002,7 +1002,7 @@ class RadFriends(Bound):
             `~numpy.random.Generator` instance.
 
         bootstrap : int, optional
-            The number of bootstrapped realizations of the ellipsoids. The
+            The number of bootstrapped realizations of the balls. The
             maximum distance to the set of points "left out" during each
             iteration is used to enlarge the resulting volumes.
             Default is `0`.
@@ -1162,8 +1162,7 @@ class SupFriends(Bound):
         return idxs
 
     def overlap(self, x):
-        """Checks how many cubes `x` falls within, skipping the `j`-th
-        cube."""
+        """Check how many cubes `x` falls within."""
 
         q = len(self.within(x))
 
@@ -1270,7 +1269,7 @@ class SupFriends(Bound):
             `~numpy.random.Generator` instance.
 
         bootstrap : int, optional
-            The number of bootstrapped realizations of the ellipsoids. The
+            The number of bootstrapped realizations of the cubes. The
             maximum distance to the set of points "left out" during each
             iteration is used to enlarge the resulting volumes.
             Default is `0`.

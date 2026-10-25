@@ -276,8 +276,8 @@ optional
             cubes centered on each live point (`'cubes'`). Default is
             `'multi'`.
 
-        sample : {`'auto'`, `'unif'`, `'rwalk'`, `'slice'`, `'rslice'`},
-            optional
+        sample : {`'auto'`, `'unif'`, `'rwalk'`, `'slice'`, `'rslice'`}, \
+optional
             Method used to sample uniformly within the likelihood constraint,
             conditioned on the provided bounds. Unique methods available are:
             uniform sampling within the bounds(`'unif'`),
@@ -307,29 +307,29 @@ optional
             conditions do not preserve detailed balance.
 
         update_interval : int or float, optional
-            If an integer is passed, only update the proposal distribution
+            If an integer is passed, only update the bounding distribution
             every `update_interval`-th likelihood call. If a float is passed,
-            update the proposal after every
+            update the bound after every
             `round(update_interval * nlive)`-th likelihood
-            call. Larger update intervals larger can be more efficient
+            call. Larger update intervals can be more efficient
             when the likelihood function is quick to evaluate. Default behavior
             is to target a roughly constant change in prior volume, with
-            `1.5` for `'unif'`, `0.15 * walks` for `'rwalk'`.
-            `0.9 * ndim * slices` for `'slice'`, `2.0 * slices` for `'rslice'`.
+            `1` for `'unif'`, `walks` for `'rwalk'`,
+            `ndim * slices` for `'slice'`, `slices` for `'rslice'`.
 
         first_update : dict, optional
             A dictionary containing parameters governing when the sampler
             should
             first update the bounding distribution from the unit cube
             (`'none'`)
-            to the one specified by `sample`. Options are the minimum number of
+            to the one specified by `bound`. Options are the minimum number of
             likelihood calls (`'min_ncall'`) and the minimum allowed overall
             efficiency in percent (`'min_eff'`). Defaults are `2 * nlive` and
             `10.`, respectively.
 
         rstate : `~numpy.random.Generator`, optional
-            `~numpy.random.Generator` instance. If not given, the
-             global random state of the `~numpy.random` module will be used.
+            `~numpy.random.Generator` instance. If not given, a new
+            unseeded generator will be created.
 
         queue_size : int, optional
             Carry out likelihood evaluations in parallel by queueing up new
@@ -413,7 +413,7 @@ optional
             Note that `'slice'` cycles through **all dimensions**
             when executing a "slice update".
 
-        ncdim: int, optional
+        ncdim : int, optional
             The number of clustering dimensions. The first ncdim dimensions
             will be sampled using the sampling method, the remaining
             dimensions will
@@ -422,7 +422,7 @@ optional
             Deprecated (emits a DeprecationWarning) and will be removed in
             a future release.
 
-        blob: bool, optional
+        blob : bool, optional
             The default value is False. If it is true, then the log-likelihood
             should return the tuple of logl and a numpy-array "blob" that will
             stored as part of the chain. That blob can contain auxiliary
@@ -435,9 +435,8 @@ optional
 {common}
         Returns
         -------
-        sampler : sampler from :mod:`~dynesty.nestedsamplers`
-            An initialized instance of the chosen sampler specified via
-            `bound`.
+        sampler : a :class:`dynesty.sampler.Sampler` instance
+            An initialized instance of the static nested sampler.
         """
 
     dynamic_docstring = f"""

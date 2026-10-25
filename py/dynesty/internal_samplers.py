@@ -66,7 +66,7 @@ class InternalSampler:
             This common keywords:
         periodic : array
             Indices of the periodic dimensions.
-        ndim: int
+        ndim : int
             Number of dimensions.
         """
         self.scale = 1

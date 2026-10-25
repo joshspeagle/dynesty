@@ -68,10 +68,10 @@ class LoglOutput:
 
         Parameters
         ----------
-        v: float or tuple
+        v : float or tuple
             if blob_flag is true v have to be a tuple of logl and blob
             if it is False v is just logl
-        blob_flag: boolean
+        blob_flag : boolean
             flag to mark whether the v has a blob or not
         """
         if blob_flag:
@@ -133,15 +133,15 @@ class LogLikelihood:
 
         Parameters
         ----------
-        loglikelihood: function
-        ndim: int
+        loglikelihood : function
+        ndim : int
             Dimensionality
-        history_filename: string
+        history_filename : string
             The filename where the history will go
-        blob: boolean
+        blob : boolean
             if True we expect the logl output to be a tuple of logl value and
             a blob, otherwise it'll be logl value only
-        save_evaluation_history: bool
+        save_evaluation_history : bool
             if True, evaluation history (intermediate points) will also be
             saved.
             This automatically enables basic history saving.
@@ -352,7 +352,7 @@ class DelayTimer:
         Parameters
         ----------
 
-        delay: float
+        delay : float
             The number of seconds in the timer
         """
         self.delay = delay
@@ -365,7 +365,7 @@ class DelayTimer:
 
         Returns
         -------
-        ret: bool
+        ret : bool
              True if specified amout of time has passed since the
              initialization or last successful is_time() call
         """
@@ -919,8 +919,7 @@ Return the list of items in the results object as list of key,value pairs
                               rstate=rstate)
 
     def summary(self):
-        """Return a formatted string giving a quick summary
-        of the results."""
+        """Print a quick summary of the results."""
 
         if self._dynamic:
             res = ("niter: {:d}\n"
@@ -1048,7 +1047,7 @@ def get_neff_from_logwt(logwt):
 
     Parameters
     ----------
-    logwt: numpy array
+    logwt : numpy array
         Array of unnormalized weights
 
     Returns
@@ -1196,7 +1195,7 @@ def quantile(x, q, weights=None):
 
     Returns
     -------
-    quantiles : `~numpy.ndarray` with shape (nquantiles,)
+    quantiles : list with length nquantiles
         The weighted sample quantiles computed at `q`.
 
     """
@@ -2295,9 +2294,9 @@ def restore_sampler(fname, pool=None):
 
     Parameters
     ----------
-    fname: string
+    fname : string
         Filename of the save file.
-    pool: object(optional)
+    pool : object(optional)
         The multiprocessing pool-like object that supports map()
         calls that will be used in the restored object.
 
@@ -2376,9 +2375,9 @@ def save_sampler(sampler, fname):
 
     Parameters
     ----------
-    sampler: object
+    sampler : object
         Dynamic or Static nested sampler
-    fname: string
+    fname : string
         Filename of the save file.
 
     """

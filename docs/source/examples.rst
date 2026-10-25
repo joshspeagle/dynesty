@@ -93,8 +93,8 @@ The posterior estimate also looks quite good:
 Exponential Wave
 ================
 
-This toy problem was originally suggested by
-`suggested <https://github.com/joshspeagle/dynesty/issues/111>`_ 
+This toy problem was originally
+`suggested <https://github.com/joshspeagle/dynesty/issues/111>`_
 by Johannes Buchner for being multimodal with two roughly equal-amplitude
 solutions. We are interested in modeling periodic data of the form:
 
@@ -107,7 +107,7 @@ where :math:`x` goes from :math:`0` to :math:`2\pi`.
 .. image:: ../images/examples_expwave_001.png
     :align: center
 
-This model has six free parameters controling the relevant amplitude,
+This model has six free parameters controlling the relevant amplitude,
 period, and phase of each component (which have periodic boundary conditions). 
 We also have a seventh, :math:`\sigma`, corresponding to the amount of scatter.
 
@@ -280,7 +280,7 @@ It is possible to sample from noisy likelihoods in
 ``dynesty`` just like with MCMC provided they are *unbiased*. While there
 are additional challenges to sampling from noisy likelihood surfaces,
 the largest is the fact that over time we expect the likelihoods to be biased
-high due to the baised impact of random fluctuations on sampling: while
+high due to the biased impact of random fluctuations on sampling: while
 fluctuations to lower values get quickly replaced, fluctuations to higher
 values can only be replaced by fluctuations to higher values elsewhere. This
 leads to a natural bias that gets "locked in" while sampling, which can

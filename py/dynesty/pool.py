@@ -55,33 +55,33 @@ class Pool:
 
     Parameters
     ----------
-    njobs: int
+    njobs : int
         The number of multiprocessing jobs/processes
-    loglike: function
+    loglike : function
         ln(likelihood) function
-    prior_transform: function
+    prior_transform : function
         Function transforming from a unit cube to the parameter
         space of interest according to the prior
-    logl_args: tuple(optional)
+    logl_args : tuple(optional)
         The optional arguments to be added to the likelihood
         function call. Note that if you specify the additional
         arguments here, you do not need to provide them again
         to the sampler.
-    logl_kwargs: tuple(optional)
+    logl_kwargs : dict(optional)
         The optional keywords to be added to the likelihood
         function call
-    ptform_args: tuple(optional)
+    ptform_args : tuple(optional)
         The optional arguments to be added to the prior transform
         function call
-    ptform_kwargs: tuple(optional)
+    ptform_kwargs : dict(optional)
         The optional keywords to be added to the prior transform
         function call
 
     Attributes
     ----------
-    loglike: function
+    loglike : function
         ln(likelihood) function
-    prior_transform: function
+    prior_transform : function
         Function transforming from a unit cube to the parameter
         space of interest according to the prior
 
@@ -149,10 +149,10 @@ class Pool:
         """ Apply the function F to the list x
 
         Parameters
-        ==========
+        ----------
 
-        F: function
-        x: iterable
+        F : function
+        x : iterable
         """
         return self.pool.map(F, x, chunksize=1)
 

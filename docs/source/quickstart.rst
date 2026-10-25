@@ -156,8 +156,8 @@ Initialization
 
 Nested Sampling in `dynesty` is done via a particular `sampler`
 object that is initialized from the :ref:`Top-Level Interface`. To start,
-let's use :meth:`~dynesty.dynesty.NestedSampler` to initialize a particular
-sampler from `~dynesty.nestedsamplers`. There are only 3 required arguments: 
+let's use :meth:`~dynesty.dynesty.NestedSampler` to initialize a
+sampler. There are only 3 required arguments:
 a log-likelihood function (`loglike`), a prior transform function (`ptform`),
 and the number of dimensions taken by the loglikelihood (`ndim`). 
 
@@ -200,9 +200,9 @@ this.
 
 The number of live points can be specified upon initialization via the 
 `nlive` argument. For example, if we want to run with 1000 live points rather
-than the default 250, we would use::
+than the default 500, we would use::
 
-    NestedSampler(loglike, ptform, ndim, nlive=1500)
+    NestedSampler(loglike, ptform, ndim, nlive=1000)
 
 Bounding Options
 ----------------
@@ -323,7 +323,7 @@ uses the following logic:
 * If :math:`D < 10`, `'unif'` is chosen since uniform proposals can
   be quite efficient in low dimensions.
 
-* If :math:`10 \leq D \geq 20`, `'rwalk'` is chosen
+* If :math:`10 \leq D \leq 20`, `'rwalk'` is chosen
   since random walks are more robust to underestimated bounding
   distributions in higher dimensions,
 
@@ -507,32 +507,34 @@ If you are running multiprocessing on a single machine, probably the easiest way
 of parallelizing is using a dynesty provided pool (which is a thin wrapper around
 python's multiprocessing pool)::
 
+    from dynesty.pool import Pool
+
     with Pool(10, loglike, ptform) as pool:
-        sampler = NestedSampler(pool.loglikelihood, pool.prior_transform,
-	                        ndim, pool = pool)
-	sampler.run_nested()
+        sampler = NestedSampler(pool.loglike, pool.prior_transform,
+                                ndim, pool=pool)
+        sampler.run_nested()
 
 Note that we provide the likelihood function and prior transforms
 when we initialize the pool. When we run dynesty we provide the
 loglikelihood and prior transforms from the pool. This approach minimizes
-the overhead from picking function repeatedly.
+the overhead from pickling the functions repeatedly.
 
 Note that if your likelihood and/or prior transform take additional arguments,
-it is usually better specify them when initializing the pool. That is particularly
+it is usually better to specify them when initializing the pool. That is particularly
 convenient if those arguments are very large as you do not suffer from repeated
 pickling of those arguments::
 
     with Pool(10, loglike, ptform, logl_args=loglike_args,
-                                    logl_kwargs=logl_kwargs,
-				    ptform_args=ptform_args,
-				    ptform_kwargs=ptform_kwargs) as pool:
-        sampler = NestedSampler(pool.loglikelihood, pool.prior_transform,
-	                        ndim, pool = pool)
-	sampler.run_nested()
+              logl_kwargs=logl_kwargs,
+              ptform_args=ptform_args,
+              ptform_kwargs=ptform_kwargs) as pool:
+        sampler = NestedSampler(pool.loglike, pool.prior_transform,
+                                ndim, pool=pool)
+        sampler.run_nested()
 
 If you specified them when creating the pool, you do not need to provide them
 again to the sampler.
-	
+
 If you specify logl_args, and ptform_args when creating the Pool *AND* in the sampler
 those will be concatenated.
 
@@ -669,21 +671,21 @@ Occasionally it is useful to save the information computed by the likelihood fun
 
     def loglike(x):
         logl = -0.5 * np.sum(x**2)
-	blob = np.zeros(3)
-	blob[0] = x[0]
-	blob[1] = x[1]**2
-	blob[2] = logl+x[2]
-	# here the logl function return the logl and a numpy array
-	return logl, blob
+        blob = np.zeros(3)
+        blob[0] = x[0]
+        blob[1] = x[1]**2
+        blob[2] = logl+x[2]
+        # here the logl function returns the logl and a numpy array
+        return logl, blob
     # initialize our sampler
     sampler = NestedSampler(loglike, ptform, ndim, nlive=100, blob=True)
-    # run the sampler with checkpointing 
+    # run the sampler
     sampler.run_nested()
     results = sampler.results
     aux_blob = results['blob']
     # This variable will contain auxiliary blobs associated with samples
 
-The numpy blob can return arbitrary 1D numpy arrays. The can be record arrays as well. The only requirement is that the shape/dtype is exactly the same between the log-likelihood function calls.
+The numpy blob can return arbitrary 1D numpy arrays. They can be record arrays as well. The only requirement is that the shape/dtype is exactly the same between the log-likelihood function calls.
 
 Running Externally
 ------------------
@@ -717,11 +719,11 @@ instead of a tuple. You can access iteration information using attributes::
 
     for res in sampler.sample(dlogz=0.5):
         # Access attributes directly
-        print(f"logz: {res.logz}, ncall: {res.ncall}, eff: {res.eff}")
+        print(f"logz: {res.logz}, ncall: {res.nc}, eff: {res.eff}")
 
 The available attributes include `worst`, `ustar`, `vstar`, `loglstar`, `logvol`,
 `logwt`, `logz`, `logzvar`, `h`, `nc`, `worst_it`, `boundidx`, `bounditer`,
-`eff`, `delta_logz`, and `blob` (if using blobs).
+`eff`, `delta_logz`, `blob` (if using blobs), and `proposal_stats`.
 
 Combining Runs
 --------------
@@ -1050,7 +1052,7 @@ density estimates using :meth:`~dynesty.plotting.cornerplot` as::
 .. image:: ../images/quickstart_005.png
     :align: center
 
-Similar to :meth:`~dynesty.plotting.runplot`, the marginal distributions shown
+Similar to :meth:`~dynesty.plotting.traceplot`, the marginal distributions shown
 are by default smoothed by 2% in the specified range using a Normal (Gaussian)
 kernel. Notice that even though our original run `res1` gave 
 similar evidence estimates to the extended run `res2`, it gives somewhat
@@ -1081,7 +1083,7 @@ bounding distributions over a given run via::
         it = int((i+1)*res2.niter/8.)
         # overplot the result onto each subplot
         temp = dyplot.boundplot(res2, dims=(0, 1), it=it,
-                                prior_transform=prior_transform,
+                                prior_transform=ptform,
                                 max_n_ticks=3, show_live=True,
                                 span=[(-10, 10), (-10, 10)],
                                 fig=(fig, a))
@@ -1105,7 +1107,7 @@ Alternately, we can generate a corner plot of the bounding distribution using
 :meth:`~dynesty.plotting.cornerbound` via::
 
     fig, axes = dyplot.cornerbound(res2, it=5000, 
-                                  prior_transform=prior_transform,
+                                  prior_transform=ptform,
                                   show_live=True, 
                                   span=[(-10, 10), (-10, 10)])
 
@@ -1127,8 +1129,8 @@ samples using the :meth:`~dynesty.utils.mean_and_cov` function::
     mean, cov = dyfunc.mean_and_cov(samples, weights)
 
 Runs can also be resampled to give a new set of points with equal
-weights, similar to MCMC methods, using the
-:meth:`~dynesty.utils.resample_equal` function::
+weights, similar to MCMC methods, using the `samples_equal` method
+of the results (which uses :meth:`~dynesty.utils.resample_equal`)::
 
     new_samples = res2.samples_equal()
 

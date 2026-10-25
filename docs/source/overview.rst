@@ -179,7 +179,7 @@ The remaining evidence :math:`\Delta \hat{\mathcal{Z}}_i` at iteration
 
     \Delta \hat{\mathcal{Z}}_i \approx \mathcal{L}_{\max} X_i
 
-where :math:`\mathcal{L}_{\max}` is the the maximum likelihood point
+where :math:`\mathcal{L}_{\max}` is the maximum likelihood point
 contained within the remaining set of :math:`K` live points. This essentially
 assumes that the remaining prior volume interior to the last dead point is a
 uniform slab with likelihood :math:`\mathcal{L}_{\max}`.
@@ -207,7 +207,7 @@ evidence. Other stopping criteria are discussed in
 Challenges
 ----------
 
-Nested Sampling has two main main theoretical requirements:
+Nested Sampling has two main theoretical requirements:
 
 #. Samples must be evaluated *sequentially* subject to the likelihood
    constraint :math:`\mathcal{L}_{i+1} \geq \mathcal{L}_{i}`, and
@@ -235,7 +235,7 @@ Solutions to this problem often involve some combination of:
 In both cases, it is much easier to deal with uniform (rather than arbitrary)
 priors. As a result, most nested sampling algorithms/packages (including
 ``dynesty``) are designed to sample within the :math:`D`-dimensional unit cube.
-Samples are transformed samples back to the original parameter space
+Samples are transformed back to the original parameter space
 "on the fly" only when needed to evaluate the likelihood.
 Accomplishing this requires an appropriate **prior transform**, described
 in more detail under :ref:`Prior Transforms`.
@@ -328,7 +328,7 @@ compared using the evidences computed from Nested Sampling.
 
 In addition to affecting the evidence estimate, the prior also directly affects
 the overall expected runtime. Since, in general, the posterior
-:math:`P(\boldsymbol{\Theta})` is (much) more localized that the prior
+:math:`P(\boldsymbol{\Theta})` is (much) more localized than the prior
 :math:`\pi(\boldsymbol{\Theta})`, the "information" we gain from updating
 from the prior to the posterior can be characterized by the
 **Kullback-Leibler (KL) divergence** (see

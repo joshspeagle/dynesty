@@ -131,9 +131,9 @@ def runplot(results,
 
     span : iterable with shape (4,), optional
         A list where each element is either a length-2 tuple containing
-        lower and upper bounds *or* a float from `(0., 1.]` giving the
-        fraction below the maximum. If a fraction is provided,
-        the bounds are chosen to be equal-tailed. An example would be::
+        lower and upper bounds *or* a float `f` from `(0., 1.]`. If a
+        float is provided, the bounds are `(f * max(data), max(data))`.
+        An example would be::
 
             span = [(0., 10.), 0.001, 0.2, (5., 6.)]
 
@@ -186,11 +186,11 @@ def runplot(results,
         Maximum number of ticks allowed for the x axis. Default is `8`.
 
     max_y_ticks : int, optional
-        Maximum number of ticks allowed for the y axis. Default is `4`.
+        Maximum number of ticks allowed for the y axis. Default is `3`.
 
     use_math_text : bool, optional
         Whether the axis tick labels for very large/small exponents should be
-        displayed as powers of 10 rather than using `e`. Default is `False`.
+        displayed as powers of 10 rather than using `e`. Default is `True`.
 
     mark_final_live : bool, optional
         Whether to indicate the final addition of recycled live points

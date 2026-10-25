@@ -48,7 +48,7 @@ the following papers:
   `Buchner (2016) <http://ui.adsabs.harvard.edu/abs/2014arXiv1407.5459B>`_ and
   `Buchner (2017) <https://ui.adsabs.harvard.edu/abs/2017arXiv170704476B>`_.
 
-* Random walks/staggers:
+* Random walks:
   `Skilling (2006) <https://projecteuclid.org/euclid.ba/1340370944>`_.
 
 * Multivariate/Random slice sampling:
@@ -57,13 +57,6 @@ the following papers:
   <http://ui.adsabs.harvard.edu/abs/2015MNRAS.450L..61H>`_, and
   `Handley, Hobson & Lasenby (2015b)
   <http://ui.adsabs.harvard.edu/abs/2015MNRAS.453.4384H>`_.
-
-* Hamiltonian/Reflective slice sampling:
-  `Neal (2003) <https://projecteuclid.org/euclid.aos/1056562461>`_,
-  `Skilling (2012) <https://aip.scitation.org/doi/abs/10.1063/1.3703630>`_,
-  `Feroz & Skilling (2013)
-  <https://ui.adsabs.harvard.edu/abs/2013AIPC.1553..106F>`_, and
-  `Speagle (2019) <https://ui.adsabs.harvard.edu/abs/2019arXiv190402180S>`_.
 
 If you have utilized some of the error analysis features available through
 the provided utility functions (see :ref:`Nested Sampling Errors`),
@@ -94,7 +87,7 @@ wonderful `corner <http://corner.readthedocs.io>`_ package.
 
 Several other plotting utilities as well as the real-time status outputs are
 inspired in part by features available in the statistical modeling package
-`PyMC3 <https://pymc-devs.github.io/pymc3/index.html>`_.
+`PyMC <https://www.pymc.io/>`_.
 
 Papers and Texts
 ================

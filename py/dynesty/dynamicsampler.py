@@ -3,7 +3,7 @@
 """
 Contains the dynamic nested sampler class :class:`DynamicSampler` used to
 dynamically allocate nested samples. Note that :class:`DynamicSampler`
-implicitly wraps a sampler from :mod:`~dynesty.nestedsamplers`. Also contains
+implicitly wraps a :class:`~dynesty.sampler.Sampler`. Also contains
 the weight function :meth:`weight_function` and stopping function
 :meth:`stopping_function`. These are used by default within
 :class:`DynamicSampler` if corresponding functions are not provided
@@ -673,7 +673,7 @@ class DynamicSampler:
     rstate : `~numpy.random.Generator`
         `~numpy.random.Generator` instance.
 
-    queue_size: int
+    queue_size : int
         Carry out likelihood evaluations in parallel by queueing up new live
         point proposals using (at most) this many threads/members.
 
@@ -684,10 +684,10 @@ class DynamicSampler:
         A dictionary containing flags indicating where the provided `pool`
         should be used to execute operations in parallel.
 
-    ncdim: int
+    ncdim : int
         Number of clustered dimensions
 
-    nlive0: int
+    nlive0 : int
         Default number of live points to use
 
     kwargs : dict, optional
@@ -815,7 +815,7 @@ class DynamicSampler:
 
         Parameters
         ----------
-        fname: string
+        fname : string
             Filename of the save file.
 
         """
@@ -831,9 +831,9 @@ class DynamicSampler:
 
         Parameters
         ----------
-        fname: string
+        fname : string
             Filename of the save file.
-        pool: object(optional)
+        pool : object(optional)
             The multiprocessing pool-like object that supports map()
             calls that will be used in the restored object.
 
@@ -958,7 +958,7 @@ class DynamicSampler:
         """
         Generate a series of initial samples from a nested sampling
         run using a fixed number of live points using an internal
-        sampler from :mod:`~dynesty.nestedsamplers`. Instantiates a
+        :class:`~dynesty.sampler.Sampler`. Instantiates a
         generator that will be called by the user.
 
         Parameters
@@ -1003,7 +1003,7 @@ class DynamicSampler:
             Iteration will stop when the sampled ln(likelihood) exceeds the
             threshold set by `logl_max`. Default is no bound (`np.inf`).
 
-        live_points: list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
+        live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
             and optionally list of blobs associated with these likelihood calls
             (if blob=True in the sampler)
             A set of live points used to initialize the nested sampling run.
@@ -1768,7 +1768,7 @@ class DynamicSampler:
             Maximum number of batches allowed. Default is `sys.maxsize`
             (no limit).
 
-        n_effective: int, optional
+        n_effective : int, optional
             Minimum number of effective posterior samples needed during the
             entire run. If the estimated "effective sample size" (ESS)
             exceeds this number, sampling will terminate.
@@ -1808,7 +1808,7 @@ class DynamicSampler:
             A function that prints out the current state of the sampler.
             If not provided, the default :meth:`results.print_fn` is used.
 
-        live_points: list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
+        live_points : list of 3 `~numpy.ndarray` each with shape (nlive, ndim)
             and optionally list of blobs associated with these likelihood calls
             (if blob=True in the sampler)
             A set of live points used to initialize the nested sampling run.
@@ -1820,13 +1820,13 @@ class DynamicSampler:
             been sampled from the prior. Failure to provide a set of valid
             live points will lead to incorrect results.**
 
-        resume: bool, optional
+        resume : bool, optional
             If resume is set to true, we will try to resume a previously
             interrupted run
-        checkpoint_file: string, optional
+        checkpoint_file : string, optional
             if not None The state of the sampler will be saved into this
             file every checkpoint_every seconds
-        checkpoint_every: float, optional
+        checkpoint_every : float, optional
             The number of seconds between checkpoints that will save
             the internal state of the sampler
         """
@@ -2021,7 +2021,7 @@ class DynamicSampler:
             in the batch. Default is the number of live points given at
             initialization (`nlive0`).
 
-        mode: string, optional
+        mode : string, optional
             How to allocate a new batch.
             The possible values are 'auto', 'weight', 'full', 'manual'.
             'weight' means to use the weight_function to decide the optimal
@@ -2052,9 +2052,10 @@ class DynamicSampler:
             Default is `sys.maxsize` (no limit).
 
         logl_bounds : tuple of size (2,), optional
-            The ln(likelihood) bounds used to bracket the run. If `None`,
-            the provided `wt_function` will be used to determine the bounds
-            (this is the default behavior).
+            The ln(likelihood) bounds used to bracket the run. Required
+            for (and only allowed with) `mode='manual'`. With the
+            `'weight'`/`'auto'` modes the bounds are determined by
+            `wt_function`, and with `'full'` the whole prior is sampled.
 
         save_bounds : bool, optional
             Whether or not to save distributions used to bound
@@ -2075,13 +2076,13 @@ class DynamicSampler:
             The value of the stopping criteria to be passed to
             :meth:`print_func`. Used internally within :meth:`run_nested` to
             keep track of progress.
-        resume: bool, optional
+        resume : bool, optional
             If resume is set to true, we will try to resume a previously
             interrupted run
-        checkpoint_file: string, optional
+        checkpoint_file : string, optional
             if not None The state of the sampler will be saved into this
             file every checkpoint_every seconds
-        checkpoint_every: float, optional
+        checkpoint_every : float, optional
             The number of seconds between checkpoints that will save
             the internal state of the sampler. If this is None, we
             we will use the timer created in run_nested()

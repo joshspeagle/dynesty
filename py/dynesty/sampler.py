@@ -314,7 +314,7 @@ class Sampler:
     rstate : `~numpy.random.Generator`
         `~numpy.random.Generator` instance.
 
-    queue_size: int
+    queue_size : int
         Carry out likelihood evaluations in parallel by queueing up new live
         point proposals using (at most) this many threads/members.
 
@@ -328,14 +328,14 @@ class Sampler:
     kwargs : dict, optional
         A dictionary of additional parameters.
 
-    ncdim: int, optional
+    ncdim : int, optional
         The number of clustering dimensions. The first ncdim dimensions
         will be sampled using the sampling method, the remaining
         dimensions will
         just sample uniformly from the prior distribution.
         If this is `None` (default), this will default to ndim.
 
-    logvol_init: float, optional
+    logvol_init : float, optional
         The initial log of volume when starting sampling. This is relevant
         when the log(L) is finite only within a fraction of prior volume.
 
@@ -458,7 +458,7 @@ class Sampler:
 
         Parameters
         ----------
-        fname: string
+        fname : string
             Filename of the save file.
 
         """
@@ -474,9 +474,9 @@ class Sampler:
 
         Parameters
         ----------
-        fname: string
+        fname : string
             Filename of the save file.
-        pool: object(optional)
+        pool : object(optional)
             The multiprocessing pool-like object that supports map()
             calls that will be used in the restored object.
 
@@ -1287,11 +1287,11 @@ class Sampler:
             Whether or not to save past bounding distributions used to bound
             the live points internally. Default is *True*.
 
-        checkpoint_file: string, optional
+        checkpoint_file : string, optional
             if not None The state of the sampler will be saved into this
             file every checkpoint_every seconds
 
-        checkpoint_every: float, optional
+        checkpoint_every : float, optional
             The number of seconds between checkpoints that will save
             the internal state of the sampler. The sampler will also be
             saved in the end of the run irrespective of checkpoint_every.

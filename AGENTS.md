@@ -25,7 +25,7 @@ For randomness in tests and internals, avoid ad-hoc `np.random.*` usage; follow 
 Add or update tests for every behavioral change in `tests/test_*.py`.  
 Do not reduce overall coverage (project guidance targets roughly 91%+).  
 Mark long-running tests with `@pytest.mark.slow`; keep default test runs practical.  
-Use `tests/utils.py:get_rstate()` and `DYNESTY_RANDOMSEED` for deterministic test behavior.
+Use `tests/utils.py:get_rstate()` and `DYNESTY_TEST_RANDOMSEED` for deterministic test behavior.
 
 ## Commit & Pull Request Guidelines
 Recent commit history favors short, imperative subjects (for example: `fix versions`, `clean up docs`, `test python 3.14`).  

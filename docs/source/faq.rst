@@ -7,7 +7,7 @@ from ``dynesty`` users, along with some answers that hopefully are helpful to
 you. If you don't see your particular issue addressed here, feel free to 
 `open an issue <https://github.com/joshspeagle/dynesty/issues>`_.
 
-**For citation information, see the :ref:`Citations` section on the homepage.**
+**For citation information**, see the :ref:`Citations` section on the homepage.
 
 Sampling Questions
 ------------------
@@ -47,11 +47,13 @@ start a new independent run and then combine the old and new runs together
 into a single (improved) run using the :meth:`~dynesty.utils.merge_runs`
 function.
 
-If you're using the `DynamicNestedSampler`, you can add as many batches as you want by running `add_batch`. The add_batch have a `auto` mode, or a manual
-mode where you can  add new batch corresponding to a certain likelihood
+If you're using the `DynamicNestedSampler`, you can add as many batches as you want by running `add_batch`. The `add_batch` method has an automatic mode
+(`'weight'`, the default), a `'full'` mode that samples the whole prior again,
+and a `'manual'` mode where you can add a new batch corresponding to a certain likelihood
 range (i.e. corresponding to where your posterior is concentrated for example).
 
-Alternatively, if you are primarily interested in the posterior, you can use larger values of n_effective parameter of `run_nested` as that will ensure your posterior is less noisy.
+Alternatively, if you are primarily interested in the posterior, you can use larger values of the `n_effective` parameter of the `run_nested` method of
+the `DynamicNestedSampler` as that will ensure your posterior is less noisy.
 Finally, :meth:`~dynesty.utils.merge_runs` also works with results generated
 from Dynamic Nested Sampling, so it is just as easy to set off a new run and
 combine it with your original result.
@@ -59,8 +61,8 @@ combine it with your original result.
 **I have a very multi-modal posterior, or dynesty cannot find the mode of my posterior. What should I do**
 
 If you have a large number of posterior modes, or a very narrow posterior mode occupying a tiny volume of your posterior, it may be difficult to find it.
-Typically using more live-points will help in those cases, as you have higher chance of discovering the your mode with one of the live-points.
-Also if you have a really large number of modes, you can use `add_batch` functionality with `logl_bounds` of (-inf,inf), to basically do repeated sampling of the posterior. In this case you have a good chance of discovering all the modes in your data.
+Typically using more live-points will help in those cases, as you have higher chance of discovering your mode with one of the live-points.
+Also if you have a really large number of modes, you can use `add_batch` functionality with `mode='full'`, to basically do repeated sampling of the posterior. In this case you have a good chance of discovering all the modes in your data.
 
 
 **There are inf values in my lower/upper log-likelihood bounds!
@@ -97,8 +99,6 @@ While this often "corrects" itself later in the run,
 sometimes the effect can persist. Regardless of
 whether the approximation converges, however, errors can still be computed
 using the functions described in :ref:`Nested Sampling Errors` as normal.
-I am currently working on developing a more robust approximation that
-avoids some of these issues.
 
 In rare cases, issues with the evidence error approximation can be a sign
 that something has gone Terribly Wrong during the sampling phase. This
@@ -140,7 +140,7 @@ strongly-curved manifold in several dimensions, which is hard to model with
 a series of overlapping ellipsoids or other similar distributions.
 
 Another possible culprit might be the enlargement factors. While the default
-25% value usually doesn't significantly decrease the efficiency, there some
+25% value usually doesn't significantly decrease the efficiency, there are some
 exceptions. If you are instead deriving expansion factors from bootstrapping,
 it's possible you're experiencing severe Monte Carlo noise (see 
 :ref:`Bounding Questions`). You could try to resolve this by either using
@@ -150,7 +150,7 @@ to the size of the bounding distributions such as `'rwalk'` or `'rslice'`.
 If sampling progresses efficiently after the first bounding update (i.e. when
 `bound > 0`) for the majority of the run but becomes substantially less
 efficient near the final `dlogz` stopping criterion, that could be a sign that
-the the current set of live points are unable to give rise to bounding
+the current set of live points are unable to give rise to bounding
 distributions that are detailed enough to track the shape of the remaining
 prior volume. As above, this behavior could be remedied by using more live
 points or alternate sampling methods. Depending on the goal, the `dlogz`
@@ -176,7 +176,7 @@ checks the stopping criterion specified (whether iterations or function calls)
 since the first batch of points need to be allocated before checking the
 stopping criterion.
 
-**I find other sampling are inefficient relative to `'unif'`.**
+**I find other sampling methods are inefficient relative to** `'unif'` **.**
 **Why would I ever want to use them?**
 
 The main reason these methods are more inefficient than uniform sampling
@@ -235,7 +235,7 @@ employed in PolyChord.
 **How many slices ("repeats") do you need to use for** `'slice'` **?**
 
 Since slice sampling is a form of non-rejection sampling,
-the number of "slices" requires for Nested Sampling is
+the number of "slices" required for Nested Sampling is
 (in theory) independent of dimensionality and can remain relatively constant.
 This is especially true if there are a set of local principle axes
 that can be effectively captured by the bounding distributions
@@ -349,7 +349,7 @@ bounding update, rather than using ellipsoids from previous iterations.
 In general this results in a slightly lower sampling efficiency but greater
 overall robustness.
 
-``dynesty`` also uses different heuristics than ``MultiNest`` or ``MultiNest``
+``dynesty`` also uses different heuristics than ``nestle`` or ``MultiNest``
 when deciding, e.g., when to first construct bounds. By default, ``dynesty``
 waits until the efficiency hits 10% and a certain number of iterations have
 passed before deciding to try split up live points into any sort of
@@ -366,7 +366,7 @@ efficiency for problems with very skewed distributions (i.e. large axis ratios)
 but helps to ensure stable performance.
 
 **No matter what bounds, options, etc. I pick, the initial samples all
-come from `bound = 0` and continue until the overall efficiency is quite low.
+come from** `bound = 0` **and continue until the overall efficiency is quite low.
 What's going on here?**
 
 By default, ``dynesty`` opts to wait until some time has passed until

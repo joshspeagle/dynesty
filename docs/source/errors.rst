@@ -75,7 +75,7 @@ expect the variance :math:`\mathbb{V}[N]` should also scale as
 
     \mathbb{V}[N] \sim \frac{H}{\Delta \ln X}
 
-Since the the prior volumes compress exponentially, the uncertainty on
+Since the prior volumes compress exponentially, the uncertainty on
 :math:`N` leads to exponential uncertainty in :math:`X` (and hence
 :math:`\mathcal{Z}`) at a given iteration, so this uncertainty actually
 contributes in :math:`\ln \mathcal{Z}` rather than :math:`\mathcal{Z}`. The
@@ -84,7 +84,7 @@ rough uncertainty in :math:`\ln \mathcal{Z}` is then:
 .. math::
 
     \sigma[\ln \hat{\mathcal{Z}}] \sim \sigma[\ln \hat{X}] \sim 
-    \sigma[\ln N] \, \Delta \ln X = \sqrt{H \Delta \ln X}
+    \sigma[N] \, \Delta \ln X = \sqrt{H \Delta \ln X}
     = \sqrt{\frac{H}{K}}
 
 This approximation can be extended to Dynamic Nested Sampling runs by
@@ -271,14 +271,14 @@ Decreasing Number of Live Points
 In the case where the number of live points are decreasing, we are now directly
 sampling "down" the set of order statistics
 :math:`\lbrace X_{(1)}, \dots, X_{(K_j)} \rbrace` described above. If at
-iteration :math:`i > j` we have :math:`K_i < K_{i+1} < \dots < K_j` live
+iteration :math:`i > j` we have :math:`K_i < K_{i-1} < \dots < K_j` live
 points, then the prior volume is the :math:`X_{(K_i)}`-th order statistic.
 Relative to :math:`X_j`, these have an expectation value of:
 
 .. math::
 
     \mathbb{E} \left[ \frac{\sum_{n=1}^{K_i} Y_{n}}{\sum_{n=1}^{K_j+1} Y_{n}}
-    \right] = \frac{K_j - K_i + 1}{K_j + 1}
+    \right] = \frac{K_i}{K_j + 1}
 
 This leads to the prior volume changing in discrete "chunks" of
 :math:`X_j/(K_j+1)`. In the :ref:`Static Nested Sampling` case, this only
@@ -340,8 +340,7 @@ compare them directly::
     lnzerr = np.std(lnzs, axis=0)
 
     # plot comparison
-    dres_j = copy.deepcopy(dres)
-    dres_j['logzerr'] = lnzerr
+    dres_j = dyfunc.results_substitute(dres, {'logzerr': lnzerr})
     fig, axes = dyplot.runplot(dres, color='blue')
     fig, axes = dyplot.runplot(dres_j, color='orange', 
                                lnz_truth=lnz_truth, truth_color='black',
@@ -435,7 +434,7 @@ elsewhere.
 This process of unraveling/merging Nested Sampling runs can be done using the
 :meth:`~dynesty.utils.unravel_run` and :meth:`~dynesty.utils.merge_runs` 
 functions. Both functions work with Static and Dynamic Nested Sampling results,
-although some of the provided anciliary quantities are not always valid. Their
+although some of the provided ancillary quantities are not always valid. Their
 usage is straightforward::
 
     res_list = dyfunc.unravel_run(res)  # unravel run into strands
@@ -473,7 +472,7 @@ The :meth:`~dynesty.utils.resample_run` function implements the bootstrap
 resampling approach. It then returns a new `~dynesty.results.Results`
 dictionary with a new set of samples and associated quantities.
 
-Let's use the same examples as :ref:`Jittering Runs` to demonstrate it's
+Let's use the same examples as :ref:`Jittering Runs` to demonstrate its
 usage. First, we will examine how these realizations compare with the original
 analytic evidence approximation::
 
@@ -485,8 +484,7 @@ analytic evidence approximation::
     lnzerr = np.std(lnzs, axis=0)
 
     # plot comparison
-    dres_r = copy.deepcopy(dres)
-    dres_r['logzerr'] = lnzerr
+    dres_r = dyfunc.results_substitute(dres, {'logzerr': lnzerr})
     fig, axes = dyplot.runplot(dres, color='blue')
     fig, axes = dyplot.runplot(dres_r, color='orange', 
                                lnz_truth=lnz_truth, truth_color='black',
@@ -597,9 +595,9 @@ against a set a repeated Nested Sampling runs:
     r = dsampler.results
 
     # generate jittered runs
-    sim_res = []
+    jitter_res = []
     for i in range(Nrepeat):
-        sim_res.append(dyfunc.jitter_run(r))
+        jitter_res.append(dyfunc.jitter_run(r))
 
     # generate resampled runs
     rsamp_res = []
@@ -757,7 +755,7 @@ to construct an empirical estimate of this quantity based on realizations of
 
 KL divergences between (realizations of) Nested Sampling runs can be computed
 in ``dynesty`` using the
-:meth:`~dynesty.utils.kld_error` functions. 
+:meth:`~dynesty.utils.kld_error` function.
 Let's examine the results from the Static Nested
 Sampling run used above to get a sense of what these look like::
 

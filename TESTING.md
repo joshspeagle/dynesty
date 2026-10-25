@@ -3,10 +3,10 @@ The testing suite is executed using pytest with all the tests inside the `tests/
 A few notes on running and writing tests
 
 ### Requirements
-The test suite makes use of packages not included in `requirements.txt`. To install these additional packages, use
+The test suite makes use of packages that are not required by dynesty itself. To install these additional packages, use
 
 ```
-pip install -r requirements-dev.txt
+pip install .[dev]
 ```
 
 ### Slow vs fast tests
@@ -25,7 +25,7 @@ pytest  -m 'not slow' --dist loadgroup  -n 10
 (if you have 10 CPUs). This way the test suite should finish in a few minutes.
 
 ### Random seeds
-By default the testing suite uses the same random seed for all the tests to ensure the consistency. It is occasionally useful to run with different seeds. For this you can set the environment variable `DYNESTY_RANDOMSEED` to any integer value.
+By default the testing suite uses the same random seed for all the tests to ensure the consistency. It is occasionally useful to run with different seeds. For this you can set the environment variable `DYNESTY_TEST_RANDOMSEED` to any integer value.
 If you are writing a new test you need to use the the `get_rstate()` function (from `tests/utils.py`)
 
 

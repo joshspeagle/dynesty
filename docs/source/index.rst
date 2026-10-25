@@ -88,7 +88,7 @@ you should also cite
 `Chopin & Robert (2010)
 <http://ui.adsabs.harvard.edu/abs/2008arXiv0801.3887C>`_,
 `Higson et al. (2018)
-<projecteuclid.org/euclid.ba/1508897094>`_,
+<https://projecteuclid.org/euclid.ba/1508897094>`_,
 and `Speagle (2020) <https://ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S>`_.
 
 See :ref:`References and Acknowledgements` for additional details.
@@ -118,10 +118,10 @@ This is major release with several infrastructural changes that will make future
 
 - Major refactor of the code that makes it easier to add new samplers.
 - Major speedup of the uniform sampler when sampling in parallel
-- You can now provide samplers as classes as arguments NestedSampler(sample=RWalkSampler(walks=44))
+- You can now provide samplers as classes as arguments NestedSampler(sample=dynesty.internal_samplers.RWalkSampler(walks=44))
 - Convergence statistics are saved for each iteration that can help diagnose sampling issues
 - You can now save the function evaluation history for all function calls throughout the sampling, even when doing it in parallel
-- The Hamiltonian slice sampler was removed because of lack of proper testing and not being mantainable
+- The Hamiltonian slice sampler was removed because of lack of proper testing and not being maintainable
 
 The repository has a demo notebook highlighting the main changes in 3.0.
 
@@ -213,7 +213,7 @@ This is a major release with several significant improvements contributed by Ser
 
 - The implementation of the check-points to save progress and allow restarting of fits. `See here <https://dynesty.readthedocs.io/en/latest/quickstart.html#checkpointing>`__
 - A new simple interface to obtain equally weighted samples directly from results object. `See here <https://dynesty.readthedocs.io/en/latest/crashcourse.html>`__
-- Allow likelihood functions to return additional computed quantities (blobs) that will be saved together with samples. `See here <https://dynesty.readthedocs.io/en/latest/quickstart.html#saving-auxialiary-information-from-log-likelihood-function>`__
+- Allow likelihood functions to return additional computed quantities (blobs) that will be saved together with samples. `See here <https://dynesty.readthedocs.io/en/latest/quickstart.html#saving-auxiliary-information-from-log-likelihood-function>`__
 - Random slice sampling now supports interval doubling scheme which may increase the performance in the case of bad posteriors.
 
 *IMPORTANT* This release includes some major refactoring of class structure in dynesty in to implement the check-pointing. While we haven't seen any breakage in our tests, it is possible that some of more-unusual workflows may be affected. Please submit a bug report on github if you see anything that doesn't look correct. Also, while every effort was made that checkpointing works correctly, it is possible that some corner-cases have been missed. Please report if you see any issues.
@@ -353,13 +353,13 @@ Most of the changes in the release have been contributed by [Sergey Koposov](htt
   `Gregory Ashton <https://github.com/GregoryAshton>`_).
 
 * Pickling sampler states should now work better in Python 3 (with
-  `Dustin Lang <https://github.com/dstndstnr>`_.
+  `Dustin Lang <https://github.com/dstndstn>`_.
 
 * Doubled output errors in default approximation in line with theoretical
   expectations.
 
 * Small bugfixes and docfixes (with
-  `Patricio Cubillos <https://github.com/dstndstnr>`_).
+  `Patricio Cubillos <https://github.com/pcubillos>`_).
 
 
 0.9.5.3 (2019-03-29)

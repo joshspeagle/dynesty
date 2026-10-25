@@ -147,7 +147,7 @@ A release with major performance bug fix for the dynamical sampler
 This is a major release with several significant improvements.
 - The implementation of the check-points to save progress and allow restarting of fits [See here](https://dynesty.readthedocs.io/en/latest/quickstart.html#checkpointing)
 - A new simple interface to obtain equally weighted samples directly from results object. [See here](https://dynesty.readthedocs.io/en/latest/crashcourse.html)
-- Allow likelihood functions to return additional computed quantities (blobs) that will be saved together with samples. [See here](https://dynesty.readthedocs.io/en/latest/quickstart.html#saving-auxialiary-information-from-log-likelihood-function)
+- Allow likelihood functions to return additional computed quantities (blobs) that will be saved together with samples. [See here](https://dynesty.readthedocs.io/en/latest/quickstart.html#saving-auxiliary-information-from-log-likelihood-function)
 
 *IMPORTANT* This release includes some major refactoring of class structure in dynesty in to implement the check-pointing. While we haven't seen any breakage in our tests, it is possible that some of more-unusual workflows may be affected. Please submit a bug report on github if you see anything that doesn't look correct. Also, while every effort was made that checkpointing works correctly, it is possible that some corner-cases have been missed. Please report if you see any issues.
 
@@ -301,13 +301,13 @@ Most of the changes in the release have been contributed by [Sergey Koposov](htt
   `Gregory Ashton <https://github.com/GregoryAshton>`_).
 
 - Pickling sampler states should now work better in Python 3 (with
-  `Dustin Lang <https://github.com/dstndstnr>`_.
+  `Dustin Lang <https://github.com/dstndstn>`_.
 
 - Doubled output errors in default approximation in line with theoretical
   expectations.
 
 - Small bugfixes and docfixes (with
-  `Patricio Cubillos <https://github.com/dstndstnr>`_).
+  `Patricio Cubillos <https://github.com/pcubillos>`_).
 
 
 ## [0.9.5.3] - 2019-03-29

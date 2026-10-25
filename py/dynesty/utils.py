@@ -181,12 +181,15 @@ class LogLikelihood:
                 if self.save_evaluation_history:
                     fp.create_dataset('evaluation_u',
                                       (self.save_every, self.ndim),
-                                      maxshape=(None, self.ndim))
+                                      maxshape=(None, self.ndim),
+                                      dtype='f8')
                     fp.create_dataset('evaluation_v',
                                       (self.save_every, self.ndim),
-                                      maxshape=(None, self.ndim))
+                                      maxshape=(None, self.ndim),
+                                      dtype='f8')
                     fp.create_dataset('evaluation_logl', (self.save_every, ),
-                                      maxshape=(None, ))
+                                      maxshape=(None, ),
+                                      dtype='f8')
         except OSError:
             print('Failed to initialize history file')
             raise

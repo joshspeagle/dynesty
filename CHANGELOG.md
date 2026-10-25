@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - The `ncdim` option is deprecated (emits a DeprecationWarning) and will be removed in a future release.
 - `add_batch()` now uses the number of live points given at initialization by default, instead of a fixed 500, consistent with `run_nested()` (fixed by @segasai)
 - `DynamicSampler.run_nested()` no longer modifies the `stop_kwargs` dictionary and uses `stop_kwargs['target_n_effective']` if `n_effective` is not given (previously it was overridden); conflicting values raise an error, and `n_effective` with a custom `stop_function` emits a warning. The default `target_n_effective` of `stopping_function` is now `max(10000, ndim^2)`, as in `run_nested()` (fixed by @segasai)
+- `boundplot()` and `cornerbound()` now raise a `ValueError` if an element of `span` is not a (lower, upper) pair. Previously such values were passed to matplotlib and only set the lower limit (fixed by @segasai)
 ### Fixed
 - Fix the `information` returned by `jitter_run()` and `reweight_run()`. Previously the recomputed information was discarded and the original one was returned. Also the information computed for reweighted runs (and therefore their `logzerr`) did not account for the reweighting of the likelihood (fixed by @segasai)
 - Fix `samples_bound` in the results of static runs. Only the final live points recorded the index of the bound they were proposed from, so `samples_bound` had `nlive` entries instead of one per sample and `boundplot`/`cornerbound` with the `idx` option failed (fixed by @segasai)
@@ -26,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix the evidence computations for runs where the likelihood is equal to -inf over part of the prior. Previously the initial prior volume estimated during live-point initialization was discarded by the final integral recomputation in the static run_nested(), by jitter_run()/resample_run()/unravel_run() and by merge_runs(), leading to systematically overestimated logz (by up to the log of the inverse finite-likelihood prior fraction) and invalid uncertainties. Now the initial volume is stored in the results (see logvol_init above), used consistently by all evidence reconstructions, and properly combined when merging runs or full-prior batches (fixed by @segasai)
 - Fix the bias in the initial prior volume estimate when the likelihood is -inf over part of the prior. When the last round of initial prior draws produced more finite-likelihood points than could be kept, the dropped points were not accounted for, underestimating logz (by ~0.3 if the finite fraction is just below 0.8) (found by Opus, fixed  by Opus and  @segasai)
 - Fix `SupFriends.update(mc_integrate=True)`, which crashed (fixed by @segasai)
+- Fix the use of `span` in `cornerpoints()` and `cornerbound()`. The y-axis limits of each row (and in `cornerpoints()` the selection of the plotted points) used the span of the wrong dimension. Also `cornerpoints()` no longer modifies the user's `span` list (fixed by @segasai)
 
 [3.1.0 - 2026-07-17]
 ### Added

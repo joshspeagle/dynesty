@@ -92,6 +92,16 @@ If the input is list of pairs, it is kept intact
             span[i] = _quantile(samples[i], q, weights=weights)
 
 
+def check_span_pairs(span):
+    """
+Check that each element of span is a (lower, upper) pair
+    """
+    for cur in span:
+        if np.shape(cur) != (2, ):
+            raise ValueError('Each element of span must be a '
+                             f'(lower, upper) pair, got {cur}')
+
+
 def runplot(results,
             span=None,
             logplot=False,
@@ -976,6 +986,7 @@ def cornerpoints(results,
         raise ValueError("cornerpoints does not make sense for 1-D posterior")
     # Determine plotting bounds.
     if span is not None:
+        span = list(span)
         if len(span) != ndim:
             raise ValueError("Dimension mismatch between samples and span.")
         check_span(span, samples, weights)
@@ -1019,7 +1030,7 @@ def cornerpoints(results,
             # Setup axes.
             if span is not None:
                 ax.set_xlim(span[j])
-                ax.set_ylim(span[i])
+                ax.set_ylim(span[i + 1])
             if j > i:
                 ax.set_frame_on(False)
                 ax.set_xticks([])
@@ -1051,8 +1062,8 @@ def cornerpoints(results,
                 ax.yaxis.set_label_coords(-0.3, 0.5)
             # Plot distribution.
             in_bounds = np.ones_like(y).astype('bool')
-            if span is not None and span[i] is not None:
-                in_bounds *= ((x >= span[i][0]) & (x <= span[i][1]))
+            if span is not None and span[i + 1] is not None:
+                in_bounds *= ((x >= span[i + 1][0]) & (x <= span[i + 1][1]))
             if span is not None and span[j] is not None:
                 in_bounds *= ((y >= span[j][0]) & (y <= span[j][1]))
             if isinstance(color, str):
@@ -1596,6 +1607,8 @@ def boundplot(results,
         label_kwargs = {}
     if live_kwargs is None:
         live_kwargs = {}
+    if span is not None:
+        check_span_pairs(span)
 
     # Check that either `idx` or `it` has been specified.
     if (it is None and idx is None) or (it is not None and idx is not None):
@@ -1910,6 +1923,8 @@ def cornerbound(results,
         plot_kwargs = {}
     if live_kwargs is None:
         live_kwargs = {}
+    if span is not None:
+        check_span_pairs(span)
 
     # Check that either `idx` or `it` is specified.
     if (it is None and idx is None) or (it is not None and idx is not None):
@@ -2112,7 +2127,7 @@ def cornerbound(results,
             # Setup axes.
             if span is not None:
                 ax.set_xlim(span[j])
-                ax.set_ylim(span[i])
+                ax.set_ylim(span[i + 1])
             if j > i:
                 ax.set_frame_on(False)
                 ax.set_xticks([])

@@ -432,6 +432,33 @@ def test_saved_bounds_distinct(bound):
     assert inside.mean() > 0.9
 
 
+@pytest.mark.parametrize('add_live', [True, False])
+def test_saved_bounds_samples_static(add_live):
+    # every sample of a static run must record the index of the bound
+    # it was proposed from (samples_bound), and that index must be valid
+    ndim = 2
+    rstate = get_rstate()
+    sampler = dynesty.NestedSampler(loglike,
+                                    prior_transform,
+                                    ndim,
+                                    nlive=nlive,
+                                    rstate=rstate)
+    sampler.run_nested(print_progress=printing, add_live=add_live)
+    res = sampler.results
+    nsamps = len(res['samples'])
+    samples_bound = res['samples_bound']
+    bound_iter = res['bound_iter']
+    assert len(samples_bound) == nsamps
+    assert len(bound_iter) == nsamps
+    assert np.all((samples_bound >= 0)
+                  & (samples_bound < len(res['bound'])))
+    # a point is proposed from a bound before it dies
+    assert np.all(samples_bound <= bound_iter)
+    # both the unit cube and the later bounds were used
+    assert np.any(samples_bound == 0)
+    assert np.any(samples_bound > 0)
+
+
 def test_saved_bounds_dynamic():
     # bounds from the base run and from every batch must all be kept
     # and the bound indices of the samples must point into that

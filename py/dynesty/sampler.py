@@ -1186,6 +1186,7 @@ class Sampler:
                      logzvar=logzvar,
                      h=h,
                      nc=nc,
+                     boundidx=boundidx,
                      it=worst_it,
                      bounditer=bounditer,
                      scale=self.internal_sampler.scale,

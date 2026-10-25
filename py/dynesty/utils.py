@@ -2007,7 +2007,7 @@ def kld_error(res,
         new_res, samp_idx = resample_run(res, rstate=rstate, return_idx=True)
         logp2 = logp2[samp_idx]  # re-order our original results to match
     else:
-        raise ValueError("Input `'error'` option '{error}' is not valid.")
+        raise ValueError(f"Input `'error'` option '{error}' is not valid.")
 
     # Define our new importance weights.
     logp1 = new_res['logwt'] - new_res['logz'][-1]

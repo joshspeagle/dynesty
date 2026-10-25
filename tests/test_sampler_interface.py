@@ -233,3 +233,40 @@ def test_walks_slices(sample, typ):
         res.append(sampler.ncall)
 
     assert (res[1] > res[0])
+
+
+@pytest.mark.parametrize("ndim,kw,typ,key,value",
+                         [(12, {}, dysa.RWalkSampler, 'walks', 32),
+                          (12, dict(walks=50), dysa.RWalkSampler, 'walks', 50),
+                          (25, {}, dysa.RSliceSampler, 'slices', 28),
+                          (25, dict(slices=7), dysa.RSliceSampler, 'slices',
+                           7)])
+def test_auto_walks_slices(ndim, kw, typ, key, value):
+    # check that sample='auto' uses the walks= slices= options
+    rstate = get_rstate()
+    g = Gaussian(0.1, ndim=ndim)
+    sampler = dynesty.NestedSampler(g.loglikelihood,
+                                    g.prior_transform,
+                                    g.ndim,
+                                    nlive=nlive,
+                                    sample='auto',
+                                    rstate=rstate,
+                                    **kw)
+    # the configured sampler is used after the first bound update
+    internal_sampler = sampler.internal_sampler_next
+    assert isinstance(internal_sampler, typ)
+    assert internal_sampler.sampler_kwargs[key] == value
+
+
+def test_auto_walks_slices_mismatch():
+    # slices= option with sample='auto' resolving to rwalk should warn
+    rstate = get_rstate()
+    g = Gaussian(0.1, ndim=12)
+    with pytest.warns(UserWarning, match='does not make sense'):
+        dynesty.NestedSampler(g.loglikelihood,
+                              g.prior_transform,
+                              g.ndim,
+                              nlive=nlive,
+                              sample='auto',
+                              rstate=rstate,
+                              slices=7)

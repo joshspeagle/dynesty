@@ -129,11 +129,11 @@ def _get_internal_sampler(sampling, ndim, ncdim, periodic, walks,
     default_steps = {'rwalk': ndim + 20, 'slice': 3, 'rslice': 3 + ndim}
     if sampling == 'auto':
         if ndim < 10:
-            sampling = UniformBoundSampler(ndim=ndim)
+            sampling = 'unif'
         elif 10 <= ndim <= 20:
-            sampling = RWalkSampler(ndim=ndim, walks=default_steps['rwalk'])
+            sampling = 'rwalk'
         else:
-            sampling = RSliceSampler(ndim=ndim, slices=default_steps['rslice'])
+            sampling = 'rslice'
 
     periodic = check_periodic(ndim, periodic)
     sampler_kw = dict(ncdim=ncdim,
@@ -398,7 +398,8 @@ optional
 
         walks : int, optional
             For the `'rwalk'` sampling option, the minimum number of steps
-            (minimum 2) before proposing a new live point. Default is `25`.
+            (minimum 2) before proposing a new live point. Default is
+            `ndim + 20`.
 
         facc : float, optional
             The target acceptance fraction for the `'rwalk'` sampling option.

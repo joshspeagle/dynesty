@@ -648,10 +648,7 @@ class Sampler:
         """
         if ncall is None:
             ncall = self.ncall
-        if self.bound_update_interval is None:
-            delta_bound = self.sampler.bound_update_interval * self.nlive
-        else:
-            delta_bound = self.bound_update_interval
+        delta_bound = self.bound_update_interval
 
         call_check_first = ncall >= self.first_bound_update_ncall
         call_check = ncall >= delta_bound + self.ncall_at_last_update

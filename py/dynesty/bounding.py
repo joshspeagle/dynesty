@@ -313,7 +313,7 @@ class Ellipsoid(Bound):
     def __init__(self, ndim, ctr=None, cov=None, am=None, axes=None):
         super().__init__(ndim)
         if ctr is None:
-            ctr = 0.5 * np.zeros(ndim)
+            ctr = 0.5 * np.ones(ndim)
             cov = np.identity(ndim) * ndim / 4
         self.ctr = np.asarray(ctr)  # center coordinates
         self.cov = np.asarray(cov)  # covariance matrix

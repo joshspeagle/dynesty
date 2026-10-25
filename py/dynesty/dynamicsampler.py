@@ -2011,13 +2011,13 @@ class DynamicSampler:
 
         mode: string, optional
             How to allocate a new batch.
-            The possible values are 'auto', 'weight', 'full', 'manual'
+            The possible values are 'auto', 'weight', 'full', 'manual'.
             'weight' means to use the weight_function to decide the optimal
             logl range.
-            'full' means sample the whole posterior again
+            'full' means sample the whole posterior again.
             'auto' means choose automatically, which currently means using
-            'weight'
-            'manual' means that logl_bounds need to be explicitely specified
+            'weight'.
+            'manual' means that logl_bounds need to be explicitly specified.
 
         wt_function : func, optional
             A cost function that takes a `Results` instance
@@ -2084,6 +2084,9 @@ class DynamicSampler:
 
         res = self.results
 
+        if mode not in ('auto', 'weight', 'full', 'manual'):
+            raise ValueError(f"Unknown add_batch mode '{mode}'; must be one "
+                             "of 'auto', 'weight', 'full', 'manual'")
         if mode != 'manual' and logl_bounds is not None:
             raise RuntimeError(
                 "specified logl_bounds are only allowed for manual mode")

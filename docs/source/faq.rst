@@ -22,7 +22,6 @@ random walks often can serve as an effective way to propose new points
 without relying on the exact shape/size of the bounds being correct. In
 higher dimensions, we generally need non-rejection methods such as slice
 sampling to generate samples efficiently since the prior volume is so large.
-Using gradients can also help generate efficient proposals in this regime.
 ``dynesty`` uses these rules-of-thumb by default to choose a sampling option
 with `'auto'`.
 

@@ -595,10 +595,14 @@ class Sampler:
 
         d = {}
         for k in [
-                'nc', 'v', 'id', 'it', 'u', 'logwt', 'logl', 'logvol', 'logz',
-                'logzvar', 'h', 'blob', 'proposal_stats'
+                'nc', 'v', 'id', 'it', 'u', 'logl', 'logvol', 'blob',
+                'proposal_stats'
         ]:
             d[k] = np.array(self.saved_run[k])
+        # saved_run only has the running estimates from progress_integration
+        # so we recompute the integrals using the full run
+        d['logwt'], d['logz'], d['logzvar'], d['h'] = compute_integrals(
+            logl=d['logl'], logvol=d['logvol'], logvol_init=self.logvol_init)
 
         # Add all saved samples to the results.
         with warnings.catch_warnings():
@@ -1393,15 +1397,6 @@ class Sampler:
                                    dlogz=dlogz,
                                    logl_max=logl_max)
 
-            # Here we recompute the integrals using the full run
-            new_logwt, new_logz, new_logzvar, new_h = compute_integrals(
-                logl=self.saved_run['logl'],
-                logvol=self.saved_run['logvol'],
-                logvol_init=self.logvol_init)
-            self.saved_run['logwt'] = new_logwt.tolist()
-            self.saved_run['logz'] = new_logz.tolist()
-            self.saved_run['logzvar'] = new_logzvar.tolist()
-            self.saved_run['h'] = new_h.tolist()
             if checkpoint_file is not None:
                 # I don't check the time timer here
                 self.save(checkpoint_file)

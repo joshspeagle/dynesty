@@ -1458,7 +1458,7 @@ def compute_integrals(*, logl, logvol, reweight=None, logvol_init=0):
     saved_logz = np.logaddexp.accumulate(saved_logwt)
     # This implements eqn 16 of Speagle2020
 
-    logzmax = saved_logz[-1]
+    logzmax = np.max(saved_logz, initial=-np.inf)  # last value; works if empty
     # we'll need that to just normalize likelihoods to avoid overflows
 
     # H is defined as

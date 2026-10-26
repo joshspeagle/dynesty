@@ -1109,7 +1109,7 @@ Alternately, we can generate a corner plot of the bounding distribution using
     fig, axes = dyplot.cornerbound(res2, it=5000, 
                                   prior_transform=ptform,
                                   show_live=True, 
-                                  span=[(-10, 10), (-10, 10)])
+                                  span=[(-10, 10), (-10, 10), (-10, 10)])
 
 .. image:: ../images/quickstart_007.png
     :align: center

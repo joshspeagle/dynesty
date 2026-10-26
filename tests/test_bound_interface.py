@@ -175,6 +175,9 @@ def test_bounding_sample(bound, sample):
     else:
         g = Gaussian()
     ndim = g.ndim
+    # the box gives axis-aligned slices, which mix slowly for the
+    # correlated gaussian, so the default number of slices is not enough
+    slices = 20 if (bound, sample) == ('box', 'slice') else None
     bound = {
         'none': db.UnitCube(ndim),
         'multi': db.MultiEllipsoid(ndim),
@@ -189,6 +192,7 @@ def test_bounding_sample(bound, sample):
                                     nlive=nlive,
                                     bound=bound,
                                     sample=sample,
+                                    slices=slices,
                                     rstate=rstate)
     sampler.run_nested(print_progress=printing)
     check_results_gau(sampler.results, g, rstate)

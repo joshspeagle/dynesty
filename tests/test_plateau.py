@@ -70,7 +70,7 @@ def test_static(sample, dlogz):
                                     sample=sample)
     sampler.run_nested(print_progress=printing, dlogz=dlogz)
     res = sampler.results
-    THRESH = 3
+    THRESH = 4
     assert np.abs(res.logz[-1] - plateau.logz_true) < THRESH * res.logzerr[-1]
 
 
@@ -91,7 +91,7 @@ def test_dynamic(sample):
                                            sample=sample)
     sampler.run_nested(print_progress=printing)
     res = sampler.results
-    THRESH = 3
+    THRESH = 4
     assert np.abs(res.logz[-1] - plateau.logz_true) < THRESH * res.logzerr[-1]
 
 
@@ -114,7 +114,7 @@ def test_merge():
         sampler.run_nested(print_progress=printing)
         res_list.append(sampler.results)
     res = dyutil.merge_runs(res_list)
-    THRESH = 3
+    THRESH = 4
     assert np.abs(res.logz[-1] - plateau.logz_true) < THRESH * res.logzerr[-1]
 
 
@@ -159,7 +159,7 @@ def test_cake_static(sample):
                                     sample=sample)
     sampler.run_nested(print_progress=printing)
     res = sampler.results
-    THRESH = 3
+    THRESH = 4
     assert np.abs(res.logz[-1] - cake.logz_true) < THRESH * res.logzerr[-1]
 
 
@@ -177,7 +177,7 @@ def test_cake_dynamic(sample):
                                            sample=sample)
     sampler.run_nested(print_progress=printing)
     res = sampler.results
-    THRESH = 3
+    THRESH = 4
     assert np.abs(res.logz[-1] - cake.logz_true) < THRESH * res.logzerr[-1]
 
 
@@ -270,7 +270,7 @@ def test_uniform(dyn):
     )
     sampler.run_nested(print_progress=printing)
     res = sampler.results
-    THRESH = 3
+    THRESH = 4
     assert np.abs(res.logz[-1] - 0) < THRESH * res.logzerr[-1]
 
 

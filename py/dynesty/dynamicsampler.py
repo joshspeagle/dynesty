@@ -17,7 +17,6 @@ import math
 import copy
 from enum import Enum
 import numpy as np
-from scipy.special import logsumexp
 from .sampler import Sampler, _initialize_live_points
 from .results import Results
 from .utils import (get_seed_sequence, get_print_func, _kld_error,
@@ -64,16 +63,16 @@ logz values associated with all the samples. It may mean somethings is
 wrong with your likelihood.''')
         zweight = np.ones(len(logl)) / len(logl)
     else:
-        # TODO the logic here needs to be verified
-        logz_remain = logl[-1] + logvol[-1]  # remainder
-        logz_tot = np.logaddexp(logz[-1], logz_remain)  # estimated upper bound
-        lzones = np.ones_like(logz)
-        logzin = logsumexp([lzones * logz_tot, logz],
-                           axis=0,
-                           b=[lzones, -lzones])  # ln(remaining evidence)
-        logzweight = logzin - np.log(samples_n)  # ln(evidence weight)
-        logzweight -= logsumexp(logzweight)  # normalize
-        zweight = np.exp(logzweight)  # convert to linear scale
+        # Var(ln Z) = sum_k Q_k^2/n_k^2 (see compute_integrals), so extra
+        # live points reduce it most where Q_k/n_k is largest.
+        # Q_k = 1 - B_k/Z with B_k = Z_k + (L_{k-1}+L_k)/2 * X_k
+        # (Q_k < 0 only by O(X_N), the volume left after the last point)
+        logb = np.logaddexp(
+            logz,
+            np.logaddexp(logl, np.r_[-np.inf, logl[:-1]]) + math.log(0.5) +
+            logvol)
+        zweight = np.maximum(-np.expm1(logb - logz[-1]), 0) / samples_n
+        zweight /= np.sum(zweight)
 
     # Derive posterior weights.
     pweight = np.exp(logwt - logz[-1])  # importance weight
@@ -91,9 +90,10 @@ def weight_function(results, args=None, return_weights=False):
         weight = pfrac * pweight + (1. - pfrac) * zweight
 
     where `pfrac` is the fractional importance placed on the posterior,
-    the evidence weight `zweight` is based on the estimated remaining
-    posterior mass, and the posterior weight `pweight` is the sample's
-    importance weight.
+    the evidence weight `zweight` is the sensitivity of ln(Z) to the
+    prior volume shrinkage at that point divided by the number of live
+    points (where extra live points reduce the ln(Z) uncertainty the most),
+    and the posterior weight `pweight` is the sample's importance weight.
 
     Returns a set of log-likelihood bounds set by the earliest/latest
     samples where `weight > maxfrac * max(weight)`, with additional

@@ -1472,12 +1472,23 @@ def compute_integrals(*, logl, logvol, reweight=None, logvol_init=0):
         (loglstar_pad[:-1] + reweight))
     # here we divide the likelihood by zmax to avoid to overflow
     saved_h = h_part1 - logzmax * np.exp(saved_logz - logzmax)
-    # changes in h in each step
-    dh = np.diff(saved_h, prepend=0)
 
-    # I'm applying abs() here to avoid nans down the line
-    # because partial H integrals could be negative
-    saved_logzvar = np.abs(np.cumsum(dh * dlogvol))
+    # Variance of ln(Z_i) due to the unknown volumes. The shrinkage of the
+    # k-th step has variance dlogvol_k^2 (=1/n_k^2) and rescales all the
+    # volumes X_j, j>=k, so its effect on ln(Z_i) is
+    # Q_k = (Z_i - B_k) / Z_i with B_k = Z_k + (L_{k-1}+L_k)/2 * X_k
+    # and Var(ln Z_i) = sum_{k<=i} Q_k^2 dlogvol_k^2.
+    # Expanding the square gives cumulative sums, computed in log-space.
+    logb = np.logaddexp(
+        saved_logz,
+        np.logaddexp(loglstar_pad[1:], loglstar_pad[:-1]) + math.log(0.5) +
+        reweight + logvol)
+    with np.errstate(divide='ignore'):
+        loga = 2 * np.log(dlogvol)
+    saved_logzvar = np.maximum(
+        np.cumsum(dlogvol**2) -
+        2 * np.exp(np.logaddexp.accumulate(loga + logb) - saved_logz) +
+        np.exp(np.logaddexp.accumulate(loga + 2 * logb) - 2 * saved_logz), 0)
     return saved_logwt, saved_logz, saved_logzvar, saved_h
 
 

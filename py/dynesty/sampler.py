@@ -595,10 +595,14 @@ class Sampler:
 
         d = {}
         for k in [
-                'nc', 'v', 'id', 'it', 'u', 'logwt', 'logl', 'logvol', 'logz',
-                'logzvar', 'h', 'blob', 'proposal_stats'
+                'nc', 'v', 'id', 'it', 'u', 'logl', 'logvol', 'blob',
+                'proposal_stats'
         ]:
             d[k] = np.array(self.saved_run[k])
+        # saved_run only has the running estimates from progress_integration
+        # so we recompute the integrals using the full run
+        d['logwt'], d['logz'], d['logzvar'], d['h'] = compute_integrals(
+            logl=d['logl'], logvol=d['logvol'], logvol_init=self.logvol_init)
 
         # Add all saved samples to the results.
         with warnings.catch_warnings():
@@ -820,7 +824,6 @@ class Sampler:
             self.added_live = True
         if len(self.saved_run['logz']) > 0:
             logz = self.saved_run['logz'][-1]
-            logzvar = self.saved_run['logzvar'][-1]
             h = self.saved_run['h'][-1]
             loglstar = self.saved_run['logl'][-1]
             logvol = self.saved_run['logvol'][-1]
@@ -829,7 +832,6 @@ class Sampler:
             # just sampled uniformly and bailed out
             h = 0.  # information, initially *0.*
             logz = -1.e300  # ln(evidence), initially *0.*
-            logzvar = 0.  # var[ln(evidence)], initially *0.*
             logvol = self.logvol_init
             # initially contains the whole prior (volume=1.)
             loglstar = -1.e300  # initial ln(likelihood)
@@ -845,7 +847,6 @@ class Sampler:
         if not self.plateau_mode:
             logvols = np.log(1. - (np.arange(self.nlive) + 1.) /
                              (self.nlive + 1.))
-            # Defining change in `logvol` used in `logzvar` approximation.
         else:
             # we first just use old delta(v)'s associated with each point
             # in the plateau
@@ -892,9 +893,8 @@ class Sampler:
             boundidx = self.live_bound[idx]
             point_it = self.live_it[idx]
 
-            (logwt, logz, logzvar,
-             h) = progress_integration(loglstar, loglstar_new, logz, logzvar,
-                                       logvol, dlv, h)
+            logwt, logz, h = progress_integration(loglstar, loglstar_new,
+                                                  logz, logvol, dlv, h)
             loglstar = loglstar_new
             delta_logz = np.logaddexp(0, loglmax + logvol - logz)
 
@@ -908,7 +908,6 @@ class Sampler:
                     logvol=logvol,
                     logwt=logwt,
                     logz=logz,
-                    logzvar=logzvar,
                     h=h,
                     nc=1,  # this is technically a lie
                     # as we didn't call the likelihood even once
@@ -931,7 +930,6 @@ class Sampler:
                                  logvol=logvol,
                                  logwt=logwt,
                                  logz=logz,
-                                 logzvar=logzvar,
                                  h=h,
                                  nc=1,
                                  blob=old_blob,
@@ -949,9 +947,9 @@ class Sampler:
         if self.added_live:
             self.added_live = False
             for k in [
-                    'id', 'u', 'v', 'logl', 'logvol', 'logwt', 'logz',
-                    'logzvar', 'h', 'nc', 'boundidx', 'it', 'bounditer',
-                    'scale', 'blob', 'proposal_stats'
+                    'id', 'u', 'v', 'logl', 'logvol', 'logwt', 'logz', 'h',
+                    'nc', 'boundidx', 'it', 'bounditer', 'scale', 'blob',
+                    'proposal_stats'
             ]:
                 del self.saved_run[k][-self.nlive:]
         else:
@@ -1038,9 +1036,6 @@ class Sampler:
             logz : float
                 Cumulative ln(evidence) up to the sample (inclusive).
 
-            logzvar : float
-                Estimated cumulative variance on `logz` (inclusive).
-
             h : float
                 Cumulative information up to the sample (inclusive).
 
@@ -1087,7 +1082,6 @@ class Sampler:
             # Initialize values for nested sampling loop.
             h = 0.  # information, initially *0.*
             logz = -1.e300  # ln(evidence), initially *0.*
-            logzvar = 0.  # var[ln(evidence)], initially *0.*
             logvol = self.logvol_init
             # initially contains the whole prior (volume=1.)
             loglstar = -1.e300  # initial ln(likelihood)
@@ -1104,9 +1098,9 @@ class Sampler:
                 self._remove_live_points()
 
             # Get final state from previous run.
-            h, logz, logzvar, logvol, loglstar = [
+            h, logz, logvol, loglstar = [
                 self.saved_run[_][-1]
-                for _ in ['h', 'logz', 'logzvar', 'logvol', 'logl']
+                for _ in ['h', 'logz', 'logvol', 'logl']
             ]
             delta_logz = np.logaddexp(0,
                                       np.max(self.live_logl) + logvol - logz)
@@ -1192,9 +1186,8 @@ class Sampler:
                 new_blob = logl.blob
             else:
                 new_blob = None
-            (logwt, logz, logzvar,
-             h) = progress_integration(loglstar, loglstar_new, logz, logzvar,
-                                       logvol, cur_dlv, h)
+            logwt, logz, h = progress_integration(loglstar, loglstar_new,
+                                                  logz, logvol, cur_dlv, h)
             loglstar = loglstar_new
 
             # Compute bound index at the current iteration.
@@ -1212,7 +1205,6 @@ class Sampler:
                      logvol=logvol,
                      logwt=logwt,
                      logz=logz,
-                     logzvar=logzvar,
                      h=h,
                      nc=nc,
                      boundidx=boundidx,
@@ -1248,7 +1240,6 @@ class Sampler:
                                  logvol=logvol,
                                  logwt=logwt,
                                  logz=logz,
-                                 logzvar=logzvar,
                                  h=h,
                                  nc=nc,
                                  blob=old_blob,
@@ -1393,15 +1384,6 @@ class Sampler:
                                    dlogz=dlogz,
                                    logl_max=logl_max)
 
-            # Here we recompute the integrals using the full run
-            new_logwt, new_logz, new_logzvar, new_h = compute_integrals(
-                logl=self.saved_run['logl'],
-                logvol=self.saved_run['logvol'],
-                logvol_init=self.logvol_init)
-            self.saved_run['logwt'] = new_logwt.tolist()
-            self.saved_run['logz'] = new_logz.tolist()
-            self.saved_run['logzvar'] = new_logzvar.tolist()
-            self.saved_run['h'] = new_h.tolist()
             if checkpoint_file is not None:
                 # I don't check the time timer here
                 self.save(checkpoint_file)

@@ -17,7 +17,6 @@ import math
 import copy
 from enum import Enum
 import numpy as np
-from scipy.special import logsumexp
 from .sampler import Sampler, _initialize_live_points
 from .results import Results
 from .utils import (get_seed_sequence, get_print_func, _kld_error,
@@ -64,16 +63,16 @@ logz values associated with all the samples. It may mean somethings is
 wrong with your likelihood.''')
         zweight = np.ones(len(logl)) / len(logl)
     else:
-        # TODO the logic here needs to be verified
-        logz_remain = logl[-1] + logvol[-1]  # remainder
-        logz_tot = np.logaddexp(logz[-1], logz_remain)  # estimated upper bound
-        lzones = np.ones_like(logz)
-        logzin = logsumexp([lzones * logz_tot, logz],
-                           axis=0,
-                           b=[lzones, -lzones])  # ln(remaining evidence)
-        logzweight = logzin - np.log(samples_n)  # ln(evidence weight)
-        logzweight -= logsumexp(logzweight)  # normalize
-        zweight = np.exp(logzweight)  # convert to linear scale
+        # Var(ln Z) = sum_k Q_k^2/n_k^2 (see compute_integrals), so extra
+        # live points reduce it most where Q_k/n_k is largest.
+        # Q_k = 1 - B_k/Z with B_k = Z_k + (L_{k-1}+L_k)/2 * X_k
+        # (Q_k < 0 only by O(X_N), the volume left after the last point)
+        logb = np.logaddexp(
+            logz,
+            np.logaddexp(logl, np.r_[-np.inf, logl[:-1]]) + math.log(0.5) +
+            logvol)
+        zweight = np.maximum(-np.expm1(logb - logz[-1]), 0) / samples_n
+        zweight /= np.sum(zweight)
 
     # Derive posterior weights.
     pweight = np.exp(logwt - logz[-1])  # importance weight
@@ -91,9 +90,10 @@ def weight_function(results, args=None, return_weights=False):
         weight = pfrac * pweight + (1. - pfrac) * zweight
 
     where `pfrac` is the fractional importance placed on the posterior,
-    the evidence weight `zweight` is based on the estimated remaining
-    posterior mass, and the posterior weight `pweight` is the sample's
-    importance weight.
+    the evidence weight `zweight` is the sensitivity of ln(Z) to the
+    prior volume shrinkage at that point divided by the number of live
+    points (where extra live points reduce the ln(Z) uncertainty the most),
+    and the posterior weight `pweight` is the sample's importance weight.
 
     Returns a set of log-likelihood bounds set by the earliest/latest
     samples where `weight > maxfrac * max(weight)`, with additional
@@ -894,10 +894,14 @@ class DynamicSampler:
         d = {}
         for k in [
                 'nc', 'v', 'id', 'batch', 'it', 'u', 'n', 'logwt', 'logl',
-                'logvol', 'logz', 'logzvar', 'h', 'batch_nlive',
-                'batch_logl_bounds', 'blob', 'proposal_stats'
+                'logvol', 'logz', 'h', 'batch_nlive', 'batch_logl_bounds',
+                'blob', 'proposal_stats'
         ]:
             d[k] = np.array(self.saved_run[k])
+        # saved_run has no running ln(Z) variance, it is computed here
+        logzvar = compute_integrals(logl=d['logl'],
+                                    logvol=d['logvol'],
+                                    logvol_init=self.logvol_init)[2]
 
         # Add all saved samples (and ancillary quantities) to the results.
         with warnings.catch_warnings():
@@ -912,7 +916,7 @@ class DynamicSampler:
                     'batch_logl_bounds', 'blob', 'proposal_stats'
             ]:
                 results.append((k, d[k]))
-            results.append(('logzerr', np.sqrt(d['logzvar'])))
+            results.append(('logzerr', np.sqrt(logzvar)))
             results.append(('information', d['h']))
         results.append(('scale', np.array(self.saved_run['scale'])))
 
@@ -1062,9 +1066,6 @@ class DynamicSampler:
             logz : float
                 Cumulative ln(evidence) up to the sample (inclusive).
 
-            logzvar : float
-                Estimated cumulative variance on `logz` (inclusive).
-
             h : float
                 Cumulative information up to the sample (inclusive).
 
@@ -1178,7 +1179,6 @@ class DynamicSampler:
                             logvol=results.logvol,
                             logwt=results.logwt,
                             logz=results.logz,
-                            logzvar=results.logzvar,
                             h=results.h,
                             nc=results.nc,
                             it=results.worst_it,
@@ -1204,7 +1204,6 @@ class DynamicSampler:
                                  logvol=results.logvol,
                                  logwt=results.logwt,
                                  logz=results.logz,
-                                 logzvar=results.logzvar,
                                  h=results.h,
                                  nc=results.nc,
                                  blob=results.blob,
@@ -1225,7 +1224,6 @@ class DynamicSampler:
                             logvol=results.logvol,
                             logwt=results.logwt,
                             logz=results.logz,
-                            logzvar=results.logzvar,
                             h=results.h,
                             blob=results.blob,
                             nc=results.nc,
@@ -1249,7 +1247,6 @@ class DynamicSampler:
                                  logvol=results.logvol,
                                  logwt=results.logwt,
                                  logz=results.logz,
-                                 logzvar=results.logzvar,
                                  h=results.h,
                                  blob=results.blob,
                                  nc=results.nc,
@@ -1260,12 +1257,12 @@ class DynamicSampler:
                                  delta_logz=results.delta_logz,
                                  proposal_stats=None)
         new_vals = {}
-        (new_vals['logwt'], new_vals['logz'], new_vals['logzvar'],
+        (new_vals['logwt'], new_vals['logz'], _,
          new_vals['h']) = compute_integrals(
              logl=self.saved_run['logl'],
              logvol=self.saved_run['logvol'],
              logvol_init=self.logvol_init)
-        for curk in ['logwt', 'logz', 'logzvar', 'h']:
+        for curk in ['logwt', 'logz', 'h']:
             self.saved_run[curk] = new_vals[curk].tolist()
             self.base_run[curk] = new_vals[curk].tolist()
 
@@ -1515,7 +1512,6 @@ class DynamicSampler:
             batch_sampler.saved_run['logvol'] = [-np.inf]
             batch_sampler.saved_run['logl'] = [logl_min]
             batch_sampler.saved_run['logz'] = [-1e100]
-            batch_sampler.saved_run['logzvar'] = [0]
             batch_sampler.saved_run['h'] = [0]
         for it, results in enumerate(batch_sampler.add_live_points()):
             # Save results.
@@ -1692,13 +1688,12 @@ class DynamicSampler:
         assert self.saved_run['logl'][-1] == max(new_d['logl'][-1],
                                                  saved_d['logl'][-1])
 
-        new_logwt, new_logz, new_logzvar, new_h = compute_integrals(
+        new_logwt, new_logz, _, new_h = compute_integrals(
             logl=self.saved_run['logl'],
             logvol=self.saved_run['logvol'],
             logvol_init=self.logvol_init)
         self.saved_run['logwt'].extend(new_logwt.tolist())
         self.saved_run['logz'].extend(new_logz.tolist())
-        self.saved_run['logzvar'].extend(new_logzvar.tolist())
         self.saved_run['h'].extend(new_h.tolist())
 
         # Reset results.
@@ -2184,8 +2179,8 @@ class DynamicSampler:
             logl_min, logl_max = -np.inf, np.inf
         else:
             logl_min, logl_max = logl_bounds
-        # For printing as well, we just display old logz,logzerr here
-        logz, logzvar = res['logz'][-1], res['logzerr'][-1]**2
+        # For printing as well, we just display old logz here
+        logz = res['logz'][-1]
 
         # If we have either likelihood calls or iterations remaining,
         # add our new batch of live points.
@@ -2231,7 +2226,6 @@ class DynamicSampler:
                         logvol=np.nan,
                         logwt=np.nan,
                         logz=logz,
-                        logzvar=logzvar,
                         h=np.nan,
                         nc=cur_results.nc,
                         worst_it=cur_results.worst_it,

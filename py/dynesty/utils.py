@@ -41,8 +41,8 @@ __all__ = [
 SQRTEPS = math.sqrt(float(np.finfo(np.float64).eps))
 
 IteratorResult = namedtuple('IteratorResult', [
-    'worst', 'ustar', 'vstar', 'loglstar', 'logvol', 'logwt', 'logz',
-    'logzvar', 'h', 'nc', 'worst_it', 'boundidx', 'bounditer', 'eff',
+    'worst', 'ustar', 'vstar', 'loglstar', 'logvol', 'logwt', 'logz', 'h',
+    'nc', 'worst_it', 'boundidx', 'bounditer', 'eff',
     'delta_logz', 'blob', 'proposal_stats'
 ])
 
@@ -302,7 +302,6 @@ class RunRecord:
             'logvol',  # expected ln(volume)
             'logwt',  # ln(weights)
             'logz',  # cumulative ln(evidence)
-            'logzvar',  # cumulative error on ln(evidence)
             'h',  # cumulative information
             'nc',  # number of calls at each iteration
             'boundidx',  # index of bound dead point was drawn from
@@ -594,12 +593,10 @@ def get_print_fn_args(itresult,
     loglstar_val = itresult.loglstar
     logz_val = itresult.logz
     delta_logz_val = itresult.delta_logz
-    logzvar = itresult.logzvar
 
     loglstar = -np.inf if loglstar_val <= -1e6 else loglstar_val
     logz = -np.inf if logz_val <= -1e6 else logz_val
     delta_logz = np.inf if delta_logz_val > 1e6 else delta_logz_val
-    logzerr = np.sqrt(logzvar) if 0. <= logzvar <= 1e6 else np.nan
 
     long_str = [f"+{add_live_it:d}"] if add_live_it is not None else []
     short_str = list(long_str)
@@ -630,9 +627,6 @@ def get_print_fn_args(itresult,
 
     long_logz = f"logz: {logz:6.3f}"
     short_logz = f"logz: {logz:6.1f}"
-    if not np.isnan(logzerr):
-        long_logz += f" +/- {logzerr:6.3f}"
-        short_logz += f"+/-{logzerr:.1f}"
     long_str.append(long_logz)
     short_str.append(short_logz)
 
@@ -1492,15 +1486,14 @@ def compute_integrals(*, logl, logvol, reweight=None, logvol_init=0):
     return saved_logwt, saved_logz, saved_logzvar, saved_h
 
 
-def progress_integration(loglstar, loglstar_new, logz, logzvar, logvol,
-                         dlogvol, h):
+def progress_integration(loglstar, loglstar_new, logz, logvol, dlogvol, h):
     """
-    This is the calculation of weights and logz/var estimates one step at the
-    time.
+    This is the calculation of weights and logz estimates one step at the
+    time. The variance of logz is only computed by compute_integrals.
     Importantly the calculation of H is somewhat different from
     compute_integrals as incomplete integrals of H() of require knowing Z
 
-    Return logwt, logz, logzvar, h
+    Return logwt, logz, h
     """
     # Compute relative contribution to results.
     logdvol = logsumexp(a=[logvol + dlogvol, logvol], b=[0.5, -0.5])
@@ -1510,11 +1503,7 @@ def progress_integration(loglstar, loglstar_new, logz, logzvar, logvol,
               math.exp(loglstar_new - logz_new + logdvol) * loglstar_new)
     h_new = (lzterm + math.exp(logz - logz_new) * (h + logz) - logz_new
              )  # information
-    dh = h_new - h
-
-    logzvar_new = logzvar + dh * dlogvol
-    # var[ln(evidence)] estimate
-    return logwt, logz_new, logzvar_new, h_new
+    return logwt, logz_new, h_new
 
 
 def resample_run(res, rstate=None, return_idx=False):
@@ -2118,7 +2107,7 @@ def _merge_two(res1, res2, compute_aux=False):
     # Initialize our new combined run.
     combined_info = dict()
     for curk in [
-            'id', 'u', 'v', 'logl', 'logvol', 'logwt', 'logz', 'logzvar', 'h',
+            'id', 'u', 'v', 'logl', 'logvol', 'logwt', 'logz', 'h',
             'nc', 'it', 'n', 'batch', 'blob', 'proposal_stats'
     ]:
         combined_info[curk] = []

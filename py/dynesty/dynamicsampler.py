@@ -894,10 +894,14 @@ class DynamicSampler:
         d = {}
         for k in [
                 'nc', 'v', 'id', 'batch', 'it', 'u', 'n', 'logwt', 'logl',
-                'logvol', 'logz', 'logzvar', 'h', 'batch_nlive',
-                'batch_logl_bounds', 'blob', 'proposal_stats'
+                'logvol', 'logz', 'h', 'batch_nlive', 'batch_logl_bounds',
+                'blob', 'proposal_stats'
         ]:
             d[k] = np.array(self.saved_run[k])
+        # saved_run has no running ln(Z) variance, it is computed here
+        logzvar = compute_integrals(logl=d['logl'],
+                                    logvol=d['logvol'],
+                                    logvol_init=self.logvol_init)[2]
 
         # Add all saved samples (and ancillary quantities) to the results.
         with warnings.catch_warnings():
@@ -912,7 +916,7 @@ class DynamicSampler:
                     'batch_logl_bounds', 'blob', 'proposal_stats'
             ]:
                 results.append((k, d[k]))
-            results.append(('logzerr', np.sqrt(d['logzvar'])))
+            results.append(('logzerr', np.sqrt(logzvar)))
             results.append(('information', d['h']))
         results.append(('scale', np.array(self.saved_run['scale'])))
 
@@ -1062,9 +1066,6 @@ class DynamicSampler:
             logz : float
                 Cumulative ln(evidence) up to the sample (inclusive).
 
-            logzvar : float
-                Estimated cumulative variance on `logz` (inclusive).
-
             h : float
                 Cumulative information up to the sample (inclusive).
 
@@ -1178,7 +1179,6 @@ class DynamicSampler:
                             logvol=results.logvol,
                             logwt=results.logwt,
                             logz=results.logz,
-                            logzvar=results.logzvar,
                             h=results.h,
                             nc=results.nc,
                             it=results.worst_it,
@@ -1204,7 +1204,6 @@ class DynamicSampler:
                                  logvol=results.logvol,
                                  logwt=results.logwt,
                                  logz=results.logz,
-                                 logzvar=results.logzvar,
                                  h=results.h,
                                  nc=results.nc,
                                  blob=results.blob,
@@ -1225,7 +1224,6 @@ class DynamicSampler:
                             logvol=results.logvol,
                             logwt=results.logwt,
                             logz=results.logz,
-                            logzvar=results.logzvar,
                             h=results.h,
                             blob=results.blob,
                             nc=results.nc,
@@ -1249,7 +1247,6 @@ class DynamicSampler:
                                  logvol=results.logvol,
                                  logwt=results.logwt,
                                  logz=results.logz,
-                                 logzvar=results.logzvar,
                                  h=results.h,
                                  blob=results.blob,
                                  nc=results.nc,
@@ -1260,12 +1257,12 @@ class DynamicSampler:
                                  delta_logz=results.delta_logz,
                                  proposal_stats=None)
         new_vals = {}
-        (new_vals['logwt'], new_vals['logz'], new_vals['logzvar'],
+        (new_vals['logwt'], new_vals['logz'], _,
          new_vals['h']) = compute_integrals(
              logl=self.saved_run['logl'],
              logvol=self.saved_run['logvol'],
              logvol_init=self.logvol_init)
-        for curk in ['logwt', 'logz', 'logzvar', 'h']:
+        for curk in ['logwt', 'logz', 'h']:
             self.saved_run[curk] = new_vals[curk].tolist()
             self.base_run[curk] = new_vals[curk].tolist()
 
@@ -1515,7 +1512,6 @@ class DynamicSampler:
             batch_sampler.saved_run['logvol'] = [-np.inf]
             batch_sampler.saved_run['logl'] = [logl_min]
             batch_sampler.saved_run['logz'] = [-1e100]
-            batch_sampler.saved_run['logzvar'] = [0]
             batch_sampler.saved_run['h'] = [0]
         for it, results in enumerate(batch_sampler.add_live_points()):
             # Save results.
@@ -1692,13 +1688,12 @@ class DynamicSampler:
         assert self.saved_run['logl'][-1] == max(new_d['logl'][-1],
                                                  saved_d['logl'][-1])
 
-        new_logwt, new_logz, new_logzvar, new_h = compute_integrals(
+        new_logwt, new_logz, _, new_h = compute_integrals(
             logl=self.saved_run['logl'],
             logvol=self.saved_run['logvol'],
             logvol_init=self.logvol_init)
         self.saved_run['logwt'].extend(new_logwt.tolist())
         self.saved_run['logz'].extend(new_logz.tolist())
-        self.saved_run['logzvar'].extend(new_logzvar.tolist())
         self.saved_run['h'].extend(new_h.tolist())
 
         # Reset results.
@@ -2184,8 +2179,8 @@ class DynamicSampler:
             logl_min, logl_max = -np.inf, np.inf
         else:
             logl_min, logl_max = logl_bounds
-        # For printing as well, we just display old logz,logzerr here
-        logz, logzvar = res['logz'][-1], res['logzerr'][-1]**2
+        # For printing as well, we just display old logz here
+        logz = res['logz'][-1]
 
         # If we have either likelihood calls or iterations remaining,
         # add our new batch of live points.
@@ -2231,7 +2226,6 @@ class DynamicSampler:
                         logvol=np.nan,
                         logwt=np.nan,
                         logz=logz,
-                        logzvar=logzvar,
                         h=np.nan,
                         nc=cur_results.nc,
                         worst_it=cur_results.worst_it,

@@ -722,7 +722,7 @@ instead of a tuple. You can access iteration information using attributes::
         print(f"logz: {res.logz}, ncall: {res.nc}, eff: {res.eff}")
 
 The available attributes include `worst`, `ustar`, `vstar`, `loglstar`, `logvol`,
-`logwt`, `logz`, `logzvar`, `h`, `nc`, `worst_it`, `boundidx`, `bounditer`,
+`logwt`, `logz`, `h`, `nc`, `worst_it`, `boundidx`, `bounditer`,
 `eff`, `delta_logz`, `blob` (if using blobs), and `proposal_stats`.
 
 Combining Runs

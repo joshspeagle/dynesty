@@ -30,6 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix `SupFriends.update(mc_integrate=True)`, which crashed (fixed by @segasai)
 - Fix the initial proposal scale of dynamic batches that do not start from the full prior. The batch was meant to start with the scale used by the base run at the lower likelihood bound of the batch, but since 3.0 that scale was assigned to the temporary unit cube sampler, so the batch started with the scale left over from the end of the previous run (fixed by @segasai)
 - Fix the use of `span` in `cornerpoints()` and `cornerbound()`. The y-axis limits of each row (and in `cornerpoints()` the selection of the plotted points) used the span of the wrong dimension. Also `cornerpoints()` no longer modifies the user's `span` list (fixed by @segasai)
+- Fix `save_evaluation_history` for runs restored from a checkpoint. The option was switched off when the sampler was pickled, so after `restore()` and `run_nested(resume=True)` the likelihood evaluations (including the ones not yet written at the time of the checkpoint) were silently not saved to the history file
 
 [3.1.0 - 2026-07-17]
 ### Added

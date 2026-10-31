@@ -240,7 +240,9 @@ class LogLikelihood:
                     self.evaluation_history = []
                     self.evaluation_history_counter += nadd_evaluation
 
-        except OSError:
+        except (OSError, KeyError):
+            # KeyError if the file no longer has the history datasets
+            # (e.g. it was removed before resuming from a checkpoint)
             warnings.warn(
                 'Failed to save history of evaluations. Will not try again.')
             self.failed_save = True
@@ -272,13 +274,6 @@ class LogLikelihood:
         """
         if self.save_evaluation_history and len(self.evaluation_history) > 0:
             self.history_save()
-
-    def __getstate__(self):
-        """Get state information for pickling."""
-        state = self.__dict__.copy()
-        state[
-            'save_evaluation_history'] = False  # disable saving when pickling
-        return state
 
 
 class RunRecord:

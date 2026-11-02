@@ -84,27 +84,20 @@ are nonsensical (e.g., involve `nan` or `inf` values, etc.).
 In that case, it is often useful to terminate the run early 
 and examine the set of samples to see if there are any possible issues.
 
-**Sometimes while sampling my estimated evidence
-errors become undefined! Should I be concerned?**
+**Why is the error on the evidence not shown while sampling?**
 
-Most often this is *not* a cause for concern. As mentioned in
-:ref:`Approximate Evidence Errors`, `dynesty` uses an approximate method to
-estimate evidence errors in real time based on the KL divergence
-("information gain") and the current number of live points.
-Sometimes this approximation can lead to
-improper results (i.e. negative variances), which can often occur
-early in the run when there is a lot of uncertainty in the prior volume.
-While this often "corrects" itself later in the run, 
-sometimes the effect can persist. Regardless of
-whether the approximation converges, however, errors can still be computed
-using the functions described in :ref:`Nested Sampling Errors` as normal.
-
-In rare cases, issues with the evidence error approximation can be a sign
-that something has gone Terribly Wrong during the sampling phase. This
-is often the case if the log-likelihood values being output also
-are nonsensical (e.g., involve `nan` or `inf` values).
-In that case, it is often useful to terminate the run early 
-and examine the set of samples to see if there are any possible issues.
+As described in :ref:`Approximate Evidence Errors`, the error on
+:math:`\ln \hat{\mathcal{Z}}` depends on how sensitive the evidence of the
+*whole* run is to the prior volume at each iteration, so it is computed when
+the results are generated rather than updated at every iteration. Previous
+versions of ``dynesty`` printed an error estimate during sampling, but it was
+based on the inaccurate approximation of `Speagle (2020)
+<https://ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S/abstract>`_ (see the
+note in :ref:`Approximate Evidence Errors`). The errors
+on the cumulative evidence are available in `results.logzerr` and the final
+value is shown by `results.summary()`. Errors that also include the sampling
+uncertainties can be computed using the functions described in
+:ref:`Nested Sampling Errors`.
 
 **When adding batches of live points sometimes the log-likelihoods being
 displayed don't monotonically increase as I expect. What's going on?**

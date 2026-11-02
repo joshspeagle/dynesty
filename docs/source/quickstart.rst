@@ -595,7 +595,7 @@ For instance, running one of the examples above would produce output like:
 Out::
 
     iter: 12521 | +1500 | bound: 7 | nc: 1 | ncall: 66884 | eff(%): 20.963 |
-    loglstar:   -inf < -0.301 <    inf | logz: -8.960 +/-  0.082 |
+    loglstar:   -inf < -0.301 <    inf | logz: -8.960 |
     dlogz:  0.001 >  1.509                                        
 
 From left to right, this records: the current iteration (plus the number of

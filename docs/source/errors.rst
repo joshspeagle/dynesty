@@ -29,100 +29,90 @@ Sampling and show how to implement them in ``dynesty``.
 Approximate Evidence Errors
 ===========================
 
-In a given Static Nested Sampling run with :math:`K` live points, the prior
-volume evolves as:
+.. note::
 
-.. math::
-    \Delta \ln X \approx \frac{1}{K}
+    The approach described here differs from the one in Appendix A6.1 of
+    `Speagle (2020)
+    <https://ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S/abstract>`_, which
+    was used by previous versions of ``dynesty``. There the variance was
+    approximated as :math:`\mathbb{V}[\ln \hat{\mathcal{Z}}] \approx \sum_i
+    \Delta H_i / K_i`, where :math:`\Delta H_i` is the change of the
+    information at iteration :math:`i`. That approximation is not accurate:
+    it relies on treating the evidence estimates at different iterations as
+    independent and can substantially misestimate the errors for both Static
+    and Dynamic Nested Sampling runs. The derivation below replaces it.
 
-As mentioned in :ref:`Priors in Nested Sampling`, the
-**"information"** gained from moving from the prior
-:math:`\pi(\boldsymbol{\Theta})` to the posterior
-:math:`P(\boldsymbol{\Theta})` can be quantified using the **KL Divergence**
-between the two distributions:
-
-.. math::
-
-    H(P|\pi) \equiv \int_{\Omega_{\boldsymbol{\Theta}}} P(\boldsymbol{\Theta})
-    \ln \frac{P(\boldsymbol{\Theta})}{\pi(\boldsymbol{\Theta})}
-    \, d\boldsymbol{\Theta}
-
-This can be re-written in terms of an integral over the prior volume as:
-
-.. math::
-
-    H = \frac{1}{\mathcal{Z}} \int_{0}^{1} \mathcal{L}(X) 
-    \ln \mathcal{L}(X) \, dX - \ln \mathcal{Z}
-
-where :math:`\mathcal{Z}` is the again the Bayesian evidence.
-
-As such, the number of steps :math:`N` needed to integrate over the majority
-of the posterior starting from the prior subject to some 
-:math:`\Delta \ln \hat{\mathcal{Z}}` (see :ref:`Stopping Criteria`)
-must scale with :math:`H`. We also know that :math:`N` 
-should scale inversely with the typical
-:math:`\Delta \ln X`. This gives us that the expected number of steps 
-:math:`\mathbb{E}[N]` goes as
+At each iteration :math:`i` the prior volume shrinks by a random factor,
+:math:`X_i = t_i X_{i-1}`, where :math:`t_i \sim \textrm{Beta}(K_i, 1)` and
+:math:`K_i` is the number of live points (see :ref:`Order Statistics`). The
+shrinkage factors are independent, with
 
 .. math::
 
-    \mathbb{E}[N] \sim \frac{H}{\Delta \ln X}
+    \mathbb{E}[\ln t_i] = -\frac{1}{K_i} ~ , \quad
+    \mathbb{V}[\ln t_i] = \frac{1}{K_i^2}
 
-Assuming that the number of steps follows a Poisson distribution, we then
-expect the variance :math:`\mathbb{V}[N]` should also scale as
-
-.. math::
-
-    \mathbb{V}[N] \sim \frac{H}{\Delta \ln X}
-
-Since the prior volumes compress exponentially, the uncertainty on
-:math:`N` leads to exponential uncertainty in :math:`X` (and hence
-:math:`\mathcal{Z}`) at a given iteration, so this uncertainty actually
-contributes in :math:`\ln \mathcal{Z}` rather than :math:`\mathcal{Z}`. The
-rough uncertainty in :math:`\ln \mathcal{Z}` is then:
+The evidence is computed using the expected volumes and the trapezoid rule
+(see :ref:`Evidence Estimation`):
 
 .. math::
 
-    \sigma[\ln \hat{\mathcal{Z}}] \sim \sigma[\ln \hat{X}] \sim 
-    \sigma[N] \, \Delta \ln X = \sqrt{H \Delta \ln X}
-    = \sqrt{\frac{H}{K}}
+    \hat{\mathcal{Z}} = \sum_{i=1}^{N} \hat{w}_i ~ , \quad
+    \hat{w}_i = \frac{\mathcal{L}_{i-1} + \mathcal{L}_i}{2}
+    \left( X_{i-1} - X_i \right)
 
-This approximation can be extended to Dynamic Nested Sampling runs by
-exploiting the fact that
-
-.. math::
-
-    \mathbb{V}[\ln \hat{\mathcal{Z}}] = 
-    \mathbb{V} \left[ \sum_{i=1}^{N} \left( \ln \hat{\mathcal{Z}}_i -
-    \ln \hat{\mathcal{Z}}_{i-1} \right) \right] \equiv
-    \mathbb{V} \left[ \sum_{i=1}^{N} \Delta \ln \hat{\mathcal{Z}}_i \right] 
-    \approx \sum_{i=1}^{N} \mathbb{V}[\Delta \ln \hat{\mathcal{Z}}_i]
-
-where we take :math:`\ln \hat{\mathcal{Z}}_0 = 0`. Approximating 
-:math:`\mathbb{V}[\Delta \ln \hat{\mathcal{Z}_i}]` as
+To estimate the uncertainty on :math:`\ln \hat{\mathcal{Z}}` due to the
+unknown prior volumes we propagate the scatter of each :math:`\ln t_k` to first
+order. A change of :math:`\ln t_k` rescales all the volumes :math:`X_j` with
+:math:`j \geq k` and leaves the earlier ones unchanged. Therefore the weights
+:math:`\hat{w}_i` with :math:`i > k` are rescaled, :math:`\hat{w}_k` only
+changes through :math:`X_k`, and the earlier weights are not affected, which
+gives
 
 .. math::
 
-    \mathbb{V}[\Delta \ln \hat{\mathcal{Z}}_i] \approx
-    \mathbb{V}[\ln \hat{\mathcal{Z}}_i] - 
-    \mathbb{V}[\ln \hat{\mathcal{Z}}_{i-1}]
-    \sim H_i \Delta \ln X - H_{i-1} \Delta \ln X 
-    \equiv \Delta H_i \Delta \ln X
+    Q_k \equiv \frac{\partial \ln \hat{\mathcal{Z}}}{\partial \ln t_k} =
+    1 - \frac{B_k}{\hat{\mathcal{Z}}} ~ , \quad
+    B_k = \hat{\mathcal{Z}}_k + \frac{\mathcal{L}_{k-1} + \mathcal{L}_k}{2} X_k
 
-shows that the contribution to the error at each iteration is based on the 
-differential change in information :math:`\Delta H_i` multiplied by the
-differential change in log-prior volume :math:`\Delta \ln X`, which we can
-substitute with :math:`\Delta \ln X_i`. This gives us:
+where :math:`\hat{\mathcal{Z}}_k = \sum_{i \leq k} \hat{w}_i` is the
+cumulative evidence up to iteration :math:`k`. Since the shrinkage factors are
+independent, the variance is then
 
 .. math::
 
-    \mathbb{V}[\ln \hat{\mathcal{Z}}] \approx 
-    \sum_{i=1}^{N} \Delta H_i \Delta \ln X_i \approx 
-    \sum_{i=1}^{N} \frac{\Delta H_i}{K_i}
+    \mathbb{V}[\ln \hat{\mathcal{Z}}] \approx
+    \sum_{k=1}^{N} Q_k^2 \, \mathbb{V}[\ln t_k] =
+    \sum_{k=1}^{N} \frac{Q_k^2}{K_k^2}
 
-These are the errors that are returned by default in the output `~sys.stderr`
-statements and output `~dynesty.results.Results` instances and used in
-plotting functions.
+The sensitivity :math:`Q_k` is close to 1 for iterations before the bulk of
+the posterior mass (as the shrinkage there rescales almost all of the
+evidence), and it drops to 0 after it. As mentioned in
+:ref:`Priors in Nested Sampling`, a run with :math:`K` live points needs
+:math:`\sim H K` iterations to reach the bulk of the posterior, where :math:`H`
+is the **"information"** (the KL divergence between the posterior and the
+prior). Each of these iterations contributes :math:`1/K^2` to the variance, so
+we recover the familiar approximation
+
+.. math::
+
+    \sigma[\ln \hat{\mathcal{Z}}] \approx \sqrt{\frac{H}{K}}
+
+The expression above, however, is more accurate, and it naturally applies to
+Dynamic Nested Sampling runs where the number of live points :math:`K_k`
+changes during the run: adding live points at the iterations with large
+:math:`Q_k` reduces the evidence error the most (see :ref:`Weight
+Function`).
+
+The same expression with the sums truncated at iteration :math:`i` (and
+:math:`\hat{\mathcal{Z}}` replaced by :math:`\hat{\mathcal{Z}}_i`) gives the
+variance of the cumulative evidence :math:`\ln \hat{\mathcal{Z}}_i`. These are
+the errors (`logzerr`) that are returned in the output
+`~dynesty.results.Results` instances and used in plotting functions. Since
+:math:`Q_k` depends on the evidence of the whole run, the errors are computed
+when the results are generated and are not shown in the progress output during
+sampling. Note that they only account for the statistical uncertainties of the
+prior volumes and not for the sampling errors discussed below.
 
 As an example, here's a comparison among two different runs to showcase
 how the approximate errors take into account varying numbers of live points
@@ -146,20 +136,25 @@ run::
                                             ndim, bound='single')
     dsampler.run_nested(maxiter=res2.niter+res2.nlive, use_stop=False)
     dres = dsampler.results
+    sys.stderr.write('\n')
+
+    for r in [res, res2, dres]:
+        print('logz: {:6.3f} +/- {:6.3f}'.format(r.logz[-1], r.logzerr[-1]))
 
 .. rst-class:: sphx-glr-script-out
 
 Out::
 
-    iter: 8973 | +1000 | bound: 8 | nc: 1 | ncall: 47632 | eff(%): 20.938 | 
-    loglstar:   -inf < -0.300 <    inf | logz: -9.169 +/-  0.097 | 
-    dlogz:  0.001 >  1.009
-    iter: 13175 | +1000 | bound: 14 | nc: 1 | ncall: 54140 | eff(%): 26.182 | 
-    loglstar:   -inf < -0.294 <    inf | logz: -8.852 +/-  0.084 | 
-    dlogz:  0.000 >  0.010
-    iter: 14175 | batch: 7 | bound: 35 | nc: 1 | ncall: 39494 | 
-    eff(%): 35.892 | loglstar: -5.792 < -0.329 < -0.645 | 
-    logz: -8.930 +/-  0.116 | stop:    nan
+    iter: 8748 | +1000 | bound: 9 | nc: 1 | ncall: 44238 | eff(%): 22.545 |
+    loglstar: -0.294 | logz: -8.940 | dlogz:  0.001 >  1.009
+    iter: 13300 | +1000 | bound: 16 | nc: 1 | ncall: 53400 | eff(%): 27.290 |
+    loglstar: -0.294 | logz: -8.977 | dlogz:  0.000 >  0.010
+    iter: 14301 | batch: 7 | bound: 40 | nc: 1 | ncall: 35816 |
+    eff(%): 39.753 | loglstar: -5.975 < -0.307 < -0.625 |
+    logz: -8.788 | stop:    nan
+    logz: -8.940 +/-  0.085
+    logz: -8.977 +/-  0.086
+    logz: -8.750 +/-  0.113
 
 The differences among the results illustrate how the location where
 samples are allocated can significantly affect the error budget, as discussed

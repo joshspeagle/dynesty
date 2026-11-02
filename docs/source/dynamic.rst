@@ -66,7 +66,7 @@ We can illustrate this directly using the same example from
 Out::
 
     iter: 13301 | +1000 | bound: 14 | nc: 1 | ncall: 56724 | eff(%): 25.212 |
-    loglstar:   -inf < -0.294 <    inf | logz: -8.978 +/-  0.085 |
+    loglstar:   -inf < -0.294 <    inf | logz: -8.978 |
     dlogz:  0.000 >  0.010
 
 .. image:: ../images/quickstart_002.png
@@ -154,19 +154,30 @@ is the posterior importance weight,
 
 .. math::
 
-    I^{\mathcal{Z}}_i = \frac{1}{N} 
-    \left( 1 - \frac{\hat{\mathcal{Z}}_i} {\hat{\mathcal{Z}}_{\textrm{upper}}}
-    \right)
+    I^{\mathcal{Z}}_i \propto \frac{\max(Q_i, 0)}{K_i} ~ , \quad
+    Q_i = 1 - \frac{\hat{\mathcal{Z}}_i + (\mathcal{L}_{i-1} + \mathcal{L}_i)
+    X_i / 2}{\hat{\mathcal{Z}}}
 
-is the (normalized) evidence weight, :math:`\hat{\mathcal{Z}}_{\textrm{upper}}
-= \hat{\mathcal{Z}} + \Delta\hat{\mathcal{Z}}` is the estimated upper limit
-on the total evidence, and :math:`K_i` is the number of live points at
+is the (normalized) evidence weight, :math:`\hat{\mathcal{Z}}_i` is the
+cumulative evidence up to iteration :math:`i`, :math:`\hat{\mathcal{Z}}` is
+the total evidence, and :math:`K_i` is the number of live points at
 :math:`X_i`. In other words, the importance of a given point for estimating
-the posterior is just proportional to the amount that a 
+the posterior is just proportional to the amount that a
 given sample contributes to our estimate of the posterior at the current
 iteration, while the importance of a given point for estimating the
-evidence is proportional to the amount of the posterior interior to
-the log-volume probed by that point.
+evidence is proportional to the sensitivity :math:`Q_i` of
+:math:`\ln \hat{\mathcal{Z}}` to the prior volume shrinkage at that point
+divided by the number of live points. Since the variance of
+:math:`\ln \hat{\mathcal{Z}}` is :math:`\sum_i Q_i^2 / K_i^2`
+(see :ref:`Approximate Evidence Errors`), this is where adding
+live points reduces the evidence error the most. Note that this differs from
+the evidence importance function of `Speagle (2020)
+<https://ui.adsabs.harvard.edu/abs/2020MNRAS.493.3132S/abstract>`_ (Eq. 22),
+:math:`I^{\mathcal{Z}}_i \propto 1 - \hat{\mathcal{Z}}_i /
+\hat{\mathcal{Z}}_{\textrm{upper}}` with :math:`\hat{\mathcal{Z}}_{\textrm{upper}}
+= \hat{\mathcal{Z}} + \Delta\hat{\mathcal{Z}}`, used in previous versions of
+``dynesty``, which was a heuristic not tied to the evidence error and did not
+account for the number of live points already present at each iteration.
 
 The likelihood ranges
 :math:`\left[ \mathcal{L}_{\textrm{low}}^{(b)}, 
@@ -504,7 +515,7 @@ Out::
 
     iter: 14301 | batch: 62 | bound: 392 | nc: 1 | ncall: 37803 | 
     eff(%): 37.830 | loglstar: -6.195 < -0.351 < -1.108 | 
-    logz: -8.877 +/-  0.137 | stop:    nan
+    logz: -8.877 | stop:    nan
 
 Since `dsampler` is by default optimized for posterior estimation over 
 evidence estimation (via the default values assigned in
@@ -569,7 +580,7 @@ Out::
 
     iter: 14316 | batch: 71 | bound: 412 | nc: 3 | ncall: 30890 | 
     eff(%): 46.345 | loglstar: -8.855 < -0.817 < -1.129 | 
-    logz: -9.267 +/-  0.374 | stop:    nan
+    logz: -9.267 | stop:    nan
 
 In the second case, we will allocate samples with 100% of the weight
 placed on the evidence (:math:`f_p=0`)::
@@ -586,7 +597,7 @@ Out::
 
     iter: 14301 | batch: 30 | bound: 0 | nc: 1 | ncall: 68940 | 
     eff(%): 20.744 | loglstar:   -inf < -40.112 < -2.295 | 
-    logz: -9.007 +/-  0.075 | stop:    nan
+    logz: -9.007 | stop:    nan
 
 Here we see that there are some significant differences in behavior.
 
@@ -618,15 +629,15 @@ Out::
 
     iter: 22165 | batch: 10 | bound: 56 | nc: 1 | ncall: 55509 | 
     eff(%): 39.930 | loglstar: -7.838 < -0.298 < -0.789 | 
-    logz: -9.115 +/-  0.116 | stop:  0.970 
+    logz: -9.115 | stop:  0.970 
 
     iter: 21597 | batch: 10 | bound: 56 | nc: 1 | ncall: 55058 | 
     eff(%): 39.226 | loglstar: -6.004 < -0.299 < -0.854 | 
-    logz: -8.995 +/-  0.116 | stop:  0.923
+    logz: -8.995 | stop:  0.923
 
     iter: 16031 | batch: 2 | bound: 29 | nc: 1 | ncall: 77598 | 
     eff(%): 20.659 | loglstar:   -inf < -0.346 < -1.851 | 
-    logz: -8.812 +/-  0.085 | stop:  0.990      
+    logz: -8.812 | stop:  0.990      
 
 These contain a similar number of samples and give similar answers to
 the previous cases shown above.

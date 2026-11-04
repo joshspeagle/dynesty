@@ -430,6 +430,18 @@ optional
             the unit cube and in the parameter space, and the
             ln(likelihood) values) to the HDF5 file `history_filename`.
             Requires `h5py`. Default is `False`.
+            The evaluations are appended to the file in the order they are
+            made. They are written in chunks and before each checkpoint, so
+            the evaluations since the last write are lost if the run is
+            interrupted. The rows already in the file are never modified.
+            A run restored from a checkpoint continues appending to the same
+            file (with the name interpreted relative to the current directory
+            at the time of restoring). The rows written by the interrupted
+            run after its last checkpoint stay in the file, so the file can
+            have more rows than the number of likelihood calls of the run.
+            If the file is missing when restoring, or it was overwritten
+            by another run, the restored run warns and does not save the
+            history.
 
         history_filename : str, optional
             The name of the HDF5 file used by `save_evaluation_history`.

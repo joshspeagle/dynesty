@@ -12,6 +12,7 @@ import copy
 import time
 import os
 import shutil
+import uuid
 from collections import namedtuple
 from functools import partial
 import pickle as pickle_module
@@ -158,7 +159,6 @@ class LogLikelihood:
 
         # Unified evaluation history storage - all evaluations go here
         self.evaluation_history = []
-        self.evaluation_history_counter = 0
 
         if self.save_evaluation_history:
             self.history_init()
@@ -175,25 +175,46 @@ class LogLikelihood:
         if h5py is None:
             raise RuntimeError(
                 'h5py module is required for saving history of calls')
-        self.evaluation_history_counter = 0
+        # tags the file, so we never write into a file of another run
+        self.history_id = uuid.uuid4().hex
         try:
             with h5py.File(self.history_filename, mode='w') as fp:
+                fp.attrs['history_id'] = self.history_id
                 # Unified evaluation history - all evaluations in one place
                 if self.save_evaluation_history:
                     fp.create_dataset('evaluation_u',
-                                      (self.save_every, self.ndim),
+                                      (0, self.ndim),
                                       maxshape=(None, self.ndim),
                                       dtype='f8')
                     fp.create_dataset('evaluation_v',
-                                      (self.save_every, self.ndim),
+                                      (0, self.ndim),
                                       maxshape=(None, self.ndim),
                                       dtype='f8')
-                    fp.create_dataset('evaluation_logl', (self.save_every, ),
+                    fp.create_dataset('evaluation_logl', (0, ),
                                       maxshape=(None, ),
                                       dtype='f8')
         except OSError:
             print('Failed to initialize history file')
             raise
+
+    def history_check(self):
+        """
+        Check that the history file is still the one created by this run,
+        as after restoring from a checkpoint it may have been removed or
+        overwritten by another run. If not, stop saving the history.
+        """
+        if not self.save_evaluation_history:
+            return
+        try:
+            with h5py.File(self.history_filename, mode='r') as fp:
+                same_run = fp.attrs.get('history_id') == self.history_id
+        except OSError:
+            same_run = False
+        if not same_run:
+            warnings.warn(f'The history file {self.history_filename} is '
+                          'missing or was created by a different run. '
+                          'The history of evaluations will not be saved.')
+            self.save_evaluation_history = False
 
     def history_save(self):
         """
@@ -209,15 +230,11 @@ class LogLikelihood:
                 # Save unified evaluation history
                 nadd_evaluation = len(self.evaluation_history)
                 if nadd_evaluation > 0:
-                    fp['evaluation_u'].resize(self.evaluation_history_counter +
-                                              nadd_evaluation,
-                                              axis=0)
-                    fp['evaluation_v'].resize(self.evaluation_history_counter +
-                                              nadd_evaluation,
-                                              axis=0)
-                    fp['evaluation_logl'].resize(
-                        self.evaluation_history_counter + nadd_evaluation,
-                        axis=0)
+                    nrows = len(fp['evaluation_logl']) + nadd_evaluation
+                    for key in [
+                            'evaluation_u', 'evaluation_v', 'evaluation_logl'
+                    ]:
+                        fp[key].resize(nrows, axis=0)
 
                     # Extract data from SamplerHistoryItem objects
                     evaluation_u_array = np.array(
@@ -238,7 +255,6 @@ class LogLikelihood:
                         -nadd_evaluation:] = evaluation_logl_array
 
                     self.evaluation_history = []
-                    self.evaluation_history_counter += nadd_evaluation
 
         except OSError:
             warnings.warn(
@@ -272,13 +288,6 @@ class LogLikelihood:
         """
         if self.save_evaluation_history and len(self.evaluation_history) > 0:
             self.history_save()
-
-    def __getstate__(self):
-        """Get state information for pickling."""
-        state = self.__dict__.copy()
-        state[
-            'save_evaluation_history'] = False  # disable saving when pickling
-        return state
 
 
 class RunRecord:
@@ -2371,6 +2380,7 @@ def restore_sampler(fname, pool=None):
         cursamp.mapper = mapper
         cursamp.pool = pool
         cursamp.queue_size = queue_size_new
+    sampler.loglikelihood.history_check()
     return sampler
 
 
@@ -2394,6 +2404,9 @@ def save_sampler(sampler, fname):
         'version': DYNESTY_VERSION,
         'format_version': format_version
     }
+    # write out the buffered evaluations, so that they are not stored in the
+    # checkpoint and then written again by the run resumed from it
+    sampler.loglikelihood.history_save()
     tmp_fname = fname + '.tmp'
     try:
         with open(tmp_fname, 'wb') as fp:

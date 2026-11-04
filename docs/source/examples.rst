@@ -171,7 +171,8 @@ using a `Kolmogorov-Smirnov (KS) Test
 <https://en.wikipedia.org/wiki/Kolmogorov%E2%80%93Smirnov_test>`_.
 When sampling uniformly from a set of bounding ellipsoids, we expect to be
 more sensitive to whether they fully encompass the bounding volume. Indeed,
-running on default settings in higher dimensions yields shrinkages that
+sampling from ellipsoids without any enlargement (`enlarge=1, bootstrap=0`)
+in higher dimensions yields shrinkages that
 are inconsistent with our theoretical expectation (i.e. we shrink too fast):
 
 .. image:: ../images/examples_pyramid_003.png

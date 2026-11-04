@@ -184,8 +184,9 @@ the runtime.
 
 In addition, the number of live points can also affect the stability of our
 :ref:`Bounding Options`. By default, ``dynesty`` inflates the size of the
-chosen bounds by an enlargement factor to ensure they effectively bound the
-iso-likelihood contours. These bounds become more robust the more live points
+chosen bounds (by a constant enlargement factor, or by a factor determined
+through bootstrapping for uniform sampling) to ensure they effectively bound
+the iso-likelihood contours. These bounds become more robust the more live points
 are used, leading to more efficient proposals.
 
 It is important to note that running with too few live points can lead to
@@ -240,8 +241,9 @@ than multiple bounding ellipsoids, for instance, we would use::
 As mentioned in :ref:`Live Points`, bounding distributions in ``dynesty`` are
 enlarged in an attempt to conservatively encompass the iso-likelihood contour
 associated with each dead point. The default behavior increases the
-volume by 25%, although this can also be done in real-time using
-bootstrapping methods (this procedure can lead to some instability in the size
+volume by 25%, except for uniform sampling (`sample='unif'`), where the
+enlargement is determined in real-time using bootstrapping with
+`bootstrap=5` (this procedure can lead to some instability in the size
 of the bounds if fewer than the optimal number of live points are being used;
 see the :ref:`FAQ` for additional details). 
 The volume enlargement factor or the number of 
@@ -595,15 +597,15 @@ For instance, running one of the examples above would produce output like:
 Out::
 
     iter: 12521 | +1500 | bound: 7 | nc: 1 | ncall: 66884 | eff(%): 20.963 |
-    loglstar:   -inf < -0.301 <    inf | logz: -8.960 |
+    loglstar: -0.301 | logz: -8.960 |
     dlogz:  0.001 >  1.509                                        
 
 From left to right, this records: the current iteration (plus the number of
 live points added after stopping), the current bound being used, the number
 of log-likelihood calls made before accepting the last sample, the total number
 of log-likelihood calls, the overall sampling efficiency, 
-the current log-likelihood bounds (`-inf` and `inf`
-because we began sampling from the prior and didn't declare a `logl_max`),
+the current log-likelihood (the lower and upper log-likelihood bounds
+of the run are also shown around it if they are finite),
 the current estimated evidence, and the remaining `dlogz` relative
 to the stopping criterion.
 
@@ -834,12 +836,19 @@ included in `Results` are listed below:
 
 * `logvol`: the (expected) ln(prior volume) associated with each sample,
 
+* `logvol_init`: the ln(prior volume) at the start of the run. It is 0 unless
+  the likelihood is zero over part of the prior, in which case it is the log of
+  the estimated fraction of the prior with non-zero likelihood,
+
 * `logz`: the cumulative evidence at each iteration (sample),
 
 * `logzerr`: the estimated error (standard deviation) on `logz`,
 
 * `information`: the estimated "information" (see :ref:`Priors in
-  Nested Sampling`) at each iteration (sample), and
+  Nested Sampling`) at each iteration (sample),
+
+* `blob`: the auxiliary information returned by the log-likelihood function
+  for each sample (if `blob=True`, see below), and
 
 * `proposal_stats`: statistics from the internal sampler including acceptance
   and rejection counts and tuning information (new in version 3.0).

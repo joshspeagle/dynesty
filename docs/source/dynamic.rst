@@ -66,7 +66,7 @@ We can illustrate this directly using the same example from
 Out::
 
     iter: 13301 | +1000 | bound: 14 | nc: 1 | ncall: 56724 | eff(%): 25.212 |
-    loglstar:   -inf < -0.294 <    inf | logz: -8.978 |
+    loglstar: -0.294 | logz: -8.978 |
     dlogz:  0.000 >  0.010
 
 .. image:: ../images/quickstart_002.png
@@ -204,20 +204,20 @@ should stop sampling. The default
 
 .. math::
 
-    S(f_p, s_p, s_{\mathcal{Z}}, n) \equiv 
-    f_p \times \frac{S_p(n)}{s_p} + 
+    S(f_p, s_{\mathcal{Z}}, n) \equiv 
+    f_p \times S_p + 
     (1 - f_p) \times \frac{S_\mathcal{Z}(n)}{s_{\mathcal{Z}}} < 1
 
 where :math:`f_p` is the fractional importance we place on posterior
 estimation, :math:`S_p` is the posterior stopping function,
-:math:`S_\mathcal{Z}` is the evidence stopping function, :math:`s_p` is the
-posterior "error threshold", :math:`s_\mathcal{Z}` is the evidence error
+:math:`S_\mathcal{Z}` is the evidence stopping function,
+:math:`s_\mathcal{Z}` is the evidence error
 threshold, and :math:`n` is the total number of Monte Carlo realizations
-used to generate the posterior/evidence stopping values. 
+used to generate the evidence stopping value. 
 
 
 The default values of these are :math:`f_p = 1` (100% posterior/0% evidence),
-:math:`s_p = 1`, :math:`s_{\mathcal{Z}} = 0.1`, and :math:`n=0`. With
+:math:`s_{\mathcal{Z}} = 0.1`, and :math:`n=0`. With
 :math:`n=0` the evidence error is the estimate from the run itself
 (`logzerr`) instead of the scatter of Monte Carlo realizations.
 More details on :math:`S_p(n)` and :math:`S_\mathcal{Z}(n)` are outlined below.
@@ -265,7 +265,8 @@ effective number of posterior samples i.e.
 
 where :math:`N_{target,effective}` is the user specified target number
 of effective samples (the `n_effective` argument of
-:meth:`~dynesty.dynamicsampler.DynamicSampler.run_nested`, by default
+:meth:`~dynesty.dynamicsampler.DynamicSampler.run_nested`, or equivalently
+`stop_kwargs['target_n_effective']`, by default
 :math:`\max(10000, N_{dim}^2)`).
 
 Previously, the default choice for :math:`S_p` in ``dynesty`` was to use the 
@@ -488,7 +489,7 @@ Similarly to static nested sampler, the dynamic sampler supports periodic check-
 And to restore::
 
     # initialize the sampler
-    sampler = NestedSampler.restore('dynesty.save', pool =mypool)
+    sampler = DynamicNestedSampler.restore('dynesty.save', pool=pool)
     # resume
     sampler.run_nested(resume=True)
 
@@ -520,7 +521,8 @@ Out::
 Since `dsampler` is by default optimized for posterior estimation over 
 evidence estimation (via the default values assigned in
 `~dynesty.dynamicsampler.weight_function`), the errors on our 
-evidence estimates are significantly larger than the results from `sampler`.  
+evidence estimates (`dres.logzerr[-1]`) are larger than the ones from
+`sampler` (`res.logzerr[-1]`).
 
 Note that while the outputs are largely similar to the `sampler` case, they
 include three additional quantities: `batch`, which shows the current batch,
@@ -539,18 +541,20 @@ information::
 
 Out::
 
-    Static Nested Sampling: ['niter', 'logvol', 'information', 'samples_id', 
-                             'logz', 'bound', 'ncall', 'samples_bound', 
-                             'scale', 'nlive', 'samples', 'bound_iter', 
-                             'samples_u', 'samples_it', 'logl', 'logzerr', 
-                             'eff', 'logwt']
+    Static Nested Sampling: ['nlive', 'niter', 'ncall', 'eff', 'samples',
+                             'blob', 'proposal_stats', 'logvol_init',
+                             'samples_id', 'samples_it', 'samples_u',
+                             'logwt', 'logl', 'logvol', 'logz', 'logzerr',
+                             'information', 'scale', 'bound', 'bound_iter',
+                             'samples_bound']
 
-    Dynamic Nested Sampling: ['niter', 'samples_n', 'batch_logl_bounds',
-                              'information', 'samples_id', 'batch_nlive',
-                              'bound_iter', 'logz', 'bound', 'ncall',
-                              'samples_bound', 'logvol', 'logwt', 'samples',
-                              'samples_batch', 'samples_u', 'samples_it',
-                              'logl', 'logzerr', 'eff', 'scale']
+    Dynamic Nested Sampling: ['niter', 'ncall', 'eff', 'samples',
+                              'logvol_init', 'samples_id', 'samples_batch',
+                              'samples_it', 'samples_u', 'samples_n',
+                              'logwt', 'logl', 'logvol', 'logz',
+                              'batch_nlive', 'batch_logl_bounds', 'blob',
+                              'proposal_stats', 'logzerr', 'information',
+                              'scale', 'bound', 'bound_iter', 'samples_bound']
 
 The differences between these are:
 
@@ -596,7 +600,7 @@ placed on the evidence (:math:`f_p=0`)::
 Out::
 
     iter: 14301 | batch: 30 | bound: 0 | nc: 1 | ncall: 68940 | 
-    eff(%): 20.744 | loglstar:   -inf < -40.112 < -2.295 | 
+    eff(%): 20.744 | loglstar: -40.112 < -2.295 | 
     logz: -9.007 | stop:    nan
 
 Here we see that there are some significant differences in behavior.
@@ -636,7 +640,7 @@ Out::
     logz: -8.995 | stop:  0.923
 
     iter: 16031 | batch: 2 | bound: 29 | nc: 1 | ncall: 77598 | 
-    eff(%): 20.659 | loglstar:   -inf < -0.346 < -1.851 | 
+    eff(%): 20.659 | loglstar: -0.346 < -1.851 | 
     logz: -8.812 | stop:  0.990      
 
 These contain a similar number of samples and give similar answers to

@@ -284,3 +284,14 @@ def test_number_clusters():
     E = db.bounding_ellipsoids(xs)
 
     assert np.abs(len(E.ells) * 1. / ncens - 1) < THRESHOLD
+
+
+def test_scale_capped_logvol():
+    # when the enlargement is limited by the maximum axis length
+    # the stored volume must match the actual axes
+    ndim = 2
+    ell = db.Ellipsoid(ndim, ctr=np.ones(ndim) * .5, cov=np.eye(ndim) * .3**2)
+    ell.scale_to_logvol(ell.logvol + np.log(30))
+    assert np.allclose(ell.axlens, np.sqrt(ndim) / 2)
+    assert np.isclose(ell.logvol,
+                      db.logvol_prefactor(ndim) + np.log(ell.axlens).sum())

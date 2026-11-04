@@ -412,6 +412,8 @@ class Ellipsoid(Bound):
             self.am = (v * (1. / l1)) @ v.T
             self.axlens *= fax
             self.axes = self.axes * fax
+            # the axes are capped, so the volume may grow less than requested
+            logvol = self.logvol + logfax.sum()
         self.logvol = logvol
 
     def major_axis_endpoints(self):

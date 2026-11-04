@@ -20,6 +20,7 @@ Use Python style with 4-space indentation and clear, focused functions.
 Follow existing module patterns in `py/dynesty/`; keep public API names stable unless explicitly planned.  
 `pylint` is enforced (`--fail-under=9`), with repository-specific exceptions already configured.  
 For randomness in tests and internals, avoid ad-hoc `np.random.*` usage; follow existing `Generator/default_rng` conventions.
+Try to make sure that the same concept is called the same thing in different parts of the code.
 
 ## Testing Guidelines
 Add or update tests for every behavioral change in `tests/test_*.py`.  
@@ -32,3 +33,11 @@ Recent commit history favors short, imperative subjects (for example: `fix versi
 Keep commit messages concise and specific to one logical change.  
 PRs should include: purpose, linked issue (if any), reproduction details for bug fixes, and tests demonstrating the change.  
 If behavior or interfaces change, update docs and changelog entries in the same PR.
+Never commit and push yourself, unless I explicitely allow
+
+## Architecture
+You need to carefully consider the code structure when developing new features or fixes.
+It is important that the code is not too complex and can be well understood.
+Simple short, easy to understand code should always be preferred over longer, more complex code achieving the same thing
+
+

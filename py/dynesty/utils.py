@@ -179,7 +179,7 @@ class LogLikelihood:
         self.history_id = uuid.uuid4().hex
         try:
             with h5py.File(self.history_filename, mode='w') as fp:
-                fp.attrs['run_id'] = self.history_id
+                fp.attrs['history_id'] = self.history_id
                 # Unified evaluation history - all evaluations in one place
                 if self.save_evaluation_history:
                     fp.create_dataset('evaluation_u',
@@ -207,7 +207,7 @@ class LogLikelihood:
             return
         try:
             with h5py.File(self.history_filename, mode='r') as fp:
-                same_run = fp.attrs.get('run_id') == self.history_id
+                same_run = fp.attrs.get('history_id') == self.history_id
         except OSError:
             same_run = False
         if not same_run:

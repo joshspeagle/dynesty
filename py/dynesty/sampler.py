@@ -392,7 +392,6 @@ class Sampler:
 
         # random state
         self.rstate = rstate or get_random_generator()
-        self.sampling = sampling
         # This is the sampler that will be used to sample after we
         # are done with the unit cube sampling
         self.internal_sampler_next = sampling
@@ -421,18 +420,13 @@ class Sampler:
         # sampling
         self.it = 1  # current iteration
         self.ncall = self.nlive  # number of function calls
-        self.dlv = math.log((self.nlive + 1.) / self.nlive)  # shrinkage/iter
         self.added_live = False  # whether leftover live points were used
         self.eff = 0.  # overall sampling efficiency
-        self.cite = ''  # Default empty
         self.save_bounds = True
 
         # bounding updates
         self.bound_update_interval = bound_update_interval
         self.first_bound_update = first_bound_update
-        self.first_bound_update_ncall = first_bound_update.get(
-            'min_ncall', 2 * self.nlive)
-        self.first_bound_update_eff = first_bound_update.get('min_eff', 10.)
         self.logl_first_update = None
         self.ncall_at_last_update = 0
 
@@ -569,24 +563,61 @@ class Sampler:
             use_pool_ptform=self.use_pool_ptform,
             use_pool_logl=self.use_pool_logl)
 
-        self.__init__(self.loglikelihood,
-                      self.prior_transform,
-                      self.ndim,
-                      live_points,
-                      self.sampling,
-                      self.bounding,
-                      ncdim=self.ncdim,
-                      rstate=self.rstate,
-                      pool=self.pool,
-                      use_pool=self.use_pool,
-                      queue_size=self.queue_size,
-                      bound_update_interval=self.bound_update_interval,
-                      first_bound_update=self.first_bound_update,
-                      bound_bootstrap=self.bound_bootstrap,
-                      bound_enlarge=self.bound_enlarge,
-                      blob=self.blob,
-                      cite=self.cite,
-                      logvol_init=logvol_init)
+        self.__init__(live_points=live_points,
+                      logvol_init=logvol_init,
+                      **self._settings())
+
+    def _settings(self):
+        """
+        The constructor arguments describing the setup of this sampler
+        (everything except its live points and logvol_init).
+        """
+        return dict(loglikelihood=self.loglikelihood,
+                    prior_transform=self.prior_transform,
+                    ndim=self.ndim,
+                    sampling=self.internal_sampler_next,
+                    bounding=self.bounding,
+                    ncdim=self.ncdim,
+                    rstate=self.rstate,
+                    pool=self.pool,
+                    use_pool=self.use_pool,
+                    queue_size=self.queue_size,
+                    bound_update_interval=self.bound_update_interval,
+                    first_bound_update=self.first_bound_update,
+                    bound_bootstrap=self.bound_bootstrap,
+                    bound_enlarge=self.bound_enlarge,
+                    blob=self.blob,
+                    cite=self.cite)
+
+    def spawn(self,
+              live_points,
+              loglstar=-np.inf,
+              logvol_init=0,
+              scale=None,
+              bound_update_interval=None):
+        """
+        Create a new sampler with the same settings that starts from
+        `live_points` (which must all be above `loglstar`). The new sampler
+        gets a copy of the internal sampler with its tuning state (with
+        the `scale` replaced if given) and switches from the unit cube under
+        the same conditions as this sampler, but it builds its own bounds
+        from its own live points.
+        """
+        settings = self._settings()
+        settings['sampling'] = copy.deepcopy(self.internal_sampler_next)
+        if bound_update_interval is not None:
+            settings['bound_update_interval'] = bound_update_interval
+        new = Sampler(live_points=live_points,
+                      logvol_init=logvol_init,
+                      **settings)
+        new.logl_first_update = self.logl_first_update
+        if scale is not None:
+            new.internal_sampler_next.scale = scale
+        new.update_bound_if_needed(loglstar)
+        # the starting points are attributed to the first bound built
+        # from them (or to the unit cube if none was built)
+        new.live_bound[:] = new.nbound - 1
+        return new
 
     @property
     def results(self):
@@ -667,9 +698,11 @@ class Sampler:
             ncall = self.ncall
         delta_bound = self.bound_update_interval
 
-        call_check_first = ncall >= self.first_bound_update_ncall
+        call_check_first = ncall >= self.first_bound_update.get(
+            'min_ncall', 2 * self.nlive)
         call_check = ncall >= delta_bound + self.ncall_at_last_update
-        efficiency_check = self.eff < self.first_bound_update_eff
+        efficiency_check = self.eff < self.first_bound_update.get(
+            'min_eff', 10.)
         # there are three cases when we update the bound
         # * if we are still using uniform cube sampling and both efficiency is
         # lower than the threshold and the number of calls is larger than the
@@ -1159,7 +1192,7 @@ class Sampler:
 
             if not self.plateau_mode:
                 # Expected ln(volume) shrinkage.
-                cur_dlv = self.dlv
+                cur_dlv = math.log((self.nlive + 1.) / self.nlive)
             else:
                 cur_dlv = -np.log1p(-np.exp(self.plateau_logdvol - logvol))
             assert cur_dlv > 0

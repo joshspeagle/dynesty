@@ -67,6 +67,31 @@ def test_add_batch_default_nlive():
     assert sampler.results.batch_nlive[-1] == nlive0
 
 
+@pytest.mark.parametrize('lower', [False, True])
+def test_batch_sampler_spawned(lower):
+    # batches run on their own sampler spawned from the base run sampler,
+    # so the base run sampler and its tuning state are left untouched,
+    # both for batches starting from the prior and above some logl
+    ndim = 2
+    sampler = dynesty.DynamicNestedSampler(loglike_gau,
+                                           prior_transform_gau,
+                                           ndim,
+                                           nlive=100,
+                                           sample='rwalk',
+                                           rstate=get_rstate())
+    sampler.run_nested(maxbatch=0, print_progress=printing)
+    base = sampler.sampler
+    scale = base.internal_sampler.scale
+    logl = sampler.results.logl
+    lmin = np.median(logl) if lower else -np.inf
+    sampler.add_batch(nlive=50,
+                      mode='manual',
+                      logl_bounds=(lmin, logl[-1]),
+                      print_progress=printing)
+    assert base.internal_sampler.scale == scale
+    assert sampler.results.batch_nlive[-1] == 50
+
+
 def test_stop_kwargs_target_n_effective():
     # the target_n_effective in stop_kwargs is used and
     # the user's dictionary is not modified

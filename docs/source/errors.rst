@@ -11,6 +11,10 @@ posterior importance weights :math:`\hat{p}_i`. The second is the
 :math:`\boldsymbol{\Theta}` of interest with a single sample
 :math:`\boldsymbol{\Theta}_i` from the corresponding iso-likelihood contour
 defined by :math:`\mathcal{L}(\boldsymbol{\Theta}) = \lambda_i`.
+Since the evidence only depends on the likelihoods of the samples, which are
+determined by the prior volumes, the sampling errors only affect the posterior
+estimates. Therefore, if the sampling is done correctly, the uncertainty of
+:math:`\ln \hat{\mathcal{Z}}` is fully described by the statistical errors.
 
 One of the neat features of Nested Sampling is that we are able to probe
 these uncertainties **within the same run used to compute the results**. We 
@@ -19,8 +23,9 @@ functions within `~dynesty.utils` that can inject these errors into Nested
 Sampling `~dynesty.results.Results`. This allows users to compute realistic
 error budgets without going through the tedious task of computing many Nested
 Sampling runs. The second way is through the default Dynamic Nested Sampling
-:meth:`~dynesty.dynamicsampler.stopping_function`, which uses this error budget
-when deciding whether to stop adding samples.
+:meth:`~dynesty.dynamicsampler.stopping_function`, which can use this error
+budget when deciding whether to stop adding samples (if the evidence is given
+non-zero weight with `pfrac < 1`).
 
 This page will go through some of the main results associated with deriving
 both exact and approximate error budgets for different aspects of Nested
@@ -111,8 +116,12 @@ the errors (`logzerr`) that are returned in the output
 `~dynesty.results.Results` instances and used in plotting functions. Since
 :math:`Q_k` depends on the evidence of the whole run, the errors are computed
 when the results are generated and are not shown in the progress output during
-sampling. Note that they only account for the statistical uncertainties of the
-prior volumes and not for the sampling errors discussed below.
+sampling. As discussed above, the statistical uncertainties of the prior
+volumes are the only source of evidence errors if the sampling is done
+correctly: for runs with perfect sampling the scatter of
+:math:`(\ln \hat{\mathcal{Z}} - \ln \mathcal{Z}) / \sigma[\ln
+\hat{\mathcal{Z}}]` is consistent with one for both Static and Dynamic Nested
+Sampling.
 
 As an example, here's a comparison among two different runs to showcase
 how the approximate errors take into account varying numbers of live points
@@ -343,8 +352,7 @@ compare them directly::
 .. image:: ../images/errors_003.png
     :align: center
 
-While the analytic evidence approximations tend to underestimate the error
-while sampling within the typical set, the final errors are almost identical.
+The final errors are almost identical.
 
 Finally, let's just plot a number of realizations directly to get a sense of
 how changes to the prior volumes propagate through to other quantities::
@@ -373,25 +381,22 @@ Sampling Uncertainties
 ======================
 
 In addition to the statistical uncertainties associated with the unknown prior
-volumes, Nested Sampling is also subject to **sampling uncertainties** due to
-the **"path"** taken by a particular live point through the prior. This
-encompasses two different sources of error intrinsic to sampling itself. The
-first is **Monte Carlo noise** that arises from probing a continuous
-distribution using a finite set of samples. The second is **path-dependency**,
-where the results depend on the particular paths taken by the set of particles.
-This affects the results since the number of positions sampled along each path
-is subject to Poisson noise (see :ref:`Approximate Evidence Errors`); positions
-can be correlated in some way rather than fully independent draws from the
-target distribution, subtly violating the sampling assumptions in Nested 
-Sampling.
+volumes, the posterior estimates from Nested Sampling are also subject to
+**sampling uncertainties**, i.e. the **Monte Carlo noise** that arises from
+probing a continuous distribution using a finite set of samples. Although the
+prior volume :math:`X_i` at a given iteration :math:`i` might be known exactly,
+the particular *position* :math:`\boldsymbol{\Theta}_i` on the iso-likelihood
+contour :math:`\mathcal{L}_i` is randomly distributed. This adds some
+additional noise to our posterior estimates (but not to the evidence, which
+only depends on the likelihoods :math:`\mathcal{L}_i`).
 
-In other words, although the prior volume :math:`X_i` at a given iteration 
-:math:`i` might be known exactly, the particular *position* 
-:math:`\boldsymbol{\Theta}_i` on the iso-likelihood contour
-:math:`\mathcal{L}_i` is randomly distributed. This adds some additional noise
-to our posterior and evidence estimates. This can also complicate things
-if there are problems with the live point proposals that violate the
-assumptions described in :ref:`Nested Sampling`.
+Note that none of the error estimates discussed on this page account for
+problems with the live point proposals that violate the assumptions described
+in :ref:`Nested Sampling` (e.g., correlated positions produced by a random walk
+with too few steps, or bounds that do not fully encompass the iso-likelihood
+contour). These can bias the results, and such biases cannot be detected by
+`logzerr`, :meth:`~dynesty.utils.jitter_run` or
+:meth:`~dynesty.utils.resample_run`.
 
 Unraveling/Merging Runs
 -----------------------
@@ -446,8 +451,13 @@ using the discrete set of paths taken from the set of :math:`K` particles (live
 points) in a given run. By bootstrap resampling a new set of :math:`K` strands
 (paths) from the current set of :math:`K` live points, we are able to construct
 a new **"resampled" run** that probes these intrinsic sampling uncertainties.
-This both allows us to probe Poisson noise in the number of total steps
-:math:`N` as well as the particular path-dependencies of the set of particles.
+Since the resampled run also has a different set of likelihoods, its evidence
+varies by about the same amount as with :meth:`~dynesty.utils.jitter_run` and
+`logzerr`. This is the same statistical uncertainty, not an additional source
+of evidence errors, so the main use of the resampled runs is to probe the
+uncertainties of posterior quantities. Note that combining jittering and
+resampling (or jittering independent runs) counts the prior volume
+uncertainty twice.
 
 There is one small caveat to this result. When the number of live points
 remains constant, there is a symmetry in the information content provided by
@@ -521,21 +531,23 @@ against a set a repeated Nested Sampling runs:
 .. code-block:: python
 
     # generate repeat nested sampling runs
-    Nrepeat = 500
+    Nrepeat = 100
     repeat_res = []
     dsampler = dynesty.DynamicNestedSampler(loglikelihood, prior_transform,
                                             ndim, bound='single')
 
     for i in range(Nrepeat):
         dsampler.reset()
-        dsampler.run_nested(print_progress=False, maxiter=5000, use_stop=False)
+        dsampler.run_nested(nlive_init=50, nlive_batch=50,
+                            print_progress=False, maxiter=5000, use_stop=False)
         repeat_res.append(dsampler.results)
 
 .. code-block:: python
 
     # establish our comparison run
     dsampler.reset()
-    dsampler.run_nested(print_progress=False, maxiter=5000, use_stop=False)
+    dsampler.run_nested(nlive_init=50, nlive_batch=50,
+                        print_progress=False, maxiter=5000, use_stop=False)
     r = dsampler.results
 
     # generate jittered runs
@@ -572,19 +584,20 @@ from each set of runs:
     # repeated runs
     lnz_arr = [results.logz[-1] for results in repeat_res]
     lnz_mean, lnz_std = np.mean(lnz_arr), np.std(lnz_arr)
-    print('Repeat: {:6.3f} +/- {:6.3f}'.format(lnz_mean, lnz_std))
+    print('Repeat:      {:6.3f} +/- {:6.3f}'.format(lnz_mean, lnz_std))
 
 .. rst-class:: sphx-glr-script-out
 
 Out::
 
-    Approx.:     -8.670 +/-  0.207
-    Sim.:        -8.696 +/-  0.192
-    Resamp.:     -8.676 +/-  0.180
-    Repeat:      -8.912 +/-  0.211
+    Approx.:     -8.919 +/-  0.202
+    Sim.:        -8.937 +/-  0.185
+    Resamp.:     -8.918 +/-  0.206
+    Repeat:      -8.923 +/-  0.193
 
-We find the approximate, simulated, and resampled uncertainties show relatively
-good agreement.
+The analytic error (`logzerr`), the jittered and the resampled runs all
+estimate the same (prior volume) uncertainty, and they all agree with the
+scatter of the repeated runs.
 
 We can also compare the first and second moments of the posterior:
 
@@ -614,15 +627,15 @@ We can also compare the first and second moments of the posterior:
                       for results in repeat_res])
     x_mean = np.round(np.mean(x_arr, axis=0), 3)
     x_std = np.round(np.std(x_arr, axis=0), 3)
-    print('Rep. (mean): {0} +/- {1}'.format(x_mean, x_std))
+    print('Repeat:      {0} +/- {1}'.format(x_mean, x_std))
 
 .. rst-class:: sphx-glr-script-out
 
 Out::
 
-    Sim.:        [-0.022 -0.022 -0.021] +/- [0.016 0.016 0.016]
-    Resamp.:     [-0.023 -0.023 -0.022] +/- [0.016 0.017 0.017]
-    Repeat:      [ 0.002  0.002  0.002] +/- [0.016 0.016 0.016]
+    Sim.:        [0.027 0.022 0.027] +/- [0.016 0.016 0.016]
+    Resamp.:     [0.028 0.023 0.028] +/- [0.017 0.017 0.018]
+    Repeat:      [-0.001 -0.    -0.001] +/- [0.018 0.017 0.018]
 
 .. code-block:: python
 
@@ -653,15 +666,15 @@ Out::
     x_arr = [np.diag(x) for x in x_arr]
     x_mean = np.round(np.mean(x_arr, axis=0), 3)
     x_std = np.round(np.std(x_arr, axis=0), 3)
-    print('Rep. (mean): {0} +/- {1}'.format(x_mean, x_std))
+    print('Repeat:      {0} +/- {1}'.format(x_mean, x_std))
 
 .. rst-class:: sphx-glr-script-out
 
 Out::
 
-    Sim.:        [1.041 1.038 1.046] +/- [0.026 0.026 0.026]
-    Resamp.:     [1.039 1.035 1.044] +/- [0.026 0.026 0.027]
-    Repeat:      [0.994 0.994 0.993] +/- [0.026 0.026 0.026]
+    Sim.:        [1.004 0.991 0.996] +/- [0.027 0.025 0.023]
+    Resamp.:     [1.003 0.989 0.995] +/- [0.023 0.021 0.021]
+    Repeat:      [0.997 0.996 0.994] +/- [0.028 0.029 0.029]
 
 Our simulated and resampled uncertainties seem to do an excellent job of capturing the
 intrinsic uncertainties in both the mean and the standard deviation here.

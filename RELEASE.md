@@ -31,4 +31,10 @@ for a in `seq 0 35` ; do env OMP_NUM_THREADS=1 DYNESTY_TEST_RANDOMSEED=$a PYTHON
  env OMP_NUM_THREADS=1 PYTHONPATH=py:tests:$PYTHONPATH  pytest  --workers=100 tests/test_notebooks.py
 ```
 It may be also needed to update the actual .ipynb files in the repo (and/or look at the results)
+When updating the .ipynb files in the repo by executing them with nbconvert, set the `TQDM_MININTERVAL`
+environment variable, so that only the final state of each progress bar is saved in the notebook
+(otherwise every progress update is stored as a separate output):
+```
+TQDM_MININTERVAL=1000 PYTHONPATH=$PWD/py jupyter nbconvert --to notebook --execute --inplace demos/*.ipynb
+```
 

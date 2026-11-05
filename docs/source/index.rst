@@ -99,6 +99,20 @@ Changelog
 .. image:: ../images/logo.gif
     :align: center
 
+Unreleased
+----------
+Bug fix release
+
+This release fixes a number of bugs, some of which affect the results.
+
+- The evidence uncertainty `logzerr` is now computed correctly. The previous approximation could misestimate it substantially. As a result the logz uncertainty is no longer shown while sampling.
+- Fix the evidence estimates when the likelihood is -inf over part of the prior (previously logz could be biased).
+- Fix the uniform sampler with periodic boundary conditions, and allow slices to cross periodic boundaries.
+- Fix several issues with the saved bounds, the weighted quantiles and the plotting functions.
+- The `reflective` boundary option was removed, as it does not preserve detailed balance, and the `ncdim` option is deprecated.
+
+See the CHANGELOG for the full list of changes.
+
 3.1.0 (2026-07-17)
 ------------------
 Small feature release

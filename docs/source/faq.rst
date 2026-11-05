@@ -64,26 +64,6 @@ Typically using more live-points will help in those cases, as you have higher ch
 Also if you have a really large number of modes, you can use `add_batch` functionality with `mode='full'`, to basically do repeated sampling of the posterior. In this case you have a good chance of discovering all the modes in your data.
 
 
-**There are inf values in my lower/upper log-likelihood bounds!
-Should I be concerned?**
-
-In most cases no. As mentioned in :ref:`Running Internally`, these values
-are just the lower and upper limits of the log-likelihood used to limit
-your sampling. If you're sampling starting from the prior, 
-you're starting out from a likelihood of 0 and therefore a 
-log-likelihood of `-inf`. If you haven't specified a particular `logl_max`
-to terminate sampling, the default value is set to be `+inf` so it will
-never prematurely terminate sampling. These values can change during
-Dynamic Nested Sampling, at which point they serve as the endpoints between
-which a new batch of live points is allocated.
-
-In rare cases, errors in these bounds can be signs of Bad Things that may
-have happened while sampling. This is often the case if the 
-log-likelihood values being sampled (and displayed) are also 
-are nonsensical (e.g., involve `nan` or `inf` values, etc.).
-In that case, it is often useful to terminate the run early 
-and examine the set of samples to see if there are any possible issues.
-
 **Why is the error on the evidence not shown while sampling?**
 
 As described in :ref:`Approximate Evidence Errors`, the error on
@@ -131,9 +111,11 @@ target distribution. This can happen if, e.g., the posterior occupies a thin,
 strongly-curved manifold in several dimensions, which is hard to model with
 a series of overlapping ellipsoids or other similar distributions.
 
-Another possible culprit might be the enlargement factors. While the default
-25% value usually doesn't significantly decrease the efficiency, there are some
-exceptions. If you are instead deriving expansion factors from bootstrapping,
+Another possible culprit might be the enlargement factors. While a constant
+25% enlargement (the default unless sampling uniformly) usually doesn't
+significantly decrease the efficiency, there are some exceptions. If you are
+instead deriving expansion factors from bootstrapping (the default for
+`sample='unif'`),
 it's possible you're experiencing severe Monte Carlo noise (see 
 :ref:`Bounding Questions`). You could try to resolve this by either using
 more live points or switching to an alternate sampling method less sensitive

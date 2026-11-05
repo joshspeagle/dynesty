@@ -178,3 +178,28 @@ def test_gaussianx(bound):
                        it=3000,
                        prior_transform=g.prior_transform,
                        show_live=False)
+
+
+def test_plot_fixes():
+    # regressions of cornerplot with mixed smoothing and of boundplot
+    # with idx for dynamic runs
+    g = Gaussian(ndim=3)
+    sampler = dynesty.DynamicNestedSampler(g.loglikelihood,
+                                           g.prior_transform,
+                                           g.ndim,
+                                           nlive=100,
+                                           rstate=get_rstate())
+    sampler.run_nested(print_progress=printing, maxbatch=1)
+    results = sampler.results
+
+    # the (2, 1) panel has a smoothed dimension, so it must have contours
+    # and no density map (made by pcolor)
+    _, axes = dyplot.cornerplot(results, smooth=[10, 10, 0.02])
+    assert all(
+        isinstance(c, matplotlib.contour.ContourSet)
+        for c in axes[2, 1].collections)
+    plt.close()
+
+    idx = len(results['samples']) // 2
+    dyplot.boundplot(results, dims=(0, 1), idx=idx, show_live=True)
+    plt.close()

@@ -169,26 +169,23 @@ We can compare the set of samples generated from ``dynesty``
 with the expected theoretical shrinkage
 using a `Kolmogorov-Smirnov (KS) Test 
 <https://en.wikipedia.org/wiki/Kolmogorov%E2%80%93Smirnov_test>`_.
-When sampling uniformly from a set of bounding ellipsoids, we expect to be
-more sensitive to whether they fully encompass the bounding volume. Indeed,
-sampling from ellipsoids without any enlargement (`enlarge=1, bootstrap=0`)
-in higher dimensions yields shrinkages that
-are inconsistent with our theoretical expectation (i.e. we shrink too fast):
-
-.. image:: ../images/examples_pyramid_003.png
-    :align: center
-
-If bootstrapping is enabled so that ellipsoid expansion factors are determined
-"on the fly", we can mitigate this problem:
+When sampling uniformly from a set of bounding ellipsoids, this tests whether
+they fully encompass the likelihood contour. With few live points in higher
+dimensions (here 50 live points in 10 dimensions), the ellipsoids tend to miss
+the corners of the cube-shaped contours, so sampling without any enlargement
+(`enlarge=1, bootstrap=0`) or with a constant enlargement factor
+(`enlarge=1.25`) shrinks the prior volume too fast. Determining the enlargement
+factor by bootstrapping (the default for `'unif'`) gives the correct
+shrinkage, but at a large computational cost. Random slice sampling
+(`'rslice'`) does not rely on the size of the bounds, but it needs enough
+slices for the new points to be independent of the live points they start
+from: with the default number of slices (3+d) it also shrinks too fast, while
+with 50 slices the shrinkage is correct. The figure shows the
+fraction of iterations with a shrinkage larger than a given value for each
+of these cases (runs that shrink too fast lie above the expected line; see
+the notebook for details):
 
 .. image:: ../images/examples_pyramid_002.png
-    :align: center
-
-Alternately, using a sampling method other than `'unif'` can also avoid this
-issue by making our proposals less sensitive to the exact size/coverage
-of the bounding ellipsoids:
-
-.. image:: ../images/examples_pyramid_004.png
     :align: center
 
 LogGamma
@@ -274,42 +271,3 @@ are quite reasonable:
 .. image:: ../images/examples_reweight_004.png
     :align: center
 
-Noisy Likelihoods
-=================
-
-It is possible to sample from noisy likelihoods in
-``dynesty`` just like with MCMC provided they are *unbiased*. While there
-are additional challenges to sampling from noisy likelihood surfaces,
-the largest is the fact that over time we expect the likelihoods to be biased
-high due to the biased impact of random fluctuations on sampling: while
-fluctuations to lower values get quickly replaced, fluctuations to higher
-values can only be replaced by fluctuations to higher values elsewhere. This
-leads to a natural bias that gets "locked in" while sampling, which can
-substantially broaden the likelihood surface and thus the inferred posterior.
-
-We illustrate this by adding in some random noise to a 3-D iid Normal
-distribution. While the allocation of samples is almost identical, the
-estimated evidence is substantially larger and the posterior substantially
-broader due to the impact of these positive fluctuations.
-
-.. image:: ../images/examples_noisy_001.png
-    :align: center
-
-.. image:: ../images/examples_noisy_002.png
-    :align: center
-
-If we know the "true" underlying likelihood, it is straightforward to
-use :ref:`Importance Reweighting` to adjust the distribution to match:
-
-.. image:: ../images/examples_noisy_003.png
-    :align: center
-
-However, in most cases these are not available. In that case, we have to rely
-on being able to generate multiple realizations of the noisy likelihood at the
-set of evaluated positions in order to obtain more accurate (but still noisy)
-estimates of the underlying likelihood. These can then be used to get an
-estimate of the true distribution through the appropriate
-importance reweighting scheme:
-
-.. image:: ../images/examples_noisy_004.png
-    :align: center

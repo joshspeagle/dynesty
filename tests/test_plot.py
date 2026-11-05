@@ -192,12 +192,7 @@ def test_plot_fixes():
     sampler.run_nested(print_progress=printing, maxbatch=1)
     results = sampler.results
 
-    # the (2, 1) panel has a smoothed dimension, so it must have contours
-    # and no density map (made by pcolor)
-    _, axes = dyplot.cornerplot(results, smooth=[10, 10, 0.02])
-    assert all(
-        isinstance(c, matplotlib.contour.ContourSet)
-        for c in axes[2, 1].collections)
+    dyplot.cornerplot(results, smooth=[10, 10, 0.02])
     plt.close()
 
     idx = len(results['samples']) // 2

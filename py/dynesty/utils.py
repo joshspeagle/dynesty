@@ -1396,6 +1396,39 @@ def jitter_run(res, rstate=None, approx=False):
     return new_res
 
 
+def compute_logvols(logl, nlive, logvol_init=0.):
+    """
+    The expected ln(prior volume) after each dead point of a run.
+
+    Each dead point shrinks the volume by n/(n+1) where n is the number
+    of live points when it died. Dead points with the same logl as the
+    previous one (a plateau, or the final live points) are removed without
+    being replaced, so n decreases by one for each of them.
+
+    Parameters
+    ----------
+    logl : array
+        The ln(likelihood) of the dead points (sorted).
+    nlive : array
+        The number of live points when each dead point died.
+    logvol_init : float
+        The ln(prior volume) before the first dead point.
+    """
+    logl = np.asarray(logl)
+    idx = np.arange(len(logl))
+    # The dead points form groups of equal logl (most groups have a
+    # single point). For each point we find the index of the first point
+    # of its group: it is the largest index <= idx where logl changes.
+    is_first = np.r_[True, logl[1:] != logl[:-1]]
+    first = np.maximum.accumulate(np.where(is_first, idx, 0))
+    # The first point of a group uses its own number of live points, the
+    # following ones one less each (they are removed without replacement)
+    n = np.asarray(nlive)[first] - (idx - first)
+    # ln(volume) after each point: logvol_init minus the sum of the
+    # ln((n+1)/n) shrinkages so far
+    return logvol_init - np.cumsum(np.log((n + 1.) / n))
+
+
 def compute_integrals(*, logl, logvol, reweight=None, logvol_init=0):
     """
     Compute weights, logzs and variances using quadratic estimator.
@@ -2197,35 +2230,8 @@ def _merge_two(res1, res2, compute_aux=False):
     else:
         logvol_init = 0.
 
-    plateau_mode = False
-    plateau_counter = 0
-    plateau_logdvol = 0
-    logvol = logvol_init
-    logl_array = np.array(combined_info['logl'])
-    nlive_array = np.array(combined_info['n'])
-    for i, (curl, nlive) in enumerate(zip(logl_array, nlive_array)):
-        # Save the number of live points and expected ln(volume).
-        if not plateau_mode:
-            plateau_mask = logl_array[i:] == curl
-            nplateau = plateau_mask.sum()
-            if nplateau > 1:
-                # the number of live points should not change throughout
-                # the plateau
-                # assert np.ptp(nlive_array[i:][plateau_mask]) == 0
-                # TODO currently I disabled this check
-
-                plateau_counter = nplateau
-                plateau_logdvol = logvol + np.log(1. / (nlive + 1))
-                plateau_mode = True
-        if not plateau_mode:
-            logvol -= math.log((nlive + 1.) / nlive)
-        else:
-            logvol = logvol + np.log1p(-np.exp(plateau_logdvol - logvol))
-        combined_info['logvol'].append(logvol)
-        if plateau_mode:
-            plateau_counter -= 1
-            if plateau_counter == 0:
-                plateau_mode = False
+    combined_info['logvol'] = compute_logvols(combined_info['logl'],
+                                              combined_info['n'], logvol_init)
     # Compute sampling efficiency.
     eff = 100. * combined_nsamples / sum(combined_info['nc'])
 

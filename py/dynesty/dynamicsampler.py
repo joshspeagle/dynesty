@@ -20,8 +20,9 @@ from .sampler import (Sampler, Proposer, LivePoints,
                       _initialize_live_points)
 from .results import Results
 from .utils import (get_seed_sequence, get_print_func, _kld_error,
-                    compute_integrals, IteratorResult, get_neff_from_logwt,
-                    DelayTimer, save_sampler, restore_sampler,
+                    compute_integrals, compute_logvols, IteratorResult,
+                    get_neff_from_logwt, DelayTimer, save_sampler,
+                    restore_sampler,
                     _combine_logvol_inits)
 
 __all__ = [
@@ -1221,19 +1222,11 @@ class DynamicSampler:
         new_d['id'] += saved_d['id'].max() + 1
         new_d['batch'] = np.full(nnew, self.batch + 1)
 
-        # Both runs are sorted in logl, so we merge them (the saved point
-        # first if the logl are equal). At each step the number of live
-        # points is the one of the next saved point plus the one of the
-        # next new point if the saved run is above the batch lower bound.
+        # Both runs are sorted in logl, so sorting their concatenation
+        # merges them. The sort is stable, so for equal logl the saved
+        # point comes first.
         order = np.argsort(np.concatenate([saved_d['logl'], new_d['logl']]),
                            kind='stable')
-        is_new = (np.arange(nsaved + nnew) >= nsaved)[order]
-        next_saved = np.cumsum(~is_new) - ~is_new
-        next_new = np.cumsum(is_new) - is_new
-        logl_s = np.append(saved_d['logl'], np.inf)[next_saved]
-        nlive = (np.append(saved_d['n'], 0)[next_saved] +
-                 np.where(logl_s > llmin,
-                          np.append(new_d['n'], 0)[next_new], 0))
         run = {
             k: np.concatenate([saved_d[k], new_d[k]])[order]
             for k in [
@@ -1241,7 +1234,20 @@ class DynamicSampler:
                 'scale', 'blob', 'proposal_stats', 'batch'
             ]
         }
-        run['n'] = nlive
+
+        # The number of live points when a point of the merged run dies is
+        # the sum of the numbers of live points of the two runs at that
+        # moment. The number of live points of a run at that moment is the
+        # 'n' of its first point that is not yet merged (or 0 if all of its
+        # points are merged). To find these points we count how many points
+        # of each run come before each merged point.
+        from_new = order >= nsaved  # whether a merged point is from the batch
+        nsaved_before = np.cumsum(~from_new) - ~from_new
+        nnew_before = np.cumsum(from_new) - from_new
+        nlive_saved = np.append(saved_d['n'], 0)[nsaved_before]
+        nlive_new = np.append(new_d['n'], 0)[nnew_before]
+        # the batch only has live points above its lower logl bound
+        run['n'] = nlive_saved + np.where(run['logl'] > llmin, nlive_new, 0)
 
         if llmin == -np.inf:
             # The new batch was sampled from the whole prior, so its
@@ -1255,36 +1261,8 @@ class DynamicSampler:
                 [self.logvol_init, batch_sampler.logvol_init],
                 [nlive_prior, batch_sampler.nlive])
 
-        plateau_mode = False
-        plateau_counter = 0
-        plateau_logdvol = 0
-        logvol = self.logvol_init
-        logl_array = run['logl']
-        logvols = []
-        for i, (cur_logl, nlive) in enumerate(zip(logl_array, run['n'])):
-            # Save the number of live points and expected ln(volume).
-            if (not plateau_mode and i != len(logl_array) - 1
-                    and logl_array[i] == logl_array[i + 1]):
-                plateau_mask = logl_array[i:] == cur_logl
-                nplateau = plateau_mask.sum()
-                if nplateau > 1:
-                    # the number of live points should not change throughout
-                    # the plateau unless we are also merging it with the run
-                    # where the plateau is explored through final points,
-                    # i.e. when the number of live-points decreases.
-                    plateau_counter = nplateau
-                    plateau_logdvol = logvol + np.log(1. / (nlive + 1))
-                    plateau_mode = True
-            if not plateau_mode:
-                logvol -= math.log((nlive + 1.) / nlive)
-            else:
-                logvol = logvol + np.log1p(-np.exp(plateau_logdvol - logvol))
-            logvols.append(logvol)
-            if plateau_mode:
-                plateau_counter -= 1
-                if plateau_counter == 0:
-                    plateau_mode = False
-        run['logvol'] = np.array(logvols)
+        run['logvol'] = compute_logvols(run['logl'], run['n'],
+                                        self.logvol_init)
         run['logwt'], run['logz'], _, run['h'] = compute_integrals(
             logl=run['logl'],
             logvol=run['logvol'],

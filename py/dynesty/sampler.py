@@ -625,8 +625,9 @@ class Sampler:
         self.logz = -1.e300
         self.h = 0.
         self.loglstar = -1.e300  # logl of the last dead point
-        self.plateau_counter = 0  # >0 while going through a plateau
-        self.plateau_logdvol = None
+        # the number of live points that shrank the volume at the last
+        # dead point (it decreases by one for each point of a plateau)
+        self.nlive_last = None
         self.saved_run = RunRecord()  # the dead points
         self.added_live = False  # whether the results include the live points
 
@@ -700,51 +701,52 @@ class Sampler:
                       blob=self.blob,
                       cite=self.cite)
 
+    def _add_dead(self, logl, nlive):
+        """Update the volume and the integrals for a new dead point with
+        `logl` that died when there were `nlive` live points and return its
+        ln(weight). The volume shrinks by n/(n+1), but points with the same
+        logl as the previous dead point (a plateau) are removed without
+        being replaced, so n decreases by one for each of them
+        (see :func:`~dynesty.utils.compute_logvols`)."""
+        if self.nlive_last is not None and logl == self.loglstar:
+            self.nlive_last -= 1
+        else:
+            self.nlive_last = nlive
+        dlv = math.log((self.nlive_last + 1.) / self.nlive_last)
+        self.logvol -= dlv
+        logwt, self.logz, self.h = progress_integration(
+            self.loglstar, logl, self.logz, self.logvol, dlv, self.h)
+        self.loglstar = logl
+        return logwt
+
     def _final_points(self):
         """
         The records of the remaining live points, treated as dead points
-        in the order of increasing logl. After N points have been removed,
-        the remaining volume is X = exp(logvol) and the remaining points are
-        distributed uniformly within it, so the expected volume enclosed by
-        the i-th worst of them is X * (nlive + 1 - i) / (nlive + 1). If we
-        are in a plateau, the remaining points in it first use the volume
-        decrements of the plateau. Nothing in the sampler changes.
+        in the order of increasing logl. They are removed without being
+        replaced, so the number of live points decreases by one at each of
+        them. Nothing in the sampler changes.
         """
         nlive = self.nlive
-        if self.plateau_counter == 0:
-            logvols = np.log(1. - (np.arange(nlive) + 1.) / (nlive + 1.))
-        else:
-            logvols = np.log1p(-((1 + np.arange(self.plateau_counter)) *
-                                 np.exp(self.plateau_logdvol - self.logvol)))
-            nrest = nlive - self.plateau_counter
-            logvols = np.concatenate([
-                logvols,
-                logvols[-1] + np.log1p(-(1 + np.arange(nrest)) / (nrest + 1))
-            ])
-        # the volumes are kept relative until here, so the first dlv is 0
-        dlvs = -np.diff(logvols, prepend=0)
-        logvols += self.logvol
         bounditer = self.proposer.nbound - 1
         if self.proposer.unit_cube_sampling:
             bounditer = 0
-        logz, h, loglstar = self.logz, self.h, self.loglstar
+        # the integration is done on a (shallow) copy, so that the sampler
+        # does not change
+        state = copy.copy(self)
         records = []
-        for i, (idx, logvol, dlv) in enumerate(
-                zip(np.argsort(self.live.logl), logvols, dlvs)):
+        for i, idx in enumerate(np.argsort(self.live.logl)):
             logl = self.live.logl[idx]
-            logwt, logz, h = progress_integration(loglstar, logl, logz,
-                                                  logvol, dlv, h)
-            loglstar = logl
+            logwt = state._add_dead(logl, nlive - i)
             records.append(
                 dict(
                     id=idx,
                     u=self.live.u[idx].copy(),
                     v=self.live.v[idx].copy(),
                     logl=logl,
-                    logvol=logvol,
+                    logvol=state.logvol,
                     logwt=logwt,
-                    logz=logz,
-                    h=h,
+                    logz=state.logz,
+                    h=state.h,
                     n=nlive - i,
                     # technically we did not call the likelihood, but
                     # this keeps sum(nc) close to ncall
@@ -1016,24 +1018,11 @@ class Sampler:
 
             # Locate the "live" point with the lowest `logl`.
             worst = np.argmin(live.logl)
-            if self.plateau_counter == 0:
-                nplateau = (live.logl == live.logl[worst]).sum()
-                if nplateau > 1:
-                    self.plateau_counter = nplateau
-                    # log(delta vol) of each point in the plateau
-                    self.plateau_logdvol = np.log(
-                        1. / (self.nlive + 1)) + self.logvol
-            if self.plateau_counter == 0:
-                # Expected ln(volume) shrinkage.
-                dlv = math.log((self.nlive + 1.) / self.nlive)
-            else:
-                dlv = -np.log1p(-np.exp(self.plateau_logdvol - self.logvol))
-            assert dlv > 0
-            self.logvol -= dlv
+            loglstar_new = live.logl[worst]
+            logwt = self._add_dead(loglstar_new, self.nlive)
 
             # The worst point becomes a dead point; we copy as the live
             # points are updated in place
-            loglstar_new = live.logl[worst]
             dead = dict(id=worst,
                         u=live.u[worst].copy(),
                         v=live.v[worst].copy(),
@@ -1047,10 +1036,6 @@ class Sampler:
             u, v, logl, nc, proposal_stats, bounditer = self.proposer.draw(
                 loglstar_new, live, self.logvol)
             ncall += nc
-            logwt, self.logz, self.h = progress_integration(
-                self.loglstar, loglstar_new, self.logz, self.logvol, dlv,
-                self.h)
-            self.loglstar = loglstar_new
             dead.update(logvol=self.logvol,
                         logwt=logwt,
                         logz=self.logz,
@@ -1068,8 +1053,6 @@ class Sampler:
                          it=self.it,
                          bound=bounditer)
             self.it += 1
-            if self.plateau_counter > 0:
-                self.plateau_counter -= 1
 
             yield IteratorResult(worst=worst,
                                  ustar=dead['u'],

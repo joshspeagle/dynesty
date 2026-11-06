@@ -121,7 +121,7 @@ def test_dynamic_batch_combine():
     assert lvi_base < -0.5
     for _ in dns.sample_batch(nlive_new=50, logl_bounds=(-np.inf, 0.05)):
         pass
-    lvi_batch = dns.new_logvol_init
+    lvi_batch = dns.batch_sampler.logvol_init
     dns.combine_runs()
     res = dns.results
     expected = np.log(150) - logsumexp(

@@ -47,11 +47,6 @@ IteratorResult = namedtuple('IteratorResult', [
     'delta_logz', 'blob', 'proposal_stats'
 ])
 
-IteratorResultShort = namedtuple('IteratorResultShort', [
-    'worst', 'ustar', 'vstar', 'loglstar', 'nc', 'worst_it', 'boundidx',
-    'bounditer', 'eff', 'delta_logz', 'proposal_stats'
-])
-
 _LOWL_VAL = -1e300
 
 
@@ -297,11 +292,7 @@ class RunRecord:
     quantities
     """
 
-    def __init__(self, dynamic=False):
-        """
-        If dynamic is true. We initialize the class for
-        a dynamic nested run
-        """
+    def __init__(self):
         D = {}
         keys = [
             'id',  # live point labels
@@ -321,14 +312,6 @@ class RunRecord:
             'blob',  # blobs output by the log-likelihood
             'proposal_stats'  # information from the inner sampler
         ]
-        if dynamic:
-            keys.extend([
-                'batch',  # live point batch ID
-                # these are special since their length
-                # is == the number of batches
-                'batch_nlive',  # number of live points added in batch
-                'batch_logl_bounds'  # loglikelihood bounds used in batch
-            ])
         for k in keys:
             D[k] = []
         self.D = D
@@ -522,7 +505,7 @@ def print_fn(itresult,
     Parameters
     ----------
 
-    itresult : IteratorResult or IteratorResultShort
+    itresult : IteratorResult
         Single iterator output record from the sampler loop that is used
         for progress/status printing.
 
@@ -596,7 +579,7 @@ def get_print_fn_args(itresult,
 
     Parameters
     ----------
-    itresult : IteratorResult or IteratorResultShort
+    itresult : IteratorResult
         Single iterator output record from the sampler loop.
     """
     loglstar_val = itresult.loglstar

@@ -729,8 +729,8 @@ class Sampler:
             bounditer = 0
         logz, h, loglstar = self.logz, self.h, self.loglstar
         records = []
-        for idx, logvol, dlv in zip(np.argsort(self.live.logl), logvols,
-                                    dlvs):
+        for i, (idx, logvol, dlv) in enumerate(
+                zip(np.argsort(self.live.logl), logvols, dlvs)):
             logl = self.live.logl[idx]
             logwt, logz, h = progress_integration(loglstar, logl, logz,
                                                   logvol, dlv, h)
@@ -745,6 +745,7 @@ class Sampler:
                     logwt=logwt,
                     logz=logz,
                     h=h,
+                    n=nlive - i,
                     # technically we did not call the likelihood, but
                     # this keeps sum(nc) close to ncall
                     nc=1,
@@ -757,25 +758,21 @@ class Sampler:
                     proposal_stats=None))
         return records
 
-    def _run(self, key):
-        """The values of `key` for all dead points (including the final
-        live points if they were added)."""
-        ret = list(self.saved_run[key])
-        if self.added_live:
-            ret += [_[key] for _ in self._final_points()]
-        return ret
+    def run_record(self):
+        """The records of all dead points (including the final live points
+        if they were added) as a dictionary of arrays."""
+        final = self._final_points() if self.added_live else []
+        return {
+            k: np.array(self.saved_run[k] + [_[k] for _ in final])
+            for k in self.saved_run.keys()
+        }
 
     @property
     def results(self):
         """Saved results from the nested sampling run. If bounding
         distributions were saved, those are also returned."""
 
-        d = {}
-        for k in [
-                'nc', 'v', 'id', 'it', 'u', 'logl', 'logvol', 'blob',
-                'proposal_stats', 'scale', 'bounditer', 'boundidx'
-        ]:
-            d[k] = np.array(self._run(k))
+        d = self.run_record()
         # saved_run only has the running estimates from progress_integration
         # so we recompute the integrals using the full run
         d['logwt'], d['logz'], d['logzvar'], d['h'] = compute_integrals(
@@ -814,7 +811,7 @@ class Sampler:
         `1` if there is only one non-zero element in `wts`.
 
         """
-        logwt = self._run('logwt')
+        logwt = self.run_record()['logwt']
         if len(logwt) == 0 or np.isneginf(np.max(logwt)):
             # If there are no saved weights, or its -inf return 0.
             return 0
@@ -1043,6 +1040,7 @@ class Sampler:
                         logl=loglstar_new,
                         boundidx=live.bound[worst],
                         it=live.it[worst],
+                        n=self.nlive,
                         blob=live.blobs[worst].copy() if self.blob else None)
 
             # Sample a new live point within the likelihood constraint

@@ -15,34 +15,20 @@ import sys
 import warnings
 import math
 import copy
-from enum import Enum
 import numpy as np
 from .sampler import (Sampler, Proposer, LivePoints,
                       _initialize_live_points)
 from .results import Results
 from .utils import (get_seed_sequence, get_print_func, _kld_error,
-                    compute_integrals, IteratorResult, IteratorResultShort,
-                    RunRecord, get_neff_from_logwt, DelayTimer, save_sampler,
-                    restore_sampler, _combine_logvol_inits)
+                    compute_integrals, IteratorResult, get_neff_from_logwt,
+                    DelayTimer, save_sampler, restore_sampler,
+                    _combine_logvol_inits)
 
 __all__ = [
     "DynamicSampler",
     "weight_function",
     "stopping_function",
 ]
-
-
-class DynamicSamplerStatesEnum(Enum):
-    """ """
-    INIT = 1  # after the constructor
-    LIVEPOINTSINIT = 2  # after generating livepoints
-    INBASE = 3  # during base runs
-    BASE_DONE = 4  # base run done
-    INBATCH = 5  # after at least one batch
-    BATCH_DONE = 6  # after at least one batch
-    INBASEADDLIVE = 7  # during addition of livepoints in the
-    INBATCHADDLIVE = 8  # during addition of livepoints in the
-    RUN_DONE = 9  # The run has ended
 
 
 def compute_weights(results):
@@ -314,8 +300,8 @@ def _configure_batch_sampler(main_sampler,
     This is a utility method that construct a new internal
     sampler that will sample one batch.
     Since the setting up requires us coming up with a set of
-    of starting live points we also prepare the first list points
-    that will be yielded by the "master" sampler (but those are
+    of starting live points we also prepare the results for these
+    points that will be yielded by the "master" sampler (but those are
     yielded just for printing).
 
     This method should not modify the parent sampler at all other
@@ -341,12 +327,8 @@ def _configure_batch_sampler(main_sampler,
     -------
     batch_sampler: Sampler
         The sampler that will actually execute the batch.
-        It will also have a first_points attribute with the list
-        of IteratorResultShorts
-    ncall: integer
-        Number of likelihood calls throughout
-    niter: integer
-        Number of iterations
+    first_points: list
+        The `IteratorResult` of each starting live point
     logl_min: float
         actually used logl_min as we may modify logl_bound
     logl_max: float
@@ -403,6 +385,7 @@ def _configure_batch_sampler(main_sampler,
             base_sampler.proposer.copy(bound_update_interval=update_interval),
             live,
             logvol_init=logvol0,
+            ncall_init=ncall,
             blob=main_sampler.blob)
     else:
         # If the lower bound doesn't encompass all base samples,
@@ -494,28 +477,32 @@ def _configure_batch_sampler(main_sampler,
             np.array(live_logl, dtype=float),
             [_.blob for _ in live_logl] if main_sampler.blob else None,
             bound=np.array(live_bound))
-        ncall = sum(live_nc)
         batch_sampler = Sampler(proposer,
                                 live,
                                 logvol_init=logvol0,
                                 blob=main_sampler.blob)
 
     # These points are yielded just for printing
-    batch_sampler.first_points = [
-        IteratorResultShort(worst=-i - 1,
-                            ustar=live.u[i],
-                            vstar=live.v[i],
-                            loglstar=live.logl[i],
-                            nc=live_nc[i],
-                            worst_it=main_sampler.it,
-                            boundidx=live.bound[i],
-                            bounditer=live.bound[i],
-                            eff=main_sampler.eff,
-                            delta_logz=np.nan,
-                            proposal_stats=live_proposal_stats[i])
+    first_points = [
+        IteratorResult(worst=-i - 1,
+                       ustar=live.u[i],
+                       vstar=live.v[i],
+                       loglstar=live.logl[i],
+                       logvol=np.nan,
+                       logwt=np.nan,
+                       logz=np.nan,
+                       h=np.nan,
+                       nc=live_nc[i],
+                       worst_it=main_sampler.it,
+                       boundidx=live.bound[i],
+                       bounditer=live.bound[i],
+                       eff=main_sampler.eff,
+                       delta_logz=np.nan,
+                       blob=None,
+                       proposal_stats=live_proposal_stats[i])
         for i in range(nlive_new)
     ]
-    return batch_sampler, ncall, nlive_new, logl_min, logl_max
+    return batch_sampler, first_points, logl_min, logl_max
 
 
 class DynamicSampler:
@@ -641,8 +628,6 @@ class DynamicSampler:
         self.use_pool = use_pool  # provided flags for when to use the pool
         self.use_pool_ptform = use_pool.get('prior_transform', True)
         self.use_pool_logl = use_pool.get('loglikelihood', True)
-        self.use_pool_evolve = use_pool.get('propose_point', True)
-        self.use_pool_update = use_pool.get('update_bound', True)
         self.use_pool_stopfn = use_pool.get('stop_function', True)
 
         # sampling details
@@ -653,26 +638,19 @@ class DynamicSampler:
         # whether the bounds of the base run and of all the batches
         # were saved
         self.save_bounds = True
-        self.eff = 1.  # sampling efficiency
         self.nlive0 = nlive0
-        self.internal_state = DynamicSamplerStatesEnum.INIT
 
-        self.saved_run = RunRecord(dynamic=True)
-        self.base_run = RunRecord(dynamic=True)
-        self.new_run = None
-
-        self.new_logl_min, self.new_logl_max = -np.inf, np.inf
-        # logl bounds of latest "new" run
-
+        # the combined run as a dictionary of arrays (None until the
+        # base run is finished)
+        self.saved_run = None
         self.logvol_init = 0.
         # initial log-volume estimate of the combined run; updated
         # in combine_runs() when a prior-sampled batch is merged in
-        self.new_logvol_init = 0.
-        # initial log-volume estimate of the latest "new" run
 
-        # these are set-up during sampling
-        self.nlive_init = None
+        # the sampler of the latest batch (None if there is no batch
+        # waiting to be combined) and its logl bounds
         self.batch_sampler = None
+        self.new_logl_min, self.new_logl_max = -np.inf, np.inf
         # the reason why we need a global object is to
         # preserve the timer betweeen batch calls
         self.checkpoint_timer = None
@@ -766,16 +744,17 @@ class DynamicSampler:
             cite=self.cite)
 
     @property
+    def eff(self):
+        """Overall sampling efficiency in percent."""
+        return 100. * (self.it - 1) / max(self.ncall, 1)
+
+    @property
     def results(self):
         """Saved results from the dynamic nested sampling run. All saved
         bounds are also returned."""
-        d = {}
-        for k in [
-                'nc', 'v', 'id', 'batch', 'it', 'u', 'n', 'logwt', 'logl',
-                'logvol', 'logz', 'h', 'batch_nlive', 'batch_logl_bounds',
-                'blob', 'proposal_stats'
-        ]:
-            d[k] = np.array(self.saved_run[k])
+        d = dict(self.saved_run)
+        for k in ['batch_nlive', 'batch_logl_bounds']:
+            d[k] = np.array(d[k])
         # saved_run has no running ln(Z) variance, it is computed here
         logzvar = compute_integrals(logl=d['logl'],
                                     logvol=d['logvol'],
@@ -796,15 +775,13 @@ class DynamicSampler:
                 results.append((k, d[k]))
             results.append(('logzerr', np.sqrt(logzvar)))
             results.append(('information', d['h']))
-        results.append(('scale', np.array(self.saved_run['scale'])))
+        results.append(('scale', d['scale']))
 
         # Add any saved bounds (and ancillary quantities) to the results.
         if self.save_bounds:
             results.append(('bound', copy.deepcopy(self.bound_list)))
-            results.append(
-                ('bound_iter', np.array(self.saved_run['bounditer'])))
-            results.append(
-                ('samples_bound', np.array(self.saved_run['boundidx'])))
+            results.append(('bound_iter', d['bounditer']))
+            results.append(('samples_bound', d['boundidx']))
 
         return Results(results)
 
@@ -817,6 +794,8 @@ class DynamicSampler:
         `1` if there is only one non-zero element in `wts`.
 
         """
+        if self.saved_run is None:
+            return 0
         logwt = self.saved_run['logwt']
         if len(logwt) == 0 or np.isneginf(np.max(logwt)):
             # If there are no saved weights, or its -inf return 0.
@@ -998,19 +977,14 @@ class DynamicSampler:
                  blob=self.blob,
                  use_pool_ptform=self.use_pool_ptform,
                  use_pool_logl=self.use_pool_logl)
-            self.nlive_init = len(live_points[0])
             self.ncall += init_ncalls
-
-            bounding = self.bounding
-
             if first_update is None:
                 first_update = self.first_bound_update
-
             proposer = Proposer(self.loglikelihood,
                                 self.prior_transform,
                                 self.ndim,
                                 self.sampling,
-                                bounding,
+                                self.bounding,
                                 ncdim=self.ncdim,
                                 rstate=self.rstate,
                                 pool=self.pool,
@@ -1023,127 +997,34 @@ class DynamicSampler:
             self.sampler = Sampler(proposer,
                                    LivePoints(*live_points),
                                    logvol_init=logvol_init,
+                                   ncall_init=init_ncalls,
                                    blob=self.blob)
             self.logvol_init = logvol_init
-            self.bound_list = self.sampler.proposer.bound_list
-            self.internal_state = DynamicSamplerStatesEnum.LIVEPOINTSINIT
-            # Run the sampler internally as a generator.
-        for it, results in enumerate(
-                self.sampler.sample(maxiter=maxiter,
-                                    maxcall=maxcall,
-                                    logl_max=logl_max,
-                                    dlogz=dlogz,
-                                    save_bounds=save_bounds,
-                                    resume=resume)):
-            # Grab results.
-
-            # Save our base run (which we will use later).
-            add_info = dict(id=results.worst,
-                            u=results.ustar,
-                            v=results.vstar,
-                            logl=results.loglstar,
-                            logvol=results.logvol,
-                            logwt=results.logwt,
-                            logz=results.logz,
-                            h=results.h,
-                            nc=results.nc,
-                            it=results.worst_it,
-                            n=self.nlive_init,
-                            blob=results.blob,
-                            boundidx=results.boundidx,
-                            bounditer=results.bounditer,
-                            scale=self.sampler.proposer.scale,
-                            proposal_stats=results.proposal_stats)
-
-            self.base_run.append(add_info)
-            self.saved_run.append(add_info)
-
-            # Increment relevant counters.
+        for results in self.sampler.sample(maxiter=maxiter,
+                                           maxcall=maxcall,
+                                           logl_max=logl_max,
+                                           dlogz=dlogz,
+                                           save_bounds=save_bounds,
+                                           resume=resume):
             self.ncall += results.nc
-            self.eff = 100. * self.it / self.ncall
             self.it += 1
-            self.internal_state = DynamicSamplerStatesEnum.INBASE
-            yield IteratorResult(worst=results.worst,
-                                 ustar=results.ustar,
-                                 vstar=results.vstar,
-                                 loglstar=results.loglstar,
-                                 logvol=results.logvol,
-                                 logwt=results.logwt,
-                                 logz=results.logz,
-                                 h=results.h,
-                                 nc=results.nc,
-                                 blob=results.blob,
-                                 worst_it=results.worst_it,
-                                 boundidx=results.boundidx,
-                                 bounditer=results.bounditer,
-                                 eff=self.eff,
-                                 delta_logz=results.delta_logz,
-                                 proposal_stats=results.proposal_stats)
-        self.internal_state = DynamicSamplerStatesEnum.INBASEADDLIVE
-        for it, results in enumerate(self.sampler.add_live_points()):
-            # Grab results.
-
-            add_info = dict(id=results.worst,
-                            u=results.ustar,
-                            v=results.vstar,
-                            logl=results.loglstar,
-                            logvol=results.logvol,
-                            logwt=results.logwt,
-                            logz=results.logz,
-                            h=results.h,
-                            blob=results.blob,
-                            nc=results.nc,
-                            it=results.worst_it,
-                            n=self.nlive_init - it,
-                            boundidx=results.boundidx,
-                            bounditer=results.bounditer,
-                            scale=self.sampler.proposer.scale,
-                            proposal_stats=None)
-
-            self.base_run.append(add_info)
-            self.saved_run.append(add_info)
-
-            # Increment relevant counters.
-            self.eff = 100. * self.it / self.ncall
+            yield results._replace(eff=self.eff)
+        for results in self.sampler.add_live_points():
             self.it += 1
-            yield IteratorResult(worst=results.worst,
-                                 ustar=results.ustar,
-                                 vstar=results.vstar,
-                                 loglstar=results.loglstar,
-                                 logvol=results.logvol,
-                                 logwt=results.logwt,
-                                 logz=results.logz,
-                                 h=results.h,
-                                 blob=results.blob,
-                                 nc=results.nc,
-                                 worst_it=results.worst_it,
-                                 boundidx=results.boundidx,
-                                 bounditer=results.bounditer,
-                                 eff=self.eff,
-                                 delta_logz=results.delta_logz,
-                                 proposal_stats=None)
-        new_vals = {}
-        (new_vals['logwt'], new_vals['logz'], _,
-         new_vals['h']) = compute_integrals(
-             logl=self.saved_run['logl'],
-             logvol=self.saved_run['logvol'],
-             logvol_init=self.logvol_init)
-        for curk in ['logwt', 'logz', 'h']:
-            self.saved_run[curk] = new_vals[curk].tolist()
-            self.base_run[curk] = new_vals[curk].tolist()
+            yield results._replace(eff=self.eff)
 
-        self.saved_run['batch'] = np.zeros(len(self.saved_run['id']),
-                                           dtype=int)  # batch
-
-        self.saved_run['batch_nlive'].append(self.nlive_init)  # initial nlive
-        self.saved_run['batch_logl_bounds'].append(
-            (-np.inf, np.inf))  # initial bounds
-
+        run = self.sampler.run_record()
+        run['logwt'], run['logz'], _, run['h'] = compute_integrals(
+            logl=run['logl'],
+            logvol=run['logvol'],
+            logvol_init=self.logvol_init)
+        run['batch'] = np.zeros(len(run['id']), dtype=int)
+        run['batch_nlive'] = [self.sampler.nlive]
+        run['batch_logl_bounds'] = [(-np.inf, np.inf)]
+        self.saved_run = run
         # take a copy of the list so that batches can extend it
         # without touching the base sampler
         self.bound_list = list(self.sampler.proposer.bound_list)
-
-        self.internal_state = DynamicSamplerStatesEnum.BASE_DONE
 
     def sample_batch(self,
                      dlogz=0.01,
@@ -1210,10 +1091,13 @@ class DynamicSampler:
 
         Yields
         ------
-        result : `IteratorResultShort`
-            A named tuple (`dynesty.utils.IteratorResultShort`) describing
+        result : `IteratorResult`
+            A named tuple (`dynesty.utils.IteratorResult`) describing
             the new dead point (or, at the start of the batch, a new live
-            point), with the following fields:
+            point), with the same fields as the ones yielded by
+            :meth:`sample_initial`. The `logvol`, `logwt`, `logz` and `h`
+            values are the ones of the batch run alone (`nan` for the new
+            live points). The main fields are:
 
             worst : int
                 Index of the live point with the worst likelihood. This is our
@@ -1258,267 +1142,128 @@ class DynamicSampler:
         # Initialize default values.
         maxcall = maxcall or sys.maxsize
         maxiter = maxiter or sys.maxsize
-
         nlive_new = nlive_new or self.nlive0
-
         if nlive_new <= 2 * self.ncdim:
             warnings.warn("Beware: `nlive_batch <= 2 * ndim`!")
         if not save_bounds:
             # the bound indices of all the samples can only be
             # interpreted if the bounds of every part of the run are kept
             self.save_bounds = False
-
-        # In the following code we are carefully trying to store everything
-        # in attributes of batch_sampler rather than have individual
-        # variables as otherwise we can't resume properly
         if not resume:
             update_interval = self.__get_update_interval(
                 update_interval, nlive_new)
-            (batch_sampler, ncall, niter, logl_min,
-             logl_max) = _configure_batch_sampler(
+            (self.batch_sampler, first_points, self.new_logl_min,
+             self.new_logl_max) = _configure_batch_sampler(
                  self,
                  nlive_new,
                  update_interval=update_interval,
                  logl_bounds=logl_bounds)
-            self.batch_sampler = batch_sampler
-            # the batch sampler records bound indices relative to its
-            # own bound_list; they are shifted by this offset when stored
-            # so that they index the combined list of all bounds
-            batch_sampler.bound_offset = len(self.bound_list)
+            self.ncall += self.batch_sampler.ncall
+            # maxcall/maxiter are not preserved if interrupted and resumed
+            maxcall -= self.batch_sampler.ncall
+            maxiter -= nlive_new
+            # the starting points are yielded just for printing
+            yield from first_points
+        batch_sampler = self.batch_sampler
+        logl_max = self.new_logl_max
+        # the batch sampler counts iterations and bounds from the start of
+        # the batch, we count them from the start of the whole run
+        it0 = self.it - batch_sampler.it + 1
+        bound0 = len(self.bound_list)
 
-            self.new_logl_min, self.new_logl_max = logl_min, logl_max
-            # Reset "new" results.
-            self.new_run = RunRecord(dynamic=True)
-            self.ncall += ncall
-            batch_sampler.it0 = self.it
-            it0 = self.it
-            # The tricky thing here is that we have here two sets of
-            # iterations.
-            # We have iterations of the batch_sampler and a parent
-            # sampler and we need to make sure we translate one to another
-            maxcall_left = maxcall - ncall
-            maxiter_left = maxiter - niter
-        else:
-            batch_sampler = self.batch_sampler
-            it0 = batch_sampler.it0
-            logl_min, logl_max = self.new_logl_min, self.new_logl_max
-            maxcall_left = maxcall
-            maxiter_left = maxiter
-            # I have decided that maxcall/maxiter_left will not be preserved
-            # if interrupted and resumed
+        def shift(res):
+            return res._replace(worst_it=res.worst_it + it0,
+                                boundidx=res.boundidx + bound0,
+                                bounditer=res.bounditer + bound0,
+                                eff=self.eff)
 
-        for _ in range(len(batch_sampler.first_points)):
-            yield batch_sampler.first_points.pop(0)
-            # these yields are just for printing
-            # we are not actually storing those in new_run
-            # because we're not sampling yet, we've just
-            # set up nlive_new points above our logl_min boundary
-            # The reason why I'm popping the items is to ensure if we
-            # are interrupted and then resume we don't start again
-
-        iterated_batch = False
-        # To identify if the loop below was executed or not
-
-        for it, results in enumerate(
-                batch_sampler.sample(dlogz=dlogz,
-                                     logl_max=logl_max,
-                                     maxiter=maxiter_left,
-                                     maxcall=maxcall_left,
-                                     save_bounds=save_bounds,
-                                     resume=resume)):
-            # Save results.
-            D = dict(id=results.worst,
-                     u=results.ustar,
-                     v=results.vstar,
-                     logl=results.loglstar,
-                     nc=results.nc,
-                     it=results.worst_it + it0,
-                     blob=results.blob,
-                     n=nlive_new,
-                     boundidx=results.boundidx + batch_sampler.bound_offset,
-                     bounditer=results.bounditer + batch_sampler.bound_offset,
-                     scale=batch_sampler.proposer.scale,
-                     proposal_stats=results.proposal_stats)
-            self.new_run.append(D)
-            # Increment relevant counters.
+        results = None
+        for results in batch_sampler.sample(dlogz=dlogz,
+                                            logl_max=logl_max,
+                                            maxiter=maxiter,
+                                            maxcall=maxcall,
+                                            save_bounds=save_bounds,
+                                            resume=resume):
             self.ncall += results.nc
-            self.eff = 100. * self.it / self.ncall
             self.it += 1
-            maxiter_left -= 1
-            maxcall_left -= results.nc
-            iterated_batch = True
-            self.internal_state = DynamicSamplerStatesEnum.INBATCH
-
-            # These yields will be just for printing
-            yield IteratorResultShort(worst=results.worst,
-                                      ustar=results.ustar,
-                                      vstar=results.vstar,
-                                      loglstar=results.loglstar,
-                                      nc=results.nc,
-                                      worst_it=results.worst_it + it0,
-                                      boundidx=results.boundidx +
-                                      batch_sampler.bound_offset,
-                                      bounditer=results.bounditer +
-                                      batch_sampler.bound_offset,
-                                      eff=self.eff,
-                                      delta_logz=results.delta_logz,
-                                      proposal_stats=results.proposal_stats)
-        if iterated_batch and results.loglstar < logl_max and np.isfinite(
-                logl_max) and maxiter_left > 0 and maxcall_left > 0:
+            maxiter -= 1
+            maxcall -= results.nc
+            yield shift(results)
+        if (results is not None and results.loglstar < logl_max
+                and np.isfinite(logl_max) and maxiter > 0 and maxcall > 0):
             warnings.warn('Warning. The maximum likelihood not reached '
                           'in the batch. '
                           'You may not have enough livepoints and/or have '
                           'highly multi-modal distribution')
-        self.internal_state = DynamicSamplerStatesEnum.INBATCHADDLIVE
-
-        for it, results in enumerate(batch_sampler.add_live_points()):
-            # Save results.
-            D = dict(id=results.worst,
-                     u=results.ustar,
-                     v=results.vstar,
-                     logl=results.loglstar,
-                     nc=results.nc,
-                     it=results.worst_it + it0,
-                     n=nlive_new - it,
-                     blob=results.blob,
-                     boundidx=results.boundidx + batch_sampler.bound_offset,
-                     bounditer=results.bounditer + batch_sampler.bound_offset,
-                     scale=batch_sampler.proposer.scale,
-                     proposal_stats=None)
-            self.new_run.append(D)
-
-            # Increment relevant counters.
-            self.eff = 100. * self.it / self.ncall
+        for results in batch_sampler.add_live_points():
             self.it += 1
-            # These yields will be just for printing
-            yield IteratorResultShort(worst=results.worst,
-                                      ustar=results.ustar,
-                                      vstar=results.vstar,
-                                      loglstar=results.loglstar,
-                                      nc=results.nc,
-                                      worst_it=results.worst_it + it0,
-                                      boundidx=results.boundidx +
-                                      batch_sampler.bound_offset,
-                                      bounditer=results.bounditer +
-                                      batch_sampler.bound_offset,
-                                      eff=self.eff,
-                                      delta_logz=np.nan,
-                                      proposal_stats=None)
-        self.new_logvol_init = batch_sampler.logvol_init
-        if batch_sampler.proposer.save_bounds:
-            self.bound_list.extend(batch_sampler.proposer.bound_list)
-        del self.batch_sampler
-        self.batch_sampler = None
+            yield shift(results)
 
     def combine_runs(self):
-        """ Merge the most recent run into the previous (combined) run by
+        """ Merge the most recent batch into the previous (combined) run by
         "stepping through" both runs simultaneously."""
 
         # Make sure we have a run to add.
-        if len(self.new_run['id']) == 0:
+        if self.batch_sampler is None:
             raise ValueError("No new samples are currently saved.")
-
-        # Grab results from saved run.
-        saved_d = {}
-        new_d = {}
-
-        for k in [
-                'id', 'u', 'v', 'logl', 'nc', 'boundidx', 'it', 'bounditer',
-                'n', 'scale', 'blob', 'logvol', 'proposal_stats'
-        ]:
-            saved_d[k] = np.array(self.saved_run[k])
-            new_d[k] = np.array(self.new_run[k])
-
-        saved_d['batch'] = np.array(self.saved_run['batch'])
-        nsaved = len(saved_d['n'])
-
-        new_d['id'] = new_d['id'] + max(saved_d['id']) + 1
-        nnew = len(new_d['n'])
+        batch_sampler = self.batch_sampler
+        saved_d, new_d = self.saved_run, batch_sampler.run_record()
+        nsaved, nnew = len(saved_d['logl']), len(new_d['logl'])
         llmin, llmax = self.new_logl_min, self.new_logl_max
 
-        old_batch_logl_bounds = self.saved_run['batch_logl_bounds']
-        old_batch_nlive = self.saved_run['batch_nlive']
-        # Reset saved results.
-        del self.saved_run
-        self.saved_run = RunRecord(dynamic=True)
+        # the batch counts its iterations and bounds from its start;
+        # its points are the latest iterations of the whole run
+        new_d['it'] += self.it - nnew
+        new_d['boundidx'] += len(self.bound_list)
+        new_d['bounditer'] += len(self.bound_list)
+        if batch_sampler.proposer.save_bounds:
+            self.bound_list.extend(batch_sampler.proposer.bound_list)
+        new_d['id'] += saved_d['id'].max() + 1
+        new_d['batch'] = np.full(nnew, self.batch + 1)
 
-        # Start our counters at the beginning of each set of dead points.
-        idx_saved, idx_new = 0, 0  # start of our dead points
-        logl_s, logl_n = saved_d['logl'][idx_saved], new_d['logl'][idx_new]
-        nlive_s, nlive_n = saved_d['n'][idx_saved], new_d['n'][idx_new]
-
-        # Iteratively walk through both set of samples to simulate
-        # a combined run.
-        ntot = nsaved + nnew
-        for _ in range(ntot):
-            if logl_s > self.new_logl_min:
-                # If our saved samples are past the lower log-likelihood
-                # bound, both runs are now "active" and should be used.
-                nlive = nlive_s + nlive_n
-            else:
-                # If instead our collection of dead points are below
-                # the bound, just use our collection of saved samples.
-                nlive = nlive_s
-            add_info = {}
-
-            # Increment our position along depending on
-            # which dead point (saved or new) is worse.
-            if logl_s <= logl_n:
-                add_info['batch'] = saved_d['batch'][idx_saved]
-                add_source = saved_d
-                add_idx = int(idx_saved)
-                idx_saved += 1
-            else:
-                add_info['batch'] = self.batch + 1
-                add_source = new_d
-                add_idx = int(idx_new)
-                idx_new += 1
-
+        # Both runs are sorted in logl, so we merge them (the saved point
+        # first if the logl are equal). At each step the number of live
+        # points is the one of the next saved point plus the one of the
+        # next new point if the saved run is above the batch lower bound.
+        order = np.argsort(np.concatenate([saved_d['logl'], new_d['logl']]),
+                           kind='stable')
+        is_new = (np.arange(nsaved + nnew) >= nsaved)[order]
+        next_saved = np.cumsum(~is_new) - ~is_new
+        next_new = np.cumsum(is_new) - is_new
+        logl_s = np.append(saved_d['logl'], np.inf)[next_saved]
+        nlive = (np.append(saved_d['n'], 0)[next_saved] +
+                 np.where(logl_s > llmin,
+                          np.append(new_d['n'], 0)[next_new], 0))
+        run = {
+            k: np.concatenate([saved_d[k], new_d[k]])[order]
             for k in [
-                    'id', 'u', 'v', 'logl', 'nc', 'boundidx', 'it',
-                    'bounditer', 'scale', 'blob', 'proposal_stats'
-            ]:
-                add_info[k] = add_source[k][add_idx]
-            self.saved_run.append(add_info)
-            self.saved_run['n'].append(nlive)
+                'id', 'u', 'v', 'logl', 'nc', 'boundidx', 'it', 'bounditer',
+                'scale', 'blob', 'proposal_stats', 'batch'
+            ]
+        }
+        run['n'] = nlive
 
-            # Attempt to step along our samples. If we're out of samples,
-            # set values to defaults.
-            try:
-                logl_s = saved_d['logl'][idx_saved]
-                nlive_s = saved_d['n'][idx_saved]
-            except IndexError:
-                logl_s = np.inf
-                nlive_s = 0
-            try:
-                logl_n = new_d['logl'][idx_new]
-                nlive_n = new_d['n'][idx_new]
-            except IndexError:
-                logl_n = np.inf
-                nlive_n = 0
-
-        if self.new_logl_min == -np.inf:
+        if llmin == -np.inf:
             # The new batch was sampled from the whole prior, so its
             # initial volume estimate is combined with the current one
             # in the same way as _merge_two() merges independent runs,
             # weighting by the numbers of prior-sampled live points.
-            nlive_prior = sum(n for n, b in zip(old_batch_nlive,
-                                                old_batch_logl_bounds)
+            nlive_prior = sum(n for n, b in zip(saved_d['batch_nlive'],
+                                                saved_d['batch_logl_bounds'])
                               if b[0] == -np.inf)
             self.logvol_init = _combine_logvol_inits(
-                [self.logvol_init, self.new_logvol_init],
-                [nlive_prior, max(new_d['n'])])
+                [self.logvol_init, batch_sampler.logvol_init],
+                [nlive_prior, batch_sampler.nlive])
 
         plateau_mode = False
         plateau_counter = 0
         plateau_logdvol = 0
         logvol = self.logvol_init
-        logl_array = np.array(self.saved_run['logl'])
-        nlive_array = np.array(self.saved_run['n'])
-
-        for i, (cur_logl, nlive) in enumerate(zip(logl_array, nlive_array)):
+        logl_array = run['logl']
+        logvols = []
+        for i, (cur_logl, nlive) in enumerate(zip(logl_array, run['n'])):
             # Save the number of live points and expected ln(volume).
-            if (not plateau_mode and i != len(nlive_array) - 1
+            if (not plateau_mode and i != len(logl_array) - 1
                     and logl_array[i] == logl_array[i + 1]):
                 plateau_mask = logl_array[i:] == cur_logl
                 nplateau = plateau_mask.sum()
@@ -1534,38 +1279,26 @@ class DynamicSampler:
                 logvol -= math.log((nlive + 1.) / nlive)
             else:
                 logvol = logvol + np.log1p(-np.exp(plateau_logdvol - logvol))
-            self.saved_run['logvol'].append(logvol)
+            logvols.append(logvol)
             if plateau_mode:
                 plateau_counter -= 1
                 if plateau_counter == 0:
                     plateau_mode = False
-        # ensure that we correctly merged
-
-        assert self.saved_run['logl'][0] == min(new_d['logl'][0],
-                                                saved_d['logl'][0])
-        assert self.saved_run['logl'][-1] == max(new_d['logl'][-1],
-                                                 saved_d['logl'][-1])
-
-        new_logwt, new_logz, _, new_h = compute_integrals(
-            logl=self.saved_run['logl'],
-            logvol=self.saved_run['logvol'],
+        run['logvol'] = np.array(logvols)
+        run['logwt'], run['logz'], _, run['h'] = compute_integrals(
+            logl=run['logl'],
+            logvol=run['logvol'],
             logvol_init=self.logvol_init)
-        self.saved_run['logwt'].extend(new_logwt.tolist())
-        self.saved_run['logz'].extend(new_logz.tolist())
-        self.saved_run['h'].extend(new_h.tolist())
+        run['batch_nlive'] = saved_d['batch_nlive'] + [batch_sampler.nlive]
+        run['batch_logl_bounds'] = saved_d['batch_logl_bounds'] + [
+            (llmin, llmax)
+        ]
+        self.saved_run = run
 
-        # Reset results.
-        self.new_run = None
-        self.new_logvol_init = 0.
+        # Reset the batch and increment the batch counter.
+        self.batch_sampler = None
         self.new_logl_min, self.new_logl_max = -np.inf, np.inf
-
-        # Increment batch counter.
         self.batch += 1
-
-        # Saved batch quantities.
-        self.saved_run['batch_nlive'] = old_batch_nlive + [(max(new_d['n']))]
-        self.saved_run['batch_logl_bounds'] = old_batch_logl_bounds + [(
-            (llmin, llmax))]
 
     def run_nested(self,
                    nlive_init=None,
@@ -1775,18 +1508,18 @@ class DynamicSampler:
         # * resuming interrupted run
         # * starting a new run from fresh object
         # * running longer after the previously finished run (i.e. add batches)
+        # The run is interrupted if the base run or a batch is not finished.
+        interrupted = self.sampler is not None and (
+            self.saved_run is None or self.batch_sampler is not None)
         if resume:
-            if self.internal_state == DynamicSamplerStatesEnum.RUN_DONE:
+            if not interrupted:
                 warnings.warn(
                     "You tried to resume the run that has ended successfully."
                     "This is not supported. No sampling was performed",
                     RuntimeWarning)
                 return
         else:
-            if self.internal_state not in [
-                    DynamicSamplerStatesEnum.INIT,
-                    DynamicSamplerStatesEnum.RUN_DONE
-            ]:
+            if interrupted:
                 warnings.warn(
                     "You tried to run_nested() again from unclear sampler "
                     "state. This is not supported. "
@@ -1799,14 +1532,7 @@ class DynamicSampler:
                                           initial=self.it - 1)
         self.checkpoint_timer = DelayTimer(checkpoint_every)
         try:
-            # the init should be the first default stage, all other ones
-            # are possible if we are resuming
-            if self.internal_state in [
-                    DynamicSamplerStatesEnum.INIT,
-                    DynamicSamplerStatesEnum.LIVEPOINTSINIT,
-                    DynamicSamplerStatesEnum.INBASE,
-                    DynamicSamplerStatesEnum.INBASEADDLIVE,
-            ]:
+            if self.saved_run is None:
                 for results in self.sample_initial(nlive=nlive_init,
                                                    dlogz=dlogz_init,
                                                    save_bounds=save_bounds,
@@ -1819,8 +1545,9 @@ class DynamicSampler:
                         resume = False
                     ncall += results.nc
                     niter += 1
-                    if (checkpoint_file is not None and self.internal_state
-                            != DynamicSamplerStatesEnum.INBASEADDLIVE
+                    # no checkpoints while adding the final live points
+                    if (checkpoint_file is not None
+                            and not self.sampler.added_live
                             and self.checkpoint_timer.is_time()):
                         self.save(checkpoint_file)
                     # Print progress.
@@ -1886,7 +1613,6 @@ class DynamicSampler:
                 else:
                     # We didn't run a single batch but now we're done!
                     break
-            self.internal_state = DynamicSamplerStatesEnum.RUN_DONE
             if checkpoint_file is not None:
                 # In the very end I save the checkpoint no matter
                 # the timing
@@ -2074,24 +1800,7 @@ class DynamicSampler:
                         ncall += cur_results.nc
                         niter += 1
 
-                    # Reorganize results.
-                    results = IteratorResult(
-                        worst=cur_results.worst,
-                        ustar=cur_results.ustar,
-                        vstar=cur_results.vstar,
-                        loglstar=cur_results.loglstar,
-                        blob=None,
-                        logvol=np.nan,
-                        logwt=np.nan,
-                        logz=logz,
-                        h=np.nan,
-                        nc=cur_results.nc,
-                        worst_it=cur_results.worst_it,
-                        boundidx=cur_results.boundidx,
-                        bounditer=cur_results.bounditer,
-                        eff=cur_results.eff,
-                        delta_logz=cur_results.delta_logz,
-                        proposal_stats=cur_results.proposal_stats)
+                    results = cur_results._replace(logz=logz)
 
                     # Print progress.
                     if print_progress:
@@ -2103,14 +1812,10 @@ class DynamicSampler:
                                    stop_val=stop_val,
                                    logl_min=logl_min,
                                    logl_max=logl_max)
-                    if (checkpoint_file is not None and self.internal_state
-                            != DynamicSamplerStatesEnum.INBATCHADDLIVE
-                            and self.internal_state
-                            != DynamicSamplerStatesEnum.BATCH_DONE
+                    # no checkpoints while adding the final live points
+                    if (checkpoint_file is not None
+                            and not self.batch_sampler.added_live
                             and timer.is_time()):
-                        # we do not save the state if we are finishing the
-                        # batch run and we are just adding live-points in
-                        # the end
                         self.save(checkpoint_file)
             finally:
                 if pbar is not None:
@@ -2120,7 +1825,6 @@ class DynamicSampler:
             # Combine batch with previous runs.
             self.combine_runs()
             # Pass back info.
-            self.internal_state = DynamicSamplerStatesEnum.BATCH_DONE
             return ncall, niter, logl_bounds, results
         else:
             raise RuntimeError(

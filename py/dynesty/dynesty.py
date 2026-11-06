@@ -14,7 +14,8 @@ import numpy as np
 from .internal_samplers import (INTERNAL_SAMPLER_LIST, InternalSampler,
                                 RSliceSampler, UniformBoundSampler,
                                 RWalkSampler, SliceSampler)
-from .sampler import Sampler, _initialize_live_points
+from .sampler import (Sampler, Proposer, LivePoints,
+                      _initialize_live_points)
 from .bounding import BOUND_LIST
 from . import bounding
 from .dynamicsampler import DynamicSampler
@@ -207,6 +208,11 @@ def _check_first_update(first_update):
     for k in first_update.keys():
         if k not in ['min_ncall', 'min_eff']:
             raise ValueError('Unrecognized keywords in first_update')
+    if 'min_ncall' in first_update:
+        warnings.warn(
+            "first_update['min_ncall'] is no longer used: the unit cube "
+            "is sampled until its expected efficiency falls below "
+            "first_update['min_eff']", DeprecationWarning)
 
 
 def _get_update_interval_ratio(update_interval, sample, nlive):
@@ -322,14 +328,13 @@ optional
             `ndim * slices` for `'slice'`, `slices` for `'rslice'`.
 
         first_update : dict, optional
-            A dictionary containing parameters governing when the sampler
-            should
-            first update the bounding distribution from the unit cube
-            (`'none'`)
-            to the one specified by `bound`. Options are the minimum number of
-            likelihood calls (`'min_ncall'`) and the minimum allowed overall
-            efficiency in percent (`'min_eff'`). Defaults are `2 * nlive` and
-            `10.`, respectively.
+            A dictionary governing when the sampler stops sampling from the
+            unit cube and starts using the bound specified by `bound`.
+            Sampling the unit cube accepts a fraction exp(logvol) of the
+            proposals, where logvol is the log of the prior volume above the
+            current likelihood threshold, so the switch happens once that
+            expected efficiency falls below `'min_eff'` percent. The default
+            is `3.`. The `'min_ncall'` option is no longer used.
 
         rstate : `~numpy.random.Generator`, optional
             `~numpy.random.Generator` instance. If not given, a new
@@ -695,27 +700,26 @@ class NestedSampler(Sampler):
             use_pool_logl=params['use_pool'].get('loglikelihood', True))
 
         # Initialize our nested sampler.
-        sampler = super().__new__(Sampler)
-        sampler.__init__(params['loglikelihood_wrap'],
-                         params['prior_transform_wrap'],
-                         ndim,
-                         live_points,
-                         params['sample'],
-                         bound,
-                         ncdim=params['ncdim'],
-                         rstate=params['rstate'],
-                         pool=params['pool'],
-                         use_pool=params['use_pool'],
-                         queue_size=params['queue_size'],
-                         bound_update_interval=update_interval,
-                         first_bound_update=params['first_bound_update'],
-                         bound_bootstrap=params['bound_bootstrap'],
-                         bound_enlarge=params['bound_enlarge'],
-                         cite=params['cite'],
-                         blob=blob,
-                         logvol_init=logvol_init)
-        sampler.ncall = init_ncalls
-        return sampler
+        proposer = Proposer(params['loglikelihood_wrap'],
+                            params['prior_transform_wrap'],
+                            ndim,
+                            params['sample'],
+                            bound,
+                            ncdim=params['ncdim'],
+                            rstate=params['rstate'],
+                            pool=params['pool'],
+                            use_pool=params['use_pool'],
+                            queue_size=params['queue_size'],
+                            bound_update_interval=update_interval,
+                            first_update=params['first_bound_update'],
+                            bound_bootstrap=params['bound_bootstrap'],
+                            bound_enlarge=params['bound_enlarge'])
+        return Sampler(proposer,
+                       LivePoints(*live_points),
+                       logvol_init=logvol_init,
+                       ncall_init=init_ncalls,
+                       blob=blob,
+                       cite=params['cite'])
 
 
 NestedSampler.__new__.__doc__ = _assemble_sampler_docstring(False)

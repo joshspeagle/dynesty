@@ -118,25 +118,27 @@ def test_periodic_proposal(sampler, bound):
                                periodic=[0],
                                enlarge=2.,
                                rstate=rstate)
-    ns.live_u[:] = live_u
-    ns.update_bound_if_needed(-np.inf, force=True)
+    proposer = ns.proposer
+    ns.live.u[:] = live_u
+    proposer.switch_to_bound(-np.inf, ns.live)
     # the edge of the unwrapping window must sit in the gap opposite to
     # the cluster, making the cluster contiguous
-    assert abs(ns.bound.lo[0] - 0.5) < rx
+    assert abs(proposer.bound.lo[0] - 0.5) < rx
     if bound == 'multi':
-        assert ns.bound.bound.nells == 1
+        assert proposer.bound.bound.nells == 1
 
     # starting points and axes as the nested sampler would provide them
-    points, axes = zip(*[ns.propose_live() for i in range(ndraws)])
-    args = ns.internal_sampler.prepare_sampler(
+    points, axes = zip(
+        *[proposer.propose_live(-np.inf, ns.live) for i in range(ndraws)])
+    args = proposer.internal_sampler.prepare_sampler(
         loglstar=loglstar,
         points=points,
         axes=axes,
         seeds=rstate.integers(0, 2**31, ndraws),
         prior_transform=prior_transform_unit,
         loglikelihood=loglike_boundary,
-        nested_sampler=ns)
-    us = np.array([ns.internal_sampler.sample(a).u for a in args])
+        nested_sampler=proposer)
+    us = np.array([proposer.internal_sampler.sample(a).u for a in args])
     # returned unit-cube coordinates must be inside the unit cube
     assert np.all((us >= 0) & (us < 1))
     # and uniform within the constrained disk

@@ -253,7 +253,7 @@ def test_auto_walks_slices(ndim, kw, typ, key, value):
                                     rstate=rstate,
                                     **kw)
     # the configured sampler is used after the first bound update
-    internal_sampler = sampler.internal_sampler_next
+    internal_sampler = sampler.proposer.internal_sampler
     assert isinstance(internal_sampler, typ)
     assert internal_sampler.sampler_kwargs[key] == value
 

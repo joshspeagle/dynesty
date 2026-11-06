@@ -17,7 +17,8 @@ import math
 import copy
 from enum import Enum
 import numpy as np
-from .sampler import Sampler, _initialize_live_points
+from .sampler import (Sampler, Proposer, LivePoints,
+                      _initialize_live_points)
 from .results import Results
 from .utils import (get_seed_sequence, get_print_func, _kld_error,
                     compute_integrals, IteratorResult, IteratorResultShort,
@@ -395,12 +396,14 @@ def _configure_batch_sampler(main_sampler,
             blob=main_sampler.blob,
             use_pool_ptform=main_sampler.use_pool_ptform,
             use_pool_logl=main_sampler.use_pool_logl)
+        live = LivePoints(*live_points)
         live_nc = np.ones(nlive_new, dtype=int)
         live_proposal_stats = [None] * nlive_new
-        batch_sampler = base_sampler.spawn(
-            live_points,
+        batch_sampler = Sampler(
+            base_sampler.proposer.copy(bound_update_interval=update_interval),
+            live,
             logvol_init=logvol0,
-            bound_update_interval=update_interval)
+            blob=main_sampler.blob)
     else:
         # If the lower bound doesn't encompass all base samples,
         # we need to create a uniform sample from the prior subject
@@ -465,42 +468,48 @@ def _configure_batch_sampler(main_sampler,
                                f'Diagnostics nlive_new: {nlive_new} ' +
                                f'n_pos_weight: {n_pos_weight}' +
                                f'cur_wt: {cur_uniwt}')
+        # The prior volume above logl_min
+        if subset0[0] > 0:
+            logvol0 = saved_logvol[subset0[0] - 1]
+        else:
+            logvol0 = main_sampler.logvol_init
         # The selected saved points are only roughly uniform above
-        # logl_min, so we use them to draw nlive_new new points
-        # with the scale used at the lowest of them
-        draw_sampler = base_sampler.spawn(
-            [
-                saved_u[subset], saved_v[subset], saved_logl[subset],
-                saved_blobs[subset]
-            ],
-            loglstar=logl_min,
+        # logl_min, so we use them as the reference points to draw
+        # nlive_new new points, starting with the scale used at the lowest
+        # of them. The batch then continues with the same proposer.
+        proposer = base_sampler.proposer.copy(
             scale=saved_scale[subset0[0]],
             bound_update_interval=update_interval)
+        reference = LivePoints(saved_u[subset], saved_v[subset],
+                               saved_logl[subset], saved_blobs[subset])
         new_points = [
-            draw_sampler._new_point(logl_min) for _ in range(nlive_new)
+            proposer.draw(logl_min, reference, logvol0)
+            for _ in range(nlive_new)
         ]
-        live_u, live_v, live_logl, live_nc, live_proposal_stats = map(
-            list, zip(*new_points))
-        live_blobs = [_.blob for _ in live_logl] if main_sampler.blob else None
+        (live_u, live_v, live_logl, live_nc, live_proposal_stats,
+         live_bound) = map(list, zip(*new_points))
+        live = LivePoints(
+            np.array(live_u),
+            np.array(live_v),
+            np.array(live_logl, dtype=float),
+            [_.blob for _ in live_logl] if main_sampler.blob else None,
+            bound=np.array(live_bound))
         ncall = sum(live_nc)
-        batch_sampler = draw_sampler.spawn(
-            [
-                np.array(live_u),
-                np.array(live_v),
-                np.array(live_logl, dtype=float), live_blobs
-            ],
-            loglstar=logl_min)
+        batch_sampler = Sampler(proposer,
+                                live,
+                                logvol_init=logvol0,
+                                blob=main_sampler.blob)
 
     # These points are yielded just for printing
     batch_sampler.first_points = [
         IteratorResultShort(worst=-i - 1,
-                            ustar=batch_sampler.live_u[i],
-                            vstar=batch_sampler.live_v[i],
-                            loglstar=batch_sampler.live_logl[i],
+                            ustar=live.u[i],
+                            vstar=live.v[i],
+                            loglstar=live.logl[i],
                             nc=live_nc[i],
                             worst_it=main_sampler.it,
-                            boundidx=batch_sampler.live_bound[i],
-                            bounditer=batch_sampler.live_bound[i],
+                            boundidx=live.bound[i],
+                            bounditer=live.bound[i],
                             eff=main_sampler.eff,
                             delta_logz=np.nan,
                             proposal_stats=live_proposal_stats[i])
@@ -662,18 +671,11 @@ class DynamicSampler:
         # initial log-volume estimate of the latest "new" run
 
         # these are set-up during sampling
-        self.live_u = None
-        self.live_v = None
-        self.live_it = None
-        self.live_bound = None
-        self.live_logl = None
-        self.live_init = None
         self.nlive_init = None
         self.batch_sampler = None
-        self.checkpoint_timer = None
         # the reason why we need a global object is to
         # preserve the timer betweeen batch calls
-        self.live_blobs = None
+        self.checkpoint_timer = None
 
         self.cite = cite
 
@@ -985,8 +987,7 @@ class DynamicSampler:
         self.save_bounds = save_bounds
 
         if not resume:
-            (self.live_u, self.live_v, self.live_logl,
-             blobs), logvol_init, init_ncalls = _initialize_live_points(
+            live_points, logvol_init, init_ncalls = _initialize_live_points(
                  live_points,
                  self.prior_transform,
                  self.loglikelihood,
@@ -997,45 +998,34 @@ class DynamicSampler:
                  blob=self.blob,
                  use_pool_ptform=self.use_pool_ptform,
                  use_pool_logl=self.use_pool_logl)
-            if self.blob:
-                self.live_blobs = blobs
-            else:
-                self.live_blobs = None
-            self.nlive_init = len(self.live_u)
-
-            # (Re-)bundle live points.
-            live_points = [
-                self.live_u, self.live_v, self.live_logl, self.live_blobs
-            ]
-            self.live_init = [np.array(_) for _ in live_points]
+            self.nlive_init = len(live_points[0])
             self.ncall += init_ncalls
-            self.live_bound = np.zeros(self.nlive_init, dtype=int)
-            self.live_it = np.zeros(self.nlive_init, dtype=int)
 
             bounding = self.bounding
 
             if first_update is None:
                 first_update = self.first_bound_update
 
-            self.sampler = Sampler(self.loglikelihood,
-                                   self.prior_transform,
-                                   self.ndim,
-                                   self.live_init,
-                                   self.sampling,
-                                   bounding,
-                                   bound_update_interval=update_interval,
-                                   first_bound_update=first_update,
-                                   rstate=self.rstate,
-                                   queue_size=self.queue_size,
-                                   pool=self.pool,
-                                   use_pool=self.use_pool,
-                                   ncdim=self.ncdim,
-                                   bound_bootstrap=self.bound_bootstrap,
-                                   bound_enlarge=self.bound_enlarge,
-                                   blob=self.blob,
-                                   logvol_init=logvol_init)
+            proposer = Proposer(self.loglikelihood,
+                                self.prior_transform,
+                                self.ndim,
+                                self.sampling,
+                                bounding,
+                                ncdim=self.ncdim,
+                                rstate=self.rstate,
+                                pool=self.pool,
+                                use_pool=self.use_pool,
+                                queue_size=self.queue_size,
+                                bound_update_interval=update_interval,
+                                first_update=first_update,
+                                bound_bootstrap=self.bound_bootstrap,
+                                bound_enlarge=self.bound_enlarge)
+            self.sampler = Sampler(proposer,
+                                   LivePoints(*live_points),
+                                   logvol_init=logvol_init,
+                                   blob=self.blob)
             self.logvol_init = logvol_init
-            self.bound_list = self.sampler.bound_list
+            self.bound_list = self.sampler.proposer.bound_list
             self.internal_state = DynamicSamplerStatesEnum.LIVEPOINTSINIT
             # Run the sampler internally as a generator.
         for it, results in enumerate(
@@ -1062,7 +1052,7 @@ class DynamicSampler:
                             blob=results.blob,
                             boundidx=results.boundidx,
                             bounditer=results.bounditer,
-                            scale=self.sampler.internal_sampler.scale,
+                            scale=self.sampler.proposer.scale,
                             proposal_stats=results.proposal_stats)
 
             self.base_run.append(add_info)
@@ -1107,7 +1097,7 @@ class DynamicSampler:
                             n=self.nlive_init - it,
                             boundidx=results.boundidx,
                             bounditer=results.bounditer,
-                            scale=self.sampler.internal_sampler.scale,
+                            scale=self.sampler.proposer.scale,
                             proposal_stats=None)
 
             self.base_run.append(add_info)
@@ -1151,7 +1141,7 @@ class DynamicSampler:
 
         # take a copy of the list so that batches can extend it
         # without touching the base sampler
-        self.bound_list = list(self.sampler.bound_list)
+        self.bound_list = list(self.sampler.proposer.bound_list)
 
         self.internal_state = DynamicSamplerStatesEnum.BASE_DONE
 
@@ -1347,7 +1337,7 @@ class DynamicSampler:
                      n=nlive_new,
                      boundidx=results.boundidx + batch_sampler.bound_offset,
                      bounditer=results.bounditer + batch_sampler.bound_offset,
-                     scale=batch_sampler.internal_sampler.scale,
+                     scale=batch_sampler.proposer.scale,
                      proposal_stats=results.proposal_stats)
             self.new_run.append(D)
             # Increment relevant counters.
@@ -1381,13 +1371,6 @@ class DynamicSampler:
                           'highly multi-modal distribution')
         self.internal_state = DynamicSamplerStatesEnum.INBATCHADDLIVE
 
-        if not iterated_batch and len(batch_sampler.saved_run['logl']) == 0:
-            # This is a special case *if* we only sampled the initial
-            # livepoints but never did sample after
-            batch_sampler.saved_run['logvol'] = [-np.inf]
-            batch_sampler.saved_run['logl'] = [logl_min]
-            batch_sampler.saved_run['logz'] = [-1e100]
-            batch_sampler.saved_run['h'] = [0]
         for it, results in enumerate(batch_sampler.add_live_points()):
             # Save results.
             D = dict(id=results.worst,
@@ -1400,7 +1383,7 @@ class DynamicSampler:
                      blob=results.blob,
                      boundidx=results.boundidx + batch_sampler.bound_offset,
                      bounditer=results.bounditer + batch_sampler.bound_offset,
-                     scale=batch_sampler.internal_sampler.scale,
+                     scale=batch_sampler.proposer.scale,
                      proposal_stats=None)
             self.new_run.append(D)
 
@@ -1422,8 +1405,8 @@ class DynamicSampler:
                                       delta_logz=np.nan,
                                       proposal_stats=None)
         self.new_logvol_init = batch_sampler.logvol_init
-        if batch_sampler.save_bounds:
-            self.bound_list.extend(batch_sampler.bound_list)
+        if batch_sampler.proposer.save_bounds:
+            self.bound_list.extend(batch_sampler.proposer.bound_list)
         del self.batch_sampler
         self.batch_sampler = None
 

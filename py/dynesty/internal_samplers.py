@@ -126,8 +126,9 @@ class InternalSampler:
         loglikelihood : function
             Function returning ln(likelihood) given parameters as a 1-d
             `~numpy` array of length `ndim`.
-        nested_sampler : `~dynesty.sampler.Sampler`
-            The nested sampler object used to sample.
+        nested_sampler : `~dynesty.sampler.Proposer`
+            The proposer drawing the points (gives access to the bound,
+            ndim and ncdim).
 
         Returns
         -------
@@ -237,8 +238,6 @@ class UniformBoundSampler(InternalSampler):
         self.sampler_kwargs['bound'] = nested_sampler.bound
         self.sampler_kwargs['ndim'] = nested_sampler.ndim
         self.sampler_kwargs['n_cluster'] = nested_sampler.ncdim
-        if nested_sampler.bound.need_centers:
-            self.sampler_kwargs['bound'].ctrs = nested_sampler.live_u[:, :nested_sampler.ncdim]
 
         return super().prepare_sampler(loglstar=loglstar,
                                        points=points,

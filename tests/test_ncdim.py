@@ -185,7 +185,7 @@ def test_single_periodic(bound, periodic):
         # uniform sampling of the cube is too slow for a full run;
         # just make sure the sampling works after the first bound update
         dsampler.run_nested(maxiter=2000, print_progress=printing)
-        assert dsampler.nbound > 0
+        assert dsampler.proposer.nbound > 0
         return
     dsampler.run_nested(print_progress=printing)
     check_results_gau(dsampler.results, rstate, logz_tol)

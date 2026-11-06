@@ -447,9 +447,9 @@ def test_saved_bounds_distinct(bound):
     sampler.run_nested(print_progress=printing)
     res = sampler.results
     bounds = res['bound']
-    assert len(bounds) == sampler.nbound
+    assert len(bounds) == sampler.proposer.nbound
     assert len(bounds) > 3
-    assert len(set(map(id, sampler.bound_list))) == len(bounds)
+    assert len(set(map(id, sampler.proposer.bound_list))) == len(bounds)
     logvols = np.array([b.logvol for b in bounds[1:]])
     # each saved bound is a different snapshot and the bounds shrink
     # over the run (not strictly monotonically because of bootstrapping)
@@ -523,7 +523,7 @@ def test_saved_bounds_dynamic():
     # from the unit cube to a proper bound, so its points are drawn from
     # a bound built from the base run; batch 2 starts from the prior
     logl = sampler.results['logl']
-    logl_first = sampler.sampler.logl_first_update
+    logl_first = sampler.sampler.proposer.logl_first_update
     lmin = max(np.percentile(logl, 60), np.nextafter(logl_first, np.inf))
     offsets = []
     for lb in [(lmin, np.percentile(logl, 95)), (-np.inf, np.median(logl))]:

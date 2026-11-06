@@ -2345,8 +2345,11 @@ def restore_sampler(fname, pool=None):
     # In the end I try to use the same one as was used before
     # but I warn the user if that's the old done does not match the recommeded
     # new one
-    queue_size_old = getattr(sampler, 'queue_size', None)
-    assert queue_size_old is not None  # I don't think it could ever happen
+    dynamic = hasattr(sampler, 'sampler')
+    # the queue size of the dynamic sampler, or of the proposer of the
+    # static one
+    queue_size_old = (sampler.queue_size
+                      if dynamic else sampler.proposer.queue_size)
     try:
         # we first try to get the new queue_size
         # that may fail if the pool has no information about the size
@@ -2361,25 +2364,18 @@ def restore_sampler(fname, pool=None):
         )
         queue_size_new = queue_size_old
 
-    if hasattr(sampler, 'sampler'):
-        # This is the case of the dynamic sampler
-        # this is better be written as isinstanceof()
-        # but I couldn't do it due to circular imports
-        # TODO
-
-        # Here we are dealing with the special case of dynamic sampler
-        # where it has internal samplers that also need their pool configured
-        # this is the initial sampler
-        samplers = [sampler, sampler.sampler]
-        if sampler.batch_sampler is not None:
-            samplers.append(sampler.batch_sampler)
-    else:
-        samplers = [sampler]
-
+    samplers = [sampler]
+    if dynamic:
+        # the dynamic sampler also holds the base run and batch samplers
+        # that need their pool configured
+        sampler.mapper = mapper
+        sampler.pool = pool
+        sampler.queue_size = queue_size_new
+        samplers = [sampler.sampler, sampler.batch_sampler]
     for cursamp in samplers:
-        cursamp.mapper = mapper
-        cursamp.pool = pool
-        cursamp.queue_size = queue_size_new
+        if cursamp is not None:
+            cursamp.proposer.pool = pool
+            cursamp.proposer.queue_size = queue_size_new
     sampler.loglikelihood.history_check()
     return sampler
 

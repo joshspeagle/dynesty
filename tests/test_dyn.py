@@ -81,14 +81,14 @@ def test_batch_sampler_spawned(lower):
                                            rstate=get_rstate())
     sampler.run_nested(maxbatch=0, print_progress=printing)
     base = sampler.sampler
-    scale = base.internal_sampler.scale
+    scale = base.proposer.internal_sampler.scale
     logl = sampler.results.logl
     lmin = np.median(logl) if lower else -np.inf
     sampler.add_batch(nlive=50,
                       mode='manual',
                       logl_bounds=(lmin, logl[-1]),
                       print_progress=printing)
-    assert base.internal_sampler.scale == scale
+    assert base.proposer.internal_sampler.scale == scale
     assert sampler.results.batch_nlive[-1] == 50
 
 

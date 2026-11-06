@@ -253,29 +253,22 @@ def test_first_update():
     ndim = 10
     bigres = {}
     nlive = 50
-    rstate0 = get_rstate()
-
-    for i in range(3):
-        rstate = np.random.default_rng(rstate0)
-        # make sure identical rstate
-        if i == 0:
-            first_update = None
-        elif i == 1:
-            first_update = dict(min_eff=40)
-        elif i == 2:
-            first_update = dict(min_ncall=40)
+    for i, first_update in enumerate(
+        [None, dict(min_eff=40), dict(min_ncall=40)]):
         sampler = dynesty.NestedSampler(loglike,
                                         prior_transform,
                                         ndim,
                                         nlive=nlive,
                                         update_interval=100,
                                         first_update=first_update,
-                                        rstate=rstate)
+                                        rstate=get_rstate())
         sampler.run_nested(print_progress=printing)
         res = sampler.results
         bigres[i] = len(res.bound)
+    # a later switch from the unit cube means more bounds
     assert (bigres[1] > bigres[0])
-    assert (bigres[2] > bigres[0])
+    # min_ncall is deprecated and ignored
+    assert (bigres[2] == bigres[0])
 
     sampler.run_nested(print_progress=printing)
 

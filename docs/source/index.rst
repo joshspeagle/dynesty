@@ -99,19 +99,21 @@ Changelog
 .. image:: ../images/logo.gif
     :align: center
 
-Unreleased
-----------
-Bug fix release
+3.2.0 (2026-11-10)
+------------------
+Improvement and bug fix release with a few breaking changes.
 
-This release fixes a number of bugs, some of which affect the results.
+This release fixes a number of important issues that improve the accuracy of the results. There are also some features that are removed/deprecated.
 
-- The evidence uncertainty `logzerr` is now computed correctly. The previous approximation could misestimate it substantially. As a result the logz uncertainty is no longer shown while sampling.
-- Fix the evidence estimates when the likelihood is -inf over part of the prior (previously logz could be biased).
-- Fix the uniform sampler with periodic boundary conditions, and allow slices to cross periodic boundaries.
-- Fix several issues with the saved bounds, the weighted quantiles and the plotting functions.
+The key changes:
+
+- The evidence uncertainty is now computed much more accurately. The previous approximation presented in Speagle (2020) could misestimate it substantially, especially when doing dynamic nested sampling.
+- Sampling with periodic parameters should be significantly improved, especially when using slice sampling and uniform sampling.
 - The `reflective` boundary option was removed, as it does not preserve detailed balance, and the `ncdim` option is deprecated.
 
 See the CHANGELOG for the full list of changes.
+
+An important reminder: if you use modern versions of dynesty, you should cite not only Speagle (2020) but also *the code itself*.
 
 3.1.0 (2026-07-17)
 ------------------

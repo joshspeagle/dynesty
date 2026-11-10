@@ -21,8 +21,8 @@ identifiers:
     value: 10.5281/zenodo.3348367
     description: Zenodo concept DOI covering all versions of dynesty
 doi: 10.5281/zenodo.3348367
-version: 3.1.0
-date-released: 2026-07-17
+version: 3.2.0
+date-released: 2026-11-10
 license: MIT
 repository-code: "https://github.com/joshspeagle/dynesty"
 url: "https://dynesty.readthedocs.io"

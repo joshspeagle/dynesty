@@ -395,7 +395,8 @@ class Sampler:
         self.sampling = sampling
         # This is the sampler that will be used to sample after we
         # are done with the unit cube sampling
-        self.internal_sampler_next = sampling
+        # own copy, so that the tuning state is not shared between samplers
+        self.internal_sampler_next = copy.deepcopy(sampling)
         self.internal_sampler = UnitCubeSampler(ndim=ndim)
 
         # parallelism

@@ -128,11 +128,11 @@ def test_pool_args():
         sampler = dynesty.DynamicNestedSampler(pool.loglike,
                                                pool.prior_transform,
                                                ndim,
-                                               nlive=nlive,
+                                               nlive=100,
                                                pool=pool,
                                                queue_size=100,
                                                rstate=rstate)
-        sampler.run_nested(maxiter=300, print_progress=printing)
+        sampler.run_nested(maxbatch=0, print_progress=printing)
 
         assert (abs(LOGZ_TRUTH_GAU - sampler.results['logz'][-1])
                 < 5. * sampler.results['logzerr'][-1])
@@ -161,7 +161,7 @@ def test_pool_args2():
         sampler = dynesty.DynamicNestedSampler(pool.loglike,
                                                pool.prior_transform,
                                                ndim,
-                                               nlive=nlive,
+                                               nlive=100,
                                                pool=pool,
                                                logl_args=(-1, ),
                                                ptform_args=(-1, ),
@@ -169,7 +169,7 @@ def test_pool_args2():
                                                ptform_kwargs={'b': -2},
                                                queue_size=100,
                                                rstate=rstate)
-        sampler.run_nested(maxiter=300, print_progress=printing)
+        sampler.run_nested(maxbatch=0, print_progress=printing)
 
         assert (abs(LOGZ_TRUTH_GAU - sampler.results['logz'][-1])
                 < 5. * sampler.results['logzerr'][-1])

@@ -6,7 +6,9 @@ from utils import get_rstate, get_printing
 This is a hard test of dynamic sampling with the 2d eggbox
 """
 
-nlive = 500
+# with fewer live points the corner modes of the eggbox can get only a few
+# points, making the bootstrapped ellipsoids very inefficient
+nlive = 1000
 printing = get_printing()
 
 # EGGBOX

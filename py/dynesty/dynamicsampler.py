@@ -57,7 +57,7 @@ def compute_weights(results):
     if np.ptp(logz) == 0:
         # this pathological case can happen if all logl are very small
         # and all logz are very small and the same
-        # then the calculation below failse
+        # then the calculation below fails
         warnings.warn('''The calculation of weights is seeing same
 logz values associated with all the samples. It may mean somethings is
 wrong with your likelihood.''')
@@ -155,7 +155,7 @@ def weight_function(results, args=None, return_weights=False):
         # overflow on the RHS, so we move the left side
         bounds = [bounds[0] - (bounds[1] - (nsamps - 1)), nsamps - 1]
     if bounds[0] <= 0:
-        # if we overflow on the leftside we set the edge to -inf and expand
+        # if we overflow on the left side we set the edge to -inf and expand
         # the RHS
         logl_min = -np.inf
         logl_max = logl[min(bounds[1] - bounds[0], nsamps - 1)]
@@ -796,7 +796,7 @@ class DynamicSampler:
         self.batch_sampler = None
         self.checkpoint_timer = None
         # the reason why we need a global object is to
-        # preserve the timer betweeen batch calls
+        # preserve the timer between batch calls
         self.live_blobs = None
 
         self.cite = cite

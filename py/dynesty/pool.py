@@ -94,7 +94,7 @@ class Pool:
                                        ndim, pool=pool)
 
     Also note that you have to provide the .loglike/.prior_transform attributes
-    from the pool object to the Nested samper rather than your original
+    from the pool object to the nested sampler rather than your original
     functions!
 
     If your likelihood function takes additional arguments, it is better to

@@ -230,7 +230,7 @@ class UniformBoundSampler(InternalSampler):
         """
         Prepare the list of arguments for sampling.
 
-        This is is overriding the base class method and providing the bound
+        This is overriding the base class method and providing the bound
         itself to the sampler through kwargs.
 
         """
@@ -748,7 +748,7 @@ class SliceSampler(InternalSampler):
 
             axes : `~numpy.ndarray` with shape (ndim, ndim)
                 Axes used to propose new points. For slices new positions are
-                proposed along the arthogonal basis defined by :data:`axes`.
+                proposed along the orthogonal basis defined by :data:`axes`.
 
             scale : float
                 Value used to scale the provided axes.

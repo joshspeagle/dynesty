@@ -69,12 +69,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Dramatically faster sampling with uniform sampler when using parallelization
 - Migrate to pyproject.toml installation
 - Remove n_effective option from static sampler run_nested
-- Remove custom update_func removed in favour of new sampler interfaace
+- Remove custom update_func removed in favour of new sampler interface
 - Remove 'user-defined' proposal distribution
 - Remove hslice sampler
 - Change internal attribute from batch_bounds to batch_logl_bounds
 - Change different iterators in the sampler to not return a tuple of things, but instead an special Iterator  object. You can use attributes to fetch things from it.
-- Rename various interal attributes and methods for consistency.
+- Rename various internal attributes and methods for consistency.
 
 ### Fixed
 - The uniform sampling when using a parallel pool should be substantially faster. Previously the parallel sampling did not help much with uniform sampling.
@@ -110,7 +110,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Fixed
 - Fix the restoration of the dynamic sampler from the checkpoint with the pool. Previously after restoring the sampler, the pool was not used. (#438 ; by @segasai)
 - Fix the issue with checkpointing from the dynamic sampler. Previously if one batch took shorter than the checkpoint_every seconds then the checkpoints were  not created (by @segasai)
-- Fix the restoration from checkpoint that could have occassiounaly lead to one skipped point from nested run (by @segasai)
+- Fix the restoration from checkpoint that could have occasionally lead to one skipped point from nested run (by @segasai)
 
 ## [2.1.1] - 2023-04-16
 
@@ -121,7 +121,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Fixed
 - Fix some pathological cases when uniform distribution is sampled with a very low logl.
 - Fix a problem when a very small nlive is used leading to the error (#424 , reported by @frgsimpson)
-- Fix the incorrect update_interval calculation leading to too unfrequent updates of bounds when using dynamic sampler (report by @ajw278, analysis and fix by @segasai)
+- Fix the incorrect update_interval calculation leading to too infrequent updates of bounds when using dynamic sampler (report by @ajw278, analysis and fix by @segasai)
 - If you try to resume a previously finished dynamic run, the warning will be raised and the sampler will exit (previously an error could have occured in this case)
 
 
@@ -225,7 +225,7 @@ now has an additional keyword which allows to either just accumulate the statist
 
 ## [1.2.0] - 2022-03-31
 
-This version has multiple changes that should improve stability and speed. The default dynamic sampling behaviour has been changed to focus on the effective number of posterior samples as opposed to KL divergence. The rstagger sampler has been removed and the default choice of the sampler may be different compared to previous releases depending on the dimensionality of the problem. dynesty should now provide 100% reproduceable results if the rstate object is provided. It needs to be a new generation Random Generator (as opposed to numpy.RandomState).
+This version has multiple changes that should improve stability and speed. The default dynamic sampling behaviour has been changed to focus on the effective number of posterior samples as opposed to KL divergence. The rstagger sampler has been removed and the default choice of the sampler may be different compared to previous releases depending on the dimensionality of the problem. dynesty should now provide 100% reproducible results if the rstate object is provided. It needs to be a new generation Random Generator (as opposed to numpy.RandomState).
 
 Most of the changes in the release have been contributed by [Sergey Koposov](https://github.com/segasai) who has joined the dynesty project.
 

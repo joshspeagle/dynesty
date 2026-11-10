@@ -375,7 +375,7 @@ class DelayTimer:
         Returns
         -------
         ret : bool
-             True if specified amout of time has passed since the
+             True if specified amount of time has passed since the
              initialization or last successful is_time() call
         """
         curt = time.time()
@@ -1301,7 +1301,7 @@ def _find_decrease(samples_n):
         for curi in ids[1:]:
             if curi == last + 1:
                 last += 1
-                # we are in the interval of continuisly decreasing values
+                # we are in the interval of continuously decreasing values
                 continue
             else:
                 # we need to close the last interval
@@ -1748,7 +1748,7 @@ def reweight_run(res, logp_new, logp_old=None):
 def unravel_run(res, print_progress=True):
     """
     Unravels a run with `K` live points into `K` "strands" (a nested sampling
-    run with only 1 live point). **WARNING: the anciliary quantities provided
+    run with only 1 live point). **WARNING: the ancillary quantities provided
     with each unraveled "strand" are only valid if the point was initialized
     from the prior.**
 
@@ -2071,7 +2071,7 @@ def _prepare_for_merge(res):
                              "iterations and number of live points in `res1`.")
 
     # Batch information (if available).
-    # note we also check for existance of batch_logl_bounds
+    # note we also check for existence of batch_logl_bounds
     # because unravel_run makes 'static' runs of 1 livepoint
     # but some will have bounds
     if res.isdynamic() or 'batch_logl_bounds' in res.keys():
@@ -2343,7 +2343,7 @@ def restore_sampler(fname, pool=None):
 
     # Here I try to guess what is the queue_size to use
     # In the end I try to use the same one as was used before
-    # but I warn the user if that's the old done does not match the recommeded
+    # but I warn the user if the old one does not match the recommended
     # new one
     queue_size_old = getattr(sampler, 'queue_size', None)
     assert queue_size_old is not None  # I don't think it could ever happen
@@ -2363,7 +2363,7 @@ def restore_sampler(fname, pool=None):
 
     if hasattr(sampler, 'sampler'):
         # This is the case of the dynamic sampler
-        # this is better be written as isinstanceof()
+        # this would be better written with isinstance()
         # but I couldn't do it due to circular imports
         # TODO
 

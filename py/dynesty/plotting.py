@@ -58,7 +58,7 @@ def plot_thruth(ax,
                 vertical=None,
                 horizontal=None):
     """
-Plot the thruth line (horizontal or vertical).
+Plot the truth line (horizontal or vertical).
 truths can be None or one value or a list
 """
     if vertical:
@@ -262,7 +262,7 @@ at which the dead point idx was proposed)
     """
     # We can only reconstruct the run if the final set of live points
     # were added to the results. This is true by default for dynamic
-    # nested sampling runs but not guaranteeed for standard runs.
+    # nested sampling runs but not guaranteed for standard runs.
     nlive = results['nlive']
     niter = results['niter']
     if len(results['samples']) - niter != nlive:
@@ -1794,7 +1794,7 @@ def _hist2d(x,
 
     Parameters
     ----------
-    x : interable with shape (nsamps,)
+    x : iterable with shape (nsamps,)
        Sample positions in the first dimension.
 
     y : iterable with shape (nsamps,)

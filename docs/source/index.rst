@@ -107,11 +107,15 @@ This release fixes a number of important issues that improve the accuracy of the
 
 The key changes:
 
-- The evidence uncertainty is now computed much more accurately. The previous approximation presented in Speagle (2020) could misestimate it substantially, especially when doing dynamic nested sampling.
+- The evidence uncertainty is now computed much more accurately. The previous approximation presented in Speagle (2020) could misestimate it substantially, especially when doing dynamic nested sampling. The new formulae also leads to a different allocation of batches when doing dynamic runs focused on evidence calculation.
 - Sampling with periodic parameters should be significantly improved, especially when using slice sampling and uniform sampling.
 - The `reflective` boundary option was removed, as it does not preserve detailed balance, and the `ncdim` option is deprecated.
+- The notebooks and documentation were modernised and streamlined.
 
 See the CHANGELOG for the full list of changes.
+
+Many of the bugs were discovered with the help of LLMs such as Anthropic's Claude Opus and Claude Fable, and OpenAI Astra.
+Many of the fixes were developed with the help of LLMs, but with the final code always reviewed by a human.
 
 An important reminder: if you use modern versions of dynesty, you should cite not only Speagle (2020) but also *the code itself*.
 
@@ -177,7 +181,7 @@ Bug fix release
 
 - Fix the restoration of the dynamic sampler from the checkpoint with the pool. Previously after restoring the sampler, the pool was not used. (#438 ; by @segasai)
 - Fix the issue with checkpointing from the dynamic sampler. Previously if one batch took shorter than the checkpoint_every seconds then the checkpoints were  not created (by @segasai)
-- Fix the restoration from checkpoint that could have occassionally lead to one skipped point from nested run (by @segasai)
+- Fix the restoration from checkpoint that could have occasionally lead to one skipped point from nested run (by @segasai)
 
 
 2.1.1  (2023-04-16)

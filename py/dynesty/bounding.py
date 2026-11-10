@@ -42,7 +42,7 @@ __all__ = [
 ]
 
 BOUND_LIST = ['none', 'single', 'multi', 'balls', 'cubes']
-# these are the exitsing bounds implemented here
+# these are the existing bounds implemented here
 
 
 def _slogdet_checked(matrix):
@@ -382,11 +382,11 @@ class Ellipsoid(Bound):
         """Scale ellipsoid to a target volume."""
 
         logf = logvol - self.logvol
-        # log of the maxium axis length of the ellipsoid
+        # log of the maximum axis length of the ellipsoid
         max_log_axlen = np.log(np.sqrt(self.ndim) / 2)
         log_axlen = np.log(self.axlens)
         if log_axlen.max() < max_log_axlen - logf / self.ndim:
-            # we are safe to inflate the ellipsoid isothropically
+            # we are safe to inflate the ellipsoid isotropically
             # without hitting boundaries
             f = np.exp(logf / self.ndim)
             self.cov *= f**2
@@ -617,7 +617,7 @@ class MultiEllipsoid(Bound):
         self.logvol_ells = np.array([ell.logvol for ell in self.ells])
 
     def scale_to_logvol(self, logvol):
-        """Scale ellipoids to a corresponding set of
+        """Scale ellipsoids to a corresponding set of
         target volumes or to a new total volume
         If the argument is scalar this is assumed to
         be new logvol, if it's iterable it's assumed to be
@@ -842,7 +842,7 @@ class MultiEllipsoid(Bound):
             # Conservatively set the expansion factor to be the maximum
             # factor derived from our set of bootstraps.
             expand = max(expands)
-            # Put a warning if a boostrap leads to 100 times larger volume
+            # Put a warning if a bootstrap leads to 100 times larger volume
             if np.log10(expand) * firstell.ndim > LOG10_EXPAND_VOL_WARN:
                 warnings.warn(
                     'The enlargement factor for the ellipsoidal bounds'
@@ -1045,7 +1045,7 @@ class RadFriends(Bound):
             with the unit cube. Default is `False`.
 
         use_clustering : bool, optional
-            Whether to use clustering to avoid issues with widely-seperated
+            Whether to use clustering to avoid issues with widely-separated
             modes. Default is `True`.
 
         """
@@ -1312,7 +1312,7 @@ class SupFriends(Bound):
             with the unit cube. Default is `False`.
 
         use_clustering : bool, optional
-            Whether to use clustering to avoid issues with widely-seperated
+            Whether to use clustering to avoid issues with widely-separated
             modes. Default is `True`.
 
         """
@@ -1450,7 +1450,7 @@ def rand_choice(pb, rstate):
 
 def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
     """
-    Given the covariance matrix improve it, if it is not invertable
+    Given the covariance matrix improve it, if it is not invertible
     or eigen values are negative or condition number that is above the limit
     Returns:
     a tuple with three elements
@@ -1643,7 +1643,7 @@ def _bounding_ellipsoids(points, ell, scale=None):
     if scale is None:
         scale = points.std(axis=0)[None, :]
         # scale factor across different dimensions
-        # to make things more isothropic
+        # to make things more isotropic
     # Split points into two clusters using k-means clustering with k=2.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -1681,8 +1681,8 @@ def _bounding_ellipsoids(points, ell, scale=None):
     nparam = (ndim * (ndim + 3)) // 2
     log_vol_dec = nparam * np.log(npoints) / npoints
     # this is the log vol decrement for one extra ellipsoid
-    # note that this is missing a factor of two to mimick previous behaviour
-    # this makes splitting less agressive
+    # note that this is missing a factor of two to mimic previous behaviour
+    # this makes splitting less aggressive
 
     # now we try to split again
     out_ells = (_bounding_ellipsoids(points_k[0], ells[0], scale=scale) +

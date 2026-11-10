@@ -80,7 +80,7 @@ def _initialize_live_points(live_points,
         tuple of 3 arrays (u, v, logl) or
         tuple of 4 arrays (u, v, logl, blobs), i.e.
         points location in cube coordinates,
-        point slocation in original coordinates,
+        points location in original coordinates,
         logl values and optionally blobs associated
 
     prior_transform: function
@@ -859,7 +859,7 @@ class Sampler:
                 logvols,
                 logvols[-1] + np.log1p(-(1 + np.arange(nrest)) / (nrest + 1))
             ])
-        # IMPORTANT in those caclulations I keep logvol separate
+        # IMPORTANT in those calculations I keep logvol separate
         # and add it later to ensure the first dlv=0
         dlvs = -np.diff(logvols, prepend=0)
         logvols += logvol

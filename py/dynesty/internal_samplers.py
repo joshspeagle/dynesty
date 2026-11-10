@@ -238,7 +238,8 @@ class UniformBoundSampler(InternalSampler):
         self.sampler_kwargs['ndim'] = nested_sampler.ndim
         self.sampler_kwargs['n_cluster'] = nested_sampler.ncdim
         if nested_sampler.bound.need_centers:
-            self.sampler_kwargs['bound'].ctrs = nested_sampler.live_u[:, :nested_sampler.ncdim]
+            self.sampler_kwargs[
+                'bound'].ctrs = nested_sampler.live_u[:, :nested_sampler.ncdim]
 
         return super().prepare_sampler(loglstar=loglstar,
                                        points=points,
@@ -1170,6 +1171,7 @@ def generic_random_walk(u, loglstar, axes, scale, prior_transform,
         # But I'm currently recomputing it
         v = prior_transform(u)
         logl = loglikelihood(v)
+        ncall += 1
 
     tuning_info = {'accept': n_accept, 'reject': n_reject, 'scale': scale}
 

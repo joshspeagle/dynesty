@@ -270,3 +270,19 @@ def test_auto_walks_slices_mismatch():
                               sample='auto',
                               rstate=rstate,
                               slices=7)
+
+
+@pytest.mark.parametrize('kw', [dict(walks=50), dict(slices=7)])
+def test_sampler_instance_options_ignored(kw):
+    # walks=/slices= options given together with a sampler instance
+    # are ignored and should warn
+    g = Gaussian(0.1, ndim=2)
+    with pytest.warns(UserWarning, match='sampler instance'):
+        sampler = dynesty.NestedSampler(g.loglikelihood,
+                                        g.prior_transform,
+                                        g.ndim,
+                                        nlive=nlive,
+                                        sample=dysa.RWalkSampler(walks=10),
+                                        rstate=get_rstate(),
+                                        **kw)
+    assert sampler.internal_sampler_next.sampler_kwargs['walks'] == 10

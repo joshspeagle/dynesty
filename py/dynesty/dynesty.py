@@ -152,7 +152,10 @@ def _get_internal_sampler(sampling, ndim, ncdim, periodic, walks,
     elif sampling == 'unif':
         internal_sampler = UniformBoundSampler(**sampler_kw)
     elif isinstance(sampling, InternalSampler):
-        # todo check what to do with the options
+        if walks is not None or slices is not None:
+            warnings.warn('The walks/slices options are ignored when a '
+                          'sampler instance is used. Specify them when '
+                          'creating the sampler instance instead')
         internal_sampler = sampling._new_from_template(sampler_kw)
     else:
         raise ValueError(f'Unsupported Sampler {sampling}')

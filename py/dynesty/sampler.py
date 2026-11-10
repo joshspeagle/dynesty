@@ -19,8 +19,7 @@ from .utils import (get_seed_sequence, get_print_func, progress_integration,
                     get_random_generator)
 
 from .bounding import (UnitCube, Ellipsoid, MultiEllipsoid, RadFriends,
-                       PeriodicBound,
-                       SupFriends, Bound, BOUND_LIST)
+                       PeriodicBound, SupFriends, Bound, BOUND_LIST)
 from .utils import (save_sampler, restore_sampler)
 
 __all__ = ["Sampler"]
@@ -894,8 +893,8 @@ class Sampler:
             boundidx = self.live_bound[idx]
             point_it = self.live_it[idx]
 
-            logwt, logz, h = progress_integration(loglstar, loglstar_new,
-                                                  logz, logvol, dlv, h)
+            logwt, logz, h = progress_integration(loglstar, loglstar_new, logz,
+                                                  logvol, dlv, h)
             loglstar = loglstar_new
             delta_logz = np.logaddexp(0, loglmax + logvol - logz)
 
@@ -910,11 +909,13 @@ class Sampler:
                     logwt=logwt,
                     logz=logz,
                     h=h,
-                    nc=1,  # this is technically a lie
-                    # as we didn't call the likelihood even once
-                    # however because we lose track of ncs if we start
-                    # from points that are not sampled from unit cube
-                    # it can lead to sum(nc)!=ncall
+                    nc=1,
+                    # no likelihood call is made here: each dead
+                    # point's nc counts the calls that produced its
+                    # replacement, so the final live point of each chain
+                    # carries that chain's initial call. This makes
+                    # sum(nc) == ncall (exact only if initialization took
+                    # exactly nlive calls)
                     boundidx=boundidx,
                     it=point_it,
                     bounditer=bounditer,
@@ -1100,8 +1101,7 @@ class Sampler:
 
             # Get final state from previous run.
             h, logz, logvol, loglstar = [
-                self.saved_run[_][-1]
-                for _ in ['h', 'logz', 'logvol', 'logl']
+                self.saved_run[_][-1] for _ in ['h', 'logz', 'logvol', 'logl']
             ]
             delta_logz = np.logaddexp(0,
                                       np.max(self.live_logl) + logvol - logz)
@@ -1187,8 +1187,8 @@ class Sampler:
                 new_blob = logl.blob
             else:
                 new_blob = None
-            logwt, logz, h = progress_integration(loglstar, loglstar_new,
-                                                  logz, logvol, cur_dlv, h)
+            logwt, logz, h = progress_integration(loglstar, loglstar_new, logz,
+                                                  logvol, cur_dlv, h)
             loglstar = loglstar_new
 
             # Compute bound index at the current iteration.
@@ -1374,7 +1374,8 @@ class Sampler:
             if add_live:
                 it = self.it - 1
                 for i, results in enumerate(self.add_live_points()):
-                    ncall += results.nc
+                    # no ncall increment: the final live points' nc=1
+                    # are the initial calls, already counted in self.ncall
 
                     # Print progress.
                     if print_progress:

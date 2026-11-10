@@ -1145,3 +1145,29 @@ def test_dynamic_sampling_history_completeness():
             os.unlink(history_filename)
         except FileNotFoundError:
             pass
+
+
+def test_ncall_consistency():
+    # sampler.ncall, sum of per-sample ncall and the final progress ncall
+    # must all equal the actual number of likelihood calls
+    ncalls = [0]
+
+    def loglike_count(x):
+        ncalls[0] += 1
+        return loglike(x)
+
+    last = {}
+
+    def print_func(results, niter, ncall, **kwargs):
+        last['ncall'] = ncall
+
+    sampler = dynesty.NestedSampler(loglike_count,
+                                    prior_transform,
+                                    2,
+                                    nlive=nlive,
+                                    sample='rwalk',
+                                    rstate=get_rstate())
+    sampler.run_nested(print_func=print_func)
+    assert sampler.ncall == ncalls[0]
+    assert sampler.results.ncall.sum() == ncalls[0]
+    assert last['ncall'] == ncalls[0]

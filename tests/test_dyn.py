@@ -1,3 +1,4 @@
+import itertools
 import numpy as np
 import pytest
 import dynesty
@@ -91,6 +92,54 @@ def test_batch_tuning_state(lower):
     assert sampler.sampler.internal_sampler.scale == scale
     # the template is never used for sampling
     assert sampler.sampling.scale == 1
+
+
+def loglike_two(x):
+    # narrow mode and a broad mode with a lower peak
+    return np.logaddexp(-0.5 * ((x[0] - 5)**2 + x[1]**2),
+                        -6 - 0.125 * ((x[0] + 5)**2 + x[1]**2))
+
+
+def prior_transform_two(u):
+    return 100 * u - 50
+
+
+def test_batch_start_uniform():
+    # the live points at the start of a batch must be uniform within
+    # the logl contour. Here the contour consists of two circles of the
+    # same area, and since rwalk does not move the points between the
+    # modes, the fraction of points in each mode is determined by the
+    # saved points selected to start the batch
+    nlive_new = 2000
+    sampler = dynesty.DynamicNestedSampler(loglike_two,
+                                           prior_transform_two,
+                                           2,
+                                           nlive=500,
+                                           sample='rwalk',
+                                           rstate=get_rstate())
+    sampler.run_nested(maxbatch=0, print_progress=printing)
+    # the first points yielded are the initial live points of the batch
+    first_points = itertools.islice(
+        sampler.sample_batch(nlive_new=nlive_new, logl_bounds=(-8, 0)),
+        nlive_new)
+    xs = np.array([_.vstar[0] for _ in first_points])
+    assert abs(np.mean(xs < 0) - 0.5) < 0.1
+
+
+@pytest.mark.parametrize('nlive_new', [20, 200])
+def test_batch_start_near_max(nlive_new):
+    # a batch starting one point below the maximum logl of the saved run
+    sampler = dynesty.DynamicNestedSampler(loglike_gau,
+                                           prior_transform_gau,
+                                           2,
+                                           nlive=50,
+                                           rstate=get_rstate())
+    sampler.run_nested(maxbatch=0, print_progress=printing)
+    logl = sampler.results.logl
+    sampler.add_batch(nlive=nlive_new,
+                      mode='manual',
+                      logl_bounds=(logl[-2], logl[-1]),
+                      print_progress=printing)
 
 
 def test_stop_kwargs_target_n_effective():

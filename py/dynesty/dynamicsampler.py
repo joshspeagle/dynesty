@@ -476,63 +476,44 @@ def _configure_batch_sampler(main_sampler,
                                f'logl_bounds: {logl_bounds} '
                                f'saved_loglmax: {saved_logl.max()}')
 
-        # Also if we don't have enough live points above the boundary
-        # we simply go down to collect our nlive_new points
-        if len(subset0) < nlive_new:
-            if len(saved_logl) < nlive_new:
-                # It means we don't even have nlive_new points
-                # in our base runs so we just take everything
-                subset0 = np.arange(len(saved_logl))
-            else:
-                # otherwise we just move the boundary down
-                # to collect our nlive_new points
-                subset0 = np.arange(subset0[-1] - nlive_new + 1,
-                                    subset0[-1] + 1)
+        # Each saved point represents the shell of prior volume dX_i,
+        # so selecting the points with probabilities proportional to dX_i
+        # gives a uniform sample within the boundary volume.
+        saved_logdvol = saved_logvol + np.log(
+            np.expm1(-np.diff(saved_logvol, prepend=main_sampler.logvol_init)))
+        # if we don't have nlive_new saved points above the boundary
+        # we move the boundary down to collect them
+        start = max(min(subset0[0], len(saved_logl) - nlive_new), 0)
+        if start < subset0[0]:
+            subset0 = np.arange(start, len(saved_logl))
             # IMPORTANT We have to update the lower bound for sampling
             # otherwise some of our live points do not satisfy it
 
             # we want our points to be strictly above the logl_min
-            if subset0[0] > 0:
-                logl_min = saved_logl[subset0[0] - 1]
+            if start > 0:
+                logl_min = saved_logl[start - 1]
             else:
                 logl_min = -np.inf
+        # the weights are the probabilities of selecting the points
+        # and their sum is the number of points we can select
+        cur_logwt = saved_logdvol[start:] - saved_logdvol[start:].max()
+        cur_nlive = min(nlive_new, int(np.round(np.exp(cur_logwt).sum())))
 
-        live_scale = saved_scale[subset0[0]]
+        live_scale = saved_scale[start]
         # set the scale based on the lowest point
 
-        # we are weighting each point by X_i to ensure
-        # uniformyish sampling within boundary volume
-        # It doesn't have to be super uniform as we'll sample
-        # again, but still
-        cur_log_uniwt = saved_logvol[subset0]
-        cur_uniwt = np.exp(cur_log_uniwt - cur_log_uniwt.max())
-        cur_uniwt = cur_uniwt / cur_uniwt.sum()
-        # I normalize in linear space rather then using logsumexp
-        # because cur_uniwt.sum() needs to be 1 for random.choice
-
-        # we are now randomly sampling with weights
-        # notice that since we are sampling without
-        # replacement we aren't guaranteed to be able
-        # to get nlive_new points
-        # so we get min(nlive_new,subset.sum())
-        # in that case the sample technically won't be
-        # uniform
-        n_pos_weight = (cur_uniwt > 0).sum()
-
-        subset = main_sampler.rstate.choice(subset0,
-                                            size=min(nlive_new, n_pos_weight),
-                                            p=cur_uniwt,
-                                            replace=False)
+        # we select cur_nlive points with the smallest u_i/weight_i
+        # where u_i are uniform random numbers
+        logkey = np.log1p(-main_sampler.rstate.uniform(
+            size=len(subset0))) - cur_logwt
+        subset = subset0[np.argsort(logkey)[:cur_nlive]]
         # subset will now have indices of selected points from
         # saved_* arrays
-        cur_nlive = len(subset)
         if cur_nlive == 1:
             raise RuntimeError('Only one live point is selected\n' +
                                'Please report the error on github!' +
                                f'Diagnostics nlive_new: {nlive_new} ' +
-                               f'cur_nlive: {cur_nlive}' +
-                               f'n_pos_weight: {n_pos_weight}' +
-                               f'cur_wt: {cur_uniwt}')
+                               f'cur_nlive: {cur_nlive}')
         # We are doing copies here, because live_* stuff is
         # updated in place
         live_u = saved_u[subset, :].copy()

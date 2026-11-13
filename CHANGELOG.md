@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 ### Changed
 ### Fixed
+- Fix the selection of the saved points used to start a batch above some ln(likelihood) in dynamic nested sampling. These points define the first bound of the batch and the starting points for the sampling of its initial live points. They were selected without replacement with weights proportional to the prior volume, which favoured the high likelihood points, strongly so when the batch had more live points than the previous runs, and ignored the changes in the number of live points along the run. With the `rwalk`, `slice` and `rslice` samplers the initial live points of a batch could therefore be distributed incorrectly between separate modes. The points are now selected uniformly within the likelihood contour, and their number is limited by the number of live points of the previous runs (fixed by @segasai)
 
 [3.2.0 - 2026-11-10]
 ### Added

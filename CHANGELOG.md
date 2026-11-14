@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 ### Changed
 ### Fixed
+- Fix the crash of the `balls` and `cubes` bounds ("KDTree does not work with complex data" or a non-positive determinant error) when the covariance matrix of the live points is singular or not positive definite. The covariance matrix is now regularized in the same way as for the ellipsoidal bounds ( #527, reported by @hialex551, fixed by @segasai)
 
 [3.2.0 - 2026-11-10]
 ### Added

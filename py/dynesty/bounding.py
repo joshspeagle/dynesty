@@ -894,9 +894,8 @@ class RadFriends(Bound):
         if cov is None:
             cov = np.identity(self.ndim)
         self.cov = cov
-        self.am = lalg.pinvh(self.cov)
-        self.axes = lalg.sqrtm(self.cov)
-        self.axes_inv = lalg.pinvh(self.axes)
+        (self.cov, self.am, self.axes,
+         self.axes_inv) = _friends_axes(self.cov)
 
         detln = _slogdet_checked(self.am)
         self.logvol = logvol_prefactor(self.ndim) - 0.5 * detln
@@ -1061,9 +1060,8 @@ class RadFriends(Bound):
             self.cov = self._get_covariance_from_clusters(points)
         else:
             self.cov = self._get_covariance_from_all_points(points)
-        self.am = lalg.pinvh(self.cov)
-        self.axes = lalg.sqrtm(self.cov)
-        self.axes_inv = lalg.pinvh(self.axes)
+        (self.cov, self.am, self.axes,
+         self.axes_inv) = _friends_axes(self.cov)
 
         # Decorrelate and re-scale points.
         points_t = np.dot(points, self.axes_inv)
@@ -1160,9 +1158,8 @@ class SupFriends(Bound):
         if cov is None:
             cov = np.identity(self.ndim)
         self.cov = cov
-        self.am = lalg.pinvh(self.cov)
-        self.axes = lalg.sqrtm(self.cov)
-        self.axes_inv = lalg.pinvh(self.axes)
+        (self.cov, self.am, self.axes,
+         self.axes_inv) = _friends_axes(self.cov)
 
         detln = _slogdet_checked(self.am)
         self.logvol = self.ndim * np.log(2.) - 0.5 * detln
@@ -1328,9 +1325,8 @@ class SupFriends(Bound):
             self.cov = self._get_covariance_from_clusters(points)
         else:
             self.cov = self._get_covariance_from_all_points(points)
-        self.am = lalg.pinvh(self.cov)
-        self.axes = lalg.sqrtm(self.cov)
-        self.axes_inv = lalg.pinvh(self.axes)
+        (self.cov, self.am, self.axes,
+         self.axes_inv) = _friends_axes(self.cov)
 
         # Decorrelate and re-scale points.
         points_t = np.dot(points, self.axes_inv)
@@ -1522,6 +1518,23 @@ def improve_covar_mat(covar0, ntries=100, max_condition_number=1e12):
     good_mat = trial == 0
     # if True it means no adjustments were necessary
     return good_mat, covar, am, axes
+
+
+def _friends_axes(cov):
+    """
+    Given the covariance matrix of the balls/cubes, return a tuple of
+    the covariance (improved if it was singular), its inverse,
+    its symmetric square root and the inverse of the square root.
+    """
+    cov, am = improve_covar_mat(cov)[1:3]
+    # eigenvalues are guaranteed positive by improve_covar_mat
+    eigval, eigvec = lalg.eigh(cov, check_finite=False)
+    axlens = np.sqrt(eigval)
+    # cov = V diag(eigval) V^T, hence the symmetric square root of cov is
+    # V diag(axlens) V^T and its inverse is V diag(1/axlens) V^T
+    axes = (eigvec * axlens) @ eigvec.T
+    axes_inv = (eigvec / axlens) @ eigvec.T
+    return cov, am, axes, axes_inv
 
 
 def bounding_ellipsoid(points):

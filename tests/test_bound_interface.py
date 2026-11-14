@@ -210,3 +210,21 @@ def test_friends_mc_integrate(bound):
     b = bound(ndim)
     b.update(points, rstate=rstate, mc_integrate=True)
     assert 0 < b.funit <= 1 + 1e-10
+
+
+@pytest.mark.parametrize("bound", [db.RadFriends, db.SupFriends])
+@pytest.mark.parametrize("bootstrap", [0, 5])
+@pytest.mark.parametrize("use_clustering", [True, False])
+def test_friends_degenerate(bound, bootstrap, use_clustering):
+    # singular covariance of points must not break the bound (issue #527)
+    rstate = get_rstate()
+    ndim = 9
+    points = rstate.uniform(size=(5, ndim))
+    b = bound(ndim)
+    b.update(points,
+             rstate=rstate,
+             bootstrap=bootstrap,
+             use_clustering=use_clustering)
+    assert np.isrealobj(b.axes) and np.isfinite(b.logvol)
+    assert all(b.contains(p) for p in points)
+    assert np.isfinite(b.sample(rstate=rstate)).all()

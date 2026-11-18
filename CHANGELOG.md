@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 ### Changed
 ### Fixed
-- Reweighting to a target with zero density no longer contaminates the information integral with NaNs. (#PRNUM)
+- Reweighting to a target with zero density no longer contaminates the information integral with NaNs. (#530)
 
 [3.2.0 - 2026-11-10]
 ### Added

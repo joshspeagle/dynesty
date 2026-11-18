@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 ### Changed
 ### Fixed
+- Preserve the iteration count of stopped runs without final live points when converting merge_runs() results to static form. (#529)
 
 [3.2.0 - 2026-11-10]
 ### Added

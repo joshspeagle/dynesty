@@ -1468,11 +1468,14 @@ def compute_integrals(*, logl, logvol, reweight=None, logvol_init=0):
     # H = 1/z int( L * ln(L) dX,X=0..1) - ln(z)
     # incomplete H can be defined as
     # H = int( L/Z * ln(L) dX,X=0..x) - z_x/Z * ln(Z)
+    logl_rwt = loglstar_pad[1:] + reweight
+    logl_prev_rwt = loglstar_pad[:-1] + reweight
+    # A zero likelihood contributes zero to L * log(L), not NaN.
     h_part1 = np.cumsum(
-        np.exp(loglstar_pad[1:] + reweight - logzmax + logdvol2) *
-        (loglstar_pad[1:] + reweight) +
-        np.exp(loglstar_pad[:-1] + reweight - logzmax + logdvol2) *
-        (loglstar_pad[:-1] + reweight))
+        np.exp(logl_rwt - logzmax + logdvol2) *
+        np.where(np.isneginf(logl_rwt), 0., logl_rwt) +
+        np.exp(logl_prev_rwt - logzmax + logdvol2) *
+        np.where(np.isneginf(logl_prev_rwt), 0., logl_prev_rwt))
     # here we divide the likelihood by zmax to avoid to overflow
     saved_h = h_part1 - logzmax * np.exp(saved_logz - logzmax)
 

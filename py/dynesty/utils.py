@@ -2111,6 +2111,8 @@ def _merge_two(res1, res2, compute_aux=False):
     """
     base_nlive, base_info = _prepare_for_merge(res1)
     new_nlive, new_info = _prepare_for_merge(res2)
+    # Independent runs may use the same live-point slot labels.
+    new_info['id'] = new_info['id'] + max(base_info['id']) + 1
     base_nsamples = len(base_info['id'])
     new_nsamples = len(new_info['id'])
     # Initialize our new combined run.

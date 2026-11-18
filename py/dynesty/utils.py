@@ -1959,12 +1959,13 @@ def check_result_static(res):
     nlive_test = np.minimum(np.arange(niter, 0, -1), nlive)
     if samples_n.size == niter and np.all(samples_n == nlive_test):
         standard_run = True
+        niter -= nlive
     # If the number of live points is consistent with a standard nested
     # sampling run, slightly modify the format to keep with previous usage.
     if standard_run:
         resdict = res.asdict()
         resdict['nlive'] = nlive
-        resdict['niter'] = niter - nlive
+        resdict['niter'] = niter
         res = Results(resdict)
     return res
 

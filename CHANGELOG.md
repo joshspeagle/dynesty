@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 ### Changed
 ### Fixed
+- Keep the strand IDs of independent runs distinct in merge_runs(), preserving bootstrap strands and batch live-point counts. (#PRNUM)
 
 [3.2.0 - 2026-11-10]
 ### Added
